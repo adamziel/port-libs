@@ -501,4 +501,24 @@ return [
         $t->true(!str_contains($wordpress, '<!-- wp:code -->'));
         $t->true(!str_contains($wordpress, '<pre'));
     },
+
+    'accepts attached and spaced cue colons without leaking the delimiter' => static function (TestRunner $t) use ($dialogueBlocks, $dialogueRecords): void {
+        $blocks = $dialogueBlocks($dialogueRecords([
+            'MARA: The morning is clear.',
+            'ELI : We can leave now.',
+            'MARA : Bring the lantern.',
+            'ELI: It is already here.',
+        ]));
+        $wordpress = PandocConverter::write(new AstNode('document', [], $blocks), 'wordpress');
+
+        $t->same(4, count($blocks));
+        $t->same(['MARA', 'ELI', 'MARA', 'ELI'], array_map(
+            static fn (AstNode $block): string => (string) $block->children[0]->children[0]->attr('text'),
+            $blocks
+        ));
+        $t->contains('<strong>MARA</strong><br/>The morning is clear.', $wordpress);
+        $t->contains('<strong>ELI</strong><br/>We can leave now.', $wordpress);
+        $t->true(!str_contains($wordpress, '<strong>MARA:</strong>'));
+        $t->true(!str_contains($wordpress, '<!-- wp:code -->'));
+    },
 ];

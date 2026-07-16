@@ -10,6 +10,7 @@ final class PdfTextExtractor
     private const DEFAULT_MAX_TOKENIZED_CONTENT_STREAM_BYTES = 8_388_608;
     private const DEFAULT_MAX_CONTENT_TOKENS = 250_000;
     private const DEFAULT_MAX_POSITIONED_TEXT_RUNS = 5_000;
+    private const MAX_VISUAL_OCCURRENCES = 8_192;
     private const STRUCT_FALLBACK_REPLACEMENT_PREFIX = "\0struct-fallback-replacement\0";
     private const POSITIONED_TEXT_WORD_GAP = 12.0;
     private const POSITIONED_TEXT_LINE_TOLERANCE = 2.0;
@@ -209,6 +210,24 @@ final class PdfTextExtractor
      */
     private array $pdfObjectsCache = [];
     private ?string $pdfObjectsCacheKey = null;
+
+    /** @var array<string, array<string, int|bool>> */
+    private array $formVisualSummaryCache = [];
+
+    /**
+     * The public decoder contract remains `?string`, but page facts need to
+     * distinguish a bounded resource refusal from corrupt input. This value
+     * is reset for every decodeStream() call and consumed immediately by the
+     * diagnostics pass.
+     *
+     * @var array{reason:string,limit:int,actual:int,limitFilter:string,filterIndex:int,stage:string}|null
+     */
+    private ?array $lastStreamDecodeResourceLimit = null;
+
+    /** Shared only while extractVisualOccurrences() is collecting. */
+    private ?int $visualOccurrenceRetainLimit = null;
+    private int $visualOccurrencesObserved = 0;
+    private int $visualOccurrencesRetained = 0;
 
     private const ZAPF_DINGBATS_ENCODING_GLYPHS = [
         0x20 => 'space', 0x21 => 'a1', 0x22 => 'a2', 0x23 => 'a202',
@@ -744,15 +763,17 @@ final class PdfTextExtractor
      * a much richer review model; using it merely to populate facts reparsed
      * and traversed a large PDF once for every checkpoint.
      *
-     * @return list<array{page_number:int,object_id:int,bbox:list<float>,rotation:int}>
+     * @return list<array{page_number:int,object_id:int,bbox:list<float>,bboxSource:string,bboxInherited:bool,bboxInferred:bool,layoutConfidence:float,rotation:int}>
      */
     public function extractPageGeometry(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
         $rows = [];
         foreach ($this->limitedPageObjectNumbers($objects, $pdfBytes) as $pageNumber => $pageObjectNumber) {
-            $box = $this->effectivePageVisibleBox($pageObjectNumber, $objects)
+            $boxEvidence = $this->effectivePageVisibleBoxEvidence($pageObjectNumber, $objects);
+            $box = $boxEvidence['box']
                 ?? ['x1' => 0.0, 'y1' => 0.0, 'x2' => 612.0, 'y2' => 792.0];
+            $boxInferred = $boxEvidence['box'] === null;
             $rotation = $this->inheritedPageRotation($pageObjectNumber, $objects);
             $rows[] = [
                 'page_number' => $pageNumber,
@@ -763,6 +784,10 @@ final class PdfTextExtractor
                     (float) $box['x2'],
                     (float) $box['y2'],
                 ],
+                'bboxSource' => $boxInferred ? 'default-letter' : $boxEvidence['source'],
+                'bboxInherited' => !$boxInferred && $boxEvidence['object'] !== $pageObjectNumber,
+                'bboxInferred' => $boxInferred,
+                'layoutConfidence' => $boxInferred ? 0.45 : 1.0,
                 'rotation' => $rotation,
             ];
         }
@@ -846,17 +871,46 @@ final class PdfTextExtractor
     }
 
     /**
+     * Append an occurrence through the document-wide visual inventory budget.
+     * Public single-class extraction remains unlimited; only the combined
+     * inventory enables this counter. Once full, parsing continues so the
+     * terminal issue can report an exact deterministic omitted count without
+     * retaining the omitted records.
+     *
+     * @param list<array<string,mixed>> $target
+     * @param array<string,mixed> $occurrence
+     */
+    private function appendVisualOccurrence(array &$target, array $occurrence): void
+    {
+        if ($this->visualOccurrenceRetainLimit === null) {
+            $target[] = $occurrence;
+
+            return;
+        }
+        $this->visualOccurrencesObserved++;
+        if ($this->visualOccurrencesRetained >= $this->visualOccurrenceRetainLimit) {
+            return;
+        }
+        $this->visualOccurrencesRetained++;
+        $target[] = $occurrence;
+    }
+
+    /**
      * Locate painted Image XObjects without treating every image object in a
      * PDF as document content.  This deliberately follows only the small,
      * geometry-safe subset of page content operators needed for placement:
      * q/Q, cm, and Do (including a Form XObject's matrix and resources).
      *
-     * Inline images are omitted.  Some graphics operations can make the
-     * exact displayed bounds uncertain, so their records remain low
-     * confidence; a separately explicit placementEligible flag lets callers
-     * still use a visible image when its surrounding text anchors are unique.
+     * Inline images are retained as occurrence records with bounded hashes
+     * and dictionary metadata; their payload is intentionally not copied
+     * into the inventory. Some graphics operations can make exact displayed
+     * bounds uncertain, so those occurrences remain explicitly unresolved.
      *
      * @return list<array{
+     *     id:string,
+     *     kind:string,
+     *     id:string,
+     *     kind:string,
      *     page:int,
      *     pageObject:int,
      *     contentStream:int,
@@ -865,11 +919,13 @@ final class PdfTextExtractor
      *     resource:string,
      *     resourcePath:list<string>,
      *     matrix:list<float>,
-     *     bbox:array{x1:float,y1:float,x2:float,y2:float},
+     *     bbox:array{x1:float,y1:float,x2:float,y2:float}|null,
      *     visible:bool,
      *     placementEligible:bool,
      *     boundsClipped:bool,
-     *     confidence:string
+     *     confidence:string,
+     *     disposition:string,
+     *     dispositionReason:?string
      * }>
      */
     public function extractImagePlacements(string $pdfBytes): array
@@ -893,9 +949,6 @@ final class PdfTextExtractor
             $resourceContext = $this->resourceContextForPage($pageObjectNumber, $objects);
             $xObjects = $this->xObjectResourceObjectNumbers($resourceContext, $objects);
             $extGStates = $this->extGStateResourceStates($resourceContext, $objects);
-            if ($xObjects === []) {
-                continue;
-            }
 
             // PDF defines a page's Contents array as one logically
             // concatenated stream.  In particular, q/cm state is allowed to
@@ -971,12 +1024,14 @@ final class PdfTextExtractor
      *     resource:string,
      *     resourcePath:list<string>,
      *     matrix:list<float>,
-     *     formBBox:array{x1:float,y1:float,x2:float,y2:float},
-     *     bbox:array{x1:float,y1:float,x2:float,y2:float},
+     *     formBBox:array{x1:float,y1:float,x2:float,y2:float}|null,
+     *     bbox:array{x1:float,y1:float,x2:float,y2:float}|null,
      *     visible:bool,
      *     placementEligible:bool,
      *     boundsClipped:bool,
-     *     confidence:string
+     *     confidence:string,
+     *     disposition:string,
+     *     dispositionReason:?string
      * }>
      */
     public function extractFormXObjectPlacements(string $pdfBytes): array
@@ -1036,6 +1091,568 @@ final class PdfTextExtractor
     }
 
     /**
+     * Build one occurrence-level inventory for every visual class the native
+     * reader can identify without rasterizing the page. The inventory is
+     * deliberately pre-semantic: `pending` means a later media/browser stage
+     * must resolve the occurrence, while every non-pending record already has
+     * an explicit omission or unresolved reason.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function extractVisualOccurrences(string $pdfBytes): array
+    {
+        $occurrences = [];
+        $this->visualOccurrenceRetainLimit = self::MAX_VISUAL_OCCURRENCES - 1;
+        $this->visualOccurrencesObserved = 0;
+        $this->visualOccurrencesRetained = 0;
+        try {
+            foreach ($this->extractImagePlacements($pdfBytes) as $occurrence) {
+                $occurrences[] = $occurrence;
+            }
+            foreach ($this->extractFormXObjectPlacements($pdfBytes) as $occurrence) {
+                $occurrences[] = $occurrence;
+            }
+            foreach ($this->extractPageVectorRegions($pdfBytes) as $occurrence) {
+                $occurrences[] = $occurrence;
+            }
+            foreach ($this->visualInventoryInspectionIssues($pdfBytes) as $occurrence) {
+                $occurrences[] = $occurrence;
+            }
+        } finally {
+            $observed = $this->visualOccurrencesObserved;
+            $retained = $this->visualOccurrencesRetained;
+            $this->visualOccurrenceRetainLimit = null;
+            $this->visualOccurrencesObserved = 0;
+            $this->visualOccurrencesRetained = 0;
+        }
+        usort($occurrences, static function (array $left, array $right): int {
+            return ((int) ($left['page'] ?? 0)) <=> ((int) ($right['page'] ?? 0))
+                ?: ((int) ($left['contentStream'] ?? 0)) <=> ((int) ($right['contentStream'] ?? 0))
+                ?: ((int) ($left['paintOrder'] ?? 0)) <=> ((int) ($right['paintOrder'] ?? 0))
+                ?: strcmp((string) ($left['id'] ?? ''), (string) ($right['id'] ?? ''));
+        });
+        $omitted = max(0, $observed - $retained);
+        if ($omitted === 0) {
+            return $occurrences;
+        }
+
+        $occurrences[] = [
+            'id' => 'pdf-visual-inventory-limit-' . substr(hash('sha256', $pdfBytes), 0, 20),
+            'kind' => 'inspection-issue',
+            'page' => max(1, (int) ($occurrences[array_key_last($occurrences)]['page'] ?? 1)),
+            'pageObject' => null,
+            'contentStream' => 0,
+            'paintOrder' => PHP_INT_MAX,
+            'object' => 0,
+            'bbox' => null,
+            'visible' => null,
+            'placementEligible' => false,
+            'confidence' => 'low',
+            'disposition' => 'unresolved',
+            'dispositionReason' => 'visual-occurrence-limit',
+            'issueType' => 'resource-limit',
+            'recoverable' => true,
+            'omittedOccurrences' => $omitted,
+        ];
+
+        return $occurrences;
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function extractPageVectorRegions(string $pdfBytes): array
+    {
+        if (!$this->canExtractEncryptedContent($pdfBytes)) {
+            return [];
+        }
+        $objects = $this->pdfObjects($pdfBytes);
+        if ($objects === []) {
+            return [];
+        }
+
+        $regions = [];
+        foreach ($this->limitedPageObjectNumbers($objects, $pdfBytes) as $page => $pageObject) {
+            $pageBody = $objects[$pageObject] ?? null;
+            if (!is_string($pageBody) || !$this->isPageObjectBody($pageBody)) {
+                continue;
+            }
+            $pageContent = '';
+            foreach ($this->pageContentsReferences($pageBody) as $contentsObjectNumber) {
+                foreach ($this->resolveContentObjectNumbers($contentsObjectNumber, $objects) as $contentObjectNumber) {
+                    $decoded = isset($objects[$contentObjectNumber])
+                        ? $this->decodeStreamObject($objects[$contentObjectNumber], $objects)
+                        : null;
+                    if (is_string($decoded)) {
+                        $pageContent .= "\n" . $decoded;
+                    }
+                }
+            }
+            if ($pageContent === '') {
+                continue;
+            }
+            array_push(
+                $regions,
+                ...$this->pageVectorRegionsFromContentStream(
+                    $pageContent,
+                    (int) $page,
+                    (int) $pageObject,
+                    $this->effectivePageVisibleBox((int) $pageObject, $objects)
+                )
+            );
+        }
+
+        return $regions;
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function visualInventoryInspectionIssues(string $pdfBytes): array
+    {
+        $sourceId = substr(hash('sha256', $pdfBytes), 0, 20);
+        if (!$this->canExtractEncryptedContent($pdfBytes)) {
+            $issues = [];
+            $this->appendVisualOccurrence($issues, [
+                'id' => 'pdf-visual-inspection-encrypted-' . $sourceId,
+                'kind' => 'inspection-issue',
+                'page' => 1,
+                'pageObject' => null,
+                'contentStream' => 0,
+                'paintOrder' => 0,
+                'object' => 0,
+                'bbox' => null,
+                'visible' => null,
+                'placementEligible' => false,
+                'confidence' => 'low',
+                'disposition' => 'unresolved',
+                'dispositionReason' => 'visual-inventory-encrypted',
+            ]);
+
+            return $issues;
+        }
+        $objects = $this->pdfObjects($pdfBytes);
+        if ($objects === []) {
+            $issues = [];
+            $this->appendVisualOccurrence($issues, [
+                'id' => 'pdf-visual-inspection-object-graph-' . $sourceId,
+                'kind' => 'inspection-issue',
+                'page' => 1,
+                'pageObject' => null,
+                'contentStream' => 0,
+                'paintOrder' => 0,
+                'object' => 0,
+                'bbox' => null,
+                'visible' => null,
+                'placementEligible' => false,
+                'confidence' => 'low',
+                'disposition' => 'unresolved',
+                'dispositionReason' => 'visual-inventory-object-graph-unavailable',
+            ]);
+
+            return $issues;
+        }
+
+        $issues = [];
+        foreach ($this->limitedPageObjectNumbers($objects, $pdfBytes) as $page => $pageObject) {
+            $body = $objects[$pageObject] ?? null;
+            if (!is_string($body) || !$this->isPageObjectBody($body)) {
+                continue;
+            }
+            $streamIndex = 0;
+            foreach ($this->pageContentsReferences($body) as $contentsObjectNumber) {
+                foreach ($this->resolveContentObjectNumbers($contentsObjectNumber, $objects) as $contentObjectNumber) {
+                    $streamIndex++;
+                    $decoded = isset($objects[$contentObjectNumber])
+                        ? $this->decodeStreamObject($objects[$contentObjectNumber], $objects)
+                        : null;
+                    $reason = null;
+                    $limit = null;
+                    if (!is_string($decoded)) {
+                        $reason = 'visual-content-stream-decode-failed';
+                    } else {
+                        $limit = $this->contentStreamResourceLimitReason($decoded);
+                        if (is_array($limit)) {
+                            $reason = (string) ($limit['reason'] ?? 'visual-content-stream-resource-limit');
+                        }
+                    }
+                    if ($reason === null) {
+                        continue;
+                    }
+                    $this->appendVisualOccurrence($issues, [
+                        'id' => 'pdf-visual-inspection-p' . $page . '-s' . $streamIndex . '-o' . $contentObjectNumber,
+                        'kind' => 'inspection-issue',
+                        'page' => (int) $page,
+                        'pageObject' => (int) $pageObject,
+                        'contentStream' => $streamIndex,
+                        'paintOrder' => 0,
+                        'object' => (int) $contentObjectNumber,
+                        'bbox' => null,
+                        'visible' => null,
+                        'placementEligible' => false,
+                        'confidence' => 'low',
+                        'disposition' => 'unresolved',
+                        'dispositionReason' => $reason,
+                        'resourceLimit' => $limit,
+                    ]);
+                }
+            }
+        }
+
+        return $issues;
+    }
+
+    /**
+     * Discover only bounded, connected page-level vector regions. A single
+     * rule or background rectangle is retained as an intentional decoration;
+     * a multi-paint two-dimensional region can be safely cropped by PDF.js.
+     * Shadings without a modeled clip remain explicit unresolved facts.
+     *
+     * @param array{x1:float,y1:float,x2:float,y2:float}|null $pageBox
+     * @return list<array<string,mixed>>
+     */
+    private function pageVectorRegionsFromContentStream(
+        string $stream,
+        int $page,
+        int $pageObject,
+        ?array $pageBox
+    ): array {
+        if ($this->contentStreamResourceLimitReason($stream) !== null) {
+            return [];
+        }
+        $matrix = $this->identityTransformationMatrix();
+        $matrixStack = [];
+        $pathBox = null;
+        $operands = [];
+        $paintOrder = 0;
+        $paints = [];
+        $unknown = [];
+        $omittedPaintOperators = 0;
+        foreach ($this->contentTokenIterator($stream) as $token) {
+            if ($token === 'q') {
+                $matrixStack[] = $matrix;
+                $operands = [];
+                continue;
+            }
+            if ($token === 'Q') {
+                $restored = array_pop($matrixStack);
+                if (is_array($restored)) {
+                    $matrix = $restored;
+                }
+                $pathBox = null;
+                $operands = [];
+                continue;
+            }
+            if ($token === 'cm') {
+                $operandMatrix = $this->transformationMatrixOperand($operands);
+                if ($operandMatrix !== null) {
+                    $matrix = $this->concatenateTransformationMatrices($matrix, $operandMatrix);
+                }
+                $operands = [];
+                continue;
+            }
+            if ($token === 're') {
+                $pathBox = $this->unionPdfBoundingBoxes(
+                    $pathBox,
+                    $this->filledRectangleOperand($operands, $matrix)
+                );
+                $operands = [];
+                continue;
+            }
+            $pointCount = match ($token) {
+                'm', 'l' => 1,
+                'v', 'y' => 2,
+                'c' => 3,
+                default => 0,
+            };
+            if ($pointCount > 0) {
+                $pathBox = $this->unionPdfBoundingBoxes(
+                    $pathBox,
+                    $this->pdfPathPointBounds($operands, $pointCount, $matrix)
+                );
+                $operands = [];
+                continue;
+            }
+            if (in_array($token, ['S', 's', 'f', 'F', 'f*', 'B', 'B*', 'b', 'b*'], true)) {
+                $paintOrder++;
+                if ($pathBox === null) {
+                    $this->appendVisualOccurrence($unknown, [
+                        'id' => 'pdf-vector-p' . $page . '-n' . $paintOrder . '-unknown',
+                        'kind' => 'page-vector-region',
+                        'page' => $page,
+                        'pageObject' => $pageObject,
+                        'contentStream' => 1,
+                        'paintOrder' => $paintOrder,
+                        'object' => 0,
+                        'bbox' => null,
+                        'visible' => null,
+                        'placementEligible' => false,
+                        'confidence' => 'low',
+                        'vectorPaintOperatorCount' => 1,
+                        'disposition' => 'unresolved',
+                        'dispositionReason' => 'page-vector-path-bounds-unavailable',
+                    ]);
+                } else {
+                    $degenerate = $pathBox['x2'] <= $pathBox['x1'] || $pathBox['y2'] <= $pathBox['y1'];
+                    $visibleBox = $pageBox === null ? $pathBox : $this->intersectPdfBoundingBoxes($pathBox, $pageBox);
+                    if ($degenerate) {
+                        $outsidePage = $pageBox !== null && (
+                            $pathBox['x2'] < $pageBox['x1']
+                            || $pathBox['x1'] > $pageBox['x2']
+                            || $pathBox['y2'] < $pageBox['y1']
+                            || $pathBox['y1'] > $pageBox['y2']
+                        );
+                        $this->appendVisualOccurrence($unknown, [
+                            'id' => 'pdf-vector-p' . $page . '-n' . $paintOrder . '-rule',
+                            'kind' => 'page-vector-region',
+                            'page' => $page,
+                            'pageObject' => $pageObject,
+                            'contentStream' => 1,
+                            'paintOrder' => $paintOrder,
+                            'object' => 0,
+                            'bbox' => $pathBox,
+                            'visible' => !$outsidePage,
+                            'placementEligible' => false,
+                            'confidence' => 'low',
+                            'vectorPaintOperatorCount' => 1,
+                            'disposition' => 'intentional_omission',
+                            'dispositionReason' => $outsidePage
+                                ? 'page-vector-not-visible'
+                                : 'isolated-vector-rule-or-decoration',
+                        ]);
+                    } elseif ($visibleBox === null) {
+                        $this->appendVisualOccurrence($unknown, [
+                            'id' => 'pdf-vector-p' . $page . '-n' . $paintOrder . '-off-page',
+                            'kind' => 'page-vector-region',
+                            'page' => $page,
+                            'pageObject' => $pageObject,
+                            'contentStream' => 1,
+                            'paintOrder' => $paintOrder,
+                            'object' => 0,
+                            'bbox' => $pathBox,
+                            'visible' => false,
+                            'placementEligible' => false,
+                            'confidence' => 'high',
+                            'vectorPaintOperatorCount' => 1,
+                            'disposition' => 'intentional_omission',
+                            'dispositionReason' => 'page-vector-not-visible',
+                        ]);
+                    } else {
+                        if (count($paints) < self::MAX_VISUAL_OCCURRENCES) {
+                            $paints[] = [
+                                'paintOrder' => $paintOrder,
+                                'bbox' => $visibleBox,
+                                'operator' => $token,
+                                'visible' => true,
+                            ];
+                        } else {
+                            $omittedPaintOperators++;
+                        }
+                    }
+                }
+                $pathBox = null;
+                $operands = [];
+                continue;
+            }
+            if ($token === 'sh') {
+                $paintOrder++;
+                $this->appendVisualOccurrence($unknown, [
+                    'id' => 'pdf-vector-p' . $page . '-n' . $paintOrder . '-shading',
+                    'kind' => 'page-vector-region',
+                    'page' => $page,
+                    'pageObject' => $pageObject,
+                    'contentStream' => 1,
+                    'paintOrder' => $paintOrder,
+                    'object' => 0,
+                    'bbox' => $pageBox,
+                    'visible' => $pageBox !== null,
+                    'placementEligible' => false,
+                    'confidence' => 'low',
+                    'vectorPaintOperatorCount' => 1,
+                    'disposition' => 'unresolved',
+                    'dispositionReason' => 'page-vector-shading-bounds-unknown',
+                ]);
+                $operands = [];
+                continue;
+            }
+            if (in_array($token, ['n', 'W', 'W*'], true)) {
+                $pathBox = null;
+                $operands = [];
+                continue;
+            }
+            if ($this->isOperator($token)) {
+                $operands = [];
+                continue;
+            }
+            $operands[] = $token;
+        }
+
+        if ($omittedPaintOperators > 0) {
+            $this->appendVisualOccurrence($unknown, [
+                'id' => 'pdf-vector-p' . $page . '-paint-limit',
+                'kind' => 'inspection-issue',
+                'page' => $page,
+                'pageObject' => $pageObject,
+                'contentStream' => 1,
+                'paintOrder' => PHP_INT_MAX,
+                'object' => 0,
+                'bbox' => null,
+                'visible' => null,
+                'placementEligible' => false,
+                'confidence' => 'low',
+                'disposition' => 'unresolved',
+                'dispositionReason' => 'page-vector-paint-limit',
+                'issueType' => 'resource-limit',
+                'recoverable' => true,
+                'omittedPaintOperators' => $omittedPaintOperators,
+            ]);
+        }
+
+        $groups = [];
+        foreach ($paints as $paint) {
+            if (!is_array($paint['bbox'] ?? null)) {
+                continue;
+            }
+            $matched = null;
+            foreach ($groups as $index => $group) {
+                if ($this->pdfBoundingBoxesAreNear($group['bbox'], $paint['bbox'], 8.0)) {
+                    $matched = $index;
+                    break;
+                }
+            }
+            if ($matched === null) {
+                $groups[] = [
+                    'bbox' => $paint['bbox'],
+                    'firstPaintOrder' => $paint['paintOrder'],
+                    'lastPaintOrder' => $paint['paintOrder'],
+                    'paintCount' => 1,
+                ];
+            } else {
+                $groups[$matched]['bbox'] = $this->unionPdfBoundingBoxes($groups[$matched]['bbox'], $paint['bbox']);
+                $groups[$matched]['lastPaintOrder'] = $paint['paintOrder'];
+                $groups[$matched]['paintCount']++;
+            }
+        }
+
+        $regions = [];
+        foreach ($groups as $index => $group) {
+            $bbox = $group['bbox'];
+            $width = max(0.0, $bbox['x2'] - $bbox['x1']);
+            $height = max(0.0, $bbox['y2'] - $bbox['y1']);
+            $pageArea = $pageBox === null
+                ? 0.0
+                : max(0.0, $pageBox['x2'] - $pageBox['x1']) * max(0.0, $pageBox['y2'] - $pageBox['y1']);
+            $coverage = $pageArea > 0.0 ? ($width * $height) / $pageArea : 0.0;
+            $eligible = $group['paintCount'] >= 4
+                && $width >= 24.0
+                && $height >= 16.0
+                && $coverage <= 0.75
+                && max($width / max(1.0, $height), $height / max(1.0, $width)) <= 12.0;
+            $this->appendVisualOccurrence($regions, [
+                'id' => 'pdf-vector-p' . $page . '-n' . $group['firstPaintOrder'] . '-' . $group['lastPaintOrder'],
+                'kind' => 'page-vector-region',
+                'page' => $page,
+                'pageObject' => $pageObject,
+                'contentStream' => 1,
+                'paintOrder' => $group['firstPaintOrder'],
+                'paintOrderEnd' => $group['lastPaintOrder'],
+                'object' => 0,
+                'bbox' => $bbox,
+                'visible' => true,
+                'placementEligible' => $eligible,
+                'confidence' => $eligible ? 'high' : 'low',
+                'vectorPaintOperatorCount' => $group['paintCount'],
+                'disposition' => $eligible ? 'pending' : 'intentional_omission',
+                'dispositionReason' => $eligible ? null : 'isolated-or-decorative-vector-paint',
+            ]);
+        }
+
+        return array_merge($regions, $unknown);
+    }
+
+    /**
+     * @param list<string> $operands
+     * @param array{a:float,b:float,c:float,d:float,e:float,f:float} $matrix
+     * @return array{x1:float,y1:float,x2:float,y2:float}|null
+     */
+    private function pdfPathPointBounds(array $operands, int $pointCount, array $matrix): ?array
+    {
+        $coordinateCount = $pointCount * 2;
+        if (count($operands) < $coordinateCount) {
+            return null;
+        }
+        $coordinates = array_slice($operands, -$coordinateCount);
+        $bbox = null;
+        for ($index = 0; $index < $coordinateCount; $index += 2) {
+            $x = $this->numericOperand((string) $coordinates[$index]);
+            $y = $this->numericOperand((string) $coordinates[$index + 1]);
+            if ($x === null || $y === null) {
+                return null;
+            }
+            [$transformedX, $transformedY] = $this->transformPoint($x, $y, $matrix);
+            if (!is_finite($transformedX) || !is_finite($transformedY)) {
+                return null;
+            }
+            $point = [
+                'x1' => (float) $transformedX,
+                'y1' => (float) $transformedY,
+                'x2' => (float) $transformedX,
+                'y2' => (float) $transformedY,
+            ];
+            $bbox = $this->unionPdfBoundingBoxes($bbox, $point);
+        }
+
+        return $bbox;
+    }
+
+    /**
+     * @param array{x1:float,y1:float,x2:float,y2:float}|null $left
+     * @param array{x1:float,y1:float,x2:float,y2:float}|null $right
+     * @return array{x1:float,y1:float,x2:float,y2:float}|null
+     */
+    private function unionPdfBoundingBoxes(?array $left, ?array $right): ?array
+    {
+        if ($left === null) {
+            return $right;
+        }
+        if ($right === null) {
+            return $left;
+        }
+
+        return [
+            'x1' => min($left['x1'], $right['x1']),
+            'y1' => min($left['y1'], $right['y1']),
+            'x2' => max($left['x2'], $right['x2']),
+            'y2' => max($left['y2'], $right['y2']),
+        ];
+    }
+
+    /**
+     * @param array{x1:float,y1:float,x2:float,y2:float} $left
+     * @param array{x1:float,y1:float,x2:float,y2:float} $right
+     * @return array{x1:float,y1:float,x2:float,y2:float}|null
+     */
+    private function intersectPdfBoundingBoxes(array $left, array $right): ?array
+    {
+        $bbox = [
+            'x1' => max($left['x1'], $right['x1']),
+            'y1' => max($left['y1'], $right['y1']),
+            'x2' => min($left['x2'], $right['x2']),
+            'y2' => min($left['y2'], $right['y2']),
+        ];
+
+        return $bbox['x2'] > $bbox['x1'] && $bbox['y2'] > $bbox['y1'] ? $bbox : null;
+    }
+
+    /**
+     * @param array{x1:float,y1:float,x2:float,y2:float} $left
+     * @param array{x1:float,y1:float,x2:float,y2:float} $right
+     */
+    private function pdfBoundingBoxesAreNear(array $left, array $right, float $gap): bool
+    {
+        return $left['x2'] + $gap >= $right['x1']
+            && $right['x2'] + $gap >= $left['x1']
+            && $left['y2'] + $gap >= $right['y1']
+            && $right['y2'] + $gap >= $left['y1'];
+    }
+
+    /**
      * @param array<int, string> $objects
      * @param array<string, int> $xObjects
      * @param array{x1:float,y1:float,x2:float,y2:float}|null $pageVisibleBox
@@ -1051,11 +1668,13 @@ final class PdfTextExtractor
      *     resourcePath:list<string>,
      *     matrix:list<float>,
      *     formBBox:array{x1:float,y1:float,x2:float,y2:float},
-     *     bbox:array{x1:float,y1:float,x2:float,y2:float},
+     *     bbox:array{x1:float,y1:float,x2:float,y2:float}|null,
      *     visible:bool,
      *     placementEligible:bool,
      *     boundsClipped:bool,
-     *     confidence:string
+     *     confidence:string,
+     *     disposition:string,
+     *     dispositionReason:?string
      * }>
      */
     private function formXObjectPlacementsFromContentStream(
@@ -1177,46 +1796,72 @@ final class PdfTextExtractor
 
             if ($token === 'Do') {
                 $resource = $this->xObjectNameOperand($operands);
-                if ($resource !== null
-                    && !$inTextObject
-                    && $compatibilityDepth === 0
-                    && isset($xObjects[$resource], $objects[$xObjects[$resource]])) {
+                if ($resource !== null && isset($xObjects[$resource], $objects[$xObjects[$resource]])) {
                     $objectNumber = $xObjects[$resource];
                     $objectBody = $objects[$objectNumber];
                     if ($this->isFormXObjectObject($objectBody)) {
                         $paintOrder++;
                         $formBBox = $this->pageRectangleFromObjectBody($objectBody, 'BBox', $objects);
                         $formMatrix = $this->formXObjectTransformationMatrix($objectBody, $objects);
-                        if ($formBBox !== null && $formMatrix !== null) {
-                            $matrix = $this->concatenateTransformationMatrices($graphicsState['matrix'], $formMatrix);
-                            $bbox = $this->rectangleBoundingBoxInMatrix($formBBox, $matrix);
-                            if ($bbox !== null) {
-                                $intersectsPage = $pageVisibleBox === null
-                                    || $this->imageBoundingBoxIntersectsPageBox($bbox, $pageVisibleBox);
-                                $visible = $intersectsPage && (float) $graphicsState['nonStrokingAlpha'] > 0.000001;
-                                $hasMarkedContentUncertainty = in_array(true, $markedContentStack, true);
-                                $placementEligible = $visible
-                                    && !$graphicsState['placementUnsafe']
-                                    && !$hasMarkedContentUncertainty;
-                                $placements[] = [
-                                    'id' => 'pdf-form-p' . $page . '-n' . $paintOrder . '-o' . $objectNumber,
-                                    'page' => $page,
-                                    'pageObject' => $pageObject,
-                                    'contentStream' => $contentStream,
-                                    'paintOrder' => $paintOrder,
-                                    'object' => $objectNumber,
-                                    'resource' => $resource,
-                                    'resourcePath' => [$resource],
-                                    'matrix' => $this->transformationMatrixValues($matrix),
-                                    'formBBox' => $formBBox,
-                                    'bbox' => $bbox,
-                                    'visible' => $visible,
-                                    'placementEligible' => $placementEligible,
-                                    'boundsClipped' => (bool) $graphicsState['boundsClipped'],
-                                    'confidence' => ($graphicsState['lowConfidence'] || !$placementEligible) ? 'low' : 'high',
-                                ];
-                            }
+                        $matrix = $formMatrix === null
+                            ? null
+                            : $this->concatenateTransformationMatrices($graphicsState['matrix'], $formMatrix);
+                        $bbox = $formBBox !== null && $matrix !== null
+                            ? $this->rectangleBoundingBoxInMatrix($formBBox, $matrix)
+                            : null;
+                        $validContext = !$inTextObject && $compatibilityDepth === 0;
+                        $intersectsPage = $bbox !== null && ($pageVisibleBox === null
+                            || $this->imageBoundingBoxIntersectsPageBox($bbox, $pageVisibleBox));
+                        $visible = $intersectsPage && (float) $graphicsState['nonStrokingAlpha'] > 0.000001;
+                        $hasMarkedContentUncertainty = in_array(true, $markedContentStack, true);
+                        $placementEligible = $bbox !== null
+                            && $visible
+                            && $validContext
+                            && !$graphicsState['placementUnsafe']
+                            && !$hasMarkedContentUncertainty;
+                        $disposition = 'pending';
+                        $reason = null;
+                        if ($formBBox === null) {
+                            $disposition = 'unresolved';
+                            $reason = 'form-bbox-missing-or-invalid';
+                        } elseif ($formMatrix === null || $bbox === null) {
+                            $disposition = 'unresolved';
+                            $reason = 'form-transform-invalid';
+                        } elseif (!$visible) {
+                            $disposition = 'intentional_omission';
+                            $reason = 'form-not-visible';
+                        } elseif (!$validContext) {
+                            $disposition = 'unresolved';
+                            $reason = 'form-invalid-graphics-context';
+                        } elseif (!$placementEligible) {
+                            $disposition = 'unresolved';
+                            $reason = 'form-placement-uncertain';
                         }
+                        $this->appendVisualOccurrence($placements, [
+                            'id' => 'pdf-form-p' . $page . '-n' . $paintOrder . '-o' . $objectNumber,
+                            'kind' => 'form-xobject',
+                            'page' => $page,
+                            'pageObject' => $pageObject,
+                            'contentStream' => $contentStream,
+                            'paintOrder' => $paintOrder,
+                            'object' => $objectNumber,
+                            'resource' => $resource,
+                            'resourcePath' => [$resource],
+                            'matrix' => $matrix === null ? [] : $this->transformationMatrixValues($matrix),
+                            'formBBox' => $formBBox,
+                            'bbox' => $bbox,
+                            'visible' => $visible,
+                            'placementEligible' => $placementEligible,
+                            'boundsClipped' => (bool) $graphicsState['boundsClipped'],
+                            'confidence' => ($graphicsState['lowConfidence'] || !$placementEligible) ? 'low' : 'high',
+                            'disposition' => $disposition,
+                            'dispositionReason' => $reason,
+                            'visualSummary' => $this->formXObjectVisualSummary(
+                                $objectNumber,
+                                $objectBody,
+                                $objects
+                            ),
+                        ]);
                     }
                 }
                 $operands = [];
@@ -1232,6 +1877,62 @@ final class PdfTextExtractor
         }
 
         return $placements;
+    }
+
+    /**
+     * Describe whether a Form is a simple page wrapper or contains actual
+     * visual content worth preserving. This remains pre-semantic evidence:
+     * the WordPress importer combines it with page coverage and recurrence.
+     *
+     * @param array<int,string> $objects
+     * @return array{complete:bool,operatorCount:int,textShowOperatorCount:int,vectorPaintOperatorCount:int,rasterXObjectCount:int,nestedFormXObjectCount:int}
+     */
+    private function formXObjectVisualSummary(int $objectNumber, string $objectBody, array $objects): array
+    {
+        $cacheKey = (string) ($this->pdfObjectsCacheKey ?? '') . ':' . $objectNumber;
+        if (isset($this->formVisualSummaryCache[$cacheKey])) {
+            return $this->formVisualSummaryCache[$cacheKey];
+        }
+        $summary = [
+            'complete' => false,
+            'operatorCount' => 0,
+            'textShowOperatorCount' => 0,
+            'vectorPaintOperatorCount' => 0,
+            'rasterXObjectCount' => 0,
+            'nestedFormXObjectCount' => 0,
+        ];
+        $decoded = $this->decodeStreamObject($objectBody, $objects);
+        if (!is_string($decoded)) {
+            return $this->formVisualSummaryCache[$cacheKey] = $summary;
+        }
+        $resourceContext = $this->resourceContextForBody($objectBody, $objects);
+        $xObjects = $this->xObjectResourceObjectNumbers($resourceContext, $objects);
+        $operands = [];
+        foreach ($this->contentTokenIterator($decoded) as $token) {
+            if (!$this->isOperator($token)) {
+                $operands[] = $token;
+                continue;
+            }
+            $summary['operatorCount']++;
+            if (in_array($token, ['Tj', 'TJ', "'", '"'], true)) {
+                $summary['textShowOperatorCount']++;
+            } elseif (in_array($token, ['S', 's', 'f', 'F', 'f*', 'B', 'B*', 'b', 'b*', 'sh'], true)) {
+                $summary['vectorPaintOperatorCount']++;
+            } elseif ($token === 'Do') {
+                $resource = $this->xObjectNameOperand($operands);
+                $target = $resource !== null ? ($xObjects[$resource] ?? null) : null;
+                $targetBody = is_int($target) ? ($objects[$target] ?? null) : null;
+                if (is_string($targetBody) && $this->xObjectSubtype($targetBody) === 'Image') {
+                    $summary['rasterXObjectCount']++;
+                } elseif (is_string($targetBody) && $this->isFormXObjectObject($targetBody)) {
+                    $summary['nestedFormXObjectCount']++;
+                }
+            }
+            $operands = [];
+        }
+        $summary['complete'] = $this->contentStreamResourceLimitReason($decoded) === null;
+
+        return $this->formVisualSummaryCache[$cacheKey] = $summary;
     }
 
     /**
@@ -1327,7 +2028,73 @@ final class PdfTextExtractor
         $inTextObject = false;
         $operands = [];
 
-        foreach ($this->contentTokenIterator($stream) as $token) {
+        $onInlineImage = function (array $inlineImage) use (
+            &$placements,
+            &$paintOrder,
+            &$graphicsState,
+            &$markedContentStack,
+            &$compatibilityDepth,
+            &$inTextObject,
+            $page,
+            $pageObject,
+            $contentStream,
+            $resourcePath,
+            $pageVisibleBox
+        ): void {
+            $paintOrder++;
+            $bbox = $this->imageUnitSquareBoundingBox($graphicsState['matrix']);
+            $intersectsPage = $bbox !== null && ($pageVisibleBox === null
+                || $this->imageBoundingBoxIntersectsPageBox($bbox, $pageVisibleBox));
+            $visible = $intersectsPage && (float) $graphicsState['nonStrokingAlpha'] > 0.000001;
+            $hasMarkedContentUncertainty = in_array(true, $markedContentStack, true);
+            $validContext = !$inTextObject && $compatibilityDepth === 0;
+            $placementEligible = ($inlineImage['complete'] ?? false) === true
+                && $bbox !== null
+                && $visible
+                && $validContext
+                && !$graphicsState['placementUnsafe']
+                && !$hasMarkedContentUncertainty;
+            $reason = null;
+            $disposition = 'pending';
+            if (($inlineImage['complete'] ?? false) !== true) {
+                $disposition = 'unresolved';
+                $reason = 'inline-image-boundary-invalid';
+            } elseif ($bbox === null) {
+                $disposition = 'unresolved';
+                $reason = 'inline-image-transform-invalid';
+            } elseif (!$visible) {
+                $disposition = 'intentional_omission';
+                $reason = 'inline-image-not-visible';
+            } elseif (!$validContext) {
+                $disposition = 'unresolved';
+                $reason = 'inline-image-invalid-graphics-context';
+            } elseif (!$placementEligible) {
+                $disposition = 'unresolved';
+                $reason = 'inline-image-placement-uncertain';
+            }
+            $this->appendVisualOccurrence($placements, [
+                'id' => 'pdf-inline-image-p' . $page . '-n' . $paintOrder,
+                'kind' => 'inline-image',
+                'page' => $page,
+                'pageObject' => $pageObject,
+                'contentStream' => $contentStream,
+                'paintOrder' => $paintOrder,
+                'object' => 0,
+                'resource' => 'inline-image',
+                'resourcePath' => array_merge($resourcePath, ['inline-image']),
+                'matrix' => $this->transformationMatrixValues($graphicsState['matrix']),
+                'bbox' => $bbox,
+                'visible' => $visible,
+                'placementEligible' => $placementEligible,
+                'boundsClipped' => (bool) $graphicsState['boundsClipped'],
+                'confidence' => ($graphicsState['lowConfidence'] || !$placementEligible) ? 'low' : 'high',
+                'disposition' => $disposition,
+                'dispositionReason' => $reason,
+                'inlineImage' => $inlineImage,
+            ]);
+        };
+
+        foreach ($this->contentTokenIterator($stream, null, $onInlineImage) as $token) {
             if ($token === 'q') {
                 $graphicsStack[] = $graphicsState;
                 $operands = [];
@@ -1428,26 +2195,90 @@ final class PdfTextExtractor
 
             if ($token === 'Do') {
                 $resource = $this->xObjectNameOperand($operands);
-                if ($resource !== null
-                    && !$inTextObject
-                    && $compatibilityDepth === 0
-                    && isset($xObjects[$resource], $objects[$xObjects[$resource]])) {
+                if ($resource !== null && isset($xObjects[$resource], $objects[$xObjects[$resource]])) {
                     $objectNumber = $xObjects[$resource];
                     $objectBody = $objects[$objectNumber];
                     $path = array_merge($resourcePath, [$resource]);
                     $hasMarkedContentUncertainty = in_array(true, $markedContentStack, true);
+                    $validContext = !$inTextObject && $compatibilityDepth === 0;
 
                     if ($this->xObjectSubtype($objectBody) === 'Image') {
                         $paintOrder++;
                         $bbox = $this->imageUnitSquareBoundingBox($graphicsState['matrix']);
-                        if ($bbox !== null && !$this->imageXObjectIsMask($objectBody, $objects)) {
-                            $intersectsPage = $pageVisibleBox === null
-                                || $this->imageBoundingBoxIntersectsPageBox($bbox, $pageVisibleBox);
-                            $visible = $intersectsPage && (float) $graphicsState['nonStrokingAlpha'] > 0.000001;
-                            $placementEligible = $visible
-                                && !$graphicsState['placementUnsafe']
-                                && !$hasMarkedContentUncertainty;
-                            $placements[] = [
+                        $imageMask = $this->imageXObjectIsMask($objectBody, $objects);
+                        $intersectsPage = $bbox !== null && ($pageVisibleBox === null
+                            || $this->imageBoundingBoxIntersectsPageBox($bbox, $pageVisibleBox));
+                        $visible = $intersectsPage && (float) $graphicsState['nonStrokingAlpha'] > 0.000001;
+                        $placementEligible = !$imageMask
+                            && $bbox !== null
+                            && $visible
+                            && $validContext
+                            && !$graphicsState['placementUnsafe']
+                            && !$hasMarkedContentUncertainty;
+                        $disposition = 'pending';
+                        $reason = null;
+                        if ($bbox === null) {
+                            $disposition = 'unresolved';
+                            $reason = 'image-transform-invalid';
+                        } elseif (!$visible) {
+                            $disposition = 'intentional_omission';
+                            $reason = 'image-not-visible';
+                        } elseif ($imageMask) {
+                            $disposition = 'unresolved';
+                            $reason = 'image-mask-requires-compositing';
+                        } elseif (!$validContext) {
+                            $disposition = 'unresolved';
+                            $reason = 'image-invalid-graphics-context';
+                        } elseif (!$placementEligible) {
+                            $disposition = 'unresolved';
+                            $reason = 'image-placement-uncertain';
+                        }
+                        $this->appendVisualOccurrence($placements, [
+                            'id' => 'pdf-image-p' . $page . '-n' . $paintOrder . '-o' . $objectNumber,
+                            'kind' => 'image-xobject',
+                            'page' => $page,
+                            'pageObject' => $pageObject,
+                            'contentStream' => $contentStream,
+                            'paintOrder' => $paintOrder,
+                            'object' => $objectNumber,
+                            'resource' => $resource,
+                            'resourcePath' => $path,
+                            'matrix' => $this->transformationMatrixValues($graphicsState['matrix']),
+                            'bbox' => $bbox,
+                            // An XObject may be painted outside the
+                            // page's CropBox/MediaBox.  It is technically
+                            // in the content stream but cannot contribute
+                            // to the page people see, so retain it only as
+                            // a non-placeable review record.
+                            'visible' => $visible,
+                            // Eligibility is intentionally independent
+                            // from exact-bound confidence: a clipped image
+                            // can still be safely inserted only when the
+                            // PdfReader finds a unique surrounding anchor.
+                            'placementEligible' => $placementEligible,
+                            'boundsClipped' => (bool) $graphicsState['boundsClipped'],
+                            'confidence' => ($graphicsState['lowConfidence'] || !$placementEligible) ? 'low' : 'high',
+                            'imageMask' => $imageMask,
+                            'disposition' => $disposition,
+                            'dispositionReason' => $reason,
+                        ]);
+                    } elseif ($validContext
+                        && $this->isFormXObjectObject($objectBody)
+                        && !isset($activeForms[$objectNumber])) {
+                        $formStream = $this->decodeStreamObject($objectBody, $objects);
+                        $formMatrix = $this->formXObjectTransformationMatrix($objectBody, $objects);
+                        if ($resourcePath !== []) {
+                            $paintOrder++;
+                            $formBBox = $this->pageRectangleFromObjectBody($objectBody, 'BBox', $objects);
+                            $nestedMatrix = $formMatrix === null
+                                ? null
+                                : $this->concatenateTransformationMatrices($graphicsState['matrix'], $formMatrix);
+                            $nestedBBox = $formBBox !== null && $nestedMatrix !== null
+                                ? $this->rectangleBoundingBoxInMatrix($formBBox, $nestedMatrix)
+                                : null;
+                            $this->appendVisualOccurrence($placements, [
+                                'id' => 'pdf-form-nested-p' . $page . '-n' . $paintOrder . '-o' . $objectNumber,
+                                'kind' => 'form-xobject-nested',
                                 'page' => $page,
                                 'pageObject' => $pageObject,
                                 'contentStream' => $contentStream,
@@ -1455,26 +2286,17 @@ final class PdfTextExtractor
                                 'object' => $objectNumber,
                                 'resource' => $resource,
                                 'resourcePath' => $path,
-                                'matrix' => $this->transformationMatrixValues($graphicsState['matrix']),
-                                'bbox' => $bbox,
-                                // An XObject may be painted outside the
-                                // page's CropBox/MediaBox.  It is technically
-                                // in the content stream but cannot contribute
-                                // to the page people see, so retain it only as
-                                // a non-placeable review record.
-                                'visible' => $visible,
-                                // Eligibility is intentionally independent
-                                // from exact-bound confidence: a clipped image
-                                // can still be safely inserted only when the
-                                // PdfReader finds a unique surrounding anchor.
-                                'placementEligible' => $placementEligible,
-                                'boundsClipped' => (bool) $graphicsState['boundsClipped'],
-                                'confidence' => ($graphicsState['lowConfidence'] || !$placementEligible) ? 'low' : 'high',
-                            ];
+                                'matrix' => $nestedMatrix === null ? [] : $this->transformationMatrixValues($nestedMatrix),
+                                'formBBox' => $formBBox,
+                                'bbox' => $nestedBBox,
+                                'visible' => $nestedBBox !== null && (float) $graphicsState['nonStrokingAlpha'] > 0.000001,
+                                'placementEligible' => false,
+                                'boundsClipped' => true,
+                                'confidence' => 'low',
+                                'disposition' => 'intentional_omission',
+                                'dispositionReason' => 'accounted-for-by-ancestor-form-occurrence',
+                            ]);
                         }
-                    } elseif ($this->isFormXObjectObject($objectBody) && !isset($activeForms[$objectNumber])) {
-                        $formStream = $this->decodeStreamObject($objectBody, $objects);
-                        $formMatrix = $this->formXObjectTransformationMatrix($objectBody, $objects);
                         if ($formStream !== null && $formMatrix !== null) {
                             $formContext = $this->resourceContextForBody($objectBody, $objects);
                             $formXObjects = $this->xObjectResourceObjectNumbers($formContext, $objects) + $xObjects;
@@ -1502,7 +2324,77 @@ final class PdfTextExtractor
                                 $placements[] = $placement;
                             }
                         }
+                    } elseif ($this->isFormXObjectObject($objectBody) && $resourcePath !== []) {
+                        $paintOrder++;
+                        $this->appendVisualOccurrence($placements, [
+                            'id' => 'pdf-form-nested-p' . $page . '-n' . $paintOrder . '-o' . $objectNumber,
+                            'kind' => 'form-xobject-nested',
+                            'page' => $page,
+                            'pageObject' => $pageObject,
+                            'contentStream' => $contentStream,
+                            'paintOrder' => $paintOrder,
+                            'object' => $objectNumber,
+                            'resource' => $resource,
+                            'resourcePath' => $path,
+                            'matrix' => $this->transformationMatrixValues($graphicsState['matrix']),
+                            'formBBox' => null,
+                            'bbox' => null,
+                            'visible' => null,
+                            'placementEligible' => false,
+                            'boundsClipped' => true,
+                            'confidence' => 'low',
+                            'disposition' => 'unresolved',
+                            'dispositionReason' => isset($activeForms[$objectNumber])
+                                ? 'nested-form-recursion-cycle'
+                                : 'nested-form-invalid-graphics-context',
+                        ]);
+                    } elseif (!$this->isFormXObjectObject($objectBody)) {
+                        $paintOrder++;
+                        $this->appendVisualOccurrence($placements, [
+                            'id' => 'pdf-xobject-p' . $page . '-n' . $paintOrder . '-o' . $objectNumber,
+                            'kind' => 'inspection-issue',
+                            'page' => $page,
+                            'pageObject' => $pageObject,
+                            'contentStream' => $contentStream,
+                            'paintOrder' => $paintOrder,
+                            'object' => $objectNumber,
+                            'resource' => $resource,
+                            'resourcePath' => $path,
+                            'matrix' => $this->transformationMatrixValues($graphicsState['matrix']),
+                            'bbox' => null,
+                            'visible' => null,
+                            'placementEligible' => false,
+                            'boundsClipped' => (bool) $graphicsState['boundsClipped'],
+                            'confidence' => 'low',
+                            'disposition' => 'unresolved',
+                            'dispositionReason' => 'xobject-subtype-unsupported-or-invalid',
+                        ]);
                     }
+                } elseif ($resource !== null || $operands !== []) {
+                    $paintOrder++;
+                    $resourceLabel = $resource ?? 'missing-name';
+                    $this->appendVisualOccurrence($placements, [
+                        'id' => 'pdf-xobject-p' . $page . '-n' . $paintOrder . '-unresolved-'
+                            . substr(hash('sha256', $resourceLabel), 0, 12),
+                        'kind' => 'inspection-issue',
+                        'page' => $page,
+                        'pageObject' => $pageObject,
+                        'contentStream' => $contentStream,
+                        'paintOrder' => $paintOrder,
+                        'object' => 0,
+                        'resource' => $resourceLabel,
+                        'resourcePath' => array_merge($resourcePath, [$resourceLabel]),
+                        'matrix' => $this->transformationMatrixValues($graphicsState['matrix']),
+                        'bbox' => null,
+                        'visible' => null,
+                        'placementEligible' => false,
+                        'boundsClipped' => (bool) $graphicsState['boundsClipped'],
+                        'confidence' => 'low',
+                        'disposition' => 'unresolved',
+                        'dispositionReason' => $resource === null
+                            ? 'xobject-resource-name-missing'
+                            : 'xobject-resource-unresolved',
+                    ]);
                 }
                 $operands = [];
                 continue;
@@ -1678,15 +2570,40 @@ final class PdfTextExtractor
      */
     private function effectivePageVisibleBox(int $pageObjectNumber, array $objects): ?array
     {
+        return $this->effectivePageVisibleBoxEvidence($pageObjectNumber, $objects)['box'];
+    }
+
+    /**
+     * Preserve why the page rectangle was selected. A valid inherited box is
+     * normative PDF page-tree data; a US-Letter default is merely bounded
+     * recovery and must lower layout confidence instead of looking exact.
+     *
+     * @param array<int, string> $objects
+     * @return array{box:array{x1:float,y1:float,x2:float,y2:float}|null,source:string,object:int|null}
+     */
+    private function effectivePageVisibleBoxEvidence(int $pageObjectNumber, array $objects): array
+    {
         $cropBox = null;
+        $cropObject = null;
         $mediaBox = null;
+        $mediaObject = null;
         $seen = [];
         $objectNumber = $pageObjectNumber;
         while (isset($objects[$objectNumber]) && !isset($seen[$objectNumber])) {
             $seen[$objectNumber] = true;
             $body = $objects[$objectNumber];
-            $cropBox ??= $this->pageRectangleFromObjectBody($body, 'CropBox', $objects);
-            $mediaBox ??= $this->pageRectangleFromObjectBody($body, 'MediaBox', $objects);
+            if ($cropBox === null) {
+                $cropBox = $this->pageRectangleFromObjectBody($body, 'CropBox', $objects);
+                if ($cropBox !== null) {
+                    $cropObject = $objectNumber;
+                }
+            }
+            if ($mediaBox === null) {
+                $mediaBox = $this->pageRectangleFromObjectBody($body, 'MediaBox', $objects);
+                if ($mediaBox !== null) {
+                    $mediaObject = $objectNumber;
+                }
+            }
 
             if (preg_match('/\/Parent\s+(\d+)\s+\d+\s+R\b/', $body, $match) !== 1) {
                 break;
@@ -1694,7 +2611,14 @@ final class PdfTextExtractor
             $objectNumber = (int) $match[1];
         }
 
-        return $cropBox ?? $mediaBox;
+        if ($cropBox !== null) {
+            return ['box' => $cropBox, 'source' => 'CropBox', 'object' => $cropObject];
+        }
+        if ($mediaBox !== null) {
+            return ['box' => $mediaBox, 'source' => 'MediaBox', 'object' => $mediaObject];
+        }
+
+        return ['box' => null, 'source' => 'missing', 'object' => null];
     }
 
     /**
@@ -2175,6 +3099,7 @@ final class PdfTextExtractor
      *     popupAnnotations: list<array<string, mixed>>,
      *     appearanceAnnotations: list<array<string, mixed>>,
      *     pageExtractionIssues: list<array{page: int, pageObject: int, contentReference: int, contentObject: int|null, reason: string, filters: list<string>, xObjectName?: string, xObjectObject?: int|null, xObjectSubtype?: string}>,
+     *     resourceLimitIssues: list<array<string, mixed>>,
      *     pagesWithExtractionIssues: int
      * }
      */
@@ -2216,12 +3141,11 @@ final class PdfTextExtractor
                 }
             }
 
-            if (!$isXrefObject
-                && $filters !== []
-                && $this->allStreamFiltersSupported($filters)
-                && $this->decodeStream($stream['dictionary'], $stream['stream'], $objects) === null
-            ) {
-                $failedStreams++;
+            if (!$isXrefObject && $filters !== [] && $this->allStreamFiltersSupported($filters)) {
+                $decoded = $this->decodeStream($stream['dictionary'], $stream['stream'], $objects);
+                if ($decoded === null && $this->lastStreamDecodeResourceLimit === null) {
+                    $failedStreams++;
+                }
             }
         }
         // These raw object bodies can be several times larger than the
@@ -2270,6 +3194,10 @@ final class PdfTextExtractor
         $popupAnnotations = $annotationPresence['annotations'] ? $this->popupAnnotations($objects) : [];
         $appearanceAnnotations = $annotationPresence['annotations'] ? $this->appearanceAnnotations($objects) : [];
         $pageExtractionIssues = $this->pageExtractionIssues($objects);
+        $resourceLimitIssues = array_values(array_filter(
+            $pageExtractionIssues,
+            static fn (array $issue): bool => str_ends_with((string) ($issue['reason'] ?? ''), '_limit')
+        ));
         $pagesWithExtractionIssues = [];
         foreach ($pageExtractionIssues as $issue) {
             $pagesWithExtractionIssues[$issue['page']] = true;
@@ -2309,6 +3237,9 @@ final class PdfTextExtractor
         if ($pageExtractionIssues !== []) {
             $warnings[] = 'PDF page-level extraction issues: ' . count($pagesWithExtractionIssues) . ' page(s) have unreadable or unresolved content streams.';
         }
+        if ($resourceLimitIssues !== []) {
+            $warnings[] = count($resourceLimitIssues) . ' PDF content stream(s) reached a recoverable parser resource limit.';
+        }
 
         return [
             'encrypted' => $encrypted,
@@ -2346,6 +3277,7 @@ final class PdfTextExtractor
             'popupAnnotations' => $popupAnnotations,
             'appearanceAnnotations' => $appearanceAnnotations,
             'pageExtractionIssues' => $pageExtractionIssues,
+            'resourceLimitIssues' => $resourceLimitIssues,
             'pagesWithExtractionIssues' => count($pagesWithExtractionIssues),
         ];
     }
@@ -4919,6 +5851,10 @@ final class PdfTextExtractor
         $structureItems = [];
         $attributeOwners = [];
         $structElementCount = 0;
+        $pageNumberByObject = [];
+        foreach ($this->pageObjectNumbers($objects) as $index => $pageObjectNumber) {
+            $pageNumberByObject[$pageObjectNumber] = $index + 1;
+        }
 
         foreach ($this->structTreeRootDiagnosticNodes($objects) as $rootNode) {
             $roleMap = array_replace($roleMap, $this->taggedRoleMapFromStructTreeRoot($rootNode['body'], $objects));
@@ -4957,7 +5893,7 @@ final class PdfTextExtractor
             $classes = $this->classNamesFromDictionary($body, $objects);
             $attributes = $this->taggedAttributesFromStructElement($body, $objects, $classMap);
             $text = $this->structElementSemanticText($body, $objects);
-            $structureItems[] = [
+            $structureItem = [
                 'objectNumber' => (int) $objectNumber,
                 'role' => $role ?? '',
                 'resolvedRole' => $resolvedRole,
@@ -4966,6 +5902,15 @@ final class PdfTextExtractor
                 'attributes' => $attributes,
                 'text' => $text,
             ];
+            $structureItems[] = array_replace(
+                $structureItem,
+                $this->taggedStructurePageProvenance(
+                    (int) $objectNumber,
+                    $body,
+                    $objects,
+                    $pageNumberByObject
+                )
+            );
             if ($attributes !== []) {
                 $structureAttributes[] = [
                     'role' => $role ?? '',
@@ -4989,8 +5934,8 @@ final class PdfTextExtractor
         sort($languages);
         $attributeOwners = array_values(array_unique($attributeOwners));
         sort($attributeOwners);
-        $tables = $this->taggedTablesFromStructElements($objects, $roleMap, $classMap);
-        $structureBlocks = $this->taggedStructureBlocksFromRoots($objects, $roleMap, $classMap);
+        $tables = $this->taggedTablesFromStructElements($objects, $roleMap, $classMap, $pageNumberByObject);
+        $structureBlocks = $this->taggedStructureBlocksFromRoots($objects, $roleMap, $classMap, $pageNumberByObject);
 
         return [
             'roleMap' => $roleMap,
@@ -5125,7 +6070,12 @@ final class PdfTextExtractor
      * @param array<string, list<array<string, mixed>>> $classMap
      * @return list<array<string, mixed>>
      */
-    private function taggedTablesFromStructElements(array $objects, array $roleMap, array $classMap): array
+    private function taggedTablesFromStructElements(
+        array $objects,
+        array $roleMap,
+        array $classMap,
+        array $pageNumberByObject
+    ): array
     {
         $tables = [];
 
@@ -5140,16 +6090,35 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $rows = $this->taggedTableRowsFromStructElement($body, $objects, $roleMap, $classMap, [(int) $objectNumber => true]);
+            $rows = $this->taggedTableRowsFromStructElement(
+                $body,
+                $objects,
+                $roleMap,
+                $classMap,
+                [(int) $objectNumber => true],
+                $pageNumberByObject
+            );
             if (!$this->taggedTableRowsHaveText($rows)) {
                 continue;
             }
 
-            $table = [
+            $table = array_replace([
                 'objectNumber' => (int) $objectNumber,
                 'rows' => $rows,
-            ];
-            $sections = $this->taggedTableSectionsFromStructElement($body, $objects, $roleMap, $classMap, [(int) $objectNumber => true]);
+            ], $this->taggedStructurePageProvenance(
+                (int) $objectNumber,
+                $body,
+                $objects,
+                $pageNumberByObject
+            ));
+            $sections = $this->taggedTableSectionsFromStructElement(
+                $body,
+                $objects,
+                $roleMap,
+                $classMap,
+                [(int) $objectNumber => true],
+                $pageNumberByObject
+            );
             if ($sections !== []) {
                 $table['sections'] = $sections;
             }
@@ -5166,12 +6135,24 @@ final class PdfTextExtractor
      * @param array<string, list<array<string, mixed>>> $classMap
      * @return list<array<string, mixed>>
      */
-    private function taggedStructureBlocksFromRoots(array $objects, array $roleMap, array $classMap): array
+    private function taggedStructureBlocksFromRoots(
+        array $objects,
+        array $roleMap,
+        array $classMap,
+        array $pageNumberByObject
+    ): array
     {
         $blocks = [];
         foreach ($this->structTreeRootDiagnosticNodes($objects) as $rootNode) {
             foreach ($this->structElementChildObjectNumbers($rootNode['body'], $objects, [$rootNode['objectNumber'] => true]) as $objectNumber) {
-                foreach ($this->taggedStructureBlocksFromStructElement($objectNumber, $objects, $roleMap, $classMap, [$rootNode['objectNumber'] => true]) as $block) {
+                foreach ($this->taggedStructureBlocksFromStructElement(
+                    $objectNumber,
+                    $objects,
+                    $roleMap,
+                    $classMap,
+                    [$rootNode['objectNumber'] => true],
+                    $pageNumberByObject
+                ) as $block) {
                     if ($this->taggedStructureBlockHasText($block)) {
                         $blocks[] = $block;
                     }
@@ -5189,7 +6170,14 @@ final class PdfTextExtractor
      * @param array<int, true> $seen
      * @return list<array<string, mixed>>
      */
-    private function taggedStructureBlocksFromStructElement(int $objectNumber, array $objects, array $roleMap, array $classMap, array $seen): array
+    private function taggedStructureBlocksFromStructElement(
+        int $objectNumber,
+        array $objects,
+        array $roleMap,
+        array $classMap,
+        array $seen,
+        array $pageNumberByObject
+    ): array
     {
         if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
             return [];
@@ -5208,13 +6196,27 @@ final class PdfTextExtractor
         $language = $this->languageFromDictionary($body, $objects);
 
         if ($normalizedRole === 'TABLE') {
-            $rows = $this->taggedTableRowsFromStructElement($body, $objects, $roleMap, $classMap, $seen + [$objectNumber => true]);
+            $rows = $this->taggedTableRowsFromStructElement(
+                $body,
+                $objects,
+                $roleMap,
+                $classMap,
+                $seen + [$objectNumber => true],
+                $pageNumberByObject
+            );
             if (!$this->taggedTableRowsHaveText($rows)) {
                 return [];
             }
-            $sections = $this->taggedTableSectionsFromStructElement($body, $objects, $roleMap, $classMap, $seen + [$objectNumber => true]);
+            $sections = $this->taggedTableSectionsFromStructElement(
+                $body,
+                $objects,
+                $roleMap,
+                $classMap,
+                $seen + [$objectNumber => true],
+                $pageNumberByObject
+            );
 
-            $tableBlock = [
+            $tableBlock = array_replace([
                 'objectNumber' => $objectNumber,
                 'role' => $role,
                 'resolvedRole' => $resolvedRole,
@@ -5224,7 +6226,12 @@ final class PdfTextExtractor
                 'attributes' => $attributes,
                 'text' => $this->taggedTableRowsText($rows),
                 'rows' => $rows,
-            ];
+            ], $this->taggedStructurePageProvenance(
+                $objectNumber,
+                $body,
+                $objects,
+                $pageNumberByObject
+            ));
             if ($sections !== []) {
                 $tableBlock['sections'] = $sections;
             }
@@ -5234,7 +6241,14 @@ final class PdfTextExtractor
 
         $childBlocks = [];
         foreach ($this->structElementChildObjectNumbers($body, $objects, $seen + [$objectNumber => true]) as $childObjectNumber) {
-            foreach ($this->taggedStructureBlocksFromStructElement($childObjectNumber, $objects, $roleMap, $classMap, $seen + [$objectNumber => true]) as $childBlock) {
+            foreach ($this->taggedStructureBlocksFromStructElement(
+                $childObjectNumber,
+                $objects,
+                $roleMap,
+                $classMap,
+                $seen + [$objectNumber => true],
+                $pageNumberByObject
+            ) as $childBlock) {
                 $childBlocks[] = $childBlock;
             }
         }
@@ -5254,7 +6268,12 @@ final class PdfTextExtractor
                 'classes' => $classes,
                 'attributes' => $attributes,
                 'text' => $text,
-            ]];
+            ] + $this->taggedStructurePageProvenance(
+                $objectNumber,
+                $body,
+                $objects,
+                $pageNumberByObject
+            )];
         }
 
         return $childBlocks;
@@ -5332,10 +6351,20 @@ final class PdfTextExtractor
      * @param array<int, true> $seen
      * @return list<list<array{role: string, resolvedRole: string, text: string, rowSpan: int, colSpan: int, attributes: list<array<string, mixed>>}>>
      */
-    private function taggedTableRowsFromStructElement(string $dictionary, array $objects, array $roleMap, array $classMap, array $seen): array
+    private function taggedTableRowsFromStructElement(
+        string $dictionary,
+        array $objects,
+        array $roleMap,
+        array $classMap,
+        array $seen,
+        array $pageNumberByObject = [],
+        ?int $inheritedPageObjectNumber = null
+    ): array
     {
         $rows = [];
         $directCells = [];
+        $elementPageObjectNumber = $this->pageObjectNumberFromDictionary($dictionary)
+            ?? $inheritedPageObjectNumber;
 
         foreach ($this->structElementChildObjectNumbers($dictionary, $objects, $seen) as $childObjectNumber) {
             if (!isset($objects[$childObjectNumber])) {
@@ -5351,7 +6380,15 @@ final class PdfTextExtractor
             $resolvedRole = $role === '' ? '' : $this->resolveTaggedRole($role, $roleMap);
             $normalizedRole = strtoupper($resolvedRole);
             if ($normalizedRole === 'TR') {
-                $cells = $this->taggedTableCellsFromRow($childBody, $objects, $roleMap, $classMap, $seen + [$childObjectNumber => true]);
+                $cells = $this->taggedTableCellsFromRow(
+                    $childBody,
+                    $objects,
+                    $roleMap,
+                    $classMap,
+                    $seen + [$childObjectNumber => true],
+                    $pageNumberByObject,
+                    $elementPageObjectNumber
+                );
                 if ($cells !== []) {
                     $rows[] = $cells;
                 }
@@ -5359,21 +6396,45 @@ final class PdfTextExtractor
             }
 
             if (in_array($normalizedRole, ['THEAD', 'TBODY', 'TFOOT'], true)) {
-                foreach ($this->taggedTableRowsFromStructElement($childBody, $objects, $roleMap, $classMap, $seen + [$childObjectNumber => true]) as $row) {
+                foreach ($this->taggedTableRowsFromStructElement(
+                    $childBody,
+                    $objects,
+                    $roleMap,
+                    $classMap,
+                    $seen + [$childObjectNumber => true],
+                    $pageNumberByObject,
+                    $elementPageObjectNumber
+                ) as $row) {
                     $rows[] = $row;
                 }
                 continue;
             }
 
             if ($this->taggedTableRoleIsTransparentContainer($normalizedRole)) {
-                foreach ($this->taggedTableRowsFromStructElement($childBody, $objects, $roleMap, $classMap, $seen + [$childObjectNumber => true]) as $row) {
+                foreach ($this->taggedTableRowsFromStructElement(
+                    $childBody,
+                    $objects,
+                    $roleMap,
+                    $classMap,
+                    $seen + [$childObjectNumber => true],
+                    $pageNumberByObject,
+                    $elementPageObjectNumber
+                ) as $row) {
                     $rows[] = $row;
                 }
                 continue;
             }
 
             if (in_array($normalizedRole, ['TH', 'TD'], true)) {
-                $directCells[] = $this->taggedTableCellFromStructElement($childBody, $objects, $roleMap, $classMap);
+                $directCells[] = $this->taggedTableCellFromStructElement(
+                    $childObjectNumber,
+                    $childBody,
+                    $objects,
+                    $roleMap,
+                    $classMap,
+                    $pageNumberByObject,
+                    $elementPageObjectNumber
+                );
             }
         }
 
@@ -5391,9 +6452,19 @@ final class PdfTextExtractor
      * @param array<int, true> $seen
      * @return list<array<string, mixed>>
      */
-    private function taggedTableSectionsFromStructElement(string $dictionary, array $objects, array $roleMap, array $classMap, array $seen): array
+    private function taggedTableSectionsFromStructElement(
+        string $dictionary,
+        array $objects,
+        array $roleMap,
+        array $classMap,
+        array $seen,
+        array $pageNumberByObject = [],
+        ?int $inheritedPageObjectNumber = null
+    ): array
     {
         $sections = [];
+        $elementPageObjectNumber = $this->pageObjectNumberFromDictionary($dictionary)
+            ?? $inheritedPageObjectNumber;
 
         foreach ($this->structElementChildObjectNumbers($dictionary, $objects, $seen) as $childObjectNumber) {
             if (!isset($objects[$childObjectNumber])) {
@@ -5409,19 +6480,35 @@ final class PdfTextExtractor
             $resolvedRole = $role === '' ? '' : $this->resolveTaggedRole($role, $roleMap);
             if (!in_array(strtoupper($resolvedRole), ['THEAD', 'TBODY', 'TFOOT'], true)) {
                 if ($this->taggedTableRoleIsTransparentContainer(strtoupper($resolvedRole))) {
-                    foreach ($this->taggedTableSectionsFromStructElement($childBody, $objects, $roleMap, $classMap, $seen + [$childObjectNumber => true]) as $section) {
+                    foreach ($this->taggedTableSectionsFromStructElement(
+                        $childBody,
+                        $objects,
+                        $roleMap,
+                        $classMap,
+                        $seen + [$childObjectNumber => true],
+                        $pageNumberByObject,
+                        $elementPageObjectNumber
+                    ) as $section) {
                         $sections[] = $section;
                     }
                 }
                 continue;
             }
 
-            $rows = $this->taggedTableRowsFromStructElement($childBody, $objects, $roleMap, $classMap, $seen + [$childObjectNumber => true]);
+            $rows = $this->taggedTableRowsFromStructElement(
+                $childBody,
+                $objects,
+                $roleMap,
+                $classMap,
+                $seen + [$childObjectNumber => true],
+                $pageNumberByObject,
+                $elementPageObjectNumber
+            );
             if (!$this->taggedTableRowsHaveText($rows)) {
                 continue;
             }
 
-            $sections[] = [
+            $sections[] = array_replace([
                 'objectNumber' => $childObjectNumber,
                 'role' => $role,
                 'resolvedRole' => $resolvedRole,
@@ -5429,7 +6516,13 @@ final class PdfTextExtractor
                 'classes' => $this->classNamesFromDictionary($childBody, $objects),
                 'attributes' => $this->taggedAttributesFromStructElement($childBody, $objects, $classMap),
                 'rows' => $rows,
-            ];
+            ], $this->taggedStructurePageProvenance(
+                $childObjectNumber,
+                $childBody,
+                $objects,
+                $pageNumberByObject,
+                $elementPageObjectNumber
+            ));
         }
 
         return $sections;
@@ -5442,9 +6535,19 @@ final class PdfTextExtractor
      * @param array<int, true> $seen
      * @return list<array{role: string, resolvedRole: string, text: string, rowSpan: int, colSpan: int, attributes: list<array<string, mixed>>}>
      */
-    private function taggedTableCellsFromRow(string $dictionary, array $objects, array $roleMap, array $classMap, array $seen): array
+    private function taggedTableCellsFromRow(
+        string $dictionary,
+        array $objects,
+        array $roleMap,
+        array $classMap,
+        array $seen,
+        array $pageNumberByObject = [],
+        ?int $inheritedPageObjectNumber = null
+    ): array
     {
         $cells = [];
+        $elementPageObjectNumber = $this->pageObjectNumberFromDictionary($dictionary)
+            ?? $inheritedPageObjectNumber;
         foreach ($this->structElementChildObjectNumbers($dictionary, $objects, $seen) as $childObjectNumber) {
             if (!isset($objects[$childObjectNumber])) {
                 continue;
@@ -5460,14 +6563,30 @@ final class PdfTextExtractor
             $normalizedRole = strtoupper($resolvedRole);
             if (!in_array($normalizedRole, ['TH', 'TD'], true)) {
                 if ($this->taggedTableRoleIsTransparentContainer($normalizedRole)) {
-                    foreach ($this->taggedTableCellsFromRow($childBody, $objects, $roleMap, $classMap, $seen + [$childObjectNumber => true]) as $cell) {
+                    foreach ($this->taggedTableCellsFromRow(
+                        $childBody,
+                        $objects,
+                        $roleMap,
+                        $classMap,
+                        $seen + [$childObjectNumber => true],
+                        $pageNumberByObject,
+                        $elementPageObjectNumber
+                    ) as $cell) {
                         $cells[] = $cell;
                     }
                 }
                 continue;
             }
 
-            $cells[] = $this->taggedTableCellFromStructElement($childBody, $objects, $roleMap, $classMap);
+            $cells[] = $this->taggedTableCellFromStructElement(
+                $childObjectNumber,
+                $childBody,
+                $objects,
+                $roleMap,
+                $classMap,
+                $pageNumberByObject,
+                $elementPageObjectNumber
+            );
         }
 
         return $cells;
@@ -5479,7 +6598,15 @@ final class PdfTextExtractor
      * @param array<string, list<array<string, mixed>>> $classMap
      * @return array{role: string, resolvedRole: string, text: string, rowSpan: int, colSpan: int, attributes: list<array<string, mixed>>, id?: string}
      */
-    private function taggedTableCellFromStructElement(string $dictionary, array $objects, array $roleMap, array $classMap): array
+    private function taggedTableCellFromStructElement(
+        int $objectNumber,
+        string $dictionary,
+        array $objects,
+        array $roleMap,
+        array $classMap,
+        array $pageNumberByObject = [],
+        ?int $inheritedPageObjectNumber = null
+    ): array
     {
         $role = $this->nameDictionaryValue($dictionary, 'S') ?? '';
         $resolvedRole = $role === '' ? '' : $this->resolveTaggedRole($role, $roleMap);
@@ -5498,7 +6625,16 @@ final class PdfTextExtractor
             $cell['id'] = $identifier;
         }
 
-        return $cell;
+        return array_replace(
+            $cell,
+            $this->taggedStructurePageProvenance(
+                $objectNumber,
+                $dictionary,
+                $objects,
+                $pageNumberByObject,
+                $inheritedPageObjectNumber
+            )
+        );
     }
 
     private function structElementIdentifier(string $dictionary, array $objects): string
@@ -7102,13 +8238,34 @@ final class PdfTextExtractor
 
                     $decoded = $this->decodeStream($stream['dictionary'], $stream['stream'], $objects);
                     if ($decoded === null) {
-                        $issues[] = [
+                        $issue = [
                             'page' => $page,
                             'pageObject' => $pageObjectNumber,
                             'contentReference' => $contentsObjectNumber,
                             'contentObject' => $contentObjectNumber,
                             'reason' => 'failed_content_decode',
                             'filters' => $filters,
+                        ];
+                        if ($this->lastStreamDecodeResourceLimit !== null) {
+                            $issue = array_replace($issue, $this->lastStreamDecodeResourceLimit);
+                            $issue['recoverable'] = true;
+                        }
+                        $issues[] = $issue;
+                        continue;
+                    }
+
+                    $limitReason = $this->contentStreamResourceLimitReason($decoded);
+                    if ($limitReason !== null) {
+                        $issues[] = [
+                            'page' => $page,
+                            'pageObject' => $pageObjectNumber,
+                            'contentReference' => $contentsObjectNumber,
+                            'contentObject' => $contentObjectNumber,
+                            'reason' => $limitReason['reason'],
+                            'filters' => $filters,
+                            'limit' => $limitReason['limit'],
+                            'actual' => $limitReason['actual'],
+                            'recoverable' => true,
                         ];
                         continue;
                     }
@@ -7275,10 +8432,29 @@ final class PdfTextExtractor
 
         $decoded = $this->decodeStream($stream['dictionary'], $stream['stream'], $objects);
         if ($decoded === null) {
+            $failure = [
+                'reason' => 'failed_form_xobject_decode',
+                'filters' => $filters,
+            ];
+            if ($this->lastStreamDecodeResourceLimit !== null) {
+                $failure = array_replace($failure, $this->lastStreamDecodeResourceLimit);
+                $failure['recoverable'] = true;
+            }
+
+            return [
+                $issueBase + $failure,
+            ];
+        }
+
+        $limitReason = $this->contentStreamResourceLimitReason($decoded);
+        if ($limitReason !== null) {
             return [
                 $issueBase + [
-                    'reason' => 'failed_form_xobject_decode',
+                    'reason' => str_replace('content_stream', 'form_xobject', $limitReason['reason']),
                     'filters' => $filters,
+                    'limit' => $limitReason['limit'],
+                    'actual' => $limitReason['actual'],
+                    'recoverable' => true,
                 ],
             ];
         }
@@ -7506,8 +8682,10 @@ final class PdfTextExtractor
      */
     private function decodeStream(string $dict, string $stream, array $objects = []): ?string
     {
+        $this->lastStreamDecodeResourceLimit = null;
         $decodeParms = $this->streamDecodeParms($dict, $objects);
-        foreach ($this->streamFilters($dict, $objects) as $index => $filter) {
+        $filters = $this->streamFilters($dict, $objects);
+        foreach ($filters as $index => $filter) {
             $decoded = match ($filter) {
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
                 'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
@@ -7519,18 +8697,75 @@ final class PdfTextExtractor
             };
 
             if ($decoded === null) {
+                $this->decorateStreamDecodeResourceLimit($filter, $index, 'filter-output');
+                return null;
+            }
+            if (!$this->decodedStreamFitsLimit($decoded, $filter, $index, 'filter-output')) {
                 return null;
             }
             if ($filter === 'FlateDecode' || $filter === 'Fl' || $filter === 'LZWDecode' || $filter === 'LZW') {
                 $decoded = $this->applyStreamDecodeParms($decoded, $decodeParms[$index] ?? $decodeParms[0] ?? []);
                 if ($decoded === null) {
+                    $this->decorateStreamDecodeResourceLimit($filter, $index, 'decode-parameters');
+                    return null;
+                }
+                if (!$this->decodedStreamFitsLimit($decoded, $filter, $index, 'decode-parameters')) {
                     return null;
                 }
             }
             $stream = $decoded;
         }
 
+        // An unfiltered stream is decoded content too. Enforcing the same
+        // final boundary keeps the option meaningful for every stream shape,
+        // while the per-filter checks above bound every intermediate stage in
+        // a filter chain.
+        if ($filters === [] && !$this->decodedStreamFitsLimit($stream, 'Unfiltered', -1, 'final-output')) {
+            return null;
+        }
+
         return $stream;
+    }
+
+    private function decodedStreamFitsLimit(
+        string $decoded,
+        string $filter,
+        int $filterIndex,
+        string $stage
+    ): bool {
+        $actual = strlen($decoded);
+        if ($actual <= $this->maxDecodedStreamBytes()) {
+            return true;
+        }
+
+        $this->recordStreamDecodeResourceLimit($actual);
+        $this->decorateStreamDecodeResourceLimit($filter, $filterIndex, $stage);
+
+        return false;
+    }
+
+    private function recordStreamDecodeResourceLimit(int $actual): void
+    {
+        $limit = $this->maxDecodedStreamBytes();
+        $this->lastStreamDecodeResourceLimit = [
+            'reason' => 'decoded_stream_byte_limit',
+            'limit' => $limit,
+            'actual' => max($limit === PHP_INT_MAX ? PHP_INT_MAX : $limit + 1, $actual),
+            'limitFilter' => '',
+            'filterIndex' => -1,
+            'stage' => 'filter-output',
+        ];
+    }
+
+    private function decorateStreamDecodeResourceLimit(string $filter, int $filterIndex, string $stage): void
+    {
+        if ($this->lastStreamDecodeResourceLimit === null) {
+            return;
+        }
+
+        $this->lastStreamDecodeResourceLimit['limitFilter'] = $filter;
+        $this->lastStreamDecodeResourceLimit['filterIndex'] = $filterIndex;
+        $this->lastStreamDecodeResourceLimit['stage'] = $stage;
     }
 
     /**
@@ -7936,6 +9171,8 @@ final class PdfTextExtractor
         $resetDictionary();
 
         $decoded = '';
+        $decodedLength = 0;
+        $decodedLimit = $this->maxDecodedStreamBytes();
         $previous = null;
         $bitOffset = 0;
         while (($code = $this->readLzwCode($stream, $bitOffset, $codeSize)) !== null) {
@@ -7957,7 +9194,14 @@ final class PdfTextExtractor
                 return null;
             }
 
+            $entryLength = strlen($entry);
+            if ($entryLength > $decodedLimit - $decodedLength) {
+                $this->recordStreamDecodeResourceLimit($decodedLength + $entryLength);
+
+                return null;
+            }
             $decoded .= $entry;
+            $decodedLength += $entryLength;
 
             if ($previous !== null && $nextCode < 4096) {
                 $dictionary[$nextCode] = $previous . $entry[0];
@@ -8005,6 +9249,8 @@ final class PdfTextExtractor
     private function decodeRunLengthStream(string $stream): ?string
     {
         $decoded = '';
+        $decodedLength = 0;
+        $decodedLimit = $this->maxDecodedStreamBytes();
         $length = strlen($stream);
         $offset = 0;
 
@@ -8021,7 +9267,13 @@ final class PdfTextExtractor
                 if ($offset + $literalLength > $length) {
                     return null;
                 }
+                if ($literalLength > $decodedLimit - $decodedLength) {
+                    $this->recordStreamDecodeResourceLimit($decodedLength + $literalLength);
+
+                    return null;
+                }
                 $decoded .= substr($stream, $offset, $literalLength);
+                $decodedLength += $literalLength;
                 $offset += $literalLength;
                 continue;
             }
@@ -8029,7 +9281,14 @@ final class PdfTextExtractor
             if ($offset >= $length) {
                 return null;
             }
-            $decoded .= str_repeat($stream[$offset], 257 - $lengthByte);
+            $repeatLength = 257 - $lengthByte;
+            if ($repeatLength > $decodedLimit - $decodedLength) {
+                $this->recordStreamDecodeResourceLimit($decodedLength + $repeatLength);
+
+                return null;
+            }
+            $decoded .= str_repeat($stream[$offset], $repeatLength);
+            $decodedLength += $repeatLength;
             $offset++;
         }
 
@@ -9776,6 +11035,251 @@ final class PdfTextExtractor
     private function pageObjectNumberFromDictionary(string $dictionary): ?int
     {
         return $this->indirectObjectDictionaryValue($dictionary, 'Pg');
+    }
+
+    /**
+     * Attach source-object and physical-page evidence without guessing a page
+     * for unscoped StructElem nodes. PDF/UA commonly supplies /Pg either on
+     * the StructElem itself or on descendant MCR dictionaries. Both forms are
+     * inherited through integer MCID kids, so a later bounded reader can use
+     * the tag only when its source page is actually known.
+     *
+     * @param array<int, string> $objects
+     * @param array<int, int> $pageNumberByObject
+     * @return array<string, mixed>
+     */
+    private function taggedStructurePageProvenance(
+        int $objectNumber,
+        string $dictionary,
+        array $objects,
+        array $pageNumberByObject,
+        ?int $inheritedPageObjectNumber = null
+    ): array {
+        if ($pageNumberByObject === []) {
+            return [];
+        }
+        $pageObjects = $this->structElementPageObjectNumbers(
+            $dictionary,
+            $objects,
+            $inheritedPageObjectNumber,
+            [$objectNumber => true]
+        );
+        if ($pageObjects === []) {
+            return [];
+        }
+
+        $pageNumbers = [];
+        $unknownPageObjects = [];
+        foreach ($pageObjects as $pageObject) {
+            if (isset($pageNumberByObject[$pageObject])) {
+                $pageNumbers[] = $pageNumberByObject[$pageObject];
+            } else {
+                $unknownPageObjects[] = $pageObject;
+            }
+        }
+        $pageNumbers = $this->uniqueIntegers($pageNumbers);
+        sort($pageNumbers, SORT_NUMERIC);
+        sort($pageObjects, SORT_NUMERIC);
+        sort($unknownPageObjects, SORT_NUMERIC);
+        $scope = $unknownPageObjects !== []
+            ? 'invalid-page-reference'
+            : (count($pageNumbers) === 1 ? 'unique-page' : 'multiple-pages');
+
+        return [
+            'pageNumbers' => $pageNumbers,
+            'pageObjects' => $pageObjects,
+            'sourceProvenance' => [
+                'kind' => 'pdf-structure-element',
+                'objectNumber' => $objectNumber,
+                'pageScope' => $scope,
+                'pageNumbers' => $pageNumbers,
+                'pageObjects' => $pageObjects,
+                'unknownPageObjects' => $unknownPageObjects,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     * @return list<int>
+     */
+    private function structElementPageObjectNumbers(
+        string $dictionary,
+        array $objects,
+        ?int $inheritedPageObjectNumber = null,
+        array $seen = []
+    ): array {
+        $elementPageObjectNumber = $this->pageObjectNumberFromDictionary($dictionary)
+            ?? $inheritedPageObjectNumber;
+        $tokens = $this->dictionaryTokens($dictionary);
+        $pages = [];
+        $sawKid = false;
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            if (!$this->isPdfNameToken($tokens[$index], 'K')) {
+                continue;
+            }
+            $sawKid = true;
+            $kidIndex = $index + 1;
+            $pages = array_merge(
+                $pages,
+                $this->structElementKidPageObjectNumbersFromTokens(
+                    $tokens,
+                    $kidIndex,
+                    $objects,
+                    $elementPageObjectNumber,
+                    $seen
+                )
+            );
+            $index = max($index, $kidIndex - 1);
+        }
+
+        // Some valid tagged PDFs expose replacement text and /Pg directly on
+        // a leaf StructElem while their ParentTree supplies the content link.
+        // /Pg is still explicit page evidence even when /K is omitted here.
+        if (!$sawKid
+            && $elementPageObjectNumber !== null
+            && $this->structElementReplacementTextFromDictionary($dictionary, $objects) !== null
+        ) {
+            $pages[] = $elementPageObjectNumber;
+        }
+
+        return $this->uniqueIntegers($pages);
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     * @return list<int>
+     */
+    private function structElementKidPageObjectNumbersFromTokens(
+        array $tokens,
+        int &$index,
+        array $objects,
+        ?int $inheritedPageObjectNumber,
+        array $seen
+    ): array {
+        $objectNumber = $this->indirectObjectOperand($tokens, $index);
+        if ($objectNumber !== null) {
+            $index += 3;
+            if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return [];
+            }
+            $body = $objects[$objectNumber];
+            if ($this->integerTokenFromObjectBody($body) !== null) {
+                return $inheritedPageObjectNumber === null ? [] : [$inheritedPageObjectNumber];
+            }
+            $arrayToken = $this->arrayTokenFromObjectBody($body);
+            if ($arrayToken !== null) {
+                return $this->structElementKidPageObjectNumbersFromArray(
+                    $arrayToken,
+                    $objects,
+                    $inheritedPageObjectNumber,
+                    $seen + [$objectNumber => true]
+                );
+            }
+
+            return $this->structElementKidPageObjectNumbersFromValue(
+                $body,
+                $objects,
+                $inheritedPageObjectNumber,
+                $seen + [$objectNumber => true]
+            );
+        }
+
+        $token = $tokens[$index] ?? null;
+        if (!is_string($token)) {
+            return [];
+        }
+        $index++;
+        if (preg_match('/^\d+$/', $token) === 1) {
+            return $inheritedPageObjectNumber === null ? [] : [$inheritedPageObjectNumber];
+        }
+        $trimmed = trim($token);
+        if (str_starts_with($trimmed, '[')) {
+            return $this->structElementKidPageObjectNumbersFromArray(
+                $trimmed,
+                $objects,
+                $inheritedPageObjectNumber,
+                $seen
+            );
+        }
+        if (str_starts_with($trimmed, '<<')) {
+            return $this->structElementKidPageObjectNumbersFromValue(
+                $trimmed,
+                $objects,
+                $inheritedPageObjectNumber,
+                $seen
+            );
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     * @return list<int>
+     */
+    private function structElementKidPageObjectNumbersFromArray(
+        string $array,
+        array $objects,
+        ?int $inheritedPageObjectNumber,
+        array $seen
+    ): array {
+        $pages = [];
+        $tokens = $this->arrayTokens($array);
+        for ($index = 0, $count = count($tokens); $index < $count;) {
+            $before = $index;
+            $pages = array_merge(
+                $pages,
+                $this->structElementKidPageObjectNumbersFromTokens(
+                    $tokens,
+                    $index,
+                    $objects,
+                    $inheritedPageObjectNumber,
+                    $seen
+                )
+            );
+            if ($index === $before) {
+                $index++;
+            }
+        }
+
+        return $this->uniqueIntegers($pages);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     * @return list<int>
+     */
+    private function structElementKidPageObjectNumbersFromValue(
+        string $value,
+        array $objects,
+        ?int $inheritedPageObjectNumber,
+        array $seen
+    ): array {
+        $dictionary = $this->dictionaryFromValue($value);
+        if ($dictionary === null) {
+            return [];
+        }
+        $pageObjectNumber = $this->pageObjectNumberFromDictionary($dictionary)
+            ?? $inheritedPageObjectNumber;
+        if ($this->nameDictionaryValue($dictionary, 'Type') === 'StructElem') {
+            return $this->structElementPageObjectNumbers(
+                $dictionary,
+                $objects,
+                $pageObjectNumber,
+                $seen
+            );
+        }
+        if ($this->topLevelMcidFromDictionary($dictionary) !== null) {
+            return $pageObjectNumber === null ? [] : [$pageObjectNumber];
+        }
+
+        return [];
     }
 
     /**
@@ -12801,6 +14305,7 @@ final class PdfTextExtractor
         if ($rawObjects === []) {
             $this->pdfObjectsCacheKey = $cacheKey;
             $this->pdfObjectsCache = $objects;
+            $this->formVisualSummaryCache = [];
 
             return $objects;
         }
@@ -12858,6 +14363,7 @@ final class PdfTextExtractor
         );
         $this->pdfObjectsCacheKey = $cacheKey;
         $this->pdfObjectsCache = $objects;
+        $this->formVisualSummaryCache = [];
 
         return $objects;
     }
@@ -12941,27 +14447,25 @@ final class PdfTextExtractor
      */
     private function rawPdfObjects(string $pdfBytes): array
     {
-        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
-            return [];
-        }
-
         $streamRanges = $this->streamPayloadRanges($pdfBytes);
         $rawObjects = [];
-        foreach ($matches as $match) {
-            if ($this->offsetInsideRanges($match[0][1], $streamRanges)) {
+        $searchOffset = 0;
+        while (($header = $this->nextRawPdfObjectHeader($pdfBytes, $searchOffset)) !== null) {
+            $searchOffset = $header['end'];
+            if ($this->offsetInsideRanges($header['start'], $streamRanges)) {
                 continue;
             }
-            $bodyStart = $match[0][1] + strlen($match[0][0]);
+            $bodyStart = $header['end'];
             $bodyEnd = $this->endObjectOffsetOutsideRanges($pdfBytes, $bodyStart, $streamRanges);
             if ($bodyEnd === null) {
                 continue;
             }
 
             $rawObjects[] = [
-                'objectNumber' => (int) $match[1][0],
-                'generation' => (int) $match[2][0],
+                'objectNumber' => $header['objectNumber'],
+                'generation' => $header['generation'],
                 'body' => substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart),
-                'offset' => $match[0][1],
+                'offset' => $header['start'],
             ];
         }
 
@@ -12969,23 +14473,183 @@ final class PdfTextExtractor
     }
 
     /**
+     * Locate one indirect-object header without retaining a document-wide
+     * regex match table. This mirrors /(\d+)\s+(\d+)\s+obj\b/ byte-for-byte:
+     * the token before the first digit need not be a delimiter, while `obj`
+     * must end at an ASCII regex word boundary.
+     *
+     * @return array{objectNumber:int,generation:int,start:int,end:int}|null
+     */
+    private function nextRawPdfObjectHeader(string $pdfBytes, int $offset): ?array
+    {
+        $length = strlen($pdfBytes);
+        while (($objectKeywordOffset = strpos($pdfBytes, 'obj', $offset)) !== false) {
+            $offset = $objectKeywordOffset + 3;
+            if ($offset < $length && $this->isPdfRegexWordByte($pdfBytes[$offset])) {
+                continue;
+            }
+
+            $cursor = $objectKeywordOffset - 1;
+            $whitespaceEnd = $cursor;
+            while ($cursor >= 0 && $this->isPdfRegexWhitespaceByte($pdfBytes[$cursor])) {
+                $cursor--;
+            }
+            if ($cursor === $whitespaceEnd) {
+                continue;
+            }
+
+            $generationEnd = $cursor;
+            while ($cursor >= 0 && $this->isAsciiDigitByte($pdfBytes[$cursor])) {
+                $cursor--;
+            }
+            $generationStart = $cursor + 1;
+            if ($generationStart > $generationEnd) {
+                continue;
+            }
+
+            $whitespaceEnd = $cursor;
+            while ($cursor >= 0 && $this->isPdfRegexWhitespaceByte($pdfBytes[$cursor])) {
+                $cursor--;
+            }
+            if ($cursor === $whitespaceEnd) {
+                continue;
+            }
+
+            $objectNumberEnd = $cursor;
+            while ($cursor >= 0 && $this->isAsciiDigitByte($pdfBytes[$cursor])) {
+                $cursor--;
+            }
+            $objectNumberStart = $cursor + 1;
+            if ($objectNumberStart > $objectNumberEnd) {
+                continue;
+            }
+
+            return [
+                'objectNumber' => $this->asciiUnsignedIntegerAt(
+                    $pdfBytes,
+                    $objectNumberStart,
+                    $objectNumberEnd
+                ),
+                'generation' => $this->asciiUnsignedIntegerAt(
+                    $pdfBytes,
+                    $generationStart,
+                    $generationEnd
+                ),
+                'start' => $objectNumberStart,
+                'end' => $objectKeywordOffset + 3,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
      * @return list<array{start: int, end: int}>
      */
     private function streamPayloadRanges(string $pdfBytes): array
     {
-        if (preg_match_all('/>>\s*stream(?:\r\n|\n|\r)?(.*?)\r?\n?endstream\b/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
-            return [];
-        }
-
         $ranges = [];
-        foreach ($matches as $match) {
+        $length = strlen($pdfBytes);
+        $searchOffset = 0;
+        while (($dictionaryClose = strpos($pdfBytes, '>>', $searchOffset)) !== false) {
+            // Advance one byte until a complete stream is accepted so an
+            // overlapping close token such as `>>> stream` keeps the same
+            // candidate behavior as the former regex scan.
+            $searchOffset = $dictionaryClose + 1;
+            $headerEnd = $dictionaryClose + 2;
+            while ($headerEnd < $length && $this->isPdfRegexWhitespaceByte($pdfBytes[$headerEnd])) {
+                $headerEnd++;
+            }
+            if (substr_compare($pdfBytes, 'stream', $headerEnd, 6) !== 0) {
+                continue;
+            }
+
+            $payloadStart = $headerEnd + 6;
+            if (substr_compare($pdfBytes, "\r\n", $payloadStart, 2) === 0) {
+                $payloadStart += 2;
+            } elseif (
+                $payloadStart < $length
+                && ($pdfBytes[$payloadStart] === "\n" || $pdfBytes[$payloadStart] === "\r")
+            ) {
+                $payloadStart++;
+            }
+
+            $endstreamOffset = $this->nextEndstreamOffset($pdfBytes, $payloadStart);
+            if ($endstreamOffset === null) {
+                // No later candidate can close either, matching the recovery
+                // behavior of the former lazy document-wide stream regex.
+                break;
+            }
+
+            $payloadEnd = $endstreamOffset;
+            if ($payloadEnd > $payloadStart && $pdfBytes[$payloadEnd - 1] === "\n") {
+                $payloadEnd--;
+                if ($payloadEnd > $payloadStart && $pdfBytes[$payloadEnd - 1] === "\r") {
+                    $payloadEnd--;
+                }
+            } elseif ($payloadEnd > $payloadStart && $pdfBytes[$payloadEnd - 1] === "\r") {
+                $payloadEnd--;
+            }
+
             $ranges[] = [
-                'start' => $match[1][1],
-                'end' => $match[1][1] + strlen($match[1][0]),
+                'start' => $payloadStart,
+                'end' => $payloadEnd,
             ];
+            $searchOffset = $endstreamOffset + 9;
         }
 
         return $ranges;
+    }
+
+    private function nextEndstreamOffset(string $pdfBytes, int $offset): ?int
+    {
+        $length = strlen($pdfBytes);
+        while (($candidate = strpos($pdfBytes, 'endstream', $offset)) !== false) {
+            $offset = $candidate + 9;
+            if ($offset >= $length || !$this->isPdfRegexWordByte($pdfBytes[$offset])) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function isPdfRegexWhitespaceByte(string $byte): bool
+    {
+        $ordinal = ord($byte);
+
+        return $ordinal === 32 || ($ordinal >= 9 && $ordinal <= 13);
+    }
+
+    private function isAsciiDigitByte(string $byte): bool
+    {
+        $ordinal = ord($byte);
+
+        return $ordinal >= 48 && $ordinal <= 57;
+    }
+
+    private function asciiUnsignedIntegerAt(string $pdfBytes, int $start, int $end): int
+    {
+        $value = 0;
+        for ($offset = $start; $offset <= $end; $offset++) {
+            $digit = ord($pdfBytes[$offset]) - 48;
+            if ($value > intdiv(PHP_INT_MAX - $digit, 10)) {
+                return PHP_INT_MAX;
+            }
+            $value = ($value * 10) + $digit;
+        }
+
+        return $value;
+    }
+
+    private function isPdfRegexWordByte(string $byte): bool
+    {
+        $ordinal = ord($byte);
+
+        return ($ordinal >= 48 && $ordinal <= 57)
+            || ($ordinal >= 65 && $ordinal <= 90)
+            || $ordinal === 95
+            || ($ordinal >= 97 && $ordinal <= 122);
     }
 
     /**
@@ -12993,8 +14657,16 @@ final class PdfTextExtractor
      */
     private function offsetInsideRanges(int $offset, array $ranges): bool
     {
-        foreach ($ranges as $range) {
-            if ($offset >= $range['start'] && $offset < $range['end']) {
+        $low = 0;
+        $high = count($ranges) - 1;
+        while ($low <= $high) {
+            $middle = intdiv($low + $high, 2);
+            $range = $ranges[$middle];
+            if ($offset < $range['start']) {
+                $high = $middle - 1;
+            } elseif ($offset >= $range['end']) {
+                $low = $middle + 1;
+            } else {
                 return true;
             }
         }
@@ -13007,13 +14679,20 @@ final class PdfTextExtractor
      */
     private function endObjectOffsetOutsideRanges(string $pdfBytes, int $offset, array $ranges): ?int
     {
-        while (preg_match('/\bendobj\b/', $pdfBytes, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
-            $candidate = $match[0][1];
-            if (!$this->offsetInsideRanges($candidate, $ranges)) {
+        $length = strlen($pdfBytes);
+        while (($candidate = strpos($pdfBytes, 'endobj', $offset)) !== false) {
+            $offset = $candidate + 6;
+            $hasLeadingBoundary = $candidate === 0
+                || !$this->isPdfRegexWordByte($pdfBytes[$candidate - 1]);
+            $hasTrailingBoundary = $offset >= $length
+                || !$this->isPdfRegexWordByte($pdfBytes[$offset]);
+            if (
+                $hasLeadingBoundary
+                && $hasTrailingBoundary
+                && !$this->offsetInsideRanges($candidate, $ranges)
+            ) {
                 return $candidate;
             }
-
-            $offset = $candidate + strlen($match[0][0]);
         }
 
         return null;
@@ -17705,13 +19384,18 @@ final class PdfTextExtractor
     /**
      * @return \Generator<int, string>
      */
-    private function contentTokenIterator(string $stream): \Generator
+    private function contentTokenIterator(
+        string $stream,
+        ?int $tokenLimit = null,
+        ?callable $onInlineImage = null
+    ): \Generator
     {
         if (strlen($stream) > $this->maxTokenizedContentStreamBytes()) {
             return;
         }
 
         $tokenCount = 0;
+        $tokenLimit ??= $this->maxContentTokens();
         $length = strlen($stream);
         $index = 0;
 
@@ -17755,7 +19439,10 @@ final class PdfTextExtractor
                 }
                 $token = substr($stream, $start, $index - $start);
                 if ($token === 'BI') {
-                    $this->skipInlineImage($stream, $index);
+                    $inlineImage = $this->skipInlineImage($stream, $index, $start);
+                    if ($onInlineImage !== null) {
+                        $onInlineImage($inlineImage);
+                    }
                     continue;
                 }
             }
@@ -17763,11 +19450,40 @@ final class PdfTextExtractor
             if ($token !== '') {
                 yield $token;
                 $tokenCount++;
-                if ($tokenCount >= $this->maxContentTokens()) {
+                if ($tokenCount >= $tokenLimit) {
                     return;
                 }
             }
         }
+    }
+
+    /** @return array{reason:string,limit:int,actual:int}|null */
+    private function contentStreamResourceLimitReason(string $stream): ?array
+    {
+        $byteLimit = $this->maxTokenizedContentStreamBytes();
+        $bytes = strlen($stream);
+        if ($bytes > $byteLimit) {
+            return [
+                'reason' => 'tokenized_content_stream_byte_limit',
+                'limit' => $byteLimit,
+                'actual' => $bytes,
+            ];
+        }
+
+        $tokenLimit = $this->maxContentTokens();
+        $count = 0;
+        foreach ($this->contentTokenIterator($stream, $tokenLimit + 1) as $_token) {
+            $count++;
+        }
+        if ($count > $tokenLimit) {
+            return [
+                'reason' => 'content_stream_token_limit',
+                'limit' => $tokenLimit,
+                'actual' => $count,
+            ];
+        }
+
+        return null;
     }
 
     private function maxTokenizedContentStreamBytes(): int
@@ -17803,22 +19519,113 @@ final class PdfTextExtractor
         return self::DEFAULT_MAX_POSITIONED_TEXT_RUNS;
     }
 
-    private function skipInlineImage(string $stream, int &$index): void
+    /**
+     * Skip one inline-image payload while returning only bounded identity and
+     * geometry metadata. Raw image bytes never enter the facts graph.
+     *
+     * @return array{
+     *     complete:bool,
+     *     byteOffset:int,
+     *     byteLength:int,
+     *     dictionarySha256:string,
+     *     payloadSha256:?string,
+     *     width:?int,
+     *     height:?int,
+     *     imageMask:bool,
+     *     filters:list<string>
+     * }
+     */
+    private function skipInlineImage(string $stream, int &$index, int $start): array
     {
         $length = strlen($stream);
         $tail = substr($stream, $index);
         if (preg_match('/(?:^|\s)ID\s/s', $tail, $idMatch, PREG_OFFSET_CAPTURE) !== 1) {
-            return;
+            return [
+                'complete' => false,
+                'byteOffset' => $start,
+                'byteLength' => max(0, $index - $start),
+                'dictionarySha256' => hash('sha256', substr($stream, $start, max(0, $index - $start))),
+                'payloadSha256' => null,
+                'width' => null,
+                'height' => null,
+                'imageMask' => false,
+                'filters' => [],
+            ];
         }
 
+        $dictionaryEnd = $index + $idMatch[0][1];
+        $dictionary = substr($stream, $index, max(0, $dictionaryEnd - $index));
         $dataStart = $index + $idMatch[0][1] + strlen($idMatch[0][0]);
         $dataTail = substr($stream, $dataStart);
         if (preg_match('/\sEI(?=\s|$)/s', $dataTail, $endMatch, PREG_OFFSET_CAPTURE) !== 1) {
             $index = $length;
-            return;
+            return [
+                'complete' => false,
+                'byteOffset' => $start,
+                'byteLength' => max(0, $length - $start),
+                'dictionarySha256' => hash('sha256', $dictionary),
+                'payloadSha256' => hash('sha256', substr($stream, $dataStart)),
+                'width' => $this->inlineImageIntegerValue($dictionary, ['W', 'Width']),
+                'height' => $this->inlineImageIntegerValue($dictionary, ['H', 'Height']),
+                'imageMask' => $this->inlineImageBooleanValue($dictionary, ['IM', 'ImageMask']),
+                'filters' => $this->inlineImageFilterNames($dictionary),
+            ];
         }
 
-        $index = $dataStart + $endMatch[0][1] + strlen($endMatch[0][0]);
+        $payloadLength = max(0, (int) $endMatch[0][1]);
+        $index = $dataStart + $payloadLength + strlen($endMatch[0][0]);
+
+        return [
+            'complete' => true,
+            'byteOffset' => $start,
+            'byteLength' => max(0, $index - $start),
+            'dictionarySha256' => hash('sha256', $dictionary),
+            'payloadSha256' => hash('sha256', substr($stream, $dataStart, $payloadLength)),
+            'width' => $this->inlineImageIntegerValue($dictionary, ['W', 'Width']),
+            'height' => $this->inlineImageIntegerValue($dictionary, ['H', 'Height']),
+            'imageMask' => $this->inlineImageBooleanValue($dictionary, ['IM', 'ImageMask']),
+            'filters' => $this->inlineImageFilterNames($dictionary),
+        ];
+    }
+
+    /** @param list<string> $names */
+    private function inlineImageIntegerValue(string $dictionary, array $names): ?int
+    {
+        foreach ($names as $name) {
+            if (preg_match('/\/' . preg_quote($name, '/') . '(?![A-Za-z0-9_.#-])\s+([0-9]+)/', $dictionary, $match) === 1) {
+                $value = (int) $match[1];
+
+                return $value > 0 ? $value : null;
+            }
+        }
+
+        return null;
+    }
+
+    /** @param list<string> $names */
+    private function inlineImageBooleanValue(string $dictionary, array $names): bool
+    {
+        foreach ($names as $name) {
+            if (preg_match('/\/' . preg_quote($name, '/') . '(?![A-Za-z0-9_.#-])\s+true\b/i', $dictionary) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @return list<string> */
+    private function inlineImageFilterNames(string $dictionary): array
+    {
+        if (preg_match('/\/(?:F|Filter)(?![A-Za-z0-9_.#-])\s*(\[[^\]]*\]|\/[A-Za-z0-9_.#-]+)/s', $dictionary, $match) !== 1) {
+            return [];
+        }
+        preg_match_all('/\/([A-Za-z0-9_.#-]+)/', (string) $match[1], $filters);
+
+        return array_values(array_map(
+            fn (string $name): string => $this->decodePdfName($name),
+            $filters[1] ?? []
+        ));
     }
 
     private function readLiteralToken(string $stream, int &$index): string

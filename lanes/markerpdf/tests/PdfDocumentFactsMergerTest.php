@@ -33,6 +33,7 @@ return [
     ) use ($mergeFactsPdf): void {
         $pdf = $mergeFactsPdf();
         $provider = new NativePdfFactsProvider();
+        $whole = $provider->extract($pdf);
         $first = $provider->extract($pdf, ['startPage' => 1, 'maxPages' => 2]);
         $second = $provider->extract($pdf, ['startPage' => 3, 'maxPages' => 1]);
         $merged = (new PdfDocumentFactsMerger())->mergeComplete([$first, $second]);
@@ -42,6 +43,12 @@ return [
         $t->same(['Alpha'], array_column($merged->page(1)->text()['lines'], 'text'));
         $t->same(['Gamma'], array_column($merged->page(3)->text()['lines'], 'text'));
         $t->same($first->source(), $merged->source());
+        $t->same(
+            $whole->structure()['documentProfile'],
+            $merged->structure()['documentProfile'],
+            'Document-wide layout evidence must not depend on extraction chunk size.'
+        );
+        $t->same(true, $merged->structure()['documentProfile']['complete']);
         $t->same($merged->toArray(), \PortLibs\MarkerPDF\PdfDocumentFacts::fromJson($merged->toJson())->toArray());
     },
     'merges a bounded contiguous range without losing the source page inventory' => static function (
@@ -63,6 +70,8 @@ return [
         $t->same(['Beta'], array_column($merged->page(2)->text()['lines'], 'text'));
         $t->same(null, $merged->page(3));
         $t->same($first->source(), $merged->source());
+        $t->same(false, $merged->structure()['documentProfile']['complete']);
+        $t->same([1, 2], $merged->structure()['documentProfile']['coveredPages']);
     },
     'rejects missing overlapping and cross-source page facts' => static function (
         TestRunner $t

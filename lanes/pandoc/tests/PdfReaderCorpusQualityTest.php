@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\PandocConverter;
+use PortLibs\Pandoc\PandocJsonReader;
+use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\PdfReader;
+use PortLibs\Pandoc\AstNode;
 
 $pdfWithContent = static function (string $content): string {
     return "%PDF-1.4\n1 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
@@ -19,6 +22,21 @@ $pdfPageWithNoText = static function (): string {
 
 $plainText = static function (string $html): string {
     return preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+};
+
+/** @return list<list<string>> */
+$tableRows = static function (AstNode $table): array {
+    $rows = [];
+    foreach ($table->children() as $section) {
+        foreach ($section->children() as $row) {
+            $rows[] = array_map(
+                static fn (AstNode $cell): string => (string) $cell->attr('text', ''),
+                $row->children()
+            );
+        }
+    }
+
+    return $rows;
 };
 
 $pdfSamplePaths = static function (): array {
@@ -188,10 +206,91 @@ return [
             gc_collect_cycles();
         }
     },
-    'pdf corpus gate preserves real invoice and borderless table structure' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $plainText): void {
+    'pdf corpus gate preserves real invoice and borderless table structure' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $plainText, $tableRows): void {
         $invoice = $readPdfSample($pdfSamplePaths()['quickbooks-invoice']);
         $invoiceText = $plainText(PandocConverter::write($invoice['document'], 'html'));
-        $t->true($invoice['tables'] >= 5, 'The invoice template should retain its editable table structure.');
+        $invoiceTables = array_values(array_filter(
+            $invoice['document']->children(),
+            static fn (AstNode $node): bool => $node->type === 'table'
+        ));
+        $invoiceRows = array_map($tableRows, $invoiceTables);
+        $t->same(7, $invoice['tables'], 'The two invoice templates should retain their seven editable table sections.');
+        $t->same(7, $invoice['meta']['pdfDetectedTables'] ?? null);
+        $t->same(7, $invoice['meta']['pdfGeometryTables'] ?? null);
+        $t->same(1, $invoice['meta']['pdfLogicalTableCount'] ?? null);
+        $t->same(1, $invoice['meta']['pdfLogicalTableFamilyCount'] ?? null);
+        $t->same(2, $invoice['meta']['pdfLogicalTableInstanceCount'] ?? null);
+        $t->same(7, $invoice['meta']['pdfLogicalTableFamilyPhysicalParts'] ?? null);
+        $t->same('geometry', $invoice['meta']['pdfTableReconstruction'] ?? null);
+        $t->same(0, $invoice['meta']['pdfDetectedCodeBlocks'] ?? null);
+        $t->same([
+            [
+                ['Enter company name', 'Phone (02) 9999-9999'],
+                ['Street address', 'Email name@company.com.au'],
+                ['City', 'Website companyname.com.au'],
+                ['State, postcode', 'ABN 123456789'],
+            ],
+            [
+                ['Bill to', 'Ship to', 'Details'],
+                ['Client name', 'Client name', 'Invoice# 12345'],
+                ['Street address', 'Street address', 'Invoice date: dd/mm/yyyy'],
+                ['City,', 'City,', 'Terms: Net 30'],
+                ['State, postcode', 'State, postcode', 'Due date: dd/mm/yyyy'],
+            ],
+            [
+                ['Enter your product or service description', '0', '0', '$0.00'],
+                ['Enter your product or service description', '0', '0', '$0.00'],
+            ],
+            [
+                ['Customer message', 'Subtotal', '$0.00'],
+                ['Hi,', 'GST component', '$0.00'],
+                ['Thank you for your purchase. Please pay this invoice using the following payment details.', 'Shipping', '$0.00'],
+            ],
+            [
+                ['Bill to', 'Ship to', 'Details'],
+                ['Client name', 'Client name', 'Invoice# 12345'],
+                ['Street address', 'Street address', 'Invoice date: dd/mm/yyyy'],
+                ['City,', 'City,', 'Terms: Net 30'],
+                ['State, postcode', 'State, postcode', 'Due date: dd/mm/yyyy'],
+            ],
+            [
+                ['Enter your product or service description', '0', '0', '$0.00'],
+                ['Enter your product or service description', '0', '0', '$0.00'],
+            ],
+            [
+                ['Hi,', 'Subtotal', '$0.00'],
+                ['Thank you for your purchase. Please pay this invoice using the following payment details.', 'Shipping', '$0.00'],
+            ],
+        ], $invoiceRows, 'QuickBooks table cells or section order changed.');
+        $families = $invoice['meta']['pdfLogicalTableFamilies'] ?? [];
+        $t->same(1, count($families));
+        $t->same([2, 3], $families[0]['pages'] ?? null);
+        $t->same([4, 3], array_map(
+            static fn (array $instance): int => (int) ($instance['physicalParts'] ?? 0),
+            $families[0]['instances'] ?? []
+        ));
+        $familyId = $families[0]['id'] ?? null;
+        $t->true(is_string($familyId) && preg_match('/^pdf-table-family-[a-f0-9]{20}$/', $familyId) === 1);
+        $t->same([$familyId], array_values(array_unique(array_map(
+            static fn (AstNode $table): mixed => $table->attr('pdfLogicalTableFamilyId'),
+            $invoiceTables
+        ), SORT_REGULAR)));
+        $t->same([1, 2, 3, 4, 1, 2, 3], array_map(
+            static fn (AstNode $table): int => (int) $table->attr('pdfLogicalTablePart'),
+            $invoiceTables
+        ));
+        $t->contains('data-pdf-logical-table-family-id="' . $familyId . '"', $invoice['blocks']);
+        $json = (new PandocJsonWriter())->toArray($invoice['document']);
+        $jsonTables = array_values(array_filter(
+            $json['blocks'] ?? [],
+            static fn (mixed $block): bool => is_array($block) && ($block['t'] ?? null) === 'Table'
+        ));
+        $t->same(7, count($jsonTables));
+        $jsonAttributes = json_encode($jsonTables[0]['c'][0][2] ?? [], JSON_UNESCAPED_SLASHES);
+        $t->true(is_string($jsonAttributes));
+        $t->contains('["data-pdf-logical-table-family-id","' . $familyId . '"]', $jsonAttributes);
+        $jsonRoundTripBlocks = PandocConverter::write((new PandocJsonReader())->readPacket($json), 'blocks');
+        $t->contains('data-pdf-logical-table-family-id="' . $familyId . '"', $jsonRoundTripBlocks);
         $t->contains('Invoice template', $invoiceText);
         $t->contains('Bill to', $invoiceText);
 

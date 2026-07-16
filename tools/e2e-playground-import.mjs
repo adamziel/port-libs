@@ -24,11 +24,10 @@ const defaults = {
   timeoutMs: 10 * 60 * 1000,
   pollMs: 500,
   maxElapsedMs: 0,
-  // A single WordPress Playground import currently peaks around 1.8 GiB on
-  // the dense stress corpus. Fail closed well before one target can threaten
-  // an 8 GiB developer machine; pass 0 explicitly only when a larger,
-  // externally supervised browser budget is intentional.
-  maxBrowserRssMb: 3 * 1024,
+  // The release gate requires enough headroom for ordinary developer laptops
+  // and CI workers. Completed canvases, render tasks, and staged source copies
+  // must be released incrementally instead of expanding this ceiling.
+  maxBrowserRssMb: 1536,
   pdfOutputMode: 'single',
   expectedPdfPages: 0,
   expectedImageCount: -1,

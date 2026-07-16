@@ -21,6 +21,9 @@ let pdfjsModulePromise = null;
  * @param {number} [options.maxTextSpans]
  * @param {number} [options.maxTextBytes]
  * @param {number} [options.maxStructureNodes]
+ * @param {number} [options.startPage] First one-based page to collect. This
+ * lets a consumer request facts only when it is ready to ingest a page range.
+ * @param {number} [options.maxPages] Maximum pages in this handoff.
  * @param {AbortSignal} [options.signal]
  */
 export async function collectPdfJsFacts({
@@ -33,6 +36,8 @@ export async function collectPdfJsFacts({
   maxTextSpans = DEFAULT_MAX_TEXT_SPANS,
   maxTextBytes = DEFAULT_MAX_TEXT_BYTES,
   maxStructureNodes = DEFAULT_MAX_STRUCTURE_NODES,
+  startPage = 1,
+  maxPages = Number.POSITIVE_INFINITY,
   signal,
 }) {
   throwIfAborted(signal);
@@ -63,6 +68,19 @@ export async function collectPdfJsFacts({
     pages: [],
     failures: [],
   };
+  const rangeStart = Math.min(
+    Math.max(1, Number.isSafeInteger(Number(startPage)) ? Number(startPage) : 1),
+    Math.max(1, result.pageCount),
+  );
+  const requestedPages = Number.isSafeInteger(Number(maxPages)) && Number(maxPages) > 0
+    ? Number(maxPages)
+    : result.pageCount;
+  const rangeEnd = Math.min(result.pageCount, rangeStart + requestedPages - 1);
+  result.range = {
+    startPage: result.pageCount > 0 ? rangeStart : 0,
+    endPage: result.pageCount > 0 ? rangeEnd : 0,
+  };
+  const rangeLength = Math.max(0, rangeEnd - rangeStart + 1);
   const spanLimit = positiveLimit(maxTextSpans, DEFAULT_MAX_TEXT_SPANS);
   const textByteLimit = positiveLimit(maxTextBytes, DEFAULT_MAX_TEXT_BYTES);
   const structureLimit = positiveLimit(maxStructureNodes, DEFAULT_MAX_STRUCTURE_NODES);
@@ -71,11 +89,11 @@ export async function collectPdfJsFacts({
   let textBytes = 0;
 
   try {
-    for (let pageNumber = 1; pageNumber <= result.pageCount; pageNumber += 1) {
+    for (let pageNumber = rangeStart; pageNumber <= rangeEnd; pageNumber += 1) {
       throwIfAborted(signal);
       onProgress({
-        completed: pageNumber - 1,
-        total: result.pageCount,
+        completed: pageNumber - rangeStart,
+        total: rangeLength,
         label: `Reading PDF text and structure for page ${pageNumber} of ${result.pageCount}…`,
       });
       let page;
@@ -150,9 +168,11 @@ export async function collectPdfJsFacts({
   throwIfAborted(signal);
   onProgress({
     completed: result.pages.length,
-    total: result.pageCount,
-    label: result.pages.length === result.pageCount
-      ? 'PDF text and structure facts are ready.'
+    total: rangeLength,
+    label: result.pages.length === rangeLength
+      ? (rangeLength === result.pageCount
+        ? 'PDF text and structure facts are ready.'
+        : `PDF text and structure facts for pages ${rangeStart}–${rangeEnd} are ready.`)
       : 'Browser facts are partially available; native PDF extraction will fill the gaps.',
   });
 

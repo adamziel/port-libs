@@ -22,6 +22,7 @@ final class NativePdfFactsProvider implements PdfFactsProvider
         $sourceHash = hash('sha256', $pdfBytes);
         $extractor = new PdfTextExtractor($options);
         $inventory = $extractor->extractPageInventory($pdfBytes);
+        $pageLabels = $extractor->extractPageLabels($pdfBytes);
         $geometryByPage = [];
         foreach ($extractor->extractPageGeometry($pdfBytes) as $geometry) {
             $geometryByPage[(int) ($geometry['page_number'] ?? 0)] = $geometry;
@@ -35,7 +36,9 @@ final class NativePdfFactsProvider implements PdfFactsProvider
                 'schemaVersion' => PdfPageFacts::SCHEMA_VERSION,
                 'pageNumber' => $pageNumber,
                 'pageObject' => is_int($preview['object_id'] ?? null) ? $preview['object_id'] : null,
-                'label' => (string) $pageNumber,
+                'label' => is_string($pageLabels[$pageNumber - 1] ?? null)
+                    ? $pageLabels[$pageNumber - 1]
+                    : (string) $pageNumber,
                 'geometry' => $preview,
                 'text' => [
                     'lines' => [],
@@ -47,6 +50,7 @@ final class NativePdfFactsProvider implements PdfFactsProvider
                     'filledRectangles' => [],
                     'images' => [],
                     'forms' => [],
+                    'visualOccurrences' => [],
                 ],
                 'annotations' => [
                     'links' => [],
@@ -122,10 +126,28 @@ final class NativePdfFactsProvider implements PdfFactsProvider
             }
         }
 
-        $imageIndexes = [];
-        $images = $this->optionEnabled($options, ['pdfCollectImagePlacements', 'collectPdfImagePlacements'], true)
-            ? $extractor->extractImagePlacements($pdfBytes)
+        $collectImages = $this->optionEnabled(
+            $options,
+            ['pdfCollectImagePlacements', 'collectPdfImagePlacements'],
+            true
+        );
+        $collectForms = $this->optionEnabled(
+            $options,
+            ['pdfCollectFormXObjectPlacements', 'collectPdfFormXObjectPlacements'],
+            true
+        );
+        $visualOccurrences = ($collectImages || $collectForms)
+            ? $extractor->extractVisualOccurrences($pdfBytes)
             : [];
+        $imageIndexes = [];
+        $images = !$collectImages ? [] : array_values(array_filter(
+            $visualOccurrences,
+            static fn (array $occurrence): bool => in_array(
+                (string) ($occurrence['kind'] ?? ''),
+                ['image-xobject', 'inline-image'],
+                true
+            )
+        ));
         foreach ($images as $image) {
             $pageNumber = $image['page'];
             if (!isset($pageRows[$pageNumber])) {
@@ -144,9 +166,10 @@ final class NativePdfFactsProvider implements PdfFactsProvider
             );
         }
         $formIndexes = [];
-        $forms = $this->optionEnabled($options, ['pdfCollectFormXObjectPlacements', 'collectPdfFormXObjectPlacements'], true)
-            ? $extractor->extractFormXObjectPlacements($pdfBytes)
-            : [];
+        $forms = !$collectForms ? [] : array_values(array_filter(
+            $visualOccurrences,
+            static fn (array $occurrence): bool => ($occurrence['kind'] ?? null) === 'form-xobject'
+        ));
         foreach ($forms as $form) {
             $pageNumber = $form['page'];
             if (!isset($pageRows[$pageNumber])) {
@@ -161,6 +184,24 @@ final class NativePdfFactsProvider implements PdfFactsProvider
                 $pageNumber,
                 is_int($form['pageObject'] ?? null) ? $form['pageObject'] : null,
                 is_int($form['contentStream'] ?? null) ? $form['contentStream'] : 0,
+                $index
+            );
+        }
+        $visualIndexes = [];
+        foreach ($visualOccurrences as $occurrence) {
+            $pageNumber = max(1, (int) ($occurrence['page'] ?? 1));
+            if (!isset($pageRows[$pageNumber])) {
+                continue;
+            }
+            $index = $visualIndexes[$pageNumber] ?? 0;
+            $visualIndexes[$pageNumber] = $index + 1;
+            $pageRows[$pageNumber]['graphics']['visualOccurrences'][] = $this->decorateFact(
+                $occurrence,
+                'visual-occurrence',
+                $sourceHash,
+                $pageNumber,
+                is_int($occurrence['pageObject'] ?? null) ? $occurrence['pageObject'] : null,
+                is_int($occurrence['contentStream'] ?? null) ? $occurrence['contentStream'] : 0,
                 $index
             );
         }
@@ -231,12 +272,71 @@ final class NativePdfFactsProvider implements PdfFactsProvider
             );
         }
 
+        foreach ($pageRows as $pageNumber => &$pageRow) {
+            if (($pageRow['geometry']['bboxInferred'] ?? false) === true) {
+                $index = $issueIndexes[$pageNumber] ?? 0;
+                $issueIndexes[$pageNumber] = $index + 1;
+                $pageRow['issues'][] = $this->decorateFact(
+                    [
+                        'reason' => 'inferred_page_box',
+                        'fallback' => $pageRow['geometry']['bboxSource'] ?? 'default-letter',
+                        'layoutConfidence' => $pageRow['geometry']['layoutConfidence'] ?? 0.45,
+                        'recoverable' => true,
+                    ],
+                    'issue',
+                    $sourceHash,
+                    (int) $pageNumber,
+                    is_int($pageRow['pageObject'] ?? null) ? $pageRow['pageObject'] : null,
+                    0,
+                    $index
+                );
+            }
+            if (($pageRow['text']['positionedRunsLimited'] ?? false) !== true) {
+                continue;
+            }
+            $alreadyReported = false;
+            foreach ($pageRow['issues'] as $issue) {
+                if (($issue['reason'] ?? null) === 'positioned_text_run_limit') {
+                    $alreadyReported = true;
+                    break;
+                }
+            }
+            if ($alreadyReported) {
+                continue;
+            }
+            $index = $issueIndexes[$pageNumber] ?? 0;
+            $issueIndexes[$pageNumber] = $index + 1;
+            $limit = $options['pdfMaxPositionedTextRuns'] ?? $options['maxPositionedTextRuns'] ?? null;
+            $pageRow['issues'][] = $this->decorateFact(
+                [
+                    'reason' => 'positioned_text_run_limit',
+                    'limit' => is_numeric($limit) ? max(1, (int) $limit) : null,
+                    'actual' => count($pageRow['text']['spans']),
+                    'recoverable' => true,
+                ],
+                'issue',
+                $sourceHash,
+                (int) $pageNumber,
+                is_int($pageRow['pageObject'] ?? null) ? $pageRow['pageObject'] : null,
+                0,
+                $index
+            );
+        }
+        unset($pageRow);
+
         $pages = [];
         foreach ($pageRows as $pageNumber => $page) {
             if (isset($selected[$pageNumber])) {
                 $pages[] = PdfPageFacts::fromArray($page);
             }
         }
+
+        $structure['documentProfile'] = PdfDocumentLayoutProfile::fromPages(
+            $sourceHash,
+            $pages,
+            $inventory,
+            $structure
+        );
 
         return new PdfDocumentFacts(
             $this->providerId(),

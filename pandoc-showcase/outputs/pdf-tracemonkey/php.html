@@ -144,6 +144,7 @@ jmp epilog             // jump to ret statement</code></pre>
 <h2>5. Trace Tree Optimization</h2>
 <p>This section explains how a recorded trace is translated to an optimized machine code trace. The trace compilation subsystem, NANOJIT, is separate from the VM and can be used for other applications.</p>
 <p>Figure 8. Control flow graph of a loop with two nested loops (left) and its nested trace tree configuration (right). The outer tree calls the two inner nested trace trees and places guards at their side exit locations.</p>
+<p>i5</p>
 <p>Instead of aborting the outer recording, we could principally merely suspend the recording, but that would require the implementation to be able to record several traces simultaneously, complicating the implementation, while saving only a few iterations in the interpreter.</p>
 <p>i2</p>
 <p>i3</p>

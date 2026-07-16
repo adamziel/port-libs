@@ -1,0 +1,2480 @@
+{
+    "schemaVersion": 1,
+    "archive": "port-libs-playground-converter.zip",
+    "archiveBytes": 8255591,
+    "archiveSha256": "ab2c74ad93a4e7a1e73f3c5737eaab25b2b3042a44163142eaa867248165ae8c",
+    "entries": {
+        "port-libs-playground-converter/assets/admin-importer.css": {
+            "bytes": 1336,
+            "sha256": "dfc2168890ebeedf285ea2a9fcf23eaada455668da3020da75bac72118d4455a"
+        },
+        "port-libs-playground-converter/assets/admin-importer.js": {
+            "bytes": 37257,
+            "sha256": "b991a7f9ab1e827c68d1a4e0fbed03275ab6272399e46a5dad53547127813998"
+        },
+        "port-libs-playground-converter/assets/pdf-jbig2-rasterizer.js": {
+            "bytes": 16482,
+            "sha256": "4c588a5850c80ece64ccfc5916cf960cfe927aa2a464b2170dfca17b714d2782"
+        },
+        "port-libs-playground-converter/assets/pdf-jpx-rasterizer.js": {
+            "bytes": 31972,
+            "sha256": "15eb90442c9f4951e78546903c3e1261e9c72ec2357c10d06691f9a572e758aa"
+        },
+        "port-libs-playground-converter/assets/pdfjs-facts-provider.js": {
+            "bytes": 12301,
+            "sha256": "d1082fb821dffaf54abd092931cc25d6349d2107836d5317c5ffee76dd2b3ef3"
+        },
+        "port-libs-playground-converter/assets/pdfjs-form-rasterizer.js": {
+            "bytes": 15589,
+            "sha256": "c68b8fd4553ad415bfc94b5d9655304c26ce52451d5ce9916193aeb44f7798ac"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs-jbig2/LICENSE_JBIG2": {
+            "bytes": 12862,
+            "sha256": "9e66b7f1b934a28b37f3bc4dac97915de1674271e79a0a88182a18ed9731b4d1"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs-jbig2/LICENSE_PDFJS_JBIG2": {
+            "bytes": 555,
+            "sha256": "aad3cce09842e00e9e11ad5e8fef8cc02fbc3a3768fe2f007443b9cee37aaee5"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs-jbig2/NOTICE.txt": {
+            "bytes": 244,
+            "sha256": "40d5bbc99a31e12d69649d073f2de29cd996eaac983227344eb159de184a1626"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs-jbig2/README.upstream.md": {
+            "bytes": 724,
+            "sha256": "04d1a4f42b9812ff49bc414e8912c512ef138ebe76ac67928740486a94da4713"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs-jbig2/jbig2.js": {
+            "bytes": 8589,
+            "sha256": "28fc8b6686ba89e5ba4f1fe40dc51dd9fdfccfc2518776fe696ee8a2bdb290cd"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs-openjpeg/LICENSE_OPENJPEG": {
+            "bytes": 2109,
+            "sha256": "7a81d5bbd4008c63cc4bf64496b1e75b9f5fbf009ec3b06c79d8b05974f6b8b6"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs-openjpeg/LICENSE_PDFJS_OPENJPEG": {
+            "bytes": 1285,
+            "sha256": "717fc62da03292dbb4dd0c8280bd4ce7bb8550dcf31d772bc93455fb50313425"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs-openjpeg/NOTICE.txt": {
+            "bytes": 346,
+            "sha256": "31f95acee19b99a5d80ac70b1a3fc93e7ad9e54a2ee16af764937dc9df448854"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs-openjpeg/README.upstream.md": {
+            "bytes": 767,
+            "sha256": "bfa14fb932a9bb737b980a407148ac976d82f608f16641484286cc9041a10fa3"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs-openjpeg/openjpeg.js": {
+            "bytes": 14467,
+            "sha256": "e59614b7593c45f6b3a2bcc847295107df233b8bf2833b1fcbbe4068da276a41"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/LICENSE": {
+            "bytes": 10174,
+            "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/README.upstream.md": {
+            "bytes": 472,
+            "sha256": "ee80b92b129edc62e1dbf9371bcc7d235758e2bfe3142c122a3c6d7058538325"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/78-EUC-H.bcmap": {
+            "bytes": 2404,
+            "sha256": "d92a261336dc18b8c03a46eb4d462382d33f4338fa195d303256b2031434c874"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/78-EUC-V.bcmap": {
+            "bytes": 173,
+            "sha256": "61670bebc4e4827b67230c054fd0d820d6e30c3584d02e386804e62bbedc032a"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/78-H.bcmap": {
+            "bytes": 2379,
+            "sha256": "ece6415b853d61e1b2560165151407d35cf16e6556932b85a13ea75276b77402"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/78-RKSJ-H.bcmap": {
+            "bytes": 2398,
+            "sha256": "696b1f973c97623496703809eaaa5f9b40696c77540057413f4b826a08edfa7b"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/78-RKSJ-V.bcmap": {
+            "bytes": 173,
+            "sha256": "53cb6d560ab377da48cf65d6dcacb0bdb31f13fab7066c580de38c12a73a7ff9"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/78-V.bcmap": {
+            "bytes": 169,
+            "sha256": "289000f02fd34872b6975503217f33abae6bee676e7d28f640473a67c8db1712"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/78ms-RKSJ-H.bcmap": {
+            "bytes": 2651,
+            "sha256": "a2442595218f5f8bd8e1b42188e368587d876cfe0cc4cd87196f077c878f72e2"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/78ms-RKSJ-V.bcmap": {
+            "bytes": 290,
+            "sha256": "f8ddceba96bfd9d3740bd1789ee30d1f47c78371520a8084f71f7df58f19be0b"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/83pv-RKSJ-H.bcmap": {
+            "bytes": 905,
+            "sha256": "44040051ec818fe09b9703472bea72efd2759d5eeb5ff0d77c718d6bb5e6d1df"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/90ms-RKSJ-H.bcmap": {
+            "bytes": 721,
+            "sha256": "c13e043e85ff715b75bb03801e8fd0fb8f3a75e4a48496faa6baaf92b5b48ba1"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/90ms-RKSJ-V.bcmap": {
+            "bytes": 290,
+            "sha256": "499bb916ce1adbe4289b6e5811f4dc20eb238cdc2ffad20cf26ae56716885bab"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/90msp-RKSJ-H.bcmap": {
+            "bytes": 715,
+            "sha256": "7b8b3b8bbf821702e9a4df9f3596ce292380c8c1b0925dedadbb4e4b2d80498b"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/90msp-RKSJ-V.bcmap": {
+            "bytes": 291,
+            "sha256": "6296c2b5c07dca8128e96d5296d621a3268803d4fa0e5812a21e52fe2802aacb"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/90pv-RKSJ-H.bcmap": {
+            "bytes": 982,
+            "sha256": "fb5103f03d3a34547e18d316e52b6d9b26e485c662999222f84d2ba54c2e4fa8"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/90pv-RKSJ-V.bcmap": {
+            "bytes": 260,
+            "sha256": "7bcb5ad2ba55b9662ce379e16c2d9cc2b82d621a579807353741172e4af615c2"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Add-H.bcmap": {
+            "bytes": 2419,
+            "sha256": "a2ffab28b990998181bcca9b0e914bb2207820f100ae31d5c469444892e5ad8e"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Add-RKSJ-H.bcmap": {
+            "bytes": 2413,
+            "sha256": "b29f4b52e2465d0485856d5e69f1ba69927deb2848d8fd328c8035583b35bb7e"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Add-RKSJ-V.bcmap": {
+            "bytes": 287,
+            "sha256": "2aa2232c283a3f5d0997c2834a36cead0b79ce2657944cfeed08140c293460ff"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Add-V.bcmap": {
+            "bytes": 282,
+            "sha256": "25125d3b1be64e86b2df5b3344170b45a42bcaa0b46e43a34314ef73c166e542"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-CNS1-0.bcmap": {
+            "bytes": 317,
+            "sha256": "8c65be9d51a9f269a547dc12460707aaf4031ab67ebe8a2900f4b4cc6b3e450e"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-CNS1-1.bcmap": {
+            "bytes": 371,
+            "sha256": "73152bc1a59cc594b414ac6068be48e5512b96ae85920c40e32a99269fdb0c04"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-CNS1-2.bcmap": {
+            "bytes": 376,
+            "sha256": "a1b8d353bdef9584c820464e8f1c9e2013d64ebf433cba0aa831dddf515818c2"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-CNS1-3.bcmap": {
+            "bytes": 401,
+            "sha256": "2ffc0c75c79fafde506163d3c08c390d183251009f3fbf6ae50d1167d14b9570"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-CNS1-4.bcmap": {
+            "bytes": 405,
+            "sha256": "98a1f470c878c6b9691a4d7aef776af8ac9b55f5587c9fafa00547f3bf655716"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-CNS1-5.bcmap": {
+            "bytes": 406,
+            "sha256": "ddd6e29955eb8cb545f2ebd09c628c3bbda5023256eda1b728f743c75fb77829"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-CNS1-6.bcmap": {
+            "bytes": 406,
+            "sha256": "317bb2db71e0e5b7b0c47b75de1da915c2e22f65f0c0861507f9ca7ba238f8a2"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-CNS1-UCS2.bcmap": {
+            "bytes": 41193,
+            "sha256": "e665837f2197c6bd08cd8955ad4d6932cee2398e2e328b25b00e6bfb3bd72af9"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-GB1-0.bcmap": {
+            "bytes": 217,
+            "sha256": "8b81cce8a11d510e505704953cfa4e4ab080c1a0cab991145a3512ee433946b9"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-GB1-1.bcmap": {
+            "bytes": 250,
+            "sha256": "0426983081788ec7202703e71f1efa4b860f75b936994236010b39d89251a81e"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-GB1-2.bcmap": {
+            "bytes": 465,
+            "sha256": "e67b37a83b160ab3831306a71a605893b24454ee81ac9b6123bf2d3984d268d5"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-GB1-3.bcmap": {
+            "bytes": 470,
+            "sha256": "aa299afc3e12a28726147305f191be28c7498078c8b182ece7886ac79cd99078"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-GB1-4.bcmap": {
+            "bytes": 601,
+            "sha256": "8fbd7d74c2ddb1350c1cecce54a73fde3f5453093d4bed445283ec0033d2097f"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-GB1-5.bcmap": {
+            "bytes": 625,
+            "sha256": "c22cb2fcff24112fa31dab2111bdc51957006576d31aad5a25e67793ac01428c"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-GB1-UCS2.bcmap": {
+            "bytes": 33974,
+            "sha256": "20507620260c0c935c35afc1e70e5888aa7125d5ec7ffc03cef1959feb2c1641"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-Japan1-0.bcmap": {
+            "bytes": 225,
+            "sha256": "464f08905236f5703b1f5cf8358767c8b18e6bcc808840d081f1de2c7ab38134"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-Japan1-1.bcmap": {
+            "bytes": 226,
+            "sha256": "4c823848722187d1ffe75ae3f5f9126ccd2d7895a05fad14c919fb119e037008"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-Japan1-2.bcmap": {
+            "bytes": 233,
+            "sha256": "7810fb808e367e70429e90a9478fe6a3fdc3e214f25c7582ce9c2da6a242315c"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-Japan1-3.bcmap": {
+            "bytes": 242,
+            "sha256": "84deb1828711ad3d390c9899c38abce1bf619d65ff7bf1a326ec95acc45f08f8"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-Japan1-4.bcmap": {
+            "bytes": 337,
+            "sha256": "3f8a4f974919c2b8bae5d10175ffa2673be140481e00840542c85d48ef184067"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-Japan1-5.bcmap": {
+            "bytes": 430,
+            "sha256": "1d3ce4ff28d977f8cf37a912ae4ec811f4175c3167b1ec0b2567feec3e79e1db"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-Japan1-6.bcmap": {
+            "bytes": 485,
+            "sha256": "5609797b9401b30be72ef9645da62a87829f058c3be4b5c623383119f584b1d9"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-Japan1-UCS2.bcmap": {
+            "bytes": 40951,
+            "sha256": "66c5d0dc4964f4093e77b194023f3a0f689324028ec8330e1e1d0570bcba7c2f"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-Korea1-0.bcmap": {
+            "bytes": 241,
+            "sha256": "dfb8c3874f0e5a8c3acf597d2c12d2b63e90bc5e4f0fce990ec4c56077d80b32"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-Korea1-1.bcmap": {
+            "bytes": 386,
+            "sha256": "62f277b7b1c441c007797ae707d5c37258d029ce4661a2b911e2e1ee35e6adc1"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-Korea1-2.bcmap": {
+            "bytes": 391,
+            "sha256": "1d77068af462f96d7ad28ad7e7d43eef6423c685b479d7dc25ff5df38db0380d"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Adobe-Korea1-UCS2.bcmap": {
+            "bytes": 23293,
+            "sha256": "857b723088be97255053562bfa41bd1075a7f7910d3bab59a0645c8bbc7060ff"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/B5-H.bcmap": {
+            "bytes": 1086,
+            "sha256": "718ad0ffbef4c34f8f3f31292c462e519cd567a5511fc8b346c60010d64f4ef9"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/B5-V.bcmap": {
+            "bytes": 142,
+            "sha256": "b5c37383517477620ced927b6b4ffd4f4cc6230d8051b5b46a21d6768e07f7d8"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/B5pc-H.bcmap": {
+            "bytes": 1099,
+            "sha256": "bab6028aead1d6149400e904ab10cfd319082d826473ed4c582c8eeed920f17e"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/B5pc-V.bcmap": {
+            "bytes": 144,
+            "sha256": "41543142b9767f3b76133899fc8453282b01ad3c653acaeea42d78c5a7d08c63"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/CNS-EUC-H.bcmap": {
+            "bytes": 1780,
+            "sha256": "e8f89cd61e6486b948205da46499d659ed0aed949b7095fd3c8e95ffe2b0e7a9"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/CNS-EUC-V.bcmap": {
+            "bytes": 1920,
+            "sha256": "cae422bec2ac6dbe86bf921cec942bacd2d0b733ffcca5f91b3ba14e917025a0"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/CNS1-H.bcmap": {
+            "bytes": 706,
+            "sha256": "e8487971ab20cd16f3de3e8ac56ec994b72b658ad113f2818239dfd5108f501a"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/CNS1-V.bcmap": {
+            "bytes": 143,
+            "sha256": "42df8076aaa7574505e7304af83a3323ec032c4177d64b1309db8c043d594a8a"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/CNS2-H.bcmap": {
+            "bytes": 504,
+            "sha256": "bc6024d274d440f0625c69e25f37036ef6cb6689432ceaa160d3432a2a716ca7"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/CNS2-V.bcmap": {
+            "bytes": 93,
+            "sha256": "2e4f70a8afd23a121030fc2e5b5f3816e903b11e7ba8b8c09654b31c80399c38"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/ETHK-B5-H.bcmap": {
+            "bytes": 4426,
+            "sha256": "d2f10fa519336bc4efcc7b6deb9604b75429946b40d82e311cb3a97a1994c89a"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/ETHK-B5-V.bcmap": {
+            "bytes": 158,
+            "sha256": "1fea3fd0d9f0f679f80505800851ef2e4131d81127e18c006938ffa2f4c8b247"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/ETen-B5-H.bcmap": {
+            "bytes": 1125,
+            "sha256": "87ee6b3f5bfda5fe26fa35431264c7d73070d10dbbf398a75185d63ae322c18d"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/ETen-B5-V.bcmap": {
+            "bytes": 158,
+            "sha256": "47dc0d2c21e3bde317947aec1675ceabc1d5460a60bf9c24334b8c407a17172c"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/ETenms-B5-H.bcmap": {
+            "bytes": 101,
+            "sha256": "d5f5a73da4173b7da9a3a20e16f26f9cd5d12deb1553409919e0cec6fd37fdee"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/ETenms-B5-V.bcmap": {
+            "bytes": 172,
+            "sha256": "18252fca90f472f479af1bddd60d6ab51c8e1b55dcf6845951426504934543e0"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/EUC-H.bcmap": {
+            "bytes": 578,
+            "sha256": "f9939cd57fccdc65c5d9f4c205fd497ebdbd283643308da5663801a8c1d9c595"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/EUC-V.bcmap": {
+            "bytes": 170,
+            "sha256": "1283a50a706507c4436da83ede9ad7a4440be25378f2e96f6c81a430081426a3"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Ext-H.bcmap": {
+            "bytes": 2536,
+            "sha256": "4000ed4e61a1c668ef453bbd0603cfa383defa793abd46a57ed870d7f527350b"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Ext-RKSJ-H.bcmap": {
+            "bytes": 2542,
+            "sha256": "e0d2f0df337660e73813238dd4a725f11f0621b90f3273857db253d0e7694caa"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Ext-RKSJ-V.bcmap": {
+            "bytes": 218,
+            "sha256": "f617a22b6d67febb187990952006c91a9f5a4db21155d268c656252d0c21985d"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Ext-V.bcmap": {
+            "bytes": 215,
+            "sha256": "c2087fb845a9e3acea0c2922cd40e6af67e11957bec74dcd597f1285edd490ce"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GB-EUC-H.bcmap": {
+            "bytes": 549,
+            "sha256": "928bad06fd84a48f5ba7150d7716609119fb660f2aaa73eccad81ddab9b9d203"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GB-EUC-V.bcmap": {
+            "bytes": 179,
+            "sha256": "a9ad88ac2479da529b16dc48abc5952332e27bc355335f91df5729a587533324"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GB-H.bcmap": {
+            "bytes": 528,
+            "sha256": "1018c777a8910b5bb46d7d54a4aee9d51ca5cff8addb2b41c969d9101cb3fd1c"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GB-V.bcmap": {
+            "bytes": 175,
+            "sha256": "0b96789143c0bbf9f1641ae7165b3456dccd14dabffcbb0bd654d5bf6f94f863"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GBK-EUC-H.bcmap": {
+            "bytes": 14692,
+            "sha256": "2103fed28650ede096a2281104a1a8a4304dae0db414342c636867522307123b"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GBK-EUC-V.bcmap": {
+            "bytes": 180,
+            "sha256": "a7fd35dd14d9dbdb955f34e6c0630618b6620dfd09d4283b2f65a65ce77fcaea"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GBK2K-H.bcmap": {
+            "bytes": 19662,
+            "sha256": "3d919ae72af16c5cc6846ec87a4326a9f125e493c59d3628429d35c2c95fe8c4"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GBK2K-V.bcmap": {
+            "bytes": 219,
+            "sha256": "b927fdfd595c07ce9158bf2ec13f4641b2e83b01c70989dadfabd6ed7c6ac2dc"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GBKp-EUC-H.bcmap": {
+            "bytes": 14686,
+            "sha256": "d15ebd8e81fb4fe8a244f1b1e877922e03500ac69eddf5001093e502430451d2"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GBKp-EUC-V.bcmap": {
+            "bytes": 181,
+            "sha256": "fdc736d46e642625dccc8ad8c59f2c69fc7db7a13f2e799c6c6b779e707bb97a"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GBT-EUC-H.bcmap": {
+            "bytes": 7290,
+            "sha256": "dc5f44e48a39f3367ae28665027d8ab1d8cedb5a9dcc5068a900acd6709f60f9"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GBT-EUC-V.bcmap": {
+            "bytes": 180,
+            "sha256": "a1ad24e63653b8aa388c18fa5e498f007564e43dde699a9f91ccb4645c999be8"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GBT-H.bcmap": {
+            "bytes": 7269,
+            "sha256": "8afda745a505763f3ff54c8126eeb48ef376ea9ed07d9f42ff9a22c5c547ec57"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GBT-V.bcmap": {
+            "bytes": 176,
+            "sha256": "cdc2ec5c3c7c7033290c9a8894878202f08674eb9b1ae7d36218430326768771"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GBTpc-EUC-H.bcmap": {
+            "bytes": 7298,
+            "sha256": "7b23e2f7bfdb6c918f567b7324bf858f398bd8cd5f268d74ece19a3c91bf4f32"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GBTpc-EUC-V.bcmap": {
+            "bytes": 182,
+            "sha256": "d7a1b13ead9ab511cf2cd01de6ce8b02aa8e8767e84895337d7a3b67f039f93b"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GBpc-EUC-H.bcmap": {
+            "bytes": 557,
+            "sha256": "3c4a4eb82f05abe51f6650985c630e180438bfdd491318f5d20d2ec29236e1c3"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/GBpc-EUC-V.bcmap": {
+            "bytes": 181,
+            "sha256": "215bdfa2842705624b4cf4cd29b8e3c720f1e192365e0305c11030a424c84d7c"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/H.bcmap": {
+            "bytes": 553,
+            "sha256": "a0233e21047ec00b852125b243cbcf30abee511155b6d8159c24f944384bc9ee"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/HKdla-B5-H.bcmap": {
+            "bytes": 2654,
+            "sha256": "5242bce18fb13ab4cc59b146a03eba36e4ce42667eeff09e10981a9d2aa4996b"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/HKdla-B5-V.bcmap": {
+            "bytes": 148,
+            "sha256": "2e0537f786c0791d41a925f72bad2d4e7268aa6cbf15a1400a722672cec38e2c"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/HKdlb-B5-H.bcmap": {
+            "bytes": 2414,
+            "sha256": "fdc8159984bf5dbe475c0d5dfcb621ecee4dea07c38c668bd77f4c679e23b9b3"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/HKdlb-B5-V.bcmap": {
+            "bytes": 148,
+            "sha256": "b249eb9dcb915ab45057c5d4d7aa55ef88d0efbb092af6bae0b2d4705d139abf"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/HKgccs-B5-H.bcmap": {
+            "bytes": 2292,
+            "sha256": "ab64c7fc5e9b2e97750cc4f269b0da14fd8649e49151b7598c8df86599bac591"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/HKgccs-B5-V.bcmap": {
+            "bytes": 149,
+            "sha256": "02ebdf7cdffb5395fb21091cd58a013a18ae5388922822f9dc6292ef16b98956"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/HKm314-B5-H.bcmap": {
+            "bytes": 1772,
+            "sha256": "bfd8bbde6b36a9da4c1c902c74121a30d9807a7079a00eeea218be6adc223cef"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/HKm314-B5-V.bcmap": {
+            "bytes": 149,
+            "sha256": "2a64a815cfb6fdd480674a868762e3d161fda17543b20c9209978559f0667164"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/HKm471-B5-H.bcmap": {
+            "bytes": 2171,
+            "sha256": "49d7c037758826b5b6c0fa329c35bbf25d3943197754e72ecd30c6fb04d745e6"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/HKm471-B5-V.bcmap": {
+            "bytes": 149,
+            "sha256": "be24c109e78aa4fe3c1f27d30aab3ed0741e783fa1b6b6c2719741072b54b132"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/HKscs-B5-H.bcmap": {
+            "bytes": 4437,
+            "sha256": "08599378f41d96b40537adef6e6edcc4a787bc63f5accf47c026df4905a13914"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/HKscs-B5-V.bcmap": {
+            "bytes": 159,
+            "sha256": "d073542b7dad1c4cbf01c1af5f0cd13218d1281a491956e310c55702fc8705c4"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Hankaku.bcmap": {
+            "bytes": 132,
+            "sha256": "b454701f7aecd7856769016dfd04ca64280a060f2c67a2466d50b4395d24974e"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Hiragana.bcmap": {
+            "bytes": 124,
+            "sha256": "2ed669394756dd9458651cd9995ab29ab691ecb7686659003306cdf22767a414"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/KSC-EUC-H.bcmap": {
+            "bytes": 1848,
+            "sha256": "6784e16dbc5861c036c23d3e55f0d4ba0975a3e464da0ee8e49bcfff0be070c4"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/KSC-EUC-V.bcmap": {
+            "bytes": 164,
+            "sha256": "fdb36bad85e9924823d49db374067988e024cf80fc894711f2c9178951cbbe95"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/KSC-H.bcmap": {
+            "bytes": 1831,
+            "sha256": "c1f6d61f1d3304fd539a65ae72624fa567ecc3853bf52e283958a7a2515b3eee"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/KSC-Johab-H.bcmap": {
+            "bytes": 16791,
+            "sha256": "939993d213f68db763bf156217c217ae23af082b91a0eacecf3d11eb4ff8ef8c"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/KSC-Johab-V.bcmap": {
+            "bytes": 166,
+            "sha256": "5d61967aac0e666def721e8b8d0fed8f95a879a14f2e76ce516c3d11c621e519"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/KSC-V.bcmap": {
+            "bytes": 160,
+            "sha256": "d7da5afd9f1fe74816d79c9325f0139a4efb6438664ebfdf9a7aa92f3034360f"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/KSCms-UHC-H.bcmap": {
+            "bytes": 2787,
+            "sha256": "5b70d8f6a4fa9e2283dc649f0ff95d906d56efbee50a20e8d2faec3a8fed078e"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/KSCms-UHC-HW-H.bcmap": {
+            "bytes": 2789,
+            "sha256": "a5e6ba22aceb02fdedee11bfb9ed138463d89e85b87810b9f075b469d936f8ec"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/KSCms-UHC-HW-V.bcmap": {
+            "bytes": 169,
+            "sha256": "890332a6a26880d463a12f2a6ff048bf9cf7e45077cfb1ca8815b89baa7bf411"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/KSCms-UHC-V.bcmap": {
+            "bytes": 166,
+            "sha256": "1631b531c9a40c8cbe24c2317dba107362e49fa6e18af620414d627c111d570c"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/KSCpc-EUC-H.bcmap": {
+            "bytes": 2024,
+            "sha256": "709480682c55cedbb0124b9960d78e28febeee0df2e34607d61aac6601647ec7"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/KSCpc-EUC-V.bcmap": {
+            "bytes": 166,
+            "sha256": "031707887d6fc2378a36cdb6775334fd7a236c3f95048d8436abf43fe26fc49d"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Katakana.bcmap": {
+            "bytes": 100,
+            "sha256": "3b6ca6642fbf8822da00d5e58a8aa275216d5c32dbf2bd73e934197fc9fc5c53"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/LICENSE": {
+            "bytes": 2080,
+            "sha256": "aa92ab5a472974865a96fd4a4e9c13bb41bf6fe1b309cb6b8da48bc9e19839a2"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/NWP-H.bcmap": {
+            "bytes": 2765,
+            "sha256": "286c6c9e335da330928a01edc3c97a3a623f1f7f3c42762b0a7dc2f651b1a78f"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/NWP-V.bcmap": {
+            "bytes": 252,
+            "sha256": "3a75fb7b59adfb172710758c425d8ac6c93fd5360a64dd4afd5dd04e60ab4b4d"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/RKSJ-H.bcmap": {
+            "bytes": 534,
+            "sha256": "a70de61a22a898f693f02cc011c3e3cff2e10aaa7cddb4661e456a21ae859f78"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/RKSJ-V.bcmap": {
+            "bytes": 170,
+            "sha256": "68c1a64506471a524ea5cfc3b3a9f8f70031989a6bd95427b1351f33ccf50b06"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/Roman.bcmap": {
+            "bytes": 96,
+            "sha256": "1c6b3ef9d9e5cb1aa329142ce9414b90f9b6d7f9182a2a9e927378dab8f0d43f"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniCNS-UCS2-H.bcmap": {
+            "bytes": 48280,
+            "sha256": "779428116752f34e2490a1941d24e4634c71e3c22d053b811d2090ae2fb3c704"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniCNS-UCS2-V.bcmap": {
+            "bytes": 156,
+            "sha256": "1e5cc184b850ea44abc2df8ae5674279df668e8edf5e2a1a2ea2bd77adbd280f"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniCNS-UTF16-H.bcmap": {
+            "bytes": 50419,
+            "sha256": "32ff139b3c7b91d6ad25f994701f3ce7b242906022c418fd73e6493fc228bfe5"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniCNS-UTF16-V.bcmap": {
+            "bytes": 156,
+            "sha256": "278eb1e68d1a236c60ef59472cf0176ee0d45f364285e76ca12419a08d46fb9a"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniCNS-UTF32-H.bcmap": {
+            "bytes": 52679,
+            "sha256": "bf26eb67fe19ee5ba915799e80ca72408400aa8342fdf6a244a4f44de8f97336"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniCNS-UTF32-V.bcmap": {
+            "bytes": 160,
+            "sha256": "f7da3caf83ceb1cb37936fa10700d9ba6e9c3f72c5bc9724e3ac79bff0c0179e"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniCNS-UTF8-H.bcmap": {
+            "bytes": 53629,
+            "sha256": "2f2a742bcd1a84a148a4a518b9eed51a8f9c6ca5ed3bc5e2e41fff97de5dc2d8"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniCNS-UTF8-V.bcmap": {
+            "bytes": 157,
+            "sha256": "b7c3f10780a8c62dd1c8ff6c30dc1e4e23b6cdc87c3a96fcd514cc98ffd3af9d"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniGB-UCS2-H.bcmap": {
+            "bytes": 43366,
+            "sha256": "9201569b402e81ad8860650bd86350c4fa28e5dd5971f05fcacaf40f51de18ed"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniGB-UCS2-V.bcmap": {
+            "bytes": 193,
+            "sha256": "f10282335e4d64203bc2a653a3a47d745ec76c8ae04549f4d50180c1899be216"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniGB-UTF16-H.bcmap": {
+            "bytes": 44086,
+            "sha256": "386fd39581245c034da016a92d23f3df1117d169f996100050b264fc09a84e35"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniGB-UTF16-V.bcmap": {
+            "bytes": 178,
+            "sha256": "0473cfbba612b92dd9918f0ff8aee9112897c48e0ffdc0eb82da3144ed8ea84a"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniGB-UTF32-H.bcmap": {
+            "bytes": 45738,
+            "sha256": "f48a145dc4e3ed1dca1dde7111716a72306a2a4191ab05c6bae3a5c3a961cd2f"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniGB-UTF32-V.bcmap": {
+            "bytes": 182,
+            "sha256": "106acc49b7118bdef944e32107b4f348238f3929a0a15d3b7aab7b9101535993"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniGB-UTF8-H.bcmap": {
+            "bytes": 46837,
+            "sha256": "f217b439c80ee5fa1bc2cf6d1defcc319f8d84483d166a00ee199e05a68588df"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniGB-UTF8-V.bcmap": {
+            "bytes": 181,
+            "sha256": "a64df947632878eacc532fa193c735c92a383b7d66e6f8374ac193af7c64fc63"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS-UCS2-H.bcmap": {
+            "bytes": 25439,
+            "sha256": "ad2352f40870880fbf7f8ee5abadff743fbd025fbf9830b8ada472d1c5e4da0b"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS-UCS2-HW-H.bcmap": {
+            "bytes": 119,
+            "sha256": "16e87edca954177c0881c874859d6783220925d821b5cdfb8755b61ebd93f9ce"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS-UCS2-HW-V.bcmap": {
+            "bytes": 680,
+            "sha256": "1973457e2c0192819947e56068625b34fb9a72ecc8a476ce6d7eaae5f73e2e5c"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS-UCS2-V.bcmap": {
+            "bytes": 664,
+            "sha256": "42a133d8e2ce9dd6d2288018e01592d2bf2435b326d39b94ea0b6e6a44ac33d3"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS-UTF16-H.bcmap": {
+            "bytes": 39443,
+            "sha256": "f6a89c5688978548c83fcee990e205bc63c74274d5c69b49032a3bd4c49a05ee"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS-UTF16-V.bcmap": {
+            "bytes": 643,
+            "sha256": "c67126fc7c73850855186bb0d6482ac0a365057e0b58778c4ab9f234683fef53"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS-UTF32-H.bcmap": {
+            "bytes": 40539,
+            "sha256": "96195950ce0fe24443d8eb426fa6b88534ec421d7bef9046f0b2362809cfba73"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS-UTF32-V.bcmap": {
+            "bytes": 677,
+            "sha256": "ed4dafda402bdd19c4d5d8bf2ab41473c0f86f384552b4c7b963d6627daedeb1"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS-UTF8-H.bcmap": {
+            "bytes": 41695,
+            "sha256": "798fb0bf06ab0788d1f6a91c2db7de581612eef03c628f10e8f7ecd8f70ab448"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS-UTF8-V.bcmap": {
+            "bytes": 678,
+            "sha256": "1021611424f913b2df0bfdbe94bd327c04e224ec89d8e821c6501ea3d21f4265"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS2004-UTF16-H.bcmap": {
+            "bytes": 39534,
+            "sha256": "710a32d7cb43fd6bd9dbf30da5971f8c941590f74441e208d852c2be0e74cc97"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS2004-UTF16-V.bcmap": {
+            "bytes": 647,
+            "sha256": "3b149aff5c5707b57fb3215d1775852c8b1f413ec0f679ea628f25cf87fe098d"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS2004-UTF32-H.bcmap": {
+            "bytes": 40630,
+            "sha256": "8d2658e18741af7937d586a57c89729a6fec0d86121197c1f8518aa58b29cdfb"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS2004-UTF32-V.bcmap": {
+            "bytes": 681,
+            "sha256": "6dd475782f2897648a683c48b2fa015a15b8f06856760bddc8a17a63f418bacb"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS2004-UTF8-H.bcmap": {
+            "bytes": 41779,
+            "sha256": "691c614ce432b3e62486efb54e5c84c6da5afe9b51b21253bde4758feb484183"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJIS2004-UTF8-V.bcmap": {
+            "bytes": 682,
+            "sha256": "40a8c7ea2d46711c5f78fc9a878a7db68b1543ba5cd60ecf14f519a2deb829b7"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJISPro-UCS2-HW-V.bcmap": {
+            "bytes": 705,
+            "sha256": "6826f94d789d7bf1960668c1c5819c34c9585c1b23152fbc19ee81c7df08524b"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJISPro-UCS2-V.bcmap": {
+            "bytes": 689,
+            "sha256": "493de9fd1a08f7946065d8ab58f0c3c9fe489f5a0f109f2d05a3169b4bd5789f"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJISPro-UTF8-V.bcmap": {
+            "bytes": 726,
+            "sha256": "6181d382cf736c5e09492e8be9f26f31fa25b7462253f23ab16646af432cad81"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJISX0213-UTF32-H.bcmap": {
+            "bytes": 40517,
+            "sha256": "692044e1fb33445668632bc9fe7386805c624864be1ddeb29d65bb0c99fc630c"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJISX0213-UTF32-V.bcmap": {
+            "bytes": 684,
+            "sha256": "dd54e16ca7bffb3a886242549b2bf7d78a277087f7c60d2636f118c21a5b0646"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJISX02132004-UTF32-H.bcmap": {
+            "bytes": 40608,
+            "sha256": "f80ea5a989be30ccda5a8804baef6d3b4b044d2b339bf8b31c671b2466171cf6"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniJISX02132004-UTF32-V.bcmap": {
+            "bytes": 688,
+            "sha256": "94c22bd99e771c5fbe0dd8dc39850570d4db0075074aca13e272813edd7cc57f"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniKS-UCS2-H.bcmap": {
+            "bytes": 25783,
+            "sha256": "a1081396ab4adb6f4a5b6c15f896963c244c1c9bcb65ce5616d06096a1b9811c"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniKS-UCS2-V.bcmap": {
+            "bytes": 178,
+            "sha256": "6cab547431958fbdc1d401d06ebd4dd61a73f5509a10f974df32bcbca11a2e43"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniKS-UTF16-H.bcmap": {
+            "bytes": 26327,
+            "sha256": "42d35b396286499dfae1737a07adb3a64500df37b426580bfb1d3ea872938519"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniKS-UTF16-V.bcmap": {
+            "bytes": 164,
+            "sha256": "5bdb7390c80dcc136cb47d41dc7460082560969c17322ee739fe3020fb642410"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniKS-UTF32-H.bcmap": {
+            "bytes": 26451,
+            "sha256": "3a01ec51ed1b828101351e337ffb8250abe11880032e5210f881170fed2588de"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniKS-UTF32-V.bcmap": {
+            "bytes": 168,
+            "sha256": "dfda895eceaed081af030dbbb962b49629eea817fc3c02bae15db93d0c68acd7"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniKS-UTF8-H.bcmap": {
+            "bytes": 27790,
+            "sha256": "3fac9c65145f72d7d42157a3b9c5ed6904632184e6a0888f2b828699afd2002f"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/UniKS-UTF8-V.bcmap": {
+            "bytes": 169,
+            "sha256": "9ecc6cf30dd354b9778ddba163b6cc7302b087ce9f39d1ba73472d2b75ed13ca"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/V.bcmap": {
+            "bytes": 166,
+            "sha256": "b9ad1c0c09ff14bca52f9a28a9767eb857ad0e8946e64ba14c7387a7eb69866a"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/cmaps/WP-Symbol.bcmap": {
+            "bytes": 179,
+            "sha256": "543923bead225732aba30976690ee89095a19628277b5863efecc2c728d5d7bf"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/image_decoders/pdf.image_decoders.js": {
+            "bytes": 166667,
+            "sha256": "0911d27b869f67040f132dfc32fcfe12d285ee21c459b91da1e3bffd619964a2"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/image_decoders/pdf.image_decoders.min.js": {
+            "bytes": 61539,
+            "sha256": "712c5d7bbce13e14dc054da7bf144f4c002c2112b316762a5b38e1ba23423c6f"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/pdf.min.js": {
+            "bytes": 452295,
+            "sha256": "5a2b5e13008cb29b145a0f7a37dd6ede6d206d44530943fb49aeb932eb74a491"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/pdf.worker.min.js": {
+            "bytes": 1255067,
+            "sha256": "2ab9e09667296dab1a618868b3ce6e6c23d5b8f48120ae7c5b34e7e335ed01fa"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/FoxitDingbats.pfb": {
+            "bytes": 29513,
+            "sha256": "845c752392b6c914fb989c75a08b7792b88f542d2499042ef2889f8c814a16ed"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/FoxitFixed.pfb": {
+            "bytes": 17597,
+            "sha256": "b6c8fe53f134b8b6d4578cd2d544df4cee9624c4efa8d51a560fb40ea296101b"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/FoxitFixedBold.pfb": {
+            "bytes": 18055,
+            "sha256": "f1b7159702973f54fc86254ea38bcf3712b2a736eb3a0995751e9f4bb45ad603"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/FoxitFixedBoldItalic.pfb": {
+            "bytes": 19151,
+            "sha256": "8a000945843bd31add06aee63bf9fd41b7578b4f3242a4b7cd46349ad9d24d4d"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/FoxitFixedItalic.pfb": {
+            "bytes": 18746,
+            "sha256": "5007faf8320fa1fcc08b8894b356ad976f60b992ba29ee5272578bbdebaf3876"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/FoxitSerif.pfb": {
+            "bytes": 19469,
+            "sha256": "4f57d2b9d884af8f907bf22df6019b52d86cbf6214fdbd02b1ae05472a543f35"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/FoxitSerifBold.pfb": {
+            "bytes": 19395,
+            "sha256": "0bdf4b04e964139818d51eda03d566ba999fc3ba2421b1c6c51f9dc969022e80"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/FoxitSerifBoldItalic.pfb": {
+            "bytes": 20733,
+            "sha256": "a406cac82583bf98175cb62c87ed5e95c45fbb34eece63a10b0a13e793cb2e10"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/FoxitSerifItalic.pfb": {
+            "bytes": 21227,
+            "sha256": "610ae0687198045c4db5d1a6650fd5e92536631706382eb8b72e38df578d0ae9"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/FoxitSymbol.pfb": {
+            "bytes": 16729,
+            "sha256": "47967d055530e7357088a08403115425643ec2cdfd6201ba8af0fbd7116c1539"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/LICENSE_FOXIT": {
+            "bytes": 1553,
+            "sha256": "b578cdd2345840ada550bd12519533812320d5f1d21cf4c1c7e1b1b0a31c98b7"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/LICENSE_LIBERATION": {
+            "bytes": 4414,
+            "sha256": "93fed46019c38bbe566b479d22148e2e8a1e85ada614accb0211c37b2c61c19b"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/LiberationSans-Bold.ttf": {
+            "bytes": 137052,
+            "sha256": "361c61b82d575c5c35fd9157fda8b0194bcfcd0d88ea8521a4fb5dd53d33dddc"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/LiberationSans-BoldItalic.ttf": {
+            "bytes": 135124,
+            "sha256": "a224075ac17495ad0a3af3bc0a419ac0704a8b3fd1095456201fb9b095fc281d"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/LiberationSans-Italic.ttf": {
+            "bytes": 162036,
+            "sha256": "832b4406dbef23628800d3aaad21048534ac84d7e3ad955be83b8172ed8ef512"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/LiberationSans-Regular.ttf": {
+            "bytes": 139512,
+            "sha256": "f8ace1f892b2bd9dc1792ba7f097fa7588f84fed48321480e04de5390828221f"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/wasm/LICENSE_JBIG2": {
+            "bytes": 12862,
+            "sha256": "9e66b7f1b934a28b37f3bc4dac97915de1674271e79a0a88182a18ed9731b4d1"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/wasm/LICENSE_OPENJPEG": {
+            "bytes": 2112,
+            "sha256": "a6af136f3e15038a666b61f376612a07d9a4e48cb7c01adbf3e33b3f14ab49b6"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/wasm/LICENSE_PDFJS_JBIG2": {
+            "bytes": 555,
+            "sha256": "aad3cce09842e00e9e11ad5e8fef8cc02fbc3a3768fe2f007443b9cee37aaee5"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/wasm/LICENSE_PDFJS_OPENJPEG": {
+            "bytes": 1285,
+            "sha256": "717fc62da03292dbb4dd0c8280bd4ce7bb8550dcf31d772bc93455fb50313425"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/wasm/LICENSE_PDFJS_QCMS": {
+            "bytes": 1285,
+            "sha256": "eb5104ca33552be007857a28351bc408f379ddd4bfacab1226b09c6d1e9fd7c4"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/wasm/LICENSE_QCMS": {
+            "bytes": 1121,
+            "sha256": "36d847ae882f6574ebc72f56a4f354e4f104fde4a584373496482e97d52d31bc"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/wasm/jbig2.wasm": {
+            "bytes": 104852,
+            "sha256": "e6bee67724a7b5436fe8162638e3708cfc8d52b6342db69a49715e30ff27cfdc"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/wasm/openjpeg.wasm": {
+            "bytes": 252032,
+            "sha256": "004a0e62db930ba9ff2a22212f4554d0bb57a0635a8287caf70f98117cee14ba"
+        },
+        "port-libs-playground-converter/assets/vendor/pdfjs/wasm/qcms_bg.wasm": {
+            "bytes": 88837,
+            "sha256": "bfdaeb649178748e54bcdaa819bcd5c5c5a4278c8eaaf5feb5a26071e1c25bfc"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/BatchConverter.php": {
+            "bytes": 180210,
+            "sha256": "8fb93fbf124815afa06ba9caf85e8d36895dc900a7823a63ae72aeb1e579b9eb"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/BboxGeometry.php": {
+            "bytes": 3744,
+            "sha256": "afd6c6219a7e406cd1557c8c988bfc40aeadf2e986d136ab534e14bda513aa79"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/BenchmarkReportBuilder.php": {
+            "bytes": 6029,
+            "sha256": "f55a7f42e7d60aec93ffa57986252e0ab11431b840f6c9fc40f73670c530a7fa"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/BenchmarkReportVerifier.php": {
+            "bytes": 5791,
+            "sha256": "b37cea2a5ca62307d77e5f0a944e31a330e08a9103e1ac6ded6d81cbaae35977"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/BenchmarkRunner.php": {
+            "bytes": 65050,
+            "sha256": "315e48a4c543420b1b1de3f3d50511a835f375ed14b81fd8d5b068d0b3b129d0"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/BenchmarkScorer.php": {
+            "bytes": 2981,
+            "sha256": "f076c44f98f40ee1791fa007d7c6f7b2313d366f95b6f9f05e92ef05c37b9c55"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/BlockSpanFilter.php": {
+            "bytes": 2267,
+            "sha256": "4882047c95bbbd7ce7c3b425662d5956c735f90f15276b96a990eac721d3ce5c"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/BlockStructure.php": {
+            "bytes": 1971,
+            "sha256": "142d69135a4675c4ddef8bdd7fac3cd2ed4f1353e7cc59274748e4fe4006a2fc"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/BrowserPdfFactsProvider.php": {
+            "bytes": 7673,
+            "sha256": "722687e8fd21f2492ad01488b310633d670cdbaaa08bbeea14d6b48bcaf166fb"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/ChunkConversionPlanner.php": {
+            "bytes": 17750,
+            "sha256": "daf8f8dd22b72cac812afc42d70f16c621481c7328d09aef6363d42053fbabab"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/CodeBlockDetector.php": {
+            "bytes": 4854,
+            "sha256": "86d474d61216105af3dc0e9a91653032bc53c5d5f963d6728bf6892652a3adac"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/ConversionFinalizer.php": {
+            "bytes": 9438,
+            "sha256": "c63ce4e44961a278c5759fcc1a50cfe3a54f7ebafb45bd6a983c1fb132f874bb"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/CorePdfConverter.php": {
+            "bytes": 6081,
+            "sha256": "47120cbca5e044d2d4f91282d23949c4f7563808aef3ec898101621eae301b11"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/DebugDataExporter.php": {
+            "bytes": 2386,
+            "sha256": "8c2f649871a9036a265eb5121a3c8c9842680084ac92fe6f61cef85e9a17500d"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/DebugPageImagePlanner.php": {
+            "bytes": 8682,
+            "sha256": "b2e75cd114f3206ca4fb9b0ae5c1a18714e8bd16b084cf488cb5b4b3c7d6bcd6"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/DebugRenderPlanner.php": {
+            "bytes": 2774,
+            "sha256": "866b1a3149864c0af40a523e2d547e6aa5d7bfc0fe51247784705dca8f11e33e"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/DocumentStructureBoundary.php": {
+            "bytes": 3953,
+            "sha256": "272f57aad0b23d2285ed5cc5d241a9eb547ed5ea71d748d5a2978d21e12da069"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/EquationReplacer.php": {
+            "bytes": 13325,
+            "sha256": "db512befd8276d8d38bef5290eb6e36c5961cdbd97809b2fedb92adcdd08abe8"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/FiletypeDetector.php": {
+            "bytes": 3424,
+            "sha256": "43cf06b57ad5e65762b4187a2dd7163d16544274e80db22136b87843d1ef57bc"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/FontStyleCleaner.php": {
+            "bytes": 2882,
+            "sha256": "44d89979e7bfa1ac0eecedc6c94fd158ed0cd1c1db1ccc5e1d5969a58d03d798"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/HeaderFooterCleaner.php": {
+            "bytes": 2877,
+            "sha256": "77fef207ca755a107866b891243b5c3ee566ca16f20ac81ffd3c8853767e3f2e"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/HeadingCleaner.php": {
+            "bytes": 9835,
+            "sha256": "3615789a8becb74a1000a1046b60f949ff079b5a745b1f024c16e95816717829"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/ImageExtractor.php": {
+            "bytes": 5977,
+            "sha256": "9a55944b1143ca54d62c3e5398f5a0d6b97ec516db304fa017ca7e3d9672696f"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/LayoutAnnotator.php": {
+            "bytes": 39710,
+            "sha256": "fa6d95e540f9028677e5c335ea5b6c143e38449afe8801e54a964d23b971e3e5"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/LayoutOrderer.php": {
+            "bytes": 53396,
+            "sha256": "99736d0981d536d1f77f348a3343816484ea1193a5f49c2d30d5af58c896700a"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/MarkdownImageEmbedder.php": {
+            "bytes": 1314,
+            "sha256": "a88f8bef1b01f7c3122252f2a02c12ecfe44f28dfb85248b95585b3015354dc5"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/MarkdownPostProcessor.php": {
+            "bytes": 12086,
+            "sha256": "6b7f4c3bda8cda83429f7809a60b90ef6cd3572f03739b59e4319082a5c4724a"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/MarkerAppPreview.php": {
+            "bytes": 73807,
+            "sha256": "214cd5c2069a587ae98fca2f9447116c1e7dcea704483d37bf02194f3470a268"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/MarkerRuntimePlanner.php": {
+            "bytes": 13075,
+            "sha256": "7939985d04a2feb79653144a14bcd5b629bee2e136e4cb0b5a17344de8d638e6"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/MarkerServerAdapter.php": {
+            "bytes": 30775,
+            "sha256": "c0fe248847875789e8103c6e6871460766de1bab2f1247affb1c386a8f66d0c7"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/MarkerSettings.php": {
+            "bytes": 10757,
+            "sha256": "546aa94fe7bc24a0ae001ce44eee4aef46db21fc974044690e54be940644ff47"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/ModelPipelinePlanner.php": {
+            "bytes": 3996,
+            "sha256": "d413a5a0cdc0bc66cf3b4fb2de76551370f3dea010890ac55194148f542fc2fe"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/NativePdfFactsProvider.php": {
+            "bytes": 10628,
+            "sha256": "9dffa368af258612d461a1bb0412a28d0798ba1f036be560f635e19e9494c73c"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/OcrDetection.php": {
+            "bytes": 1241,
+            "sha256": "64dc90093842d8f4788719365e33390398f2f0992aa281eb5da05bc7554e29fe"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/OcrHeuristics.php": {
+            "bytes": 5481,
+            "sha256": "c36e9150f04698750c5bfada8f8e08ac0bd5952cdda2967e57ad377aa217224b"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/OcrLanguage.php": {
+            "bytes": 8073,
+            "sha256": "31dd43a53fb05db56a42db6ce20803ce2767cc0595a6c456acfdf9e2f89cccc3"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/OcrRecognition.php": {
+            "bytes": 10591,
+            "sha256": "9eda06bd06da8f87b70c9749ca48addbf9e516d823464e5df4b89bb48c14a129"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/OutputWriter.php": {
+            "bytes": 27314,
+            "sha256": "23556804aff9eeaf99d0b8346ec350ca9cc3ab2a23ccca232919b7d824899dac"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PageInspector.php": {
+            "bytes": 2573,
+            "sha256": "cd20c64d1fa40af3a05051ab2e33f16f0d00635ddaa68311a1d0cf294b63e21c"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfAcroFormExtractor.php": {
+            "bytes": 389562,
+            "sha256": "4df0fa835fa6262443ec0ed36348dfc609aec1b7ca4cf826f217d55909419c0d"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfActionReviewExtractor.php": {
+            "bytes": 127551,
+            "sha256": "812732d4be720355f5c4bbf263eea0d78a0ce5f18f5c0a50d1662fec7f0051e8"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfAnnotationExtractor.php": {
+            "bytes": 107234,
+            "sha256": "efcf4b141dccd4713cb6fc2ec217ce4b6e9e6a51a1d9999ab6536f378927a4c4"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfAttachmentExtractor.php": {
+            "bytes": 224777,
+            "sha256": "0cce8f9be0a495c230bdf693ecff4958ec030522b550301064b088e60d0c1ef2"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfClassicXrefRebuilder.php": {
+            "bytes": 21993,
+            "sha256": "180ae5ffa2583f1ba1b5d2e2ecbdd3321522197a5347758d689b26d57ce22d9e"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfDateTimeNormalizer.php": {
+            "bytes": 1850,
+            "sha256": "1426b5177348c846b3698f671405300f0866b1c32256c2c121e39db6b12c87f7"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfDocumentFacts.php": {
+            "bytes": 3874,
+            "sha256": "cfb0aff78463e3f271d8418c03253ec8af5bdb000a61a717f1d3f11e6f7e4ea7"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfDocumentFactsMerger.php": {
+            "bytes": 4748,
+            "sha256": "3416a47f5034ec868753115dc50ba3ce12d60352660f61f47aafa01449cb3a0d"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfDocumentLayoutProfile.php": {
+            "bytes": 13879,
+            "sha256": "a687a17914a912a4c0c579f7bcc2c010cc5460f43b3c19553e46e73d7d8603d9"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfDocumentSecurityStoreExtractor.php": {
+            "bytes": 40361,
+            "sha256": "7a8a60a1d92eb07ffbcc5dd4aed336d304c1c134fdcf742e49c2a0c95b96c386"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfEmbeddedFileExtractor.php": {
+            "bytes": 227515,
+            "sha256": "9c20a6cc7573c4692474211d968bd86e7395b1984cba0d5e7cc244fb97464e60"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfFactsProvider.php": {
+            "bytes": 213,
+            "sha256": "c585623c1781074c1990e06bc17c8bffd45d5634cff562c6d495c7b83c028e50"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfImageRenderer.php": {
+            "bytes": 349763,
+            "sha256": "22b765ee7d43184586ad5b62b54ac9d2455ef9779245836df257953047452025"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfJavaScriptActionInspector.php": {
+            "bytes": 20495,
+            "sha256": "dbe344c3143523ef1d875279fdb92b4dd56e5a463419ecb8a738d9306595c03d"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfLinkAnnotationExtractor.php": {
+            "bytes": 113591,
+            "sha256": "8bea42a6c59a4028beb331f6d14b178b929b3375468c6476b6f212a8fb193b01"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfMarkupAnnotationExtractor.php": {
+            "bytes": 52844,
+            "sha256": "f0248a455589cd0ee08db77ffbcbf87a19cf44328497e6102d94b3ab1cd6a68f"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfMetadataExtractor.php": {
+            "bytes": 690734,
+            "sha256": "7d6dc0945d3dfd16b3361dee9362cfef0a2976fc8ec8f8eada6698a09cb8c8c9"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfNamedDestinationExtractor.php": {
+            "bytes": 72161,
+            "sha256": "c2326f12470abda99c8e63145e940d1b5ddcef0c2b4fd1dd72a07a07d29883d8"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfOutlineExtractor.php": {
+            "bytes": 176803,
+            "sha256": "b72cf3427f6d50c7975d54c7b6ca913345eeca97c18be0ae8f58803393376c33"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfPageArtifactSelector.php": {
+            "bytes": 26647,
+            "sha256": "c0b371246515dddee1c845db5d87bac876a0cab1fc4804dab44f53c03e75d16d"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfPageFacts.php": {
+            "bytes": 1880,
+            "sha256": "658bc511d6cd64e01324d21fe2729a49e4bf832adb6865ad79f3efbc7dcc2851"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfPagePropertyExtractor.php": {
+            "bytes": 120605,
+            "sha256": "c0ada3d978a52eb8c9f032c77213743355d6275b02b374fb8f1a1cdb6408e328"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfRichMediaAnnotationExtractor.php": {
+            "bytes": 72153,
+            "sha256": "9492a70baf9d391800fc31948df5bc911167b73c9650026ad06bbd5e45fe781d"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfSecurityPreflight.php": {
+            "bytes": 293336,
+            "sha256": "f3e834dc7c13cf54f2833606f7f65d68a6693b62e8c1d293eb7c4bfbf6848d95"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfTextBlockConverter.php": {
+            "bytes": 15971,
+            "sha256": "2ce686a6cb3f3d91c9867c082fd5066c5fbe23727267d85fdf3157fabcba2352"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfTextDocumentExtractor.php": {
+            "bytes": 34367,
+            "sha256": "81b00348822d7c657d5278b0f01cf2c5142f719db2a976c1aa4973af02fc102c"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfTextExtractor.php": {
+            "bytes": 530764,
+            "sha256": "c38142e5a235b7fffbcf74660b84b55d4f79e40c7cb312b3da8451f9a3d65a9e"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/PdfXrefFreeObjectMap.php": {
+            "bytes": 46407,
+            "sha256": "bfb7b53e73677a5a15e561d8b302ae9c6f33ae1f30409c187eddefff85f13592"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/78-EUC-H": {
+            "bytes": 14795,
+            "sha256": "f79e6d060835753deb117b1872ef13158aeb12fcab1e7add188627adba0d1422"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/78-EUC-V": {
+            "bytes": 3221,
+            "sha256": "762939b0f0c4783e5d5439a44bfd084889a6b1f65362a7d4f77b3b1791c58816"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/78-H": {
+            "bytes": 14672,
+            "sha256": "93adc08c2a0668fa64978a21bd00ba583716d0adfd97d5e3b901068fc1ea9fa9"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/78-RKSJ-H": {
+            "bytes": 14826,
+            "sha256": "99b0357f4414e5493f026ce671e09ca082da0355719614391d0c36e6b50266e6"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/78-RKSJ-V": {
+            "bytes": 3227,
+            "sha256": "dd067d061cfacb6427c0f90b2f387012f52b6220e13eef472e836678ca822e6e"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/78-V": {
+            "bytes": 3197,
+            "sha256": "261b2a4d3916651bff1c4e6b29f58a94822b5cf509e4e1e233ed21a330d3e37d"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/78ms-RKSJ-H": {
+            "bytes": 16499,
+            "sha256": "be4152e449cf5f08421b5b0e426fb5c9e64c173d248290cd057e23fa7ea14a15"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/78ms-RKSJ-V": {
+            "bytes": 4208,
+            "sha256": "4e8407cfe0d87fd90b065e65acee5142db03502ada8bb53adf63b3749d9b1a41"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/83pv-RKSJ-H": {
+            "bytes": 7079,
+            "sha256": "f344490328d2f504e131e6f3fb0415f8be3d4f66e0365f3668b58dfa64f10105"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/90ms-RKSJ-H": {
+            "bytes": 6069,
+            "sha256": "5258a029d12520ef3d82100aef391317c9b11bf91e2a86b14dbcd5103d803044"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/90ms-RKSJ-V": {
+            "bytes": 4228,
+            "sha256": "e5eb142c13f9fc8693bfd5b5dc658311fdaebeaf038b8543abc1b6731b47ed29"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/90msp-RKSJ-H": {
+            "bytes": 6000,
+            "sha256": "fbc19903492dbfe35aeef75b320b998e335a9fe6743063317d687770b9075270"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/90msp-RKSJ-V": {
+            "bytes": 4211,
+            "sha256": "16fc2049683b9c61ebd01adbd3eb2728cfa361fb497b97017a8f9160cc15f634"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/90pv-RKSJ-H": {
+            "bytes": 7814,
+            "sha256": "f4917735cab1f4ffbe9e57d6d2dd490676a8c038ae55173bb2ece5ac9f552456"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/90pv-RKSJ-V": {
+            "bytes": 3714,
+            "sha256": "5e2ae2ee02a253dfadb4be04bb8e0b3fbcb36a903a8aadc450bcee661e09fbfe"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Add-H": {
+            "bytes": 14853,
+            "sha256": "f312936447db7b425b91a043fe91e7da27a39b0aace0ffc724f306299ac15137"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Add-RKSJ-H": {
+            "bytes": 15037,
+            "sha256": "8fde3414d858978ba706622afa335b7f751d1bc34dfa8d588a441cf38947b5fb"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Add-RKSJ-V": {
+            "bytes": 3822,
+            "sha256": "2c7ca34486634b3b4892a7eeccdbbeee49ae25ea7bc7d9992d48629a28374f3a"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Add-V": {
+            "bytes": 3792,
+            "sha256": "7309b3edaef153638c1d1fc8486f03ab6d9e8d65c7af06d97ca3f7aaded8f2cc"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-CNS1-0": {
+            "bytes": 3828,
+            "sha256": "9685fda7236c92eda656fab4eb54c625dda8525764e79515d58f2e6a20e9c42b"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-CNS1-1": {
+            "bytes": 4001,
+            "sha256": "161c257930c93fcc084db7bdb7ea6559ac0360e97d5afa95968f3490412935c6"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-CNS1-2": {
+            "bytes": 4021,
+            "sha256": "158ee1fcac4c9817e07ee994f5b6fd614151bda273e2b9d5c82776b4adc66acf"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-CNS1-3": {
+            "bytes": 4121,
+            "sha256": "71e819d72aa2553fca4e4312888ce26d930af2cc239a4e953103869c9d64363c"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-CNS1-4": {
+            "bytes": 4141,
+            "sha256": "9a2c4f03436a1120b98160f52041ce595e10fe4064d27a1c5d3ad4ad16014b83"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-CNS1-5": {
+            "bytes": 4141,
+            "sha256": "b096fbf75f932522277de835a23884615ac088d0c549345d7a5068d087fb1e75"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-CNS1-6": {
+            "bytes": 4141,
+            "sha256": "3154f99e292c34601a312c0976780dc2ef7a6701b99c546681475690555a24ae"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-CNS1-7": {
+            "bytes": 4117,
+            "sha256": "4143481ea7715202f2c4e6bf6e10472a404b289f56ab5af2a496f2fa6394323b"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-GB1-0": {
+            "bytes": 3291,
+            "sha256": "22c8c9f573619c33cc61e585880d1f94ef5ff47ca4ecb785a4ead46b7f3237ab"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-GB1-1": {
+            "bytes": 3445,
+            "sha256": "e68ebefc735a2fac644e68138690278794c3c32351dd1aa443c80720acf049b9"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-GB1-2": {
+            "bytes": 4399,
+            "sha256": "018f8aae7953c3ea8740bf37db0259542716d1b50427d5e528cd2de012c99117"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-GB1-3": {
+            "bytes": 4398,
+            "sha256": "a647cc5f4f9064fdd817d6925979bf398a95da6a6dfe4658e47e974289cfb094"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-GB1-4": {
+            "bytes": 4950,
+            "sha256": "0b216125ce8e2b86790544216180e880426d47520f43759f8f02ed6cb36cc727"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-GB1-5": {
+            "bytes": 5050,
+            "sha256": "c070de3f8824504f3bf296d463cc6fa6b1f4efc889d964ec87d9c514d80d2c83"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-GB1-6": {
+            "bytes": 5046,
+            "sha256": "c7956b728a3edf8692743cc228001e6ed9e3cb37a3a083a74c4bff9812247499"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-Japan1-0": {
+            "bytes": 3340,
+            "sha256": "ad609bb56e1a0decad0f389ce82f1d3caf38be40b9293af3699519e3b17e0ac7"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-Japan1-1": {
+            "bytes": 3341,
+            "sha256": "7d77bd80e5771ff1a4aa5b3d84d20eecc357f5cf9ac6859cbf1888843fd4b5b1"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-Japan1-2": {
+            "bytes": 3379,
+            "sha256": "e76220a53113067f34e0e0fa2096d1ee6aea089aaecb22984ab3cc508275235c"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-Japan1-3": {
+            "bytes": 3389,
+            "sha256": "cc6667155c2f84188defd9f4d18a1f86cb5c99e447d816f2d2b90a3c0b2d30ad"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-Japan1-4": {
+            "bytes": 3867,
+            "sha256": "9796b334941c3fafb448d3ed53c0c0b7566c8419949a462fb0e4d9fe9df77f62"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-Japan1-5": {
+            "bytes": 4247,
+            "sha256": "6cd1c0a1fba4e949d467999512e9b345b441b837fbc70efdfb32e0d7b4e0d88b"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-Japan1-6": {
+            "bytes": 4467,
+            "sha256": "d34036663af67c41e3c816c9541cf2700c2a20fdb344503e73624f8400422108"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-Japan1-7": {
+            "bytes": 4443,
+            "sha256": "2252862cae73e8fa5fce7ded344443e3cfe1d2275601f0397c28b7ff727e7d36"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-Japan2-0": {
+            "bytes": 3167,
+            "sha256": "81495fb8da7384d927c64fa9123e603676d520fa466a655762440b5d412e27a2"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-KR-0": {
+            "bytes": 2878,
+            "sha256": "b00b82c0beb65c27da0cf45986ef5864df8029a9f244dbafa0840a58a932a03a"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-KR-1": {
+            "bytes": 3011,
+            "sha256": "f4b0d6a5e399aac8f9eaad4f2b3dba329213093c98407c8a1095b1098bc07855"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-KR-2": {
+            "bytes": 3511,
+            "sha256": "bba1e725ae19cfe12f2d53c339e3b462e41ef6d20287c597cd21a04c9267b237"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-KR-3": {
+            "bytes": 3531,
+            "sha256": "5d1f2c700d7d05f2b6da00999e5813b04910b225f8039961faeb577958d43c5e"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-KR-4": {
+            "bytes": 3551,
+            "sha256": "694860255cfacf671063609a51d08fb1881e6641f935d9c80f218dc40af0621f"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-KR-5": {
+            "bytes": 3571,
+            "sha256": "b3c7d91b48ac2217bf9c82279c0c2c7c3c8a71a9ad88ec6d72990d03d7fe4b50"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-KR-6": {
+            "bytes": 3731,
+            "sha256": "04b2d887287f671ae679b70f8c80d102864ae2027e3883aed466800ead805678"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-KR-7": {
+            "bytes": 4091,
+            "sha256": "23a2ca614f9739fb07f873a62fde8b3d23835e8b1b730c087cf2afa6f6949980"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-KR-8": {
+            "bytes": 4371,
+            "sha256": "d275bb5aefb759ce3fac3d0f886023016dd6278b7d0222d6bdfeb0ba9d5ff6a3"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-KR-9": {
+            "bytes": 4411,
+            "sha256": "09e0ae91a81d2944a0ed5654b040b4de387f8184e1a6e16194c96588a40d7a1c"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-Korea1-0": {
+            "bytes": 3432,
+            "sha256": "cfbe3642e975693953a0399118820c2da829b2dd99472e066c28c9e599565e1a"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-Korea1-1": {
+            "bytes": 4088,
+            "sha256": "ce8cb39ca789ffabb6af867c5e66b914d4676b0da8a926efa58075f6d2b528fc"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-Korea1-2": {
+            "bytes": 4087,
+            "sha256": "749aa25d770580090573cf963b3a146c11dcc46178a83d05c41474e156992a4a"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Adobe-Manga1-0": {
+            "bytes": 4044,
+            "sha256": "5ba512c9cde076fc3bd2e876cf66770b60a10cce77aab3aab56567dea724810e"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/B5-H": {
+            "bytes": 7492,
+            "sha256": "40c73180c48472ee1a17407d921303c91f695f9eb7794bb76058defc03d8be06"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/B5-V": {
+            "bytes": 2923,
+            "sha256": "558cd824a166c4f1bd0885ff87731c89744cdc42235a14097c60d9bac2c23809"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/B5pc-H": {
+            "bytes": 7546,
+            "sha256": "2c1a615631b4e397fb9d69a276fbb78486350b7eeb689d36a0be94bbc5e28beb"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/B5pc-V": {
+            "bytes": 2935,
+            "sha256": "f3db96995dcbe3630b33cf53991c69a1786d8e17850b71dd6149e144076b792d"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/CNS-EUC-H": {
+            "bytes": 12245,
+            "sha256": "e4626075a4f63575c576fdea67ad9b2b35ba78a2ef18d215321c156c04cd22f8"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/CNS-EUC-V": {
+            "bytes": 13277,
+            "sha256": "418f2f6262da9911cbfd9912008d97f544e3e1e83569654fd3698ac922d65c7c"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/CNS1-H": {
+            "bytes": 5610,
+            "sha256": "863eafc41f5772ceeb69dbe4d8da5dfce882aba0790df49848b6583bfbd4ffb4"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/CNS1-V": {
+            "bytes": 2931,
+            "sha256": "e1aadfd9554e6b19ff511ac6e93b236694b883ad5aba0d59694036655370d991"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/CNS2-H": {
+            "bytes": 4274,
+            "sha256": "e89599ec5b01167c350d54b3fcb487fd978e1bbbfb0c7c85f57570b916ea3697"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/CNS2-V": {
+            "bytes": 2682,
+            "sha256": "15aa16296d2e01f98fff3b659db78af20d27d42465bc80ff1de72143109ba793"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/ETHK-B5-H": {
+            "bytes": 23201,
+            "sha256": "f7188d13830c994cb25b342a334fea4eb6c7417c788e21989f65b58d2aa891fe"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/ETHK-B5-V": {
+            "bytes": 2954,
+            "sha256": "15aa0d3465759b21c40435fd021d8134a8f1eee294fa9c087d374ed319dee28c"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/ETen-B5-H": {
+            "bytes": 7702,
+            "sha256": "019ac02c0c80a9e3d541d09271602e2374d73f81998189819d28ca71384c2f10"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/ETen-B5-V": {
+            "bytes": 2973,
+            "sha256": "fe576394d8b3f39202a0cd18820a76f18ffd16015728aa6183ad388772dc29b5"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/ETenms-B5-H": {
+            "bytes": 2728,
+            "sha256": "3bdcd55bf9cf418edd9f2c8858a9cbd320b2f6f758c0f54fa9d11da98077b0be"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/ETenms-B5-V": {
+            "bytes": 3040,
+            "sha256": "3fb624674d3b004e46ebbb1589eb9cecaf4b2d9ec07bb678da689eb056e4b678"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/EUC-H": {
+            "bytes": 5074,
+            "sha256": "0f6833d1708d8490561e500c4a2db9b4647188f5c440e83897dedab1aaa9ab4a"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/EUC-V": {
+            "bytes": 3222,
+            "sha256": "90de6a04e5457591613e13669fa8e4f4c7d39f1e53d83536714bd3186b3f9616"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Ext-H": {
+            "bytes": 15423,
+            "sha256": "866fff8d550d5606dd6e3ba02ac4541069f1801a9cd0a9d8d5904b602f382a0a"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Ext-RKSJ-H": {
+            "bytes": 15606,
+            "sha256": "388afd165f660d79f30051b18c3b3ba5a58ce2b5eab53ffe4d832f7d39cf6458"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Ext-RKSJ-V": {
+            "bytes": 3480,
+            "sha256": "8ac4aa269847c8cdfd8500bf12a01eb52b51f9df94fce9b6104943f8fe31bb4e"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Ext-V": {
+            "bytes": 3450,
+            "sha256": "17cd11ef065ef3d2a5c6e3d4d9cb973113529ac9719c7e0b2c1bb1159adbbfdb"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GB-EUC-H": {
+            "bytes": 4426,
+            "sha256": "8943d065dc4cc0663d471df39c95d0e7cbeb90b7b3c5ba004646d7e5c75ca551"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GB-EUC-V": {
+            "bytes": 3099,
+            "sha256": "fb7c8a73d685159d02cfcd0d9e2e49b4c6a4561e35578982e25d8309c61049cd"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GB-H": {
+            "bytes": 4321,
+            "sha256": "9e0f17501946b8c5d305e26901742b5fc465927fb6e890c3980f381610157854"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GB-V": {
+            "bytes": 3075,
+            "sha256": "6978bfe0a58cc46daf2ca9165f95c244a0d95af6ef163ee7f22c7c1ec353af0a"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GBK-EUC-H": {
+            "bytes": 83101,
+            "sha256": "e640bb083303b28b08ce479dc5bad1093f5eb2cf74727f62c1db6baf22529b60"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GBK-EUC-V": {
+            "bytes": 3088,
+            "sha256": "d530be3ace5b4d3a4617ccbe6c4d0e79481a697c3bba4e6556b94e9f737b9061"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GBK2K-H": {
+            "bytes": 94483,
+            "sha256": "78a787242fcc09ac309681f7923d546f8d91cf9d4af3bfba538ae5ec59bc9162"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GBK2K-V": {
+            "bytes": 3481,
+            "sha256": "a7d9f90abf707105a032da7831bdbf68e434065379d300884dbbba0824e64851"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GBKp-EUC-H": {
+            "bytes": 83082,
+            "sha256": "8dccb697febc37558c8041cf32966ba433e8c430f07feb5663630cca0e577654"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GBKp-EUC-V": {
+            "bytes": 3094,
+            "sha256": "5607687e077c1ce0926ef12046b64a9284f1a541cc0fddf457a0db86a58b6a2e"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GBT-EUC-H": {
+            "bytes": 46772,
+            "sha256": "094bb9bf1f5dec7a29579b51690705693e095bc468706ed9db1708294585b291"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GBT-EUC-V": {
+            "bytes": 3107,
+            "sha256": "0e2341036fce12b25b764c3521b9c41159a4c4fe32be70bab77b9c63e06d9a5c"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GBT-H": {
+            "bytes": 46667,
+            "sha256": "773288af48e294226e263445732602567d30e780eccd69b3fb0e21a35fc982a7"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GBT-V": {
+            "bytes": 3083,
+            "sha256": "0ee30bc24f15aa669f45e32f93034fe7bb45a5cf7ff9590a3db07a95c33c563b"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GBTpc-EUC-H": {
+            "bytes": 46802,
+            "sha256": "d14c8231653f54866b9c8943612d2307f803b2da4b9b32fdd61fdf7154784292"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GBTpc-EUC-V": {
+            "bytes": 3119,
+            "sha256": "5c070e6335bc5735f17748fd5bc300b501aacfe1a00fc93efd1e6cf6b3f46039"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GBpc-EUC-H": {
+            "bytes": 4454,
+            "sha256": "a1d6cf537df87d1f2f6a883650c55371f4978c15e6c77b23f690eede37479c91"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/GBpc-EUC-V": {
+            "bytes": 3111,
+            "sha256": "a6c808f896906b45c748c5cf6aa1cae90573f31df54fd5cbe3689fd105b41405"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/H": {
+            "bytes": 4940,
+            "sha256": "12d0f0889b0a40ce9a8920295d67903224548fb3f8093b592dd08c334046ec95"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/HKdla-B5-H": {
+            "bytes": 23267,
+            "sha256": "03dde509bfbc3c0003bb8d8df80833da893a084d704f2051b347ffbb40dbf7bc"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/HKdla-B5-V": {
+            "bytes": 2940,
+            "sha256": "1e55e34e7f14968802b49c38ac2b72c3c5276ef5d0c80fe4a70acc9574497526"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/HKdlb-B5-H": {
+            "bytes": 20927,
+            "sha256": "b9c1642b6946b4584b492b54d4c95351303797ced4a076846de7b1a71e6178b0"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/HKdlb-B5-V": {
+            "bytes": 2940,
+            "sha256": "8cba91f6c3f74690d80efba6b19d27c9d5658b613d2da3fdc6c1b303baa47f30"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/HKgccs-B5-H": {
+            "bytes": 13723,
+            "sha256": "30ceea3bab381266ced8fd2f0ac812dffad724ea90dda00a59913e156ae4aba9"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/HKgccs-B5-V": {
+            "bytes": 2946,
+            "sha256": "1257c89b0c5a64dd553191543b4efcbb8645ffb3ff6ff95a0b4430de329a6a91"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/HKm314-B5-H": {
+            "bytes": 13536,
+            "sha256": "0e6552b6b93d652e2cc6f05b2b8bb83cacddd11d8b6552e236fa760f9313f65d"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/HKm314-B5-V": {
+            "bytes": 2946,
+            "sha256": "08d514e4e295a9590c79504a66a2c2a0a24e5ae897fe84d37accc40ba8a81841"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/HKm471-B5-H": {
+            "bytes": 16506,
+            "sha256": "58dd18f268b6b695c838dfda80b89540840ddb8efa20f533639e505ac6e13d97"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/HKm471-B5-V": {
+            "bytes": 2946,
+            "sha256": "af2b84abda6a01a83307a7bdf5d3c1951fce0f14c47ce99a06c8c37b3ee5c238"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/HKscs-B5-H": {
+            "bytes": 23252,
+            "sha256": "1d4817fda13fdc6ff7b75806bfa8d2e1f5d2aa31a584c4dd12e4cca4247212b3"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/HKscs-B5-V": {
+            "bytes": 2960,
+            "sha256": "11b4682a7d5d1c9556544f5f774db0ee3fb95102f9477b19672b0d2e34b6e922"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Hankaku": {
+            "bytes": 2820,
+            "sha256": "64d1cef23a5df746de5c364c45c7ab5933330ef2d1ca1b37a33d2b76d9963abf"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Hiragana": {
+            "bytes": 2794,
+            "sha256": "64f1c6d82c09ebe8493e66cdaf7d11284ef12220ccd401541fbcef48e875500e"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Hojo-EUC-H": {
+            "bytes": 4625,
+            "sha256": "7e6e350382f4ab9123605109e58d06ca88a2b927113f8c864bc5967395fea724"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Hojo-EUC-V": {
+            "bytes": 2708,
+            "sha256": "9be6b1ceb906c09bbcd016eda2b971f69fba02c56d9bb32b82328e79321c8ea1"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Hojo-H": {
+            "bytes": 4275,
+            "sha256": "730fad2edbf9586bfd5421ba3c6b7da033578616661b4dc4ba75bebd93d26ac8"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Hojo-V": {
+            "bytes": 2684,
+            "sha256": "88ca106268a391a83aadb75dbbfe644cffa86d3afa600881e6d20c8be30f5975"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Identity-H": {
+            "bytes": 7819,
+            "sha256": "7f9ad67c80fa34fc35ab3d2b917962afcfb99f53418d4425022ad8bcee665bea"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Identity-V": {
+            "bytes": 2618,
+            "sha256": "eb979aedec0a763b54546d17ccffa2f66e92d8d95a457f7d2a5883927b591468"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/KSC-EUC-H": {
+            "bytes": 11727,
+            "sha256": "aa2d7ecb5b492e03e3e2d9675218587bd47cf665e4da9300065b27b1a21a3cb5"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/KSC-EUC-V": {
+            "bytes": 3035,
+            "sha256": "767ea43a309ba9c198514ea719bed312815b31344c937d1864fbe847a0dd74ff"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/KSC-H": {
+            "bytes": 11636,
+            "sha256": "3fc2d0bbf354572694933a0071e57e8efbd00427a64cf739a0d129c91bbc6975"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/KSC-Johab-H": {
+            "bytes": 84249,
+            "sha256": "9d6d9b86306eb86644c4339ed424dfc2a9deea9d331ef1b0b21463f70f1a77d9"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/KSC-Johab-V": {
+            "bytes": 3049,
+            "sha256": "2097cd1ca346d3495af922d9618364c1fdf9882c6507d8d8732675fdd19c1184"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/KSC-V": {
+            "bytes": 3011,
+            "sha256": "84f5311411525fb87665f48aaeb19ca9f42074cd94f218a94f509540b8f27a80"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/KSCms-UHC-H": {
+            "bytes": 15939,
+            "sha256": "b5949c59a2ec14d7ced531ea8fc2b727fcdf15bf127e5f765a307626d6d4732f"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/KSCms-UHC-HW-H": {
+            "bytes": 15935,
+            "sha256": "246adc1c25466b7c0baada07f3e98d4c01e35df112e3120ad25bbacd79674f2e"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/KSCms-UHC-HW-V": {
+            "bytes": 3048,
+            "sha256": "50263150293f6baaf62877a52b75fb2e2a3e71f6b895c0dc45aa8390393df93b"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/KSCms-UHC-V": {
+            "bytes": 3049,
+            "sha256": "837e2a8be9d35a1a3d10c6de3a9f8cbe241ff542776a4dec11827ecb23bad070"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/KSCpc-EUC-H": {
+            "bytes": 12554,
+            "sha256": "d9efea7bdc4192ce946d35b561516fab9b018aede15a7e0988af2f54d2bcebf6"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/KSCpc-EUC-V": {
+            "bytes": 3047,
+            "sha256": "2172b47e21d8d499c348dec697015765f08ee52641e07cfd545572c82264f645"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Katakana": {
+            "bytes": 2710,
+            "sha256": "ee8ed08da0d2af951df8584abc941b58aefe6296c4118f085e6dd2f1500cacba"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/NWP-H": {
+            "bytes": 17297,
+            "sha256": "8c0969da7e3482ce8b65b6e5ce714c44423beca6786299c658388269f871c30f"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/NWP-V": {
+            "bytes": 3602,
+            "sha256": "4bfe876e9d20aaf9c40ff9379b04e1e6a61f8f9d52536a9bdf63ac90b40ca5fe"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/RKSJ-H": {
+            "bytes": 5123,
+            "sha256": "2af5958a7688d9bb2f33212aedc841b9e5144d1fd25ebbd248648f9cde94e5c9"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/RKSJ-V": {
+            "bytes": 3228,
+            "sha256": "86501330aac293522e1d31a47952bbe671eb202c6bb37991709d65f62e3f92ac"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/Roman": {
+            "bytes": 2687,
+            "sha256": "75a98f62b975ec24926687d72110df9c96003cca790244646547e5227e9b3e18"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniAKR-UTF16-H": {
+            "bytes": 186569,
+            "sha256": "ed25bf292debaab8ffa27d083fb35029ad82c61c0115581cf063d007b7c8a9e1"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniAKR-UTF32-H": {
+            "bytes": 250510,
+            "sha256": "21b47b34b655cd7aad1bdd97d4b00957e29e21d0d6d837ac6b465b3869029825"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniAKR-UTF8-H": {
+            "bytes": 220024,
+            "sha256": "44dade741b2be8378cff3ffb9ee93d2ea7306924c4a10d8f360fded2691a0779"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniCNS-UCS2-H": {
+            "bytes": 326348,
+            "sha256": "d66da7b6d79dd0fccac611892be1f87b8b39d870c520ba52c3c3bed16b685bca"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniCNS-UCS2-V": {
+            "bytes": 2970,
+            "sha256": "ebee5615a55c2853918e6adddef08b02e1c18b54f9ce7d118739a68b69ac2d60"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniCNS-UTF16-H": {
+            "bytes": 253252,
+            "sha256": "602304a874f0cc40b463de73ca9d3d1c2d0e8d70cfcb2c9bd5bd124960d5aa00"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniCNS-UTF16-V": {
+            "bytes": 2959,
+            "sha256": "a3d2f8d74db8745d5b463a159ac53391f3d2950a8bcf1fb0d7bf0cfaa1395302"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniCNS-UTF32-H": {
+            "bytes": 324656,
+            "sha256": "c05d970127ae87e9be1a0d0eaeec2c3709b856209d4a1efd39a717f2ae6b8aa9"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniCNS-UTF32-V": {
+            "bytes": 3039,
+            "sha256": "b7e7eb37850fdcf21a3c7ea5a14023dab0a0b47dc35097f5c72b595bf56a6d2a"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniCNS-UTF8-H": {
+            "bytes": 290055,
+            "sha256": "d0615eb506f83320e3c338a21d51171d59e5c7885c530b8d62fe1f3682884c7e"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniCNS-UTF8-V": {
+            "bytes": 2995,
+            "sha256": "3fd125a519518d717d70607154a2639689c4947efec2e7634994cf5e2a37414a"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniGB-UCS2-H": {
+            "bytes": 274382,
+            "sha256": "1a5a6bfd58b8aa786fd7324c6dc246f011b4baa195f0040470df8c033e109f31"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniGB-UCS2-V": {
+            "bytes": 3166,
+            "sha256": "eb5c06ca1ee0558ae5d03b7dc1dc9c9f3eda1a6f4e6af3b64d2c3849cfde565f"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniGB-UTF16-H": {
+            "bytes": 203286,
+            "sha256": "a450cd86791e4750e1d76700b1a44b7b113dc924c3dedbc4d265ef72f17c6e80"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniGB-UTF16-V": {
+            "bytes": 3060,
+            "sha256": "51b0f45bda75c514ff0dc1fc7d5af5d9c48265cb1a557d150e36da0066061997"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniGB-UTF32-H": {
+            "bytes": 271242,
+            "sha256": "b5414b42df40f8c9fdd7ab699ea0c5b8cc030b48c8459f13a720f6567e642094"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniGB-UTF32-V": {
+            "bytes": 3176,
+            "sha256": "bed0b4860fa0205e82c090e135afc17180084d14f16fd12928644b40c9ab895b"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniGB-UTF8-H": {
+            "bytes": 241181,
+            "sha256": "d1a6890cd10f0fce3af3995593de04142216072d667ed6eb37b186ba378d1655"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniGB-UTF8-V": {
+            "bytes": 3114,
+            "sha256": "1264e9dde04846f7b31c32dad2a58ead415caf91f26b8acb5fa6779a07bc8726"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniHojo-UCS2-H": {
+            "bytes": 83591,
+            "sha256": "a8b54d547354523d88fe47bf495d83ad579031dc3eb13ede373910bb34790766"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniHojo-UCS2-V": {
+            "bytes": 2713,
+            "sha256": "c23aeeb82617e25a1835819fa8d8cdceb4deb62a09b8ac1561be826834d974b1"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniHojo-UTF16-H": {
+            "bytes": 62947,
+            "sha256": "ae4ea7c295fc8aa303a764f405cffc9f61ef300a3ea4368dbbca6b605a8a9105"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniHojo-UTF16-V": {
+            "bytes": 2719,
+            "sha256": "bb1bc9e1f43bed651104dab5ff54234b8fde9c72574cd52e97e60d676fb54088"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniHojo-UTF32-H": {
+            "bytes": 84820,
+            "sha256": "c5fcb8b38e745deefab04f075b15d6405814d755a7fcc41cf6a0048747d49ec1"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniHojo-UTF32-V": {
+            "bytes": 2719,
+            "sha256": "32ffe61cc4c15f429b8bab407bf6b374c47f267d18d761039b87bc45f0d729ce"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniHojo-UTF8-H": {
+            "bytes": 73700,
+            "sha256": "b12f0d5fbe60ae08158810cb9040e17b392f5a8bfff8a3a6e16ad867d81265d4"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniHojo-UTF8-V": {
+            "bytes": 2715,
+            "sha256": "c1eda37480ce8eec0c2de1f8910e26d49d63506a692918f653d1a25fc8048470"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS-UCS2-H": {
+            "bytes": 168596,
+            "sha256": "0142aaa8f55782e1e955329be9e3af0021e36d9e749efdf72436a885743d71f6"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS-UCS2-HW-H": {
+            "bytes": 2819,
+            "sha256": "edd4e121182d15f030b9738618302287617bbd01f0134d7b0ea920e7596704ee"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS-UCS2-HW-V": {
+            "bytes": 6590,
+            "sha256": "6de63b51ca14da2536a7847bed171b56c5de6f808b90f24914a4a017aaf6d09e"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS-UCS2-V": {
+            "bytes": 6508,
+            "sha256": "379105f1420db2e678288cbd9a923a0c322b16152b3687024e1aa8e3d7db288c"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS-UTF16-H": {
+            "bytes": 188223,
+            "sha256": "d1da3c2bf7e92baad89f1b961792a66f4d81a030eb16e38a28a8a86b043b087c"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS-UTF16-V": {
+            "bytes": 5804,
+            "sha256": "f73b660fb8a78c6688c45f0ed956e4934b316a85bdab17be2eda71761f325c82"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS-UTF32-H": {
+            "bytes": 245443,
+            "sha256": "b94ac37ee90f45dc2ac829ca8df33730bd56c42b442a7003b69e782727d3eeb4"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS-UTF32-V": {
+            "bytes": 6836,
+            "sha256": "c417c56d6e2e357e7ff9bab26e3ba82b83a7d85e43809a43d221700e04e7d7fb"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS-UTF8-H": {
+            "bytes": 216457,
+            "sha256": "b8dc32cb96ce77f23f642ebf0eb0ca53b1b785f494989d2107aff4db96ec4f29"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS-UTF8-V": {
+            "bytes": 6329,
+            "sha256": "e473263d576178164b87a2596ef0fde7edacbdda6c0f6c1a96af1de95305f1d0"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS2004-UTF16-H": {
+            "bytes": 188303,
+            "sha256": "ada912e33b39ea2fb6d9c2a1f9b1dfc70924ed2215861fa5df7377011fa6dcb8"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS2004-UTF16-V": {
+            "bytes": 5828,
+            "sha256": "7111dedb9f8541eee6f553ee348c8fbf98bbf67146477bfbd6a59c24605b0380"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS2004-UTF32-H": {
+            "bytes": 245523,
+            "sha256": "da5e9a43b063ae60a351383fd9d149c22cf295655b56f8468f7aa47fba4ff1c6"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS2004-UTF32-V": {
+            "bytes": 6860,
+            "sha256": "033f1ba72e8d3d773bf69c833feae2e342636d519ac1c2fbda3ac23de92c60d2"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS2004-UTF8-H": {
+            "bytes": 216535,
+            "sha256": "adc32b6008a6b9b52269001b1f583a4e87ce5f2e63de2f22d6724393cfbcf06e"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJIS2004-UTF8-V": {
+            "bytes": 6351,
+            "sha256": "e385601bb3144633d9bb64cd4204a4771a83455855e9d2320fb0b00cd2c0d66f"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJISPro-UCS2-HW-V": {
+            "bytes": 6728,
+            "sha256": "112ea2b357388d26144ea5db2f16b02f65679d2ba7b87f001d9bcd51d5906504"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJISPro-UCS2-V": {
+            "bytes": 6617,
+            "sha256": "9b9baa2d312b5cda1c06d6fa74388bdf97c58afc4c1220fc6e27dfc0594ae562"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJISPro-UTF8-V": {
+            "bytes": 7466,
+            "sha256": "73dcd9abb53a70fbd8ce6e11af11d3125660d15724c408958d4887e4d320eac6"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJISX0213-UTF32-H": {
+            "bytes": 245432,
+            "sha256": "d357653bba6a186bcc75e6f0a21e0a1ebf195181c72a862ed65268bac70161fb"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJISX0213-UTF32-V": {
+            "bytes": 6802,
+            "sha256": "36f64501dd30b3606e4e69a78563c2104a27b2fc1d52dbbdbb9e672864ee6867"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJISX02132004-UTF32-H": {
+            "bytes": 245513,
+            "sha256": "d8d9576059ff7dbe1beffdaca842229acca9cf9cbf6881ab9366748351fa5d11"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniJISX02132004-UTF32-V": {
+            "bytes": 6826,
+            "sha256": "e40014548b44fd8189ba894accac3bb21d8ef716a0c766fae2acc5a212cc1452"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniKS-UCS2-H": {
+            "bytes": 166008,
+            "sha256": "e2c1a5f6f535ae1fbb8aadf4384ee3ba8877d7bfd4022c195e21c96c81db61f9"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniKS-UCS2-V": {
+            "bytes": 3074,
+            "sha256": "1063f42d7eda4fbf16091bc363d4aa421d677b47eee385670e5dbcc8e9d2bf57"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniKS-UTF16-H": {
+            "bytes": 122937,
+            "sha256": "969ee04c228cd7c9e24011287cc172018642c88df83bcd1b49e9ffad43d6d821"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniKS-UTF16-V": {
+            "bytes": 3029,
+            "sha256": "49345c5470373cde5059d9f18f5bd416b3b1dbaddf399ac04162bd9d7c68b3a5"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniKS-UTF32-H": {
+            "bytes": 165009,
+            "sha256": "ac61d6ff25b047cbab215ef83c207d7989cae74c8f44c683ad7b2b7f19a206eb"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniKS-UTF32-V": {
+            "bytes": 3129,
+            "sha256": "d69098501d4ee77a925776f530c89d916c1d36a399974d16191632115acc0a65"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniKS-UTF8-H": {
+            "bytes": 145844,
+            "sha256": "ed620dc363c16d192037396521b875c9869f0fb39a2223fe49fece0ccdc7007a"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniKS-UTF8-V": {
+            "bytes": 3075,
+            "sha256": "49307152644dbdf0d7d1c9528004db66c3392d47dea2d25faacc447b34d51fbb"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniManga-UTF16-H": {
+            "bytes": 95346,
+            "sha256": "e502089d7e4af21da9f3f1d135b617c78275fbd405a61fab50f96fc62f55722e"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniManga-UTF16-V": {
+            "bytes": 2850,
+            "sha256": "26163e5407a23b1d2fd101629d08071cb3237afdab2fc278194ebc8cf86a1ad0"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniManga-UTF32-H": {
+            "bytes": 127170,
+            "sha256": "a8f616a9458e43f5cef44993bdcedd3bdd7dfec8b2999de478706e231eec9d22"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniManga-UTF32-V": {
+            "bytes": 2886,
+            "sha256": "e9411f4c767b028c0c6352e1521b6e200b73de750ca7e00288d898edb3546346"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniManga-UTF8-H": {
+            "bytes": 113461,
+            "sha256": "46493c65722245f23dd9f9f4397caf5b623984d547c98d46d79935e903bd5be9"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/UniManga-UTF8-V": {
+            "bytes": 2886,
+            "sha256": "2413bf9732d8ebda1684202c99e84a40a0e249f02c04c09bf37a5de86c1b16cf"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/V": {
+            "bytes": 3198,
+            "sha256": "600c022cc51273df858da76db284e924053615378a418f4cd5b3116ca0be1d51"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/Resources/CMap/WP-Symbol": {
+            "bytes": 3091,
+            "sha256": "f945f517606873cae9fd56ace16b5bbd22a2a8a70da1e7be8b32bfe3c49a3d5c"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/SingleDocumentConverter.php": {
+            "bytes": 23510,
+            "sha256": "6412f5dd003d3487e1e0a63d611f05547279af2b7923a99acc8da94a17bc3634"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/SuppliedDocumentConverter.php": {
+            "bytes": 92312,
+            "sha256": "688b00f8581b8cd18344ecc8b28095bd1e89518ab6565d2e5b39ddfef2ba0b21"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/TableBenchmarkBundleBuilder.php": {
+            "bytes": 20709,
+            "sha256": "c13aac38734719aa527c49a18a0efd204815828a9a8e0f18d848acbaf290c183"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/TableFormatter.php": {
+            "bytes": 32905,
+            "sha256": "fe5f12a7390ce4bf7d78e1eb8c590faf42cfbed943f12181f55f8e7d1d3d8a12"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/TableRecognizer.php": {
+            "bytes": 209642,
+            "sha256": "552df6352edc97118ceb06775f0d417cf1bc8f800204bc91d46d8323f8f35874"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/TableScorer.php": {
+            "bytes": 1810,
+            "sha256": "fa68883c7324e0fc60d2f8e372a51a9cbba84b6c5f6ed1fbf04aadcf7ba87e1d"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/TableUtils.php": {
+            "bytes": 1495,
+            "sha256": "ddc2474838b740d0849ebec29e249133606b1ff4838949e305dd16da25d2bc87"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/TaggedTableStructureExtractor.php": {
+            "bytes": 7308,
+            "sha256": "5ed3737beaf51700200009bfb0b61affbce1cb563eaec44be8f49bd76c1a05db"
+        },
+        "port-libs-playground-converter/lanes/markerpdf/src/TextCleaner.php": {
+            "bytes": 572,
+            "sha256": "930efd00b43386d35eab3bce55c04aa5d78a5ad54027ed60718bd822a71af492"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/ArchiveCompressionStream.php": {
+            "bytes": 189130,
+            "sha256": "4b939e593f136b9ed7a7b9b90c010de5f5f8ea06d94380785e4e5bf48ce7902c"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/ArchiveCompressionStreams.php": {
+            "bytes": 10174,
+            "sha256": "801ad818ee1180912299bcf7dc404653792ba24bc9e8cdeff1e0fc432288d76e"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/AstAttributeResolver.php": {
+            "bytes": 276,
+            "sha256": "7c016520cf327b679b7339d839eb3a79bf8d71ce1b59fedc1d74410897a3a6b6"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/AstNode.php": {
+            "bytes": 10675,
+            "sha256": "acee8fa8db7a027b74c33c04fb6313fb1492a4bb77249947e9069b73b2b2a22f"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/AstSerializedChildren.php": {
+            "bytes": 5216,
+            "sha256": "04b697879e6fc79ac753ed1b988688633711232c51c2d2e93e43128de4fdb7ce"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/BibliographyReader.php": {
+            "bytes": 45246,
+            "sha256": "33a4fb21813d65967c601176a4b4f5dd3332d65bcd370e24653478ef96e75846"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/BibtexCslParser.php": {
+            "bytes": 100572,
+            "sha256": "02c5418bc4c68cf55cd2ddfef5670394cddb62626222442d83c96ce26218c901"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/BibtexCslProcessor.php": {
+            "bytes": 86515,
+            "sha256": "9bd7f6216e483521a322242b3b73e655d7e33dbb566bd1e8e8b5589899a342d6"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/CitationCslProcessor.php": {
+            "bytes": 411140,
+            "sha256": "ea87f39683465bec988351a9f07761dd0570d62978d40be1c754eb0b7bd76a77"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/CompactDelimitedCellAttributes.php": {
+            "bytes": 627,
+            "sha256": "71edcb0019b612a59b84cf5fb8a969816bbf422fe5752faa2594e5e56bb7e77f"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/CompactDelimitedCellStore.php": {
+            "bytes": 7288,
+            "sha256": "54712f3558eb4b5a8def602c976a7431b8d3bef76f50997c0db3a0aebed06f89"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/CompactDelimitedTableAttributes.php": {
+            "bytes": 683,
+            "sha256": "75a20ddc197c9303bbade43db0cc36a1257e95de3eb3ec11470e47281167842d"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/CompoundFileBinary.php": {
+            "bytes": 34314,
+            "sha256": "397c07e794f696353bef7a984fcf797bce116abd60cfd6759fdd82977bf3c055"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/CslStyle.php": {
+            "bytes": 85344,
+            "sha256": "08af994815ab3c7f2f1c37ee740141fa93217fed51d15a7a0fd4162a412559c9"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/CssDeclarationScanner.php": {
+            "bytes": 5845,
+            "sha256": "89ab250cc50af1417bd2ade9efc4791c2e2e5ce0a9778d11ad589223ce7ac32d"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/DeflateStream.php": {
+            "bytes": 15867,
+            "sha256": "3d7fc36e3a426c97cd70f90b69efb952b05a6c4d8071457783c4df17b28fc755"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/DelimitedTextReader.php": {
+            "bytes": 98375,
+            "sha256": "fd8f2cc365b78dbf776da09e033a19f29142080f2b48974c33f0abed8fa1720f"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/DocBookReader.php": {
+            "bytes": 65468,
+            "sha256": "133590b0001483463e4de72f053effd2292909b3252d2f42d483f2b24e79ea96"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/DocTemplate.php": {
+            "bytes": 181574,
+            "sha256": "3286e5399e3cefdb0af24142db5122b489b1f95629c88e881979c537b788c758"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/DocxOpenXmlReader.php": {
+            "bytes": 2182685,
+            "sha256": "f287966f696b28a7781684e97d73acf96a7e0f04979d636fb13063d3a1c36660"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/DocxReader.php": {
+            "bytes": 194522,
+            "sha256": "680ad7dfbd2e7968cbb462b52423fe48ba17f979ee070ca915bcea26649d23ab"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/DocxWriter.php": {
+            "bytes": 120840,
+            "sha256": "57334e324ae79ef4893abab476cfd25663b341ba5467fb29c94f3f12d5ddd2b6"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/DokuWikiReader.php": {
+            "bytes": 10932,
+            "sha256": "74d665e1d2aa7693dfad35e1b43a47dbaa1b3a837c334e1a8f365d7938c2d266"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/EpubArchive.php": {
+            "bytes": 346,
+            "sha256": "0714b048d53224c3c471893e1650a1037ef09bf42ff7229d53d366ee6441e88e"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/EpubArchiveFactory.php": {
+            "bytes": 676,
+            "sha256": "49e7e5f3d15c26c70df2a55773788d0b97e5b63522f71938deab215a7fdaf6fb"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/EpubLinkVocabulary.php": {
+            "bytes": 7280,
+            "sha256": "bcd6483d290486fc4dd5f98f5a332b7f38290570e30bf05781cb90868e6e097b"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/EpubPackage.php": {
+            "bytes": 601420,
+            "sha256": "3aa4f18fbe046beb32817f803845c4f7189fd2287e2e33d0b378a92a572d96fe"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/EpubPackageMetadataReader.php": {
+            "bytes": 7339,
+            "sha256": "4e439f92d512e7b0e91dba7e0102ac136e9e67441f007665f9e1ae327c70ea24"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/EpubPackageReader.php": {
+            "bytes": 298245,
+            "sha256": "50eeb41b80cdc7f57707840c070f905295a1b36087be6d7300002299e924210a"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/EpubReader.php": {
+            "bytes": 104369,
+            "sha256": "77058b18236b5c0dcf7b7fe4f87216fde05884c1dc7446b57725184de6268ad0"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/EpubWriter.php": {
+            "bytes": 44150,
+            "sha256": "584de7dc281e876564c4b31c64c1ebccb0188e5b2f63bb27f5ccc7df1040bf5d"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/EpubZipArchive.php": {
+            "bytes": 6546,
+            "sha256": "2ef53facc6865d0b2ee1511c5047b39f83fd471c6593a840a2f78c3a32a712cc"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/Fb2Reader.php": {
+            "bytes": 10976,
+            "sha256": "5cebaec7da737f3537792f4ab18f65bc99c0b23db3f7a706cb1945340c7a0032"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/GzipStream.php": {
+            "bytes": 27037,
+            "sha256": "6d19ec01159cc130aabfe4fefa9a15c2651f8988ba471f20c44fbb69034e562f"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/Html5Dom.php": {
+            "bytes": 47432,
+            "sha256": "4552c19b291432cd5db83e70e6e4cf180a3d9c72cdcf155ef01692d16e6747e5"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/Html5DomFragment.php": {
+            "bytes": 267647,
+            "sha256": "b5b881597e1e1dbfcc22255447dc35d0da37a44d50110f45f2ccc7bdfeb612fd"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/HtmlReader.php": {
+            "bytes": 68817,
+            "sha256": "717cd7c629727d1131e9d9f0d9c2019ec5f92a8e24e90b366a6227857bda3a44"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/HtmlResourceUrlResolver.php": {
+            "bytes": 4366,
+            "sha256": "a351a07e9832df995da26b136ffbfffb17b37e405a096b4086459f1682298c6e"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/HtmlSourceScanner.php": {
+            "bytes": 17583,
+            "sha256": "6909e92d1ddceccad22524506d002c1f39262717c53f7cfe96a53147068d17ee"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/HtmlWriter.php": {
+            "bytes": 54612,
+            "sha256": "d50330c1d610067f87d93eda037f27a216c4d87fe82ce92dad11d45e96d480f1"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/IpynbReader.php": {
+            "bytes": 60077,
+            "sha256": "e8564594e147285666341ebcd896bcb3692d7daf02292cebbacaa297c8cd0c6d"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/JiraInlineSpanIndex.php": {
+            "bytes": 6681,
+            "sha256": "727ac4a1bddebb5028eff5ed4ffb5510f44c72462bab4fd8f7090b8607bc7458"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/JiraReader.php": {
+            "bytes": 25254,
+            "sha256": "a968e10c6e5861c960cadb9074a0b29d647863270c7b481056f2c152108580ff"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/JsonReader.php": {
+            "bytes": 29020,
+            "sha256": "acafda81c2dec28c53eecc8bedd522e46e53299c3e2ff46fd942d20a23ebf16a"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/JsonWriter.php": {
+            "bytes": 24434,
+            "sha256": "3af95ff497c66a4629180b5656cbdd94c11e0923b9aaf589fb41fa396082b701"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/LatexReader.php": {
+            "bytes": 97452,
+            "sha256": "2bf0b7ac62edcaaecb7b2cd86ff0ab96edf4c3ff793b08e36f7312c788507a9d"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/LazyTableGeometryAttributes.php": {
+            "bytes": 894,
+            "sha256": "a646861a49a00774c4e34ecaa8b201f5465c32e0e9faf767bebbc0d26630dd4f"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/LegacyDocReader.php": {
+            "bytes": 332656,
+            "sha256": "b2b4cb56bd4e427997fea2fcc40c33f5e16ae919617953bfa834d17eceb79fbe"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/Lz4Frame.php": {
+            "bytes": 28708,
+            "sha256": "a6df21f68b2f9e2bf9587f99492ba91f59492c59dc1ed02856db64ecd83eaeb6"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/ManReader.php": {
+            "bytes": 29461,
+            "sha256": "ed45f64e51795a72bf82367bb14faa56bf52da949b59f9e2703fb02ca4e43a5d"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/MarkdownEmojiAliases.php": {
+            "bytes": 5183,
+            "sha256": "f03209c12f93f7285d5bc98152532cf54fd53d72526a15a49d6e445a2d03c094"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/MarkdownFormatProfile.php": {
+            "bytes": 17630,
+            "sha256": "8c1c545c52018bcc12d406366d907d7497a2f0cd3d072279e8a87a5e07dc61a9"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/MarkdownReader.php": {
+            "bytes": 521035,
+            "sha256": "46fb84fea6ecf8adda46fbb9edd36d947179816db64397df1ca2c6ba7bd7e073"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/MathMlToTexReader.php": {
+            "bytes": 13632,
+            "sha256": "57ba82f1b90ce1a3747bba2b534dd9f887bc7fc89acbf19bf70229cb80f0ad9f"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/MathTexConverter.php": {
+            "bytes": 232083,
+            "sha256": "b986cc7d3613312c7dd4753fa95f6b8f1693f52285929a5717547b6933a58d6c"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/MdocReader.php": {
+            "bytes": 19901,
+            "sha256": "f778136b31b3c37079bcb4d196f25f3868aef8b907ea8bcd5fd98dac3b52a868"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/MediaBag.php": {
+            "bytes": 34006,
+            "sha256": "301816dc0c4685674a620633feaed000a9a6c6e38ea5f7c32fb869bc38172ffd"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/MediaWikiReader.php": {
+            "bytes": 27031,
+            "sha256": "8900f2e8b4a8614e1b3d8e73075a1833518378d380ccbe23d39c694b5f515685"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/NativeReader.php": {
+            "bytes": 61118,
+            "sha256": "a3fd51d760693c5e6560c3629fccd95942483a7fdfae7f0761c3bfafd7b6c542"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/NativeWriter.php": {
+            "bytes": 53458,
+            "sha256": "c6978fc7eb69d138683d67f63160e7509d00b5e17da2b103df26620d110a2a53"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/OdfPackageCrc32Inventory.php": {
+            "bytes": 4998,
+            "sha256": "26d50ef55984f73edf33c411b68bcf1ef7587a1be5e1d4ceda65d17a66c9320e"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/OdfReader.php": {
+            "bytes": 919353,
+            "sha256": "ee914f52cb3a59a0c5c2ff67cf0f31049c128948d6cc88584344b5abc0ce516a"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/OdtReader.php": {
+            "bytes": 27019,
+            "sha256": "a43e278e383ab90445429e3c4f0c3e476784b8d172b458b2a13a67a05647aecf"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/OpcContentTypes.php": {
+            "bytes": 24669,
+            "sha256": "40b4d6b3309057e3bb9b35ab315c539095df010d23f64be320a04d2ac43ae558"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/OpcMarkupCompatibility.php": {
+            "bytes": 10771,
+            "sha256": "67208cd77e572eaa49580452bbabd7db5eeb1422d55d3636b611ffed306fea96"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/OpcPackagePath.php": {
+            "bytes": 5849,
+            "sha256": "b7d05752ed0633f4934f7aeb2ae7c1f1267abdfc8006519c72a6dc756eb36687"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/OpcRelationship.php": {
+            "bytes": 4160,
+            "sha256": "2a8a7877f6315968a3691f25bfce6153e1edebf6c19c828fce45fdb40cae95f3"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/OpcRelationshipGraph.php": {
+            "bytes": 420542,
+            "sha256": "610d95bbde65a8f9a3b01129ffd1285a4edf2892a4ae46ad1be6c5f3d9a6ae3a"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/OpcRelationshipInventory.php": {
+            "bytes": 6593,
+            "sha256": "46c67d42e47f2d5040a7013954178eaa7501902addde9abeb48260208a3539b2"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/OpcRelationships.php": {
+            "bytes": 17792,
+            "sha256": "5bf9e9ebef6fec49bf50fbbe6de0155e3a2e75f1127c5642bf73a37360837f56"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/OpenDocumentPackage.php": {
+            "bytes": 578592,
+            "sha256": "6aa8b219a82ef28c73ee3f797da47357338c114b0228f54542c44fae4c97dfc9"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/OpenDocumentPackageByteHandoff.php": {
+            "bytes": 6313,
+            "sha256": "a02e1ca85254c9368597f1df965fcff7b719ba65c1aca83260475372e4173e80"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/OpenDocumentReader.php": {
+            "bytes": 27184,
+            "sha256": "ca43c6885f8fcf23f4f093fd383bb4957044c43ef658cb649ef7080713ab35a4"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/OpmlReader.php": {
+            "bytes": 8091,
+            "sha256": "4a93ba7faa9f79d5e4bbc35c381c856e6b654bb5557b01b0c4bd740360508a4e"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/OpmlWriter.php": {
+            "bytes": 6616,
+            "sha256": "0e6325ddc3d45bada31325056549584b7d087d4550a5476719fa850fd4e6d2fd"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PandocConverter.php": {
+            "bytes": 17317,
+            "sha256": "22f529870521eb030218d49143a4fe62c73c993ebdefffcfe9128f275eed8101"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PandocFormatRegistry.php": {
+            "bytes": 49455,
+            "sha256": "4dcd2b7ac9303454d1e0ffa0169cad3125f909d93208e3d8a88cb87374bf47ae"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PandocHtmlAttributeMapPool.php": {
+            "bytes": 323,
+            "sha256": "c8f06bcd914ef33714cd1e4ed90f849b4927a8db53b90121855a5f009caa7952"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PandocHtmlTagSoupReader.php": {
+            "bytes": 55223,
+            "sha256": "c74486c2a8c9c9c6f1204cb9dba9684daa92e57c95d88968cd2aab115697a882"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PandocHtmlTagSoupTableReader.php": {
+            "bytes": 34903,
+            "sha256": "5dc8a4cd1d5a60c34ccf1c6b168138997c884aeb7f7c5ad5678d9c4512972717"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PandocJsonReader.php": {
+            "bytes": 64927,
+            "sha256": "d6f57a76908edfd1cd20004f971e6b543a3aa1a132701be1d0fe06633b11a21b"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PandocJsonWriter.php": {
+            "bytes": 67746,
+            "sha256": "db13979bc214591a30fb4240ac1e8b94c752206d1c8ef2f72db23f692d81a595"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PandocMediaExtractor.php": {
+            "bytes": 31568,
+            "sha256": "33d2a1717fd6f0bab395e6c73cac327248c290124bcf6506383515d74cdd065a"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PandocTemplate.php": {
+            "bytes": 14876,
+            "sha256": "33aade6172e26083e6f29163221b958c9cfbf00c383583736de43e14dbfe9866"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfCallableSemanticRecordProcessor.php": {
+            "bytes": 645,
+            "sha256": "2c41fa14820240876a9fa401c6bbe4202bbf9250df17ece2327b6278a1260126"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfEngineHandoff.php": {
+            "bytes": 1118525,
+            "sha256": "09f00642b44f22a1e7a59a9c21a525b608aa93523bd79d389faf2154c58a57a1"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfFormulaSemanticProcessor.php": {
+            "bytes": 6318,
+            "sha256": "14c6a0bc0591f5532ebb8821ae1c2bb006b9539f233e7a854f0cf41c351305ba"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfFrontMatterSemanticProcessor.php": {
+            "bytes": 7551,
+            "sha256": "e3920ad83649d5141b08710e31fc224cc6576d5e33ea7ae3d68adb322922b080"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfInlineMarkerSemanticProcessor.php": {
+            "bytes": 3790,
+            "sha256": "b2c7e50b03df3d65d6af9808b32eaa95ad48c1d5ec43328b1fb570870286f073"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfReader.php": {
+            "bytes": 615377,
+            "sha256": "4f6c317160521a7445463a5504c758f7aafa6561434201a819fa60be43eb0a5c"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSemanticChunkReconciler.php": {
+            "bytes": 14066,
+            "sha256": "d720aa05e5acd1139215bd6d9badc9bb572f34c22b0b1ac01c8f4f5d8a81c8f6"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSemanticRecordPipeline.php": {
+            "bytes": 2520,
+            "sha256": "04f1c71dfc207501e0e54ff044a60880306ce43abb4a4f0897ad2e865fe4110f"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSemanticRecordProcessor.php": {
+            "bytes": 180,
+            "sha256": "4add671020b9489b047b757f795f03d3aae019b02099ee55995af45a037e7f90"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSourceDispositionLedger.php": {
+            "bytes": 11441,
+            "sha256": "8bbfd736e57acc0a9e5c73b77c4e74ce56f957184dabf22f1481c608b95d12d0"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfTextFidelityLedger.php": {
+            "bytes": 8173,
+            "sha256": "78454c3a69a11577405170b2b284ec09d6461a42a157510521e044a2d476a589"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PlainWriter.php": {
+            "bytes": 25367,
+            "sha256": "a947088f52308e6284bd75087c64992e7a0f761d5529bad0b4943ea8eb2a5b97"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PptxReader.php": {
+            "bytes": 167761,
+            "sha256": "34c3474ed3fbb3df7af06ec96b1f85a02480fa284cee788174c00f27c6c3794d"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PptxWriter.php": {
+            "bytes": 101725,
+            "sha256": "ae7d7f41b03d54b6d14a1e495ebe273183e3a1b0aef30f42caa2bdfdabbe0b13"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/RichPackageUnsupportedFormatRegistry.php": {
+            "bytes": 21387,
+            "sha256": "c841ce462be4ff7d1a17424f47ce49aca118f771f673a37a989b59e299ceb010"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/RstReader.php": {
+            "bytes": 19831,
+            "sha256": "7f52c69ee78fc4604d0100c352ac5480ba03767e46cfa58f28241fa8020e090c"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/RtfReader.php": {
+            "bytes": 8256,
+            "sha256": "e2a64c4a9cef02fc387e2c82f73019fd0103e435081c80fba11e25103ad787ae"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/SyntaxHighlighter.php": {
+            "bytes": 193187,
+            "sha256": "b2e3ea0cc5190bb990df5e4357869ba6ff2fe0ee6f469d15c422bd668bd6f54f"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/TableGeometry.php": {
+            "bytes": 367826,
+            "sha256": "7e768cd639a5cd6bba7a39a5488a9100595d054cd7f9ba87f135d371905bf289"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/TagSoupEntity.php": {
+            "bytes": 4054,
+            "sha256": "4c9bc4f9b898f6add8af262d0f5130000994d99c19c12b8074eccefd9423c995"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/TagSoupParseOptions.php": {
+            "bytes": 1671,
+            "sha256": "b9cc84df09719cb07293027e226060067294902fe59b9c59c6365683672e5e42"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/TagSoupParser.php": {
+            "bytes": 16486,
+            "sha256": "862ff433bd975caa7e85031e28613df5824e5ea10ced47553affea888e23ce36"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/TagSoupRenderer.php": {
+            "bytes": 2328,
+            "sha256": "915627da60422702933f25085aff508b55fd4551af88e13b9b895b5369b74ce7"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/TagSoupTag.php": {
+            "bytes": 3460,
+            "sha256": "b90f6b0c1c6f34c1804f16254fabbbf50e5f9c112561cd330ee2778112f86978"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/TagSoupTokenStream.php": {
+            "bytes": 15276,
+            "sha256": "4b6c0413785701f0a5d60f84cbd2174e02d072d3e3e1b09b7fa99fc5d6209287"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/TarArchive.php": {
+            "bytes": 115565,
+            "sha256": "abbd11bd700ff2eff97e0ccda612998c12d39cede049fcc14a499e8b087cc087"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/TarArchiveEntry.php": {
+            "bytes": 1334,
+            "sha256": "6f8ed5f9a1e7864c5b27ad22928e40861d6e4ffc0670accfe5384e51c5a687c2"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/UnicodeText.php": {
+            "bytes": 178752,
+            "sha256": "bf4441cb75519e7b0c8f8f71a01e232739d8e2d15b7371a82b3c11904382a6cd"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/UpstreamRunnerDependencies.php": {
+            "bytes": 10245,
+            "sha256": "e9fa40eeb472db2c8fa1982802c2957ff18b82aaf24a21749491b2b9d4eea847"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/WordPressBlockWriter.php": {
+            "bytes": 138264,
+            "sha256": "b6be63eae17518a65e48e274a6b010a66333810f57c7d1adc780a197b44db401"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/XlsxReader.php": {
+            "bytes": 152992,
+            "sha256": "7347202225520ddd36977765c29a2f15760253730cf3a1cf6b2133b185228710"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/XmlHtml5Dom.php": {
+            "bytes": 2674,
+            "sha256": "a329171be0d3d12596d7b72a433d64da5eb1daf3c0e7bb1a680d97c5e7801db6"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/XmlHtmlDom.php": {
+            "bytes": 962520,
+            "sha256": "80c3bb9b8b6cd212430fdcbece143a5983c0dd40483e8f233c187edbfbf9494a"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/XmlHtmlDomFragment.php": {
+            "bytes": 17898,
+            "sha256": "bc8c8a1462e9bc424b1cb0a8aca5c956b6b3e53c7c669e156ddde89d2b87cefe"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/XmlReader.php": {
+            "bytes": 30073,
+            "sha256": "e0526c0699b187d76c5dc289d04984800ddfbcd287f243fe7e71b1e837ad73d3"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/YamlMetadataReview.php": {
+            "bytes": 26600,
+            "sha256": "c96e5d57fe5395ed6e7139a198104d5a72a317b4afeeff1b63266b6bb8d25600"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/ZipPackage.php": {
+            "bytes": 681852,
+            "sha256": "414bfa2caac02e3a6a3015afb320ca09cac669c273ab6a6c7e1915c299bba615"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/ZipPackageEntry.php": {
+            "bytes": 17264,
+            "sha256": "74ea1d06ee5844e62818f40fd27812fc4f276e346212174d1aa6dbdcfb956c85"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/resources/docx-default-styles.xml": {
+            "bytes": 27722,
+            "sha256": "838d57ba51cb73c4e3322a3e0757ba79111373a42b138ca3b1b53d7750c923f2"
+        },
+        "port-libs-playground-converter/port-libs-playground-converter.php": {
+            "bytes": 314224,
+            "sha256": "1ef5e015f99adb279f9e1afadccf1f855f17a0b8abb60985f556093aa46f1887"
+        }
+    }
+}

@@ -1,7 +1,11 @@
-import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';
-import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';
+import { renderPdfFormRequestsIncrementally } from './pdfjs-form-rasterizer.mjs';
+import {
+  createImportJobSession,
+  createPlaygroundPersistence,
+  recoverImportMutation,
+} from './import-job-session.mjs';
 
-const pluginBuild = 'rotated-pdf-furniture-20260716';
+const pluginBuild = 'verified-pdf-import-20260716';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 // Keep browser-produced PDF rasters within the exact decoded-byte limit that
@@ -38,6 +42,21 @@ const qualityDetails = document.getElementById('quality-details');
 const retryActions = document.getElementById('retry-actions');
 const retryButtons = Array.from(document.querySelectorAll('[data-retry-image-mode], [data-retry-pdf-mode]'));
 const resumePdfPagesButton = document.getElementById('resume-pdf-pages');
+const resumeSavedImportButton = document.createElement('button');
+resumeSavedImportButton.type = 'button';
+resumeSavedImportButton.hidden = true;
+resumeSavedImportButton.textContent = 'Resume saved import';
+retryActions?.append(resumeSavedImportButton);
+
+const importJobSession = createImportJobSession({
+  storage: browserStorage(),
+  storageKey: 'port-libs.playground-active-import.v1',
+});
+const playgroundPersistence = createPlaygroundPersistence({
+  storage: browserStorage(),
+  storageKey: 'port-libs.playground-import-site.v1',
+  devicePath: `port-libs/${window.location.host}/playground-import-site-v1`,
+});
 
 let playgroundClient = null;
 let playgroundReady = false;
@@ -130,6 +149,16 @@ resumePdfPagesButton?.addEventListener('click', async () => {
   await resumePdfAsPageTree();
 });
 
+resumeSavedImportButton.addEventListener('click', async () => {
+  await resumeSavedImport();
+});
+
+window.addEventListener('beforeunload', (event) => {
+  if (!conversionActive) return;
+  event.preventDefault();
+  event.returnValue = '';
+});
+
 async function convertSelectedFile() {
   if (!selectedUpload) {
     return;
@@ -174,6 +203,7 @@ async function convertSelectedFile() {
     if (job.status === 'failed' || !job.result) {
       throw new Error(job.message || 'Conversion failed.');
     }
+    importJobSession.forget(job.jobId);
     await openCompletedImport(job.result);
   } catch (error) {
     setPlaygroundState(playgroundReady ? 'ready' : 'idle');
@@ -186,6 +216,7 @@ async function convertSelectedFile() {
     conversionActive = false;
     stopProgressHeartbeat();
     setBusy(false);
+    if (!recoverableOutputJob) showSavedImportAction();
   }
 }
 
@@ -193,6 +224,7 @@ function createJobReporter() {
   const reportedEventKeys = new Set();
 
   return (snapshot) => {
+    importJobSession.remember(snapshot);
     const state = snapshot?.progress || {};
     const completed = Number(state.completed || 0);
     const total = Math.max(1, Number(state.total || 1));
@@ -221,32 +253,47 @@ function createJobReporter() {
 
 async function driveImportJob(initialJob, reportJob) {
   let job = initialJob;
+  let remainingPixels = pdfFormRenderTotalPixelLimit;
+  let remainingImageBytes = pdfFormRenderTotalImageByteLimit;
   while (!['complete', 'failed', 'awaiting_output_mode'].includes(String(job.status || ''))) {
     if (Array.isArray(job.renderRequests) && job.renderRequests.length > 0) {
       log(`Rendering ${job.renderRequests.length} PDF figure${job.renderRequests.length === 1 ? '' : 's'} locally with PDF.js.`);
-      const rendered = await renderPdfFormRequests({
-        filesByPath: await pdfFilesForImportJob(job, selectedUpload),
-        requests: job.renderRequests,
-        pdfjs: playgroundPdfJsConfig(),
-        maxTotalPixels: pdfFormRenderTotalPixelLimit,
-        maxTotalImageBytes: pdfFormRenderTotalImageByteLimit,
-        onProgress({ completed, total, label }) {
-          setProgressStatus(`${label} (${completed} of ${total})`);
-        },
-      });
-      for (const item of rendered) {
-        if (item.error) log(`PDF.js could not render one PDF figure: ${item.error}`);
-        const rendererPayload = item.error
-          ? { requestId: item.requestId, error: item.error }
-          : {
-            requestId: item.requestId,
-            bytes: base64FromBytes(item.bytes),
-            mimeType: item.mimeType,
-            width: item.width,
-            height: item.height,
-          };
-        job = await playgroundPluginRequest(`/imports/${encodeURIComponent(job.jobId)}/rendered-media`, rendererPayload);
-        reportJob(job);
+      for (const requests of pdfRenderRequestGroups(job.renderRequests)) {
+        const filesByPath = remainingPixels <= 0 || remainingImageBytes <= 0
+          ? new Map()
+          : await pdfFilesForImportJob(job, selectedUpload, requests);
+        for await (const item of renderPdfFormRequestsIncrementally({
+          filesByPath,
+          requests,
+          pdfjs: playgroundPdfJsConfig(),
+          maxTotalPixels: remainingPixels,
+          maxTotalImageBytes: remainingImageBytes,
+          onProgress({ completed, total, label }) {
+            setProgressStatus(`${label} (${completed} of ${total})`);
+          },
+        })) {
+          if (item.error) log(`PDF.js could not render one PDF figure: ${item.error}`);
+          if (!item.error && item.bytes instanceof Uint8Array) {
+            const pixels = Math.max(0, Number(item.width) || 0) * Math.max(0, Number(item.height) || 0);
+            remainingPixels = Math.max(0, remainingPixels - pixels);
+            remainingImageBytes = Math.max(0, remainingImageBytes - item.bytes.byteLength);
+          }
+          if (item.budgetExhausted === 'pixels') remainingPixels = 0;
+          if (item.budgetExhausted === 'image-bytes') remainingImageBytes = 0;
+          const rendererPayload = item.error
+            ? { requestId: item.requestId, error: item.error }
+            : {
+              requestId: item.requestId,
+              bytes: base64FromBytes(item.bytes),
+              mimeType: item.mimeType,
+              width: item.width,
+              height: item.height,
+            };
+          job = await submitPlaygroundRenderedMedia(job, rendererPayload, reportJob);
+          reportJob(job);
+          if (['complete', 'failed'].includes(String(job.status || ''))) break;
+        }
+        if (['complete', 'failed'].includes(String(job.status || ''))) break;
       }
       continue;
     }
@@ -255,6 +302,33 @@ async function driveImportJob(initialJob, reportJob) {
   }
 
   return job;
+}
+
+async function submitPlaygroundRenderedMedia(job, payload, reportJob) {
+  const jobId = encodeURIComponent(String(job?.jobId || ''));
+  const requestId = String(payload?.requestId || '');
+  if (!jobId || !requestId) {
+    throw new Error('WordPress returned an invalid PDF figure request.');
+  }
+  try {
+    return await playgroundPluginRequest(`/imports/${jobId}/rendered-media`, payload);
+  } catch (error) {
+    // The upload may have committed even when its response was lost. Read the
+    // durable request list before sending the PNG again.
+    log('The PDF figure acknowledgement ended unexpectedly. Checking the saved import before retrying…');
+    const recovered = await playgroundPluginRequest(`/imports/${jobId}`, undefined, 'GET');
+    reportJob(recovered);
+    const stillOutstanding = (recovered.renderRequests || [])
+      .some((request) => String(request?.id || '') === requestId);
+    if (!stillOutstanding || ['complete', 'failed'].includes(String(recovered.status || ''))) {
+      return recovered;
+    }
+    try {
+      return await playgroundPluginRequest(`/imports/${jobId}/rendered-media`, payload);
+    } catch (retryError) {
+      throw new Error(`${errorMessage(retryError)} The rendered figure remains checkpointed in this browser session; use Resume saved import to re-check WordPress before rendering it again.`);
+    }
+  }
 }
 
 function showPdfOutputRecovery(job) {
@@ -269,6 +343,7 @@ function showPdfOutputRecovery(job) {
   retryActions.hidden = false;
   for (const button of retryButtons) button.hidden = true;
   resumePdfPagesButton.hidden = false;
+  resumeSavedImportButton.hidden = true;
   setProgressStatus('Choose how to continue the preserved import.');
   setStatus('ready', 'The conversion is preserved and can continue as a PDF page tree.');
 }
@@ -290,6 +365,7 @@ async function resumePdfAsPageTree() {
     if (job.status === 'failed' || !job.result) {
       throw new Error(job.message || 'Conversion failed.');
     }
+    importJobSession.forget(job.jobId);
     recoverableOutputJob = null;
     resumePdfPagesButton.hidden = true;
     await openCompletedImport(job.result);
@@ -304,9 +380,75 @@ async function resumePdfAsPageTree() {
   }
 }
 
+async function resumeSavedImport() {
+  const saved = importJobSession.load();
+  if (!saved || conversionActive) {
+    showSavedImportAction();
+    return;
+  }
+  conversionActive = true;
+  progressStartedAt = Date.now();
+  setBusy(true);
+  startProgressHeartbeat();
+  resumeSavedImportButton.disabled = true;
+  setStatus('loading', 'Opening the saved import…');
+  setProgressStatus('Opening the saved import…');
+  try {
+    await bootPlayground();
+    const reportJob = createJobReporter();
+    let job = await playgroundPluginRequest(`/imports/${encodeURIComponent(saved.jobId)}`, undefined, 'GET');
+    reportJob(job);
+    if (job.status === 'awaiting_output_mode') {
+      recoverableOutputJob = job;
+      showPdfOutputRecovery(job);
+      return;
+    }
+    job = await driveImportJob(job, reportJob);
+    if (job.status === 'awaiting_output_mode') {
+      recoverableOutputJob = job;
+      showPdfOutputRecovery(job);
+      return;
+    }
+    if (job.status === 'failed' || !job.result) {
+      throw new Error(job.message || 'The saved import failed.');
+    }
+    importJobSession.forget(job.jobId);
+    resumeSavedImportButton.hidden = true;
+    await openCompletedImport(job.result);
+  } catch (error) {
+    // A missing status after Playground boot normally means browser storage
+    // was cleared or evicted. Do not leave a permanently broken Resume action.
+    if (/not found|does not exist|unknown import|404/i.test(errorMessage(error))) {
+      importJobSession.forget(saved.jobId);
+    }
+    setStatus('error', `Could not resume the saved import: ${errorMessage(error)}`);
+    log(error instanceof Error ? error.stack || error.message : String(error));
+  } finally {
+    conversionActive = false;
+    stopProgressHeartbeat();
+    setBusy(false);
+    resumeSavedImportButton.disabled = false;
+    showSavedImportAction();
+  }
+}
+
+function showSavedImportAction() {
+  const saved = importJobSession.load();
+  resumeSavedImportButton.hidden = !saved;
+  if (!saved || conversionActive) return;
+  qualityPanel.hidden = false;
+  qualityPanel.dataset.status = 'partial';
+  qualityTitle.textContent = 'A saved import can continue';
+  qualityMessage.textContent = 'WordPress has durable checkpoints from an unfinished import. Resume it without selecting or parsing the PDF again.';
+  qualityDetails.replaceChildren();
+  retryActions.hidden = false;
+  for (const button of retryButtons) button.hidden = true;
+  resumePdfPagesButton.hidden = true;
+}
+
 async function openCompletedImport(data) {
   if (data.batch && Array.isArray(data.posts)) {
-    log(`Created ${data.posts.length} page${data.posts.length === 1 ? '' : 's'} from ${selectedUpload.displayName}`);
+    log(`Created ${data.posts.length} page${data.posts.length === 1 ? '' : 's'} from ${selectedUpload?.displayName || 'the saved import'}`);
     for (const post of data.posts) log(`Created page #${post.postId}: ${post.title} (${post.path})`);
   } else {
     log(`Created page #${data.postId}: ${data.title}`);
@@ -323,18 +465,20 @@ async function openCompletedImport(data) {
 
 async function advanceImportJob(jobId, reportJob) {
   let polling = false;
+  let stopped = false;
   const encodedJobId = encodeURIComponent(jobId);
   // The import worker persists each phase before starting the next one. A
   // second, read-only request lets the UI surface that work while the advance
   // request is still running, instead of leaving someone staring at one
   // spinner for several minutes.
   const poll = async () => {
-    if (polling || !conversionActive) {
+    if (stopped || polling || !conversionActive) {
       return;
     }
     polling = true;
     try {
-      reportJob(await playgroundPluginRequest(`/imports/${encodedJobId}`, undefined, 'GET'));
+      const snapshot = await playgroundPluginRequest(`/imports/${encodedJobId}`, undefined, 'GET');
+      if (!stopped && conversionActive) reportJob(snapshot);
     } catch {
       // The advance request is authoritative. A transient status-poll failure
       // should never make a document import fail.
@@ -347,8 +491,21 @@ async function advanceImportJob(jobId, reportJob) {
   }, 1_250);
   try {
     await poll();
-    return await playgroundPluginRequest(`/imports/${encodedJobId}/advance`, {});
+    return await recoverImportMutation({
+      mutate: () => playgroundPluginRequest(`/imports/${encodedJobId}/advance`, {}),
+      readStatus: () => playgroundPluginRequest(`/imports/${encodedJobId}`, undefined, 'GET'),
+      onSnapshot: reportJob,
+      isActive: () => conversionActive,
+      maxMutationRetries: 2,
+      statusChecksPerRetry: 3,
+      onRecovery({ mutationAttempt, maxMutationRetries, statusAttempt, statusChecks }) {
+        const message = `The server request ended unexpectedly. Checking saved progress (${statusAttempt} of ${statusChecks}) before retry ${mutationAttempt} of ${maxMutationRetries}…`;
+        setProgressStatus(message);
+        log(message);
+      },
+    });
   } finally {
+    stopped = true;
     window.clearInterval(timer);
   }
 }
@@ -370,7 +527,11 @@ async function playgroundPluginRequest(path, payload = undefined, method = 'POST
   } catch {
     throw new Error('WordPress returned an invalid import-job response.');
   }
-  if (!data.ok) {
+  const jobErrorSnapshot = data
+    && typeof data === 'object'
+    && String(data.jobId || '') !== ''
+    && ['failed', 'retryable_failure'].includes(String(data.status || ''));
+  if (!data.ok && !jobErrorSnapshot) {
     throw new Error(data.message || 'Conversion failed.');
   }
 
@@ -387,9 +548,22 @@ function pdfFilesForUpload(upload) {
   return files;
 }
 
-async function pdfFilesForImportJob(job, upload) {
+function pdfRenderRequestGroups(requests) {
+  const groups = new Map();
+  for (const request of Array.isArray(requests) ? requests : []) {
+    const path = String(request?.path || '');
+    const sourceKey = String(request?.sourceKey || path);
+    if (!groups.has(sourceKey)) groups.set(sourceKey, []);
+    groups.get(sourceKey).push(request);
+  }
+  return Array.from(groups.values());
+}
+
+async function pdfFilesForImportJob(job, upload, renderRequests = null) {
   const files = pdfFilesForUpload(upload);
-  const requests = Array.isArray(job?.renderRequests) ? job.renderRequests : [];
+  const requests = Array.isArray(renderRequests)
+    ? renderRequests
+    : (Array.isArray(job?.renderRequests) ? job.renderRequests : []);
   const localPdfEntries = (upload?.entries || []).filter((entry) => isLikelyPdfFile(entry?.file));
   // A direct upload is sanitized before the job persists it. When the
   // browser holds only one PDF, it remains safe to bind that selected source
@@ -478,7 +652,7 @@ async function startPlayground() {
     }
     log(`Installing converter plugin from ${pluginUrl}`);
 
-    playgroundClient = await startPlaygroundWeb({
+    const startOptions = {
       iframe,
       remoteUrl: 'https://playground.wordpress.net/remote.html',
       blueprint: {
@@ -504,13 +678,25 @@ async function startPlayground() {
           },
         ],
       },
-    });
+    };
+    playgroundClient = await startPlaygroundWeb(playgroundPersistence.startOptions(startOptions));
     await playgroundClient.isReady();
+    try {
+      await playgroundPersistence.persist(playgroundClient, (message) => {
+        setProgressStatus(message);
+        log(message);
+      });
+    } catch (error) {
+      log(`Browser storage could not preserve this Playground: ${errorMessage(error)}`);
+    }
     playgroundReady = true;
     setPlaygroundState('ready');
     setStatus('ready', 'WordPress Playground is ready.');
     updateConvertAvailability();
   } catch (error) {
+    // A transient CDN, worker, or plugin download failure does not prove that
+    // the OPFS snapshot is corrupt. Retain it for an explicit retry instead
+    // of risking replacement of a valid, checkpointed WordPress tree.
     playgroundBootPromise = null;
     setPlaygroundState('idle');
     setStatus('error', 'WordPress Playground failed to start.');
@@ -524,6 +710,7 @@ function setSelectedUpload(upload) {
   recoverableOutputJob = null;
   if (resumePdfPagesButton) resumePdfPagesButton.hidden = true;
   setQualityPanel(null);
+  resumeSavedImportButton.hidden = true;
   if (!upload) {
     fileName.textContent = 'No file selected';
     titleInput.value = '';
@@ -735,7 +922,7 @@ async function stageUploadInPlayground(client, upload, reportProgress = () => {}
   const paths = [];
   const stagedFiles = [];
   const pdfRasterImages = {};
-  const pdfBrowserFacts = {};
+  const pdfRasterBudget = { remainingBytes: pdfRasterPayloadByteLimit };
   const imageMode = selectedImageMode();
 
   try {
@@ -751,22 +938,13 @@ async function stageUploadInPlayground(client, upload, reportProgress = () => {}
 
       if (isLikelyPdfFile(entry.file)) {
         if (bytes.length > pdfRasterSourceByteLimit) {
-          reportProgress(`Skipping optional PDF.js facts and image decoding for ${entry.file.name}; it is over the 24 MiB browser safety limit. Native PHP extraction will continue.`);
+          reportProgress(`Skipping optional browser image decoding for ${entry.file.name}; it is over the 24 MiB browser safety limit. Native PHP extraction will continue.`);
         } else {
-          try {
-            const facts = await collectPdfJsFacts({
-              source: bytes,
-              pdfjs: playgroundPdfJsConfig(),
-              onProgress({ label }) { reportProgress(label); },
-            });
-            if (facts.pages.length > 0) {
-              pdfBrowserFacts[entry.path] = facts;
-            }
-          } catch (error) {
-            reportProgress(`Optional PDF.js text and structure facts are unavailable for ${entry.file.name} (${errorMessage(error)}). Native PHP extraction will continue.`);
-          }
+          // Browser text/structure facts are deliberately not collected here.
+          // No reader consumes them yet, and parsing the whole PDF a second
+          // time made large imports slower before useful work even began.
           if (imageMode !== 'none') {
-            const rasters = await browserPdfRasterImages(bytes, imageMode, reportProgress);
+            const rasters = await browserPdfRasterImages(bytes, imageMode, reportProgress, pdfRasterBudget);
             if (rasters.length > 0) {
               pdfRasterImages[entry.path] = rasters;
             }
@@ -787,7 +965,6 @@ async function stageUploadInPlayground(client, upload, reportProgress = () => {}
         pdfMode: selectedPdfMode(),
         pdfOutputMode: selectedPdfOutputMode(),
         stagedFiles,
-        ...(Object.keys(pdfBrowserFacts).length > 0 ? { pdfBrowserFacts } : {}),
         ...(Object.keys(pdfRasterImages).length > 0 ? { pdfRasterImages } : {}),
       },
     };
@@ -808,10 +985,45 @@ async function cleanupStagedUpload(client, paths) {
   }
 }
 
-async function browserPdfRasterImages(bytes, imageMode, reportProgress) {
+// PDF filter names are ASCII tokens. Search the existing byte view directly
+// so ordinary PDFs do not pay for a full-source string copy merely to decide
+// whether an optional image decoder is relevant.
+function pdfBytesContainAscii(bytes, ascii) {
+  const needleLength = typeof ascii === 'string' ? ascii.length : 0;
+  if (!(bytes instanceof Uint8Array) || needleLength < 1 || needleLength > 32 || bytes.length < needleLength) {
+    return false;
+  }
+  for (let index = 0; index < needleLength; index += 1) {
+    if (ascii.charCodeAt(index) > 0x7f) {
+      return false;
+    }
+  }
+
+  const firstByte = ascii.charCodeAt(0);
+  const lastStart = bytes.length - needleLength;
+  let offset = 0;
+  while (offset <= lastStart) {
+    const matchStart = bytes.indexOf(firstByte, offset);
+    if (matchStart < 0 || matchStart > lastStart) {
+      return false;
+    }
+    let needleIndex = 1;
+    while (needleIndex < needleLength && bytes[matchStart + needleIndex] === ascii.charCodeAt(needleIndex)) {
+      needleIndex += 1;
+    }
+    if (needleIndex === needleLength) {
+      return true;
+    }
+    offset = matchStart + 1;
+  }
+  return false;
+}
+
+async function browserPdfRasterImages(bytes, imageMode, reportProgress, aggregateBudget = null) {
   const decoderEntries = [
     {
       label: 'JBIG2',
+      filterName: '/JBIG2Decode',
       load: async () => {
         if (!decodePdfJbig2Rasters) {
           const module = await import(new URL('pdf-jbig2-rasterizer.mjs?v=jbig2-raster-20260709', window.location.href).href);
@@ -822,6 +1034,7 @@ async function browserPdfRasterImages(bytes, imageMode, reportProgress) {
     },
     {
       label: 'JPEG 2000',
+      filterName: '/JPXDecode',
       load: async () => {
         if (!decodePdfJpxRasters) {
           const module = await import(new URL('pdf-jpx-rasterizer.mjs?v=jpx-raster-20260714', window.location.href).href);
@@ -830,14 +1043,17 @@ async function browserPdfRasterImages(bytes, imageMode, reportProgress) {
         return decodePdfJpxRasters;
       },
     },
-  ];
+  ].filter(({ filterName }) => pdfBytesContainAscii(bytes, filterName));
   const loaded = await Promise.allSettled(decoderEntries.map(async (entry) => ({
     entry,
     decode: await entry.load(),
   })));
   const rasters = [];
   const objects = new Set();
-  let remainingBytes = pdfRasterPayloadByteLimit;
+  let remainingBytes = Math.min(
+    pdfRasterPayloadByteLimit,
+    Math.max(0, Number(aggregateBudget?.remainingBytes ?? pdfRasterPayloadByteLimit) || 0),
+  );
   for (const [index, result] of loaded.entries()) {
     if (result.status !== 'fulfilled') {
       log(`Browser ${decoderEntries[index]?.label || 'PDF'} image preparation was unavailable: ${errorMessage(result.reason)}`);
@@ -872,6 +1088,9 @@ async function browserPdfRasterImages(bytes, imageMode, reportProgress) {
   }
   if (rasters.length > 0) {
     log(`Prepared ${rasters.length} browser-decoded PDF image${rasters.length === 1 ? '' : 's'}.`);
+  }
+  if (aggregateBudget && typeof aggregateBudget === 'object') {
+    aggregateBudget.remainingBytes = remainingBytes;
   }
 
   return rasters.map((raster) => ({
@@ -1148,6 +1367,14 @@ function formatBytes(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function browserStorage() {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 function playgroundPath(url) {
   try {
     const parsed = new URL(url);
@@ -1156,3 +1383,5 @@ function playgroundPath(url) {
     return url || '/';
   }
 }
+
+showSavedImportAction();

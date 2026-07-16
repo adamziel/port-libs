@@ -5377,7 +5377,15 @@ CSS;
 function showcase_examples_javascript(): string
 {
     return <<<'JS'
-import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';
+import {
+  renderPdfFormRequests,
+  renderPdfFormRequestsIncrementally,
+} from './pdfjs-form-rasterizer.mjs';
+import {
+  createImportJobSession,
+  createPlaygroundPersistence,
+  recoverImportMutation,
+} from './import-job-session.mjs';
 
 const catalogUrl = 'examples-index.json';
 const viewLabels = {
@@ -5387,7 +5395,7 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'rotated-pdf-furniture-20260716';
+const playgroundPluginBuild = 'verified-pdf-import-20260716';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 const playgroundPdfRasterByteLimit = 24_000_000;
@@ -5416,6 +5424,16 @@ const ownPdfOutputDialog = document.getElementById('own-pdf-output-dialog');
 const ownPdfOutputMessage = document.getElementById('own-pdf-output-message');
 const ownPdfOutputInputs = Array.from(document.querySelectorAll('input[name="own-pdf-output-mode"]'));
 const frame = document.getElementById('example-frame');
+
+const ownFileImportSession = createImportJobSession({
+  storage: browserStorage(),
+  storageKey: 'port-libs.playground-active-import.v1',
+});
+const ownFilePlaygroundPersistence = createPlaygroundPersistence({
+  storage: browserStorage(),
+  storageKey: 'port-libs.playground-import-site.v1',
+  devicePath: `port-libs/${window.location.host}/playground-import-site-v1`,
+});
 
 const state = {
   examples: [],
@@ -5578,7 +5596,9 @@ function updateControls() {
 
 function setOwnFileBusy(busy, label = '') {
   state.ownFileBusy = busy;
-  tryOwnFileButton.textContent = busy ? label : 'Try your own file';
+  tryOwnFileButton.textContent = busy
+    ? label
+    : (ownFileImportSession.load() ? 'Resume saved import' : 'Try your own file');
   updateControls();
 }
 
@@ -6141,7 +6161,7 @@ async function startOwnFilePlayground() {
       const playgroundModule = await import(playgroundClientModuleUrl);
       state.startPlaygroundWeb = playgroundModule.startPlaygroundWeb;
     }
-    state.playgroundClient = await state.startPlaygroundWeb({
+    const startOptions = {
       iframe: frame,
       remoteUrl: 'https://playground.wordpress.net/remote.html',
       blueprint: {
@@ -6167,10 +6187,25 @@ async function startOwnFilePlayground() {
           },
         ],
       },
-    });
+    };
+    state.playgroundClient = await state.startPlaygroundWeb(
+      ownFilePlaygroundPersistence.startOptions(startOptions),
+    );
     await state.playgroundClient.isReady();
+    try {
+      await ownFilePlaygroundPersistence.persist(state.playgroundClient, (message) => {
+        setOwnFileBusy(true, message);
+        setStatus(message, { visible: true });
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      setStatus('This Playground could not be saved in browser storage: ' + detail, { visible: true });
+    }
     state.playgroundReady = true;
   } catch (error) {
+    // A CDN or startup failure does not prove that the OPFS snapshot is
+    // corrupt. Keep its pointer so retrying cannot replace a valid WordPress
+    // tree (and hundreds of durable page checkpoints) with a fresh site.
     state.playgroundBootPromise = null;
     state.playgroundClient = null;
     state.playgroundReady = false;
@@ -6204,6 +6239,232 @@ function chooseOwnPdfOutputMode({ recovery = false, job = null } = {}) {
     ownPdfOutputDialog.addEventListener('close', closed);
     ownPdfOutputDialog.showModal();
   });
+}
+
+function createOwnFileJobReporter(token) {
+  const reportedEventKeys = new Set();
+
+  return (snapshot) => {
+    ownFileImportSession.remember(snapshot);
+    if (!ownFileRequestIsCurrent(token)) {
+      return;
+    }
+    const label = ownFileImportProgressLabel(snapshot);
+    const latestEvent = ownFileImportLatestNewEvent(snapshot, reportedEventKeys);
+    const message = latestEvent ? `${label} ${latestEvent}` : label;
+    setOwnFileBusy(true, message);
+    setStatus(message, { visible: true });
+  };
+}
+
+async function driveOwnFileImport(playgroundClient, initialJob, token, reportJob, file = null, bytes = null) {
+  let job = initialJob;
+  let remainingPixels = playgroundPdfFormTotalPixelLimit;
+  let remainingImageBytes = playgroundPdfFormTotalImageByteLimit;
+  while (!['complete', 'failed'].includes(String(job.status || ''))) {
+    if (!ownFileRequestIsCurrent(token)) {
+      return job;
+    }
+    if (job.status === 'awaiting_output_mode') {
+      const recoveredMode = await chooseOwnPdfOutputMode({ recovery: true, job });
+      if (recoveredMode !== 'pages') {
+        setStatus('The completed conversion remains saved in WordPress Playground.', { visible: true });
+        return job;
+      }
+      job = await ownFilePluginRequest(
+        playgroundClient,
+        `/imports/${encodeURIComponent(job.jobId)}/output-mode`,
+        { pdfOutputMode: 'pages' },
+      );
+      reportJob(job);
+      continue;
+    }
+    if (Array.isArray(job.renderRequests) && job.renderRequests.length > 0) {
+      for (const requests of pdfRenderRequestGroups(job.renderRequests)) {
+        const filesByPath = remainingPixels <= 0 || remainingImageBytes <= 0
+          ? new Map()
+          : await pdfFilesForOwnFile(playgroundClient, job, file, bytes, requests);
+        for await (const item of renderPdfFormRequestsIncrementally({
+          filesByPath,
+          requests,
+          pdfjs: playgroundPdfJsConfig(),
+          maxTotalPixels: remainingPixels,
+          maxTotalImageBytes: remainingImageBytes,
+          onProgress({ completed, total, label }) {
+            if (!ownFileRequestIsCurrent(token)) {
+              return;
+            }
+            const progress = `${label} (${completed} of ${total})`;
+            setOwnFileBusy(true, progress);
+            setStatus(progress, { visible: true });
+          },
+        })) {
+          if (!ownFileRequestIsCurrent(token)) {
+            return job;
+          }
+          if (!item.error && item.bytes instanceof Uint8Array) {
+            const pixels = Math.max(0, Number(item.width) || 0) * Math.max(0, Number(item.height) || 0);
+            remainingPixels = Math.max(0, remainingPixels - pixels);
+            remainingImageBytes = Math.max(0, remainingImageBytes - item.bytes.byteLength);
+          }
+          if (item.budgetExhausted === 'pixels') remainingPixels = 0;
+          if (item.budgetExhausted === 'image-bytes') remainingImageBytes = 0;
+          job = await submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob);
+          reportJob(job);
+          if (['complete', 'failed'].includes(String(job.status || ''))) {
+            break;
+          }
+        }
+        if (['complete', 'failed'].includes(String(job.status || ''))) {
+          break;
+        }
+      }
+      continue;
+    }
+    if (job.status === 'awaiting_renderer') {
+      throw new Error('WordPress requested a PDF figure, but did not provide a renderable crop. Please try the file again.');
+    }
+    job = await advanceOwnFileImport(playgroundClient, job, token, reportJob);
+    reportJob(job);
+  }
+
+  return job;
+}
+
+async function submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob) {
+  const jobId = encodeURIComponent(String(job?.jobId || ''));
+  const requestId = String(item?.requestId || '');
+  if (!jobId || !requestId) {
+    throw new Error('WordPress returned an invalid PDF figure request.');
+  }
+  const rendererPayload = item.error
+    ? { requestId, error: item.error }
+    : {
+      requestId,
+      bytes: base64FromBytes(item.bytes),
+      mimeType: item.mimeType,
+      width: item.width,
+      height: item.height,
+    };
+  try {
+    return await ownFilePluginRequest(
+      playgroundClient,
+      `/imports/${jobId}/rendered-media`,
+      rendererPayload,
+    );
+  } catch (error) {
+    const recovered = await ownFilePluginRequest(playgroundClient, `/imports/${jobId}`, undefined, 'GET');
+    reportJob(recovered);
+    const stillOutstanding = (recovered.renderRequests || [])
+      .some((request) => String(request?.id || '') === requestId);
+    if (!stillOutstanding || ['complete', 'failed'].includes(String(recovered.status || ''))) {
+      return recovered;
+    }
+    try {
+      return await ownFilePluginRequest(
+        playgroundClient,
+        `/imports/${jobId}/rendered-media`,
+        rendererPayload,
+      );
+    } catch (retryError) {
+      const detail = retryError instanceof Error ? retryError.message : String(retryError);
+      throw new Error(`${detail} The rendered figure remains saved for a later Resume saved import attempt.`);
+    }
+  }
+}
+
+async function openCompletedOwnFileImport(playgroundClient, job, token, label) {
+  ownFileImportSession.forget(job.jobId);
+  state.lastOwnFileJob = job;
+  if (!ownFileRequestIsCurrent(token)) {
+    return;
+  }
+  const data = job.result;
+  try {
+    await playgroundClient.goTo(playgroundPath(data.pageUrl));
+  } catch (pageError) {
+    // Conversion and publication have already committed at this point. A
+    // very large front-end render must not be reported as if saved work was
+    // lost; try the editor and retain success if neither view can render.
+    try {
+      await playgroundClient.goTo(playgroundPath(data.editUrl));
+    } catch {
+      const detail = pageError instanceof Error ? pageError.message : String(pageError);
+      setStatus(
+        'The import completed and the WordPress page was saved, but Playground could not display it: ' + detail,
+        { visible: true, tone: 'success' },
+      );
+      return;
+    }
+  }
+  if (ownFileRequestIsCurrent(token)) {
+    setStatus('Import complete. Converted pages were verified privately and published. Opened a new WordPress page for ' + label + '.', { visible: true, tone: 'success' });
+  }
+}
+
+async function resumeSavedOwnFileImport() {
+  const saved = ownFileImportSession.load();
+  if (!saved || state.ownFileBusy) {
+    setOwnFileBusy(false);
+    return;
+  }
+
+  abortStaticPdfPreview({ clearCache: true });
+  const token = state.ownFileToken + 1;
+  state.ownFileToken = token;
+  const reusingPlayground = state.frameMode === 'playground'
+    && state.playgroundReady
+    && state.playgroundClient;
+  state.frameMode = 'playground';
+  state.loadToken += 1;
+  delete frame.dataset.loadedPath;
+  delete frame.dataset.previewMode;
+  delete frame.dataset.previewStatus;
+  frame.removeAttribute('srcdoc');
+  if (!reusingPlayground) {
+    frame.removeAttribute('src');
+    frame.removeAttribute('sandbox');
+  }
+  frame.hidden = false;
+  frame.loading = 'eager';
+  setOwnFileBusy(true, state.playgroundReady ? 'Resuming saved import…' : 'Restoring saved Playground…');
+  setStatus('Restoring the saved WordPress import…', { visible: true });
+
+  try {
+    await bootOwnFilePlayground();
+    const playgroundClient = state.playgroundClient;
+    if (!playgroundClient || !ownFileRequestIsCurrent(token)) {
+      return;
+    }
+    let job = await ownFilePluginRequest(
+      playgroundClient,
+      `/imports/${encodeURIComponent(saved.jobId)}`,
+      undefined,
+      'GET',
+    );
+    const reportJob = createOwnFileJobReporter(token);
+    reportJob(job);
+    job = await driveOwnFileImport(playgroundClient, job, token, reportJob);
+    if (job.status === 'awaiting_output_mode') {
+      return;
+    }
+    if (job.status === 'failed' || !job.result) {
+      throw new Error(job.message || 'The saved conversion failed.');
+    }
+    await openCompletedOwnFileImport(playgroundClient, job, token, 'the saved document');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/not found|does not exist|unknown import|404/i.test(message)) {
+      ownFileImportSession.forget(saved.jobId);
+    }
+    if (ownFileRequestIsCurrent(token)) {
+      setStatus('Could not resume the saved import: ' + message, { visible: true, tone: 'error' });
+    }
+  } finally {
+    if (token === state.ownFileToken) {
+      setOwnFileBusy(false);
+    }
+  }
 }
 
 async function openOwnFile(file, pdfOutputMode = 'single') {
@@ -6272,114 +6533,16 @@ async function openOwnFile(file, pdfOutputMode = 'single') {
       ...prepared.payload,
       stagedPath,
     });
-    const reportedEventKeys = new Set();
-    const reportJob = (snapshot) => {
-      if (!ownFileRequestIsCurrent(token)) {
-        return;
-      }
-      const label = ownFileImportProgressLabel(snapshot);
-      const latestEvent = ownFileImportLatestNewEvent(snapshot, reportedEventKeys);
-      const message = latestEvent ? `${label} ${latestEvent}` : label;
-      setOwnFileBusy(true, message);
-      setStatus(message, { visible: true });
-    };
+    const reportJob = createOwnFileJobReporter(token);
     reportJob(job);
-
-    while (!['complete', 'failed'].includes(String(job.status || ''))) {
-      if (!ownFileRequestIsCurrent(token)) {
-        return;
-      }
-      if (job.status === 'awaiting_output_mode') {
-        const recoveredMode = await chooseOwnPdfOutputMode({ recovery: true, job });
-        if (recoveredMode !== 'pages') {
-          setStatus('The completed conversion remains saved in WordPress Playground.', { visible: true });
-          return;
-        }
-        job = await ownFilePluginRequest(
-          playgroundClient,
-          `/imports/${encodeURIComponent(job.jobId)}/output-mode`,
-          { pdfOutputMode: 'pages' },
-        );
-        reportJob(job);
-        continue;
-      }
-      if (Array.isArray(job.renderRequests) && job.renderRequests.length > 0) {
-        const rendered = await renderPdfFormRequests({
-          filesByPath: await pdfFilesForOwnFile(playgroundClient, job, file, prepared.bytes),
-          requests: job.renderRequests,
-          pdfjs: playgroundPdfJsConfig(),
-          maxTotalPixels: playgroundPdfFormTotalPixelLimit,
-          maxTotalImageBytes: playgroundPdfFormTotalImageByteLimit,
-          onProgress({ completed, total, label }) {
-            if (!ownFileRequestIsCurrent(token)) {
-              return;
-            }
-            const progress = `${label} (${completed} of ${total})`;
-            setOwnFileBusy(true, progress);
-            setStatus(progress, { visible: true });
-          },
-        });
-        if (!ownFileRequestIsCurrent(token)) {
-          return;
-        }
-        for (const item of rendered) {
-          const rendererPayload = item.error
-            ? { requestId: item.requestId, error: item.error }
-            : {
-              requestId: item.requestId,
-              bytes: base64FromBytes(item.bytes),
-              mimeType: item.mimeType,
-              width: item.width,
-              height: item.height,
-            };
-          job = await ownFilePluginRequest(
-            playgroundClient,
-            `/imports/${encodeURIComponent(job.jobId)}/rendered-media`,
-            rendererPayload,
-          );
-          reportJob(job);
-          if (!ownFileRequestIsCurrent(token)) {
-            return;
-          }
-        }
-        continue;
-      }
-      if (job.status === 'awaiting_renderer') {
-        throw new Error('WordPress requested a PDF figure, but did not provide a renderable crop. Please try the file again.');
-      }
-      job = await advanceOwnFileImport(playgroundClient, job, token, reportJob);
-      reportJob(job);
+    job = await driveOwnFileImport(playgroundClient, job, token, reportJob, file, prepared.bytes);
+    if (job.status === 'awaiting_output_mode') {
+      return;
     }
     if (job.status === 'failed' || !job.result) {
       throw new Error(job.message || 'Conversion failed.');
     }
-    state.lastOwnFileJob = job;
-    if (!ownFileRequestIsCurrent(token)) {
-      return;
-    }
-
-    const data = job.result;
-    try {
-      await playgroundClient.goTo(playgroundPath(data.pageUrl));
-    } catch (pageError) {
-      // Conversion and publication have already committed at this point. A
-      // very large front-end render must not be reported as if 200+ pages of
-      // saved import work disappeared; try the editor and retain success even
-      // if this particular Playground view cannot render the result.
-      try {
-        await playgroundClient.goTo(playgroundPath(data.editUrl));
-      } catch {
-        const detail = pageError instanceof Error ? pageError.message : String(pageError);
-        setStatus(
-          'The import completed and the WordPress page was saved, but Playground could not display it: ' + detail,
-          { visible: true, tone: 'success' },
-        );
-        return;
-      }
-    }
-    if (ownFileRequestIsCurrent(token)) {
-      setStatus('Import complete. Converted pages were verified privately and published. Opened a new WordPress page for ' + file.name + '.', { visible: true, tone: 'success' });
-    }
+    await openCompletedOwnFileImport(playgroundClient, job, token, file.name);
   } catch (error) {
     if (ownFileRequestIsCurrent(token)) {
       const message = error instanceof Error ? error.message : String(error);
@@ -6484,7 +6647,11 @@ async function ownFilePluginRequest(playgroundClient, path, payload = {}, method
   } catch {
     throw new Error('WordPress Playground returned an unreadable import-job response. Please try the file again.');
   }
-  if (!data.ok) {
+  const jobErrorSnapshot = data
+    && typeof data === 'object'
+    && String(data.jobId || '') !== ''
+    && ['failed', 'retryable_failure'].includes(String(data.status || ''));
+  if (!data.ok && !jobErrorSnapshot) {
     throw new Error(data.message || 'Conversion failed.');
   }
 
@@ -6496,39 +6663,27 @@ async function advanceOwnFileImport(playgroundClient, job, token, reportJob) {
   if (!jobId) {
     throw new Error('WordPress did not return an import job identifier. Please try the file again.');
   }
-  let lastError = null;
-  for (let attempt = 0; attempt <= ownFileAdvanceRecoveryAttempts; attempt += 1) {
-    const stopPolling = startOwnFileImportStatusPolling(playgroundClient, jobId, token, reportJob);
-    try {
-      return await ownFilePluginRequest(playgroundClient, `/imports/${jobId}/advance`, {});
-    } catch (error) {
-      lastError = error;
-    } finally {
-      stopPolling();
-    }
-    if (attempt >= ownFileAdvanceRecoveryAttempts || !ownFileRequestIsCurrent(token)) {
-      break;
-    }
-    const retry = attempt + 1;
-    const recoveryLabel = `The server request ended unexpectedly. Checking saved progress (${retry} of ${ownFileAdvanceRecoveryAttempts})…`;
-    setOwnFileBusy(true, recoveryLabel);
-    setStatus(recoveryLabel, { visible: true });
-    await new Promise((resolve) => window.setTimeout(resolve, 400 * retry));
-    try {
-      const recovered = await ownFilePluginRequest(playgroundClient, `/imports/${jobId}`, undefined, 'GET');
-      reportJob(recovered);
-      // A completed checkpoint, a renderer handoff, or a finished import is
-      // safe for the outer state machine. Only a worker left mid-transition
-      // needs another bounded /advance attempt.
-      if (String(recovered.status || '') !== 'converting') {
-        return recovered;
-      }
-    } catch (statusError) {
-      lastError = statusError;
-    }
+  const stopPolling = startOwnFileImportStatusPolling(playgroundClient, jobId, token, reportJob);
+  try {
+    return await recoverImportMutation({
+      mutate: () => ownFilePluginRequest(playgroundClient, `/imports/${jobId}/advance`, {}),
+      readStatus: () => ownFilePluginRequest(playgroundClient, `/imports/${jobId}`, undefined, 'GET'),
+      onSnapshot: reportJob,
+      isActive: () => ownFileRequestIsCurrent(token),
+      maxMutationRetries: ownFileAdvanceRecoveryAttempts,
+      statusChecksPerRetry: 3,
+      onRecovery({ mutationAttempt, maxMutationRetries, statusAttempt, statusChecks }) {
+        const recoveryLabel = `The server request ended unexpectedly. Checking saved progress (${statusAttempt} of ${statusChecks}) before retry ${mutationAttempt} of ${maxMutationRetries}…`;
+        setOwnFileBusy(true, recoveryLabel);
+        setStatus(recoveryLabel, { visible: true });
+      },
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error || 'Unknown server error');
+    throw new Error(`${detail} The completed page checkpoints remain saved in this Playground, but automatic recovery stopped to avoid a retry loop.`);
+  } finally {
+    stopPolling();
   }
-  const detail = lastError instanceof Error ? lastError.message : String(lastError || 'Unknown server error');
-  throw new Error(`${detail} The completed page checkpoints remain saved in this Playground, but automatic recovery stopped to avoid a retry loop.`);
 }
 
 function startOwnFileImportStatusPolling(playgroundClient, jobId, token, reportJob) {
@@ -6607,15 +6762,31 @@ function ownFileImportLatestNewEvent(job, reportedEventKeys) {
   return latestMessage;
 }
 
-async function pdfFilesForOwnFile(playgroundClient, job, file, bytes) {
+function pdfRenderRequestGroups(requests) {
+  const groups = new Map();
+  for (const request of Array.isArray(requests) ? requests : []) {
+    const path = String(request?.path || '');
+    const sourceKey = String(request?.sourceKey || path);
+    if (!groups.has(sourceKey)) {
+      groups.set(sourceKey, []);
+    }
+    groups.get(sourceKey).push(request);
+  }
+
+  return Array.from(groups.values());
+}
+
+async function pdfFilesForOwnFile(playgroundClient, job, file, bytes, renderRequests = null) {
   const files = new Map();
-  const requests = Array.isArray(job?.renderRequests) ? job.renderRequests : [];
-  if (isLikelyPdfFile(file) && bytes instanceof Uint8Array) {
+  const requests = Array.isArray(renderRequests)
+    ? renderRequests
+    : (Array.isArray(job?.renderRequests) ? job.renderRequests : []);
+  if (file && isLikelyPdfFile(file) && bytes instanceof Uint8Array) {
     files.set(file.name, bytes);
   }
   for (const request of requests) {
     const path = String(request?.path || '');
-    if (path && isLikelyPdfFile(file) && bytes instanceof Uint8Array) {
+    if (path && file && isLikelyPdfFile(file) && bytes instanceof Uint8Array) {
       // The server sanitizes upload names before it persists the job. This is
       // a one-file import, so each requested source path refers to these
       // browser-held PDF bytes even when its sanitized name differs locally.
@@ -6802,6 +6973,14 @@ function bytesFromBase64(base64) {
   return bytes;
 }
 
+function browserStorage() {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 function isLikelyPdfFile(file) {
   return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 }
@@ -6822,6 +7001,7 @@ function playgroundPath(url) {
 }
 
 async function initialize() {
+  setOwnFileBusy(false);
   try {
     const response = await fetch(catalogUrl, { cache: 'no-store' });
     if (!response.ok) {
@@ -6865,6 +7045,10 @@ downloadSource.addEventListener('click', (event) => {
 
 tryOwnFileButton.addEventListener('click', () => {
   if (state.ownFileBusy) {
+    return;
+  }
+  if (ownFileImportSession.load()) {
+    void resumeSavedOwnFileImport();
     return;
   }
   ownFileInput.value = '';

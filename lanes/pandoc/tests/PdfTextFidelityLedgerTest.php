@@ -71,6 +71,11 @@ return [
         $t->same(1, $meta['pdfTextFidelity']['version']);
         $t->same(1.0, $meta['pdfTextFidelity']['tokenCoverage']);
         $t->same(true, $meta['pdfTextFidelity']['sourceAccounted']);
+        $t->same(1, $meta['pdfSourceDisposition']['version']);
+        $t->same(1, $meta['pdfSourceDisposition']['sourceOccurrenceCount']);
+        $t->same(true, $meta['pdfSourceDisposition']['allOccurrencesDispositioned']);
+        $t->same(true, $meta['pdfSourceDisposition']['allOccurrencesResolved']);
+        $t->same(true, $meta['pdfSourceDisposition']['orderedSignificantCharactersPreserved']);
     },
 
     'pdf reader conserves multicolumn front matter while reporting remaining semantic loss' => static function (TestRunner $t): void {
@@ -88,6 +93,7 @@ return [
 
         $t->same(true, $meta['pdfTextComplete']);
         $t->same(false, $meta['pdfSemanticTextComplete']);
+        $t->true(($meta['pdfSourceDisposition']['unresolvedOccurrenceCount'] ?? 0) > 0);
         $t->true($meta['pdfFrontMatterRecords'] >= 20);
         $t->contains('Dense Passage Retrieval for Open-Domain Question Answering', $plain);
         $t->contains('Vladimir Karpukhin', $plain);

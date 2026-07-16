@@ -54,6 +54,9 @@ return [
         $t->same(true, $placements[0]['visible']);
         $t->same(true, $placements[0]['placementEligible']);
         $t->same('high', $placements[0]['confidence']);
+        $t->same(1, $placements[0]['visualSummary']['vectorPaintOperatorCount'] ?? null);
+        $t->same(0, $placements[0]['visualSummary']['textShowOperatorCount'] ?? null);
+        $t->same(true, $placements[0]['visualSummary']['complete'] ?? null);
     },
     'keeps repeated outer Form paints distinct and does not turn nested Forms into separate crops' => static function (TestRunner $t): void {
         $nested = markerpdf_form_placement_form('0 0 8 8');
@@ -78,6 +81,7 @@ return [
         $t->same([['Outer'], ['Outer']], array_column($placements, 'resourcePath'));
         $t->same([30.0, 40.0, 130.0, 140.0], array_values($placements[0]['bbox']));
         $t->same([100.0, 200.0, 140.0, 230.0], array_values($placements[1]['bbox']));
+        $t->same(1, $placements[0]['visualSummary']['nestedFormXObjectCount'] ?? null);
     },
     'reports non-placeable artifact and off-page Form paints for caller review without treating them as crop candidates' => static function (TestRunner $t): void {
         $form = markerpdf_form_placement_form('0 0 10 10');

@@ -7,7 +7,13 @@
     "source": "Unstructured example-docs/pdf/header-test-doc.pdf",
     "filename": "header-test-doc.pdf",
     "notes": "Short prose document with page-furniture text that must not be merged into the body.",
-    "success": {"minTextBytes": 60, "maxTables": 0, "maxSingleGlyphParagraphs": 0}
+    "artifact": {"pinStatus": "checked-in", "bytes": 25602, "sha256": "adf8503692538a2e367132f66e9d1ced3ca58218e5398cd2b470d375569424e5", "localPath": "pandoc-showcase/samples/pdf-layout-unstructured-header-footer-header-test-doc.pdf"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "Unstructured", "upstreamPath": "example-docs/pdf/header-test-doc.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "Apache-2.0", "reference": "https://github.com/Unstructured-IO/unstructured/blob/main/LICENSE.md"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": ["C6: a one-page source cannot prove that repeated edge text is furniture"]},
+    "failureClasses": ["C6", "D3"],
+    "success": {"minTextBytes": 60, "maxTables": 0, "maxSingleGlyphParagraphs": 0, "requiredText": ["I Am A Header Title", "Here is a lovely sentences."]},
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["I Am A Header Title", "Here is a lovely sentences."], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   },
   {
     "id": "unstructured-multicolumn",
@@ -17,19 +23,19 @@
     "source": "Unstructured example-docs/pdf/multi-column-2p.pdf",
     "filename": "multi-column-2p.pdf",
     "notes": "Two-column article pages that exercise column order and paragraph continuation.",
+    "artifact": {"pinStatus": "checked-in", "bytes": 194794, "sha256": "f65262032174fad010ce05bedad0989cd9a930788bb90cdbba4e89ee99891072", "localPath": "pandoc-showcase/samples/pdf-layout-unstructured-multicolumn-multi-column-2p.pdf"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "Unstructured", "upstreamPath": "example-docs/pdf/multi-column-2p.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "Apache-2.0", "reference": "https://github.com/Unstructured-IO/unstructured/blob/main/LICENSE.md"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": []},
+    "failureClasses": ["C4", "C8", "D1"],
     "success": {
       "minTextBytes": 1500,
       "minParagraphs": 4,
       "maxSingleGlyphParagraphs": 0,
-      "requiredText": ["Vladimir Karpukhin", "sewoncs.washington.edu", "Abstract"],
-      "orderedText": [
-        "Dense Passage Retrieval for Open-Domain Question Answering",
-        "Vladimir Karpukhin",
-        "Abstract",
-        "Open-domain question answering relies",
-        "1 Introduction"
-      ]
-    }
+      "requiredText": ["Dense Passage Retrieval for Open-Domain Question Answering", "Vladimir Karpukhin", "sewoncs.washington.edu", "Abstract"],
+      "orderedText": ["Dense Passage Retrieval for Open-Domain Question Answering", "Vladimir Karpukhin", "Abstract", "Open-domain question answering relies", "1 Introduction"]
+    },
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["Dense Passage Retrieval for Open-Domain Question Answering", "sewoncs.washington.edu"], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   },
   {
     "id": "unstructured-lists",
@@ -39,7 +45,13 @@
     "source": "Unstructured example-docs/pdf/list-item-example.pdf",
     "filename": "list-item-example.pdf",
     "notes": "Mixed bullet and numbered list material with wrapped item text.",
-    "success": {"minTextBytes": 300, "minLists": 1, "maxSingleGlyphParagraphs": 0}
+    "artifact": {"pinStatus": "checked-in", "bytes": 48981, "sha256": "ce21d1a0ff660a7045a2d64f042f9049d52c207263cb06f48610ef221d5195c8", "localPath": "pandoc-showcase/samples/pdf-layout-unstructured-lists-list-item-example.pdf"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "Unstructured", "upstreamPath": "example-docs/pdf/list-item-example.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "Apache-2.0", "reference": "https://github.com/Unstructured-IO/unstructured/blob/main/LICENSE.md"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": []},
+    "failureClasses": ["B4", "D5"],
+    "success": {"minTextBytes": 300, "minLists": 1, "maxSingleGlyphParagraphs": 0, "requiredText": ["What are product types?"]},
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["What are product types?"], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   },
   {
     "id": "unstructured-korean-table",
@@ -49,7 +61,13 @@
     "source": "Unstructured example-docs/pdf/korean-text-with-tables.pdf",
     "filename": "korean-text-with-tables.pdf",
     "notes": "Korean text and tabular material that exercise CMaps, non-Latin spacing, and geometry tables.",
-    "success": {"minTextBytes": 100, "minTables": 1, "maxSingleGlyphParagraphs": 0}
+    "artifact": {"pinStatus": "checked-in", "bytes": 88314, "sha256": "36421881cd85efede8bebe018754fb99e21eb12eab5985c37409b10e66855130", "localPath": "pandoc-showcase/samples/pdf-layout-unstructured-korean-table-korean-text-with-tables.pdf"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "Unstructured", "upstreamPath": "example-docs/pdf/korean-text-with-tables.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "Apache-2.0", "reference": "https://github.com/Unstructured-IO/unstructured/blob/main/LICENSE.md"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": []},
+    "failureClasses": ["B1", "B6", "C2", "C3"],
+    "success": {"minTextBytes": 100, "minTables": 1, "maxSingleGlyphParagraphs": 0, "requiredText": ["1.5% 빅포인트 적립"]},
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["1.5% 빅포인트 적립"], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   },
   {
     "id": "unstructured-ocr-overlay",
@@ -59,7 +77,13 @@
     "source": "Unstructured example-docs/pdf/pdf-with-ocr-text.pdf",
     "filename": "pdf-with-ocr-text.pdf",
     "notes": "Image-backed page with an OCR text layer; duplicate overlay text must not leak into body flow.",
-    "success": {"minTextBytes": 100, "maxSingleGlyphParagraphs": 0}
+    "artifact": {"pinStatus": "checked-in", "bytes": 446834, "sha256": "a0e8a73f4b94e9f04aabd8d74db9e23c6ef000b5d15ec389ebe86f91a31bb49b", "localPath": "pandoc-showcase/samples/pdf-layout-unstructured-ocr-overlay-pdf-with-ocr-text.pdf"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "Unstructured", "upstreamPath": "example-docs/pdf/pdf-with-ocr-text.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "Apache-2.0", "reference": "https://github.com/Unstructured-IO/unstructured/blob/main/LICENSE.md"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": ["B2: OCR character accuracy is source data and remains outside non-OCR repair"]},
+    "failureClasses": ["B2", "E5", "G"],
+    "success": {"minTextBytes": 100, "maxSingleGlyphParagraphs": 0, "requiredText": ["Foundation"]},
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["Foundation"], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   },
   {
     "id": "docling-code-formula",
@@ -69,12 +93,13 @@
     "source": "docling-project/docling tests/data/pdf/sources/code_and_formula.pdf",
     "filename": "code_and_formula.pdf",
     "notes": "Two pages mixing prose, source code, and mathematical formula layout.",
-    "success": {
-      "minTextBytes": 500,
-      "minCodeBlocks": 1,
-      "maxSingleGlyphParagraphs": 0,
-      "requiredText": ["a2 + 8 = 12"]
-    }
+    "artifact": {"pinStatus": "checked-in", "bytes": 89031, "sha256": "6cb63fba2ad42dd0e0afe6a26dcf3b3bff5a86919c4c06157c71c65ebc0fc9e6", "localPath": "pandoc-showcase/samples/pdf-layout-docling-code-formula-code_and_formula.pdf"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "Docling", "upstreamPath": "tests/data/pdf/sources/code_and_formula.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/docling-project/docling/blob/main/LICENSE"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": ["D7: formula characters are conserved but semantic math recovery is not yet proven"]},
+    "failureClasses": ["B5", "D6", "D7"],
+    "success": {"minTextBytes": 500, "minCodeBlocks": 1, "maxSingleGlyphParagraphs": 0, "requiredText": ["a2 + 8 = 12"]},
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["a2 + 8 = 12"], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   },
   {
     "id": "docling-right-to-left",
@@ -84,7 +109,13 @@
     "source": "docling-project/docling tests/data/pdf/sources/right_to_left_01.pdf",
     "filename": "right_to_left_01.pdf",
     "notes": "Arabic right-to-left prose and headings with mixed numeric content.",
-    "success": {"minTextBytes": 100, "maxSingleGlyphParagraphs": 0}
+    "artifact": {"pinStatus": "checked-in", "bytes": 102852, "sha256": "30d675db2a5c9613f2b12cb03e74c8f9384f473274216ee6a271cf0c99301f14", "localPath": "pandoc-showcase/samples/pdf-layout-docling-right-to-left-right_to_left_01.pdf"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "Docling", "upstreamPath": "tests/data/pdf/sources/right_to_left_01.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/docling-project/docling/blob/main/LICENSE"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": ["B6: output direction and language attributes still require semantic review"]},
+    "failureClasses": ["B6", "D8"],
+    "success": {"minTextBytes": 100, "maxSingleGlyphParagraphs": 0, "requiredText": ["R و Python"]},
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["R و Python"], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   },
   {
     "id": "docling-pictures-captions",
@@ -94,7 +125,13 @@
     "source": "docling-project/docling tests/data/pdf/sources/picture_classification.pdf",
     "filename": "picture_classification.pdf",
     "notes": "Picture regions, captions, and adjacent explanatory prose.",
-    "success": {"minTextBytes": 300, "maxSingleGlyphParagraphs": 0}
+    "artifact": {"pinStatus": "checked-in", "bytes": 212855, "sha256": "dc38947ee802b7bcf82915804ccb8d04c4611e1b17491c415972821a329352fb", "localPath": "pandoc-showcase/samples/pdf-layout-docling-pictures-captions-picture_classification.pdf"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "Docling", "upstreamPath": "tests/data/pdf/sources/picture_classification.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/docling-project/docling/blob/main/LICENSE"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": []},
+    "failureClasses": ["D4", "E1", "E4"],
+    "success": {"minTextBytes": 300, "maxSingleGlyphParagraphs": 0, "requiredText": ["Figure 1: This is an example image.", "Figure 2: This is an example image."]},
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["Figure 1: This is an example image.", "Figure 2: This is an example image."], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0, "exactOccurrences": 2, "orderedOccurrenceIds": ["imported:1:11", "imported:2:2"]}}
   },
   {
     "id": "docling-aircraft-handbook",
@@ -104,7 +141,13 @@
     "source": "docling-project/docling tests/data/pdf/sources/amt_handbook_sample.pdf",
     "filename": "amt_handbook_sample.pdf",
     "notes": "Technical manual pages with headings, figures, labels, columns, and running page furniture.",
-    "success": {"minTextBytes": 1500, "minHeadings": 1, "maxSingleGlyphParagraphs": 0}
+    "artifact": {"pinStatus": "checked-in", "bytes": 673416, "sha256": "7099fe05ade36067cf66e72b23277972a1a2b7d2da1cb82c8d690efd70143fe0", "localPath": "pandoc-showcase/samples/pdf-layout-docling-aircraft-handbook-amt_handbook_sample.pdf"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "Docling", "upstreamPath": "tests/data/pdf/sources/amt_handbook_sample.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/docling-project/docling/blob/main/LICENSE"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": ["E2: browser-rendered chart candidates need occurrence-complete disposition", "E4: chart anchors require visual review"]},
+    "failureClasses": ["C4", "C6", "E1", "E2", "E4"],
+    "success": {"minTextBytes": 1500, "minHeadings": 1, "maxSingleGlyphParagraphs": 0, "requiredText": ["all-metal type"]},
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["all-metal type"], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   },
   {
     "id": "docling-table-picture-boundary",
@@ -114,7 +157,13 @@
     "source": "docling-project/docling tests/data/pdf/sources/table_mislabeled_as_picture.pdf",
     "filename": "table_mislabeled_as_picture.pdf",
     "notes": "Compact regression page where a table-like region can be confused with a figure.",
-    "success": {"minTextBytes": 100, "minLists": 1, "maxSingleGlyphParagraphs": 0}
+    "artifact": {"pinStatus": "checked-in", "bytes": 45661, "sha256": "a0d1ed0063db208ccad7ebd54cf549987deaf8f53948d95c3755f6b515925ce7", "localPath": "pandoc-showcase/samples/pdf-layout-docling-table-picture-boundary-table_mislabeled_as_picture.pdf"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "Docling", "upstreamPath": "tests/data/pdf/sources/table_mislabeled_as_picture.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/docling-project/docling/blob/main/LICENSE"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": ["B5: the baseline contains a C1 control-like bullet that the strict E2E gate must reject", "E1: picture/table disposition needs explicit source occurrence coverage"]},
+    "failureClasses": ["B5", "C2", "E1"],
+    "success": {"minTextBytes": 100, "minLists": 1, "maxSingleGlyphParagraphs": 0, "requiredText": ["They work in parallel"]},
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["They work in parallel"], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   },
   {
     "id": "mineru-small-ocr",
@@ -124,7 +173,13 @@
     "source": "opendatalab/MinerU demo/pdfs/small_ocr.pdf",
     "filename": "small_ocr.pdf",
     "notes": "Eight scanned pages used by MinerU to demonstrate OCR fallback behavior.",
-    "success": {"allowNoText": true, "maxSingleGlyphParagraphs": 0}
+    "artifact": {"pinStatus": "checked-in", "bytes": 453816, "sha256": "c48baa1997e719d414061bea6ca197ce36f1c47341837fbfbc976bbb1d226998", "localPath": "pandoc-showcase/samples/pdf-layout-mineru-small-ocr-small_ocr.pdf"},
+    "provenance": {"sourceType": "upstream-demo-fixture", "project": "MinerU", "upstreamPath": "demo/pdfs/small_ocr.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "LicenseRef-MinerU-Open-Source-License", "reference": "https://github.com/opendatalab/MinerU/blob/master/LICENSE.md"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": ["G: OCR is explicitly out of scope; this fixture must remain a detected unsupported/no-text input"]},
+    "failureClasses": ["E5", "G"],
+    "success": {"allowNoText": true, "maxSingleGlyphParagraphs": 0},
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": [], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   },
   {
     "id": "vdl-theatre-script",
@@ -134,13 +189,13 @@
     "source": "Victorian Drama League / Australian Script Centre script format example",
     "filename": "ASC_script_format_example.pdf",
     "notes": "A real theatre-format sample with character cues, dialogue, hanging continuations, and stage directions.",
-    "success": {
-      "minTextBytes": 700,
-      "minDialogueParagraphs": 3,
-      "maxCodeBlocks": 0,
-      "maxLineOrientedBlocks": 0,
-      "maxSingleGlyphParagraphs": 0
-    }
+    "artifact": {"pinStatus": "checked-in", "bytes": 169483, "sha256": "588849052d7f4450b3a186c25d1a3ea4798d568b4bfd21c115a53479833ee298", "localPath": "pandoc-showcase/samples/pdf-layout-vdl-theatre-script-ASC_script_format_example.pdf"},
+    "provenance": {"sourceType": "public-formatting-example", "project": "Victorian Drama League / Australian Script Centre", "upstreamPath": "wp-content/uploads/2021/09/ASC_script_format_example.pdf"},
+    "license": {"status": "review-required", "spdx": null, "reference": "https://vdl.org.au/resources/"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": ["License terms for redistribution need maintainer review before adding further VDL material"]},
+    "failureClasses": ["C1", "D1", "D2"],
+    "success": {"minTextBytes": 700, "minDialogueParagraphs": 3, "maxCodeBlocks": 0, "maxLineOrientedBlocks": 0, "maxSingleGlyphParagraphs": 0, "requiredText": ["don’t panic."]},
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["don’t panic."], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   },
   {
     "id": "unstructured-rotated-page",
@@ -150,7 +205,13 @@
     "source": "Unstructured example-docs/rotated-page-90.pdf",
     "filename": "rotated-page-90.pdf",
     "notes": "Minimal page-rotation fixture exercising transformed text coordinates.",
-    "success": {"minTextBytes": 5, "maxSingleGlyphParagraphs": 0}
+    "artifact": {"pinStatus": "checked-in", "bytes": 1103, "sha256": "bd531dc384ca097334bbf57844919a7a1987e0475aa037d47d64c894ebfd9009", "localPath": "pandoc-showcase/samples/pdf-layout-unstructured-rotated-page-rotated-page-90.pdf"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "Unstructured", "upstreamPath": "example-docs/rotated-page-90.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "Apache-2.0", "reference": "https://github.com/Unstructured-IO/unstructured/blob/main/LICENSE.md"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": []},
+    "failureClasses": ["A5", "C7"],
+    "success": {"minTextBytes": 5, "maxSingleGlyphParagraphs": 0, "requiredText": ["Hello World Test Text"]},
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["Hello World Test Text"], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   },
   {
     "id": "unstructured-emphasis",
@@ -160,6 +221,12 @@
     "source": "Unstructured example-docs/pdf/emphasis-text.pdf",
     "filename": "emphasis-text.pdf",
     "notes": "Inline bold and italic runs that must not create false word spaces or paragraph boundaries.",
-    "success": {"minTextBytes": 35, "minParagraphs": 2, "maxSingleGlyphParagraphs": 0}
+    "artifact": {"pinStatus": "checked-in", "bytes": 16576, "sha256": "d0bdff786271ac2c8df6948d1580f082d0a56fff74d93940f14a17a0a43545fd", "localPath": "pandoc-showcase/samples/pdf-layout-unstructured-emphasis-emphasis-text.pdf"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "Unstructured", "upstreamPath": "example-docs/pdf/emphasis-text.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "Apache-2.0", "reference": "https://github.com/Unstructured-IO/unstructured/blob/main/LICENSE.md"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": []},
+    "failureClasses": ["B3", "D8"],
+    "success": {"minTextBytes": 35, "minParagraphs": 2, "maxSingleGlyphParagraphs": 0, "requiredText": ["Test bold. Italic."]},
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["Test bold. Italic."], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   }
 ]

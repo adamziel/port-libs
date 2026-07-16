@@ -2,13 +2,20 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  validatePdfLayoutManifest,
+  validatePdfTableManifest,
+} from './pdf-corpus-manifest-policy.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const site = path.join(root, 'pandoc-showcase');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'tools/pdf-layout-corpus-manifest.json'), 'utf8'));
+const tableManifest = JSON.parse(fs.readFileSync(path.join(root, 'tools/pdf-corpus-table-manifest.json'), 'utf8'));
 const html = fs.readFileSync(path.join(site, 'pdf-layout-corpus.html'), 'utf8');
 const css = fs.readFileSync(path.join(site, 'pdf-layout-review.css'), 'utf8');
 const js = fs.readFileSync(path.join(site, 'pdf-layout-review.js'), 'utf8');
+const e2e = fs.readFileSync(path.join(root, 'tools/e2e-pdf-layout-corpus.mjs'), 'utf8');
+const corpusFetcher = fs.readFileSync(path.join(root, 'tools/fetch-pinned-pdf-corpus-artifact.mjs'), 'utf8');
 const errors = [];
 
 function assert(condition, message) {
@@ -20,6 +27,10 @@ function siteFile(relativePath) {
   assert(absolutePath === site || absolutePath.startsWith(`${site}${path.sep}`), `Reviewer path escapes the showcase directory: ${relativePath}`);
   return absolutePath;
 }
+
+const layoutManifestValidation = validatePdfLayoutManifest(manifest, { rootDir: root });
+const tableManifestValidation = validatePdfTableManifest(tableManifest, { rootDir: root });
+errors.push(...layoutManifestValidation.errors, ...tableManifestValidation.errors);
 
 assert(Array.isArray(manifest) && manifest.length >= 10, 'The visual reviewer needs at least 10 PDF corpus documents.');
 const ids = new Set();
@@ -70,6 +81,7 @@ if (data) {
     const sourceEntry = manifest[index];
     assert(example.id === `pdf-layout-${sourceEntry.id}`, `${sourceEntry.id} reviewer ID diverged from the manifest.`);
     assert(example.sourceUrl === sourceEntry.url, `${sourceEntry.id} reviewer provenance diverged from the manifest.`);
+    assert(JSON.stringify(example.success) === JSON.stringify(sourceEntry.success), `${sourceEntry.id} reviewer success criteria diverged from the manifest.`);
     assert(/^samples\/[^/]+\.pdf$/i.test(example.samplePath), `${example.id} has an unexpected original path: ${example.samplePath}`);
     assert(/^outputs\/[^/]+\/wordpress-blocks-preview\.html$/.test(example.previewPath), `${example.id} has an unexpected converted preview path: ${example.previewPath}`);
     assert(fs.existsSync(siteFile(example.samplePath)), `${example.id} original PDF is missing.`);
@@ -103,6 +115,10 @@ assert(js.includes('requiredText') && js.includes('orderedText'), 'Reviewer must
 assert(js.includes("(Array.isArray(expected) ? expected : [expected]).join(' · ')")
   && js.includes("(Array.isArray(expected) ? expected : [expected]).join(' → ')"), 'Criterion labels must not apply array methods to numeric thresholds.');
 assert(js.includes('noSpacedGlyphRuns') && js.includes('readablePdfFills'), 'Reviewer must expose spacing and PDF-fill readability regressions.');
+assert(e2e.includes('runIdentity') && e2e.includes('archiveSha256') && e2e.includes('commitSha'), 'Corpus E2E must record the tested commit and production archive identity.');
+assert(e2e.includes('exactSignificantText') && e2e.includes('forbiddenControls') && e2e.includes('mediaDispositionCounts'), 'Corpus E2E must enforce exact text, forbidden-control, and media-disposition criteria.');
+assert(corpusFetcher.includes("entry.artifact.pinStatus === 'blocked-license-review'")
+  && corpusFetcher.includes('verifyBytes(entry, bytes, entry.url)'), 'Corpus fetch tooling must refuse license-blocked sources and verify downloaded bytes against the immutable pin.');
 
 const multicolumn = manifest.find((entry) => entry.id === 'unstructured-multicolumn');
 const formula = manifest.find((entry) => entry.id === 'docling-code-formula');
@@ -123,5 +139,5 @@ if (errors.length > 0) {
   for (const error of errors) console.error(`FAIL: ${error}`);
   process.exitCode = 1;
 } else {
-  console.log(`PDF layout reviewer check passed for ${manifest.length} public corpus documents.`);
+  console.log(`PDF layout reviewer check passed for ${manifest.length} checked-in documents; ${tableManifestValidation.summary.pinned}/${tableManifest.length} table candidates are SHA-256 pinned (${tableManifestValidation.summary.blocked} blocked on license review).`);
 }

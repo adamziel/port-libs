@@ -83,17 +83,20 @@ assert(js.includes('view: defaultView'), 'Expected the state to initialize to th
 assert(js.includes("const exampleUrlParameter = 'example';"), 'Expected a stable query parameter for linked examples.');
 assert(js.includes('new URL(window.location.href)'), 'Expected example links to preserve other URL state safely.');
 assert(js.includes('window.history.replaceState'), 'Expected picker navigation to keep the current URL shareable.');
-assert(js.includes("import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';"), 'Expected own-file PDF figures to use the shared PDF.js renderer.');
-assert(js.includes("const playgroundPluginBuild = 'rotated-pdf-furniture-20260716';"), 'Expected the own-file importer to use the current Playground plugin build.');
+assert(js.includes('renderPdfFormRequestsIncrementally,') && js.includes("from './pdfjs-form-rasterizer.mjs';"), 'Expected own-file PDF figures to use the incremental shared PDF.js renderer.');
+assert(js.includes("from './import-job-session.mjs';"), 'Expected examples.php to share the durable Playground import session helper.');
+assert(js.includes("const playgroundPluginBuild = 'verified-pdf-import-20260716';"), 'Expected the own-file importer to use the current Playground plugin build.');
 assert(js.includes('const playgroundPdfFormTotalPixelLimit = 48_000_000;'), 'Expected own-file PDF figure rendering to have a total pixel budget.');
 assert(js.includes('const playgroundPdfFormTotalImageByteLimit = 24_000_000;'), 'Expected own-file PDF figure rendering to match the server media budget.');
-assert(/renderPdfFormRequests\(\{[\s\S]*?maxTotalPixels: playgroundPdfFormTotalPixelLimit,[\s\S]*?maxTotalImageBytes: playgroundPdfFormTotalImageByteLimit,/.test(js), 'Expected own-file rendering to pass its aggregate figure budgets to PDF.js.');
+assert(/let remainingPixels = playgroundPdfFormTotalPixelLimit;[\s\S]*?let remainingImageBytes = playgroundPdfFormTotalImageByteLimit;[\s\S]*?while \(/.test(js)
+  && /renderPdfFormRequestsIncrementally\(\{[\s\S]*?maxTotalPixels: remainingPixels,[\s\S]*?maxTotalImageBytes: remainingImageBytes,/.test(js)
+  && js.includes('remainingImageBytes = Math.max(0, remainingImageBytes - item.bytes.byteLength);'), 'Expected own-file rendering to enforce cumulative figure budgets across source groups and status pages.');
 assert(js.includes('window.__portLibsImportE2E'), 'Expected release E2E to inspect the real WordPress publication rows.');
 assert(js.includes('rawDataProvenanceCount'), 'Expected release E2E to reject embedded data-URI provenance.');
 assert(js.includes('Import complete. Converted pages were verified privately and published.'), 'Expected the browser to report verified publication before declaring a large import complete.');
 assert(importE2e.includes("browser.call('Target.closeTarget', { targetId })"), 'Every E2E import must close its Playground target instead of leaking a browser VM.');
 assert(importE2e.includes("'--max-browser-rss-mb'"), 'Expected large-import E2E to support a hard browser RSS ceiling.');
-assert(importE2e.includes('maxBrowserRssMb: 3 * 1024'), 'Expected the whole-browser RSS safety ceiling to be enabled by default.');
+assert(importE2e.includes('maxBrowserRssMb: 1536'), 'Expected the whole-browser RSS safety ceiling to be enabled by default.');
 assert(importE2e.includes('Chrome exceeded the ${options.maxBrowserRssMb} MiB RSS safety ceiling'), 'Expected the E2E memory ceiling to fail closed with a useful diagnostic.');
 assert(js.includes("const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';"), 'Expected Try your own file to use the Playground client.');
 assert(js.includes("const playgroundUploadDirectory = '/tmp/port-libs-converter';"), 'Expected own files to use Playground temporary staging.');
@@ -109,7 +112,7 @@ assert(js.includes("pdfOutputMode: pdfOutputMode === 'pages' ? 'pages' : 'single
 assert(js.includes("job.status === 'awaiting_output_mode'"), 'Expected the compact importer to surface the safe single-page limit.');
 assert(js.includes('`/imports/${encodeURIComponent(job.jobId)}/output-mode`'), 'Expected compact recovery to reuse the same persisted import job.');
 assert(js.includes('`/imports/${jobId}/advance`'), 'Expected own files to advance their persisted import jobs.');
-assert(js.includes('`/imports/${encodeURIComponent(job.jobId)}/rendered-media`'), 'Expected browser-rendered PDF figures to be returned to WordPress.');
+assert(js.includes('`/imports/${jobId}/rendered-media`'), 'Expected browser-rendered PDF figures to be returned to WordPress one at a time.');
 assert(js.includes('async function advanceOwnFileImport'), 'Expected an explicit bounded import advance flow.');
 assert(js.includes('startOwnFileImportStatusPolling'), 'Expected in-flight advances to poll persisted WordPress progress.');
 assert(js.includes('const ownFileAdvanceRecoveryAttempts = 3;'), 'Expected bounded recovery after a Playground PHP worker ends unexpectedly.');
@@ -117,7 +120,16 @@ assert(js.includes('The completed page checkpoints remain saved in this Playgrou
 assert(js.includes('The import completed and the WordPress page was saved, but Playground could not display it'), 'A failed result navigation must not be reported as a lost conversion.');
 assert(js.includes('`/imports/${jobId}`') && js.includes("'GET'"), 'Expected the own-file importer to read persisted import status while WordPress works.');
 assert(js.includes('ownFileImportLatestNewEvent') && js.includes('reportedEventKeys'), 'Expected status events to be deduplicated by event identity rather than array position.');
-assert(js.includes('await renderPdfFormRequests({'), 'Expected WordPress to request PDF Form figure crops from the browser.');
+assert(js.includes('for await (const item of renderPdfFormRequestsIncrementally({'), 'Expected WordPress figure crops to be rendered and acknowledged incrementally.');
+assert(js.includes('for (const requests of pdfRenderRequestGroups(job.renderRequests))'), 'Expected multi-PDF imports to release each PDF.js source before loading the next one.');
+assert(js.includes('remainingPixels <= 0 || remainingImageBytes <= 0\n          ? new Map()'), 'Expected exhausted figure budgets to skip fetching later PDF sources.');
+assert(js.includes('const sourceKey = String(request?.sourceKey || path);'), 'Expected source grouping to use the server digest instead of a truncated display path.');
+assert(js.includes("storageKey: 'port-libs.playground-active-import.v1'"), 'Expected GitHub Pages to persist its active WordPress job pointer.');
+assert(js.includes('async function resumeSavedOwnFileImport()'), 'Expected Try your own file to resume a saved import after interruption.');
+assert(js.includes('ownFilePlaygroundPersistence.startOptions(startOptions)'), 'Expected the embedded WordPress filesystem to restore from browser storage.');
+assert(!js.includes('ownFilePlaygroundPersistence.forget()'), 'A transient Playground boot failure must not discard or overwrite durable OPFS checkpoints.');
+assert(js.includes('recoverImportMutation({'), 'Expected an uncertain /advance response to be reconciled with durable status before replay.');
+assert(js.includes("['failed', 'retryable_failure'].includes(String(data.status || ''))"), 'Expected durable error snapshots to reach the own-file state machine instead of being mistaken for transport failures.');
 assert(js.includes('staticPdfPreviewCache: new Map()')
   && js.includes('example.pdfFormRenders')
   && js.includes("image.dataset.pandocPdfFormRendered = 'true';")

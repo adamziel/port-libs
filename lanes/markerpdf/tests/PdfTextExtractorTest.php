@@ -6938,6 +6938,7 @@ return [
         $t->same(1, count($diagnostics['taggedStructureBlocks']));
         $t->same('Repeated paragraph.', $diagnostics['taggedStructureBlocks'][0]['text']);
         $t->same('H1', $diagnostics['taggedStructureBlocks'][0]['resolvedRole']);
+        $t->true(!isset($diagnostics['taggedStructureBlocks'][0]['sourceProvenance']), 'An unscoped StructElem must not acquire guessed page provenance.');
         $t->same([], $diagnostics['missingUnicodeFonts']);
         $t->same(0, $diagnostics['suppressedGlyphRuns']);
         $t->true(!str_contains($plainText, '?PKEA'));
@@ -6981,9 +6982,16 @@ return [
         $t->same(2, count($diagnostics['taggedStructureBlocks']));
         $t->same('Page One Heading', $diagnostics['taggedStructureBlocks'][0]['text']);
         $t->same('H1', $diagnostics['taggedStructureBlocks'][0]['resolvedRole']);
+        $t->same([1], $diagnostics['taggedStructureBlocks'][0]['pageNumbers'] ?? null);
+        $t->same([3], $diagnostics['taggedStructureBlocks'][0]['pageObjects'] ?? null);
+        $t->same('unique-page', $diagnostics['taggedStructureBlocks'][0]['sourceProvenance']['pageScope'] ?? null);
         $t->same('table', $diagnostics['taggedStructureBlocks'][1]['kind']);
         $t->same(13, $diagnostics['taggedStructureBlocks'][1]['objectNumber']);
+        $t->same([2], $diagnostics['taggedStructureBlocks'][1]['pageNumbers'] ?? null);
+        $t->same([7], $diagnostics['taggedStructureBlocks'][1]['pageObjects'] ?? null);
         $t->same('Name', $diagnostics['taggedStructureBlocks'][1]['rows'][0][0]['text']);
+        $t->same([2], $diagnostics['taggedStructureBlocks'][1]['rows'][0][0]['pageNumbers'] ?? null);
+        $t->same(16, $diagnostics['taggedStructureBlocks'][1]['rows'][0][0]['sourceProvenance']['objectNumber'] ?? null);
         $t->same('Count', $diagnostics['taggedStructureBlocks'][1]['rows'][0][1]['text']);
         $t->same('Bananas', $diagnostics['taggedStructureBlocks'][1]['rows'][1][0]['text']);
         $t->same('7', $diagnostics['taggedStructureBlocks'][1]['rows'][1][1]['text']);

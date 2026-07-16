@@ -192,6 +192,13 @@ if (!function_exists('add_action')) {
     }
 }
 
+if (!function_exists('do_action')) {
+    function do_action(string $hookName, mixed ...$args): void
+    {
+        plpc_test_do_action($hookName, ...$args);
+    }
+}
+
 if (!function_exists('register_rest_route')) {
     /**
      * @param array<string, mixed>|list<array<string, mixed>> $args
@@ -241,6 +248,17 @@ if (!function_exists('add_option')) {
 if (!function_exists('update_option')) {
     function update_option(string $option, mixed $value, mixed $autoload = null): bool
     {
+        if (($GLOBALS['plpc_test_update_option_failure'] ?? null) === $option) {
+            return false;
+        }
+        if (str_starts_with($option, 'plpc_import_job_')
+            && $option !== 'plpc_import_job_index'
+            && is_array($value)
+            && function_exists('plpc_import_job_state_digest')
+        ) {
+            unset($value['stateDigest']);
+            $value['stateDigest'] = plpc_import_job_state_digest($value);
+        }
         $changed = !array_key_exists($option, $GLOBALS['plpc_test_options'] ?? [])
             || $GLOBALS['plpc_test_options'][$option] !== $value;
         $GLOBALS['plpc_test_options'][$option] = $value;
@@ -264,6 +282,18 @@ if (!function_exists('delete_option')) {
 function plpc_test_import_job_upload_dir(): string
 {
     return sys_get_temp_dir() . '/plpc-import-jobs-test';
+}
+
+function plpc_test_private_import_job_dir(): string
+{
+    return sys_get_temp_dir() . '/plpc-import-jobs-private-test';
+}
+
+if (!function_exists('get_temp_dir')) {
+    function get_temp_dir(): string
+    {
+        return plpc_test_private_import_job_dir() . '/';
+    }
 }
 
 if (!function_exists('wp_mkdir_p')) {
@@ -384,6 +414,22 @@ if (!function_exists('wp_update_post')) {
         if ($id < 1 || !isset($GLOBALS['plpc_test_posts'][$id])) {
             return 0;
         }
+        if (isset($GLOBALS['plpc_test_wp_update_failure_injector'])
+            && is_callable($GLOBALS['plpc_test_wp_update_failure_injector'])
+            && (bool) ($GLOBALS['plpc_test_wp_update_failure_injector'])(
+                $id,
+                $post,
+                $GLOBALS['plpc_test_posts'][$id]
+            )
+        ) {
+            return 0;
+        }
+        $failures = max(0, (int) ($GLOBALS['plpc_test_wp_update_failures'] ?? 0));
+        if ($failures > 0) {
+            $GLOBALS['plpc_test_wp_update_failures'] = $failures - 1;
+
+            return 0;
+        }
         unset($post['ID']);
         $GLOBALS['plpc_test_posts'][$id] = array_replace($GLOBALS['plpc_test_posts'][$id], $post);
 
@@ -408,6 +454,15 @@ if (!function_exists('get_post_field')) {
     function get_post_field(string $field, int $postId, string $context = 'display'): mixed
     {
         return $GLOBALS['plpc_test_posts'][$postId][$field] ?? '';
+    }
+}
+
+if (!function_exists('get_post_status')) {
+    function get_post_status(int $postId): string|false
+    {
+        return isset($GLOBALS['plpc_test_posts'][$postId])
+            ? (string) ($GLOBALS['plpc_test_posts'][$postId]['post_status'] ?? 'draft')
+            : false;
     }
 }
 
@@ -641,27 +696,34 @@ function plpc_test_reset_import_job_state(): void
     $GLOBALS['plpc_test_attachment_metadata'] = [];
     $GLOBALS['plpc_imported_media_by_hash'] = [];
     $GLOBALS['plpc_test_uuid_sequence'] = 0;
-    unset($GLOBALS['plpc_test_wp_insert_content_filter']);
-
-    $directory = plpc_test_import_job_upload_dir();
-    if (!is_dir($directory)) {
-        return;
-    }
-    $files = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
-        RecursiveIteratorIterator::CHILD_FIRST
+    unset(
+        $GLOBALS['plpc_test_wp_insert_content_filter'],
+        $GLOBALS['plpc_test_update_option_failure'],
+        $GLOBALS['plpc_test_wp_update_failures'],
+        $GLOBALS['plpc_test_wp_update_failure_injector'],
+        $GLOBALS['plpc_import_request_time_limit_fallback']
     );
-    foreach ($files as $file) {
-        if (!$file instanceof SplFileInfo) {
+
+    foreach ([plpc_test_import_job_upload_dir(), plpc_test_private_import_job_dir()] as $directory) {
+        if (!is_dir($directory)) {
             continue;
         }
-        if ($file->isDir()) {
-            rmdir($file->getPathname());
-        } else {
-            unlink($file->getPathname());
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($files as $file) {
+            if (!$file instanceof SplFileInfo) {
+                continue;
+            }
+            if ($file->isDir()) {
+                rmdir($file->getPathname());
+            } else {
+                unlink($file->getPathname());
+            }
         }
+        rmdir($directory);
     }
-    rmdir($directory);
 }
 
 function plpc_test_renderable_form_xobject_pdf(): string
@@ -691,6 +753,63 @@ function plpc_test_page_wrapper_form_xobject_pdf(): string
         . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 600 800] /Resources << >> /Length " . strlen($formContent) . " >>\nstream\n{$formContent}endstream\nendobj\n"
         . "6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
         . "%%EOF\n";
+}
+
+function plpc_test_full_page_infographic_form_xobject_pdf(): string
+{
+    $pageContent = "q\n/Infographic Do\nQ\nBT /F1 14 Tf 72 700 Td (Infographic caption) Tj ET\n";
+    $formContent = "0.08 0.18 0.38 rg\n0 0 600 800 re\nf\n"
+        . "1 0.7 0.1 RG\n8 w\n60 120 m\n540 680 l\nS\n";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources << /Font << /F1 6 0 R >> /XObject << /Infographic 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}endstream\nendobj\n"
+        . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 600 800] /Resources << >> /Length " . strlen($formContent) . " >>\nstream\n{$formContent}endstream\nendobj\n"
+        . "6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF\n";
+}
+
+function plpc_test_two_page_form_xobject_pdf(): string
+{
+    $objects = [
+        1 => '<< /Type /Catalog /Pages 2 0 R >>',
+        2 => '<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>',
+        3 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    ];
+    foreach ([1, 2] as $page) {
+        $pageObject = $page === 1 ? 4 : 6;
+        $contentObject = $pageObject + 1;
+        $formObject = $page === 1 ? 8 : 9;
+        $resource = 'Chart' . $page;
+        $content = "BT /F1 12 Tf 20 180 Td (VISUAL PAGE {$page}) Tj ET\n"
+            . "q 1 0 0 1 20 40 cm /{$resource} Do Q\n";
+        $form = "0.1 0.4 0.8 rg 0 0 80 40 re f\n";
+        $objects[$pageObject] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200]"
+            . " /Resources << /Font << /F1 3 0 R >> /XObject << /{$resource} {$formObject} 0 R >> >>"
+            . " /Contents {$contentObject} 0 R >>";
+        $objects[$contentObject] = '<< /Length ' . strlen($content) . ">>\nstream\n{$content}endstream";
+        $objects[$formObject] = '<< /Type /XObject /Subtype /Form /BBox [0 0 80 40] /Length '
+            . strlen($form) . ">>\nstream\n{$form}endstream";
+    }
+    ksort($objects, SORT_NUMERIC);
+    $pdf = "%PDF-1.4\n";
+    $offsets = [];
+    foreach ($objects as $object => $body) {
+        $offsets[$object] = strlen($pdf);
+        $pdf .= "{$object} 0 obj\n{$body}\nendobj\n";
+    }
+    $xref = strlen($pdf);
+    $size = max(array_keys($objects)) + 1;
+    $pdf .= "xref\n0 {$size}\n0000000000 65535 f \n";
+    for ($object = 1; $object < $size; $object++) {
+        $pdf .= isset($offsets[$object])
+            ? sprintf("%010d 00000 n \n", $offsets[$object])
+            : "0000000000 00000 f \n";
+    }
+
+    return $pdf . "trailer\n<< /Size {$size} /Root 1 0 R >>\nstartxref\n{$xref}\n%%EOF\n";
 }
 
 /** @param list<string> $pageTexts */
@@ -742,6 +861,67 @@ function plpc_test_multipage_pdf(array $pageTexts): string
     return $pdf;
 }
 
+/** Two physical pages with independently page-scoped tagged semantics. */
+function plpc_test_tagged_page_tree_pdf(): string
+{
+    $pageObjects = [];
+    $rootKids = [];
+    $objects = [
+        1 => '',
+        2 => '',
+        3 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+        4 => '',
+    ];
+    for ($page = 1; $page <= 2; $page++) {
+        $base = 100 + (($page - 1) * 20);
+        $pageObject = $base;
+        $contentObject = $base + 1;
+        $headingObject = $base + 2;
+        $listObject = $base + 3;
+        $tableObject = $base + 4;
+        $rowOneObject = $base + 5;
+        $rowTwoObject = $base + 6;
+        $cells = [$base + 7, $base + 8, $base + 9, $base + 10];
+        $heading = 'Tagged page ' . $page . ' heading';
+        $item = 'Tagged page ' . $page . ' item';
+        $entry = 'Tagged page ' . $page . ' entry';
+        $content = "BT /F1 12 Tf 14 TL 72 720 Td "
+            . "/Span << /MCID 0 >> BDC ({$heading}) Tj EMC T* "
+            . "/Span << /MCID 1 >> BDC ({$item}) Tj EMC T* "
+            . "/Span << /MCID 2 >> BDC (Name) Tj EMC T* "
+            . "/Span << /MCID 3 >> BDC (Count) Tj EMC T* "
+            . "/Span << /MCID 4 >> BDC ({$entry}) Tj EMC T* "
+            . "/Span << /MCID 5 >> BDC ({$page}) Tj EMC ET";
+
+        $pageObjects[] = $pageObject . ' 0 R';
+        array_push($rootKids, $headingObject . ' 0 R', $listObject . ' 0 R', $tableObject . ' 0 R');
+        $objects[$pageObject] = '<< /Type /Page /Parent 2 0 R /StructParents ' . ($page - 1)
+            . ' /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents '
+            . $contentObject . ' 0 R >>';
+        $objects[$contentObject] = '<< /Length ' . strlen($content) . ">>\nstream\n{$content}\nendstream";
+        $objects[$headingObject] = "<< /Type /StructElem /S /H1 /ActualText ({$heading}) /K << /Type /MCR /Pg {$pageObject} 0 R /MCID 0 >> >>";
+        $objects[$listObject] = "<< /Type /StructElem /S /LI /A << /O /List /ListNumbering /Disc >> /ActualText ({$item}) /K << /Type /MCR /Pg {$pageObject} 0 R /MCID 1 >> >>";
+        $objects[$tableObject] = "<< /Type /StructElem /S /Table /K [{$rowOneObject} 0 R {$rowTwoObject} 0 R] >>";
+        $objects[$rowOneObject] = "<< /Type /StructElem /S /TR /K [{$cells[0]} 0 R {$cells[1]} 0 R] >>";
+        $objects[$rowTwoObject] = "<< /Type /StructElem /S /TR /K [{$cells[2]} 0 R {$cells[3]} 0 R] >>";
+        foreach (['Name', 'Count', $entry, (string) $page] as $index => $text) {
+            $role = $index < 2 ? 'TH' : 'TD';
+            $mcid = $index + 2;
+            $objects[$cells[$index]] = "<< /Type /StructElem /S /{$role} /ActualText ({$text}) /K << /Type /MCR /Pg {$pageObject} 0 R /MCID {$mcid} >> >>";
+        }
+    }
+    $objects[1] = '<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 4 0 R >>';
+    $objects[2] = '<< /Type /Pages /Kids [' . implode(' ', $pageObjects) . '] /Count 2 >>';
+    $objects[4] = '<< /Type /StructTreeRoot /K [' . implode(' ', $rootKids) . '] >>';
+    ksort($objects, SORT_NUMERIC);
+    $pdf = "%PDF-1.4\n";
+    foreach ($objects as $number => $body) {
+        $pdf .= $number . " 0 obj\n" . $body . "\nendobj\n";
+    }
+
+    return $pdf . "%%EOF\n";
+}
+
 /**
  * @return list<array<string, mixed>>
  */
@@ -787,6 +967,76 @@ function plpc_test_assert_import_job_snapshot(TestRunner $t, array $snapshot, st
 
 require_once dirname(__DIR__, 3) . '/tools/playground-converter-plugin/port-libs-playground-converter.php';
 
+/** @return array{job:array<string,mixed>,rootId:int,childIds:list<int>} */
+function plpc_test_pdf_page_tree_publication_job(): array
+{
+    $jobId = 'publicationtree0000000000000001';
+    $rootId = plpc_insert_verified_page([
+        'post_type' => 'page',
+        'post_title' => 'PDF root',
+        'post_content' => '<!-- wp:paragraph --><p>PDF page index</p><!-- /wp:paragraph -->',
+        'meta_input' => [
+            '_plpc_import_job_id' => $jobId,
+            '_plpc_import_document_index' => 0,
+            '_plpc_import_pdf_role' => 'root',
+        ],
+    ]);
+    $children = [];
+    $results = [];
+    for ($page = 1; $page <= 2; $page++) {
+        $postId = plpc_insert_verified_page([
+            'post_type' => 'page',
+            'post_title' => 'PDF page ' . $page,
+            'post_content' => '<!-- wp:paragraph --><p>Physical page ' . $page . '</p><!-- /wp:paragraph -->',
+            'post_parent' => $rootId,
+            'menu_order' => $page,
+            'meta_input' => [
+                '_plpc_import_job_id' => $jobId,
+                '_plpc_import_document_index' => 0,
+                '_plpc_import_segment_index' => $page - 1,
+                '_plpc_import_pdf_role' => 'page',
+            ],
+        ]);
+        $children[] = $postId;
+        $results[] = [
+            'postId' => $postId,
+            'kind' => 'pdf-page',
+            'documentIndex' => 0,
+            'pageNumber' => $page,
+            'title' => 'PDF page ' . $page,
+        ];
+    }
+    $rootResult = [
+        'postId' => $rootId,
+        'kind' => 'pdf-page-tree',
+        'documentIndex' => 0,
+        'postCount' => 3,
+        'pageCount' => 2,
+        'title' => 'PDF root',
+        'children' => $results,
+        'posts' => $results,
+    ];
+    $results[] = $rootResult;
+    $job = [
+        'version' => PLPC_IMPORT_JOB_VERSION,
+        'id' => $jobId,
+        'ownerId' => 1,
+        'sourceKind' => 'single',
+        'title' => 'PDF root',
+        'status' => 'ready_to_convert',
+        'stage' => 'ready_to_convert',
+        'progress' => ['completed' => 1, 'total' => 2, 'label' => 'Ready'],
+        'events' => [],
+        'results' => $results,
+        'documentResults' => [$rootResult],
+        'documents' => [['path' => 'tree.pdf', 'completed' => true]],
+        'nextDocument' => 1,
+    ];
+    plpc_import_job_begin_publication($job);
+
+    return ['job' => $job, 'rootId' => $rootId, 'childIds' => $children];
+}
+
 return [
     'playground converter skips page-sized Form wrappers but keeps ordinary figures' => static function (TestRunner $t): void {
         $page = ['x1' => 0.0, 'y1' => 0.0, 'x2' => 600.0, 'y2' => 800.0];
@@ -807,6 +1057,29 @@ return [
             ['x1' => 0.0, 'y1' => 720.0, 'x2' => 600.0, 'y2' => 800.0],
             $page
         ), 'A full-width header or banner is not mistaken for a page wrapper.');
+        $t->same(true, plpc_pdf_page_like_form_is_content_rich([
+            'visualSummary' => [
+                'complete' => true,
+                'textShowOperatorCount' => 1,
+                'vectorPaintOperatorCount' => 3,
+                'rasterXObjectCount' => 0,
+                'nestedFormXObjectCount' => 0,
+            ],
+        ], 1), 'A unique content-rich full-page infographic must remain renderable.');
+        $t->same(false, plpc_pdf_page_like_form_is_content_rich([
+            'visualSummary' => [
+                'complete' => true,
+                'textShowOperatorCount' => 0,
+                'vectorPaintOperatorCount' => 1,
+            ],
+        ], 1), 'A simple page-sized background fill remains a wrapper.');
+        $t->same(false, plpc_pdf_page_like_form_is_content_rich([
+            'visualSummary' => [
+                'complete' => true,
+                'textShowOperatorCount' => 2,
+                'vectorPaintOperatorCount' => 4,
+            ],
+        ], 2), 'A repeated page-sized Form is furniture rather than one visual per page.');
     },
     'playground converter scopes browser-rendered PDF figures to the active page range' => static function (TestRunner $t): void {
         $renders = [
@@ -820,6 +1093,254 @@ return [
 
         $t->same(['middle'], array_column($selected, 'id'));
     },
+    'playground converter pages more than forty eight legitimate PDF figure requests without dropping them' => static function (TestRunner $t): void {
+        $placements = [];
+        for ($index = 1; $index <= 49; $index++) {
+            $placements[] = [
+                'id' => 'pdf-form-p1-n' . $index . '-o' . (100 + $index),
+                'page' => 1,
+                'object' => 100 + $index,
+                'paintOrder' => $index,
+                'visible' => true,
+                'placementEligible' => true,
+                'bbox' => ['x1' => 20.0, 'y1' => 20.0 + $index, 'x2' => 120.0, 'y2' => 60.0 + $index],
+            ];
+        }
+        $job = [
+            'id' => 'job_figure_paging_fixture',
+            'status' => 'awaiting_renderer',
+            'stage' => 'awaiting_renderer',
+            'imageMode' => 'all',
+            'progress' => ['completed' => 1, 'total' => 50, 'label' => 'Rendering figures.'],
+            'documents' => [[
+                'format' => 'pdf',
+                'path' => 'many-figures.pdf',
+                'pdfInspectionForms' => $placements,
+                'pdfInspectionPageGeometry' => [[
+                    'page_number' => 1,
+                    'bbox' => [0.0, 0.0, 612.0, 792.0],
+                ]],
+            ]],
+        ];
+
+        $job['renderRequests'] = plpc_import_job_collect_form_render_requests($job);
+        $t->same(49, count($job['renderRequests']));
+        $t->same(0, $job['pdfFormRenderRequestsTruncated'] ?? null);
+        $snapshot = plpc_import_job_response($job)->get_data();
+        $t->same(PLPC_IMPORT_JOB_STATUS_MAX_RENDER_REQUESTS, count($snapshot['renderRequests'] ?? []));
+        $t->same(25, $snapshot['truncated']['renderRequestsOmitted'] ?? null);
+        $t->same(substr(hash('sha256', 'many-figures.pdf'), 0, 32), $snapshot['renderRequests'][0]['sourceKey'] ?? null);
+
+        $commonPrefix = str_repeat('nested/', 74);
+        $collisionSnapshot = plpc_import_job_response([
+            'id' => 'job_long_path_source_keys',
+            'status' => 'awaiting_renderer',
+            'renderRequests' => [
+                ['id' => 'form-' . str_repeat('a', 16), 'path' => $commonPrefix . 'one.pdf', 'page' => 1, 'bbox' => ['x1' => 1, 'y1' => 1, 'x2' => 2, 'y2' => 2]],
+                ['id' => 'form-' . str_repeat('b', 16), 'path' => $commonPrefix . 'two.pdf', 'page' => 1, 'bbox' => ['x1' => 1, 'y1' => 1, 'x2' => 2, 'y2' => 2]],
+            ],
+        ])->get_data();
+        $t->same(
+            $collisionSnapshot['renderRequests'][0]['path'] ?? null,
+            $collisionSnapshot['renderRequests'][1]['path'] ?? null,
+            'This fixture must collide after the bounded display-path prefix.'
+        );
+        $t->true(
+            ($collisionSnapshot['renderRequests'][0]['sourceKey'] ?? '') !== ($collisionSnapshot['renderRequests'][1]['sourceKey'] ?? ''),
+            'Full-path source identities must remain distinct when display paths collide.'
+        );
+    },
+    'playground converter accounts for omitted and unresolved PDF visual occurrences once per document' => static function (TestRunner $t): void {
+        $byPath = [];
+        plpc_import_job_record_pdf_visual_disposition($byPath, 'play.pdf', [
+            'id' => 'page-wrapper-1',
+            'page' => 1,
+            'object' => 11,
+            'paintOrder' => 1,
+        ], 'intentional_omission');
+        plpc_import_job_record_pdf_visual_disposition($byPath, 'play.pdf', [
+            'id' => 'figure-after-bound-1',
+            'page' => 200,
+            'object' => 220,
+            'paintOrder' => 9,
+        ], 'unresolved');
+        $base = plpc_import_aggregate_media_dispositions([[
+            'totalOccurrences' => 1,
+            'attachmentOccurrences' => 1,
+            'placeholderOccurrences' => 0,
+            'intentionalOmissionOccurrences' => 0,
+            'unresolvedOccurrences' => 0,
+            'ledgerSha256' => hash('sha256', 'ordinary-image'),
+        ]]);
+        $summary = plpc_import_add_pdf_visual_dispositions($base, [
+            'pdfVisualDispositionsByPath' => $byPath,
+        ], 'play.pdf');
+
+        $t->same(3, $summary['totalOccurrences'] ?? null);
+        $t->same(1, $summary['attachmentOccurrences'] ?? null);
+        $t->same(1, $summary['intentionalOmissionOccurrences'] ?? null);
+        $t->same(1, $summary['unresolvedOccurrences'] ?? null);
+        $t->true(
+            is_string($summary['ledgerSha256'] ?? null) && strlen($summary['ledgerSha256']) === 64,
+            'A bounded digest must preserve the ordered source-occurrence ledger without bloating job state.'
+        );
+        $t->same(
+            1,
+            plpc_import_add_pdf_visual_dispositions($base, ['pdfVisualDispositionsByPath' => $byPath], 'other.pdf')['totalOccurrences'] ?? null,
+            'A document may not inherit another PDF\'s visual dispositions.'
+        );
+    },
+    'playground converter retains every inspected PDF visual with an explicit pre-materialization disposition' => static function (TestRunner $t): void {
+        $base = [
+            'page' => 1,
+            'object' => 20,
+            'visible' => true,
+            'placementEligible' => true,
+            'bbox' => ['x1' => 20.0, 'y1' => 20.0, 'x2' => 120.0, 'y2' => 80.0],
+            'disposition' => 'pending',
+        ];
+        $placements = [
+            array_replace($base, ['id' => 'pdf-form-p1-n1-o20', 'kind' => 'form-xobject', 'paintOrder' => 1]),
+            array_replace($base, ['id' => 'pdf-inline-image-p1-n2', 'kind' => 'inline-image', 'object' => 0, 'paintOrder' => 2]),
+            array_replace($base, ['id' => 'pdf-vector-p1-n3-6', 'kind' => 'page-vector-region', 'object' => 0, 'paintOrder' => 3]),
+            array_replace($base, [
+                'id' => 'pdf-image-p1-n7-o27',
+                'kind' => 'image-xobject',
+                'object' => 27,
+                'paintOrder' => 7,
+            ]),
+            array_replace($base, [
+                'id' => 'pdf-form-p1-n8-o28',
+                'kind' => 'form-xobject',
+                'object' => 28,
+                'paintOrder' => 8,
+                'visible' => false,
+            ]),
+            array_replace($base, [
+                'id' => 'pdf-form-p1-n9-o29',
+                'kind' => 'form-xobject',
+                'object' => 29,
+                'paintOrder' => 9,
+                'placementEligible' => false,
+            ]),
+            array_replace($base, [
+                'id' => 'pdf-form-p1-n10-o30',
+                'kind' => 'form-xobject',
+                'object' => 30,
+                'paintOrder' => 10,
+                'bbox' => ['x1' => 20.0, 'y1' => 20.0, 'x2' => 25.0, 'y2' => 25.0],
+            ]),
+            array_replace($base, [
+                'id' => 'pdf-form-p1-n11-o31',
+                'kind' => 'form-xobject',
+                'object' => 31,
+                'paintOrder' => 11,
+                'bbox' => ['x1' => 0.0, 'y1' => 0.0, 'x2' => 10001.0, 'y2' => 10001.0],
+            ]),
+            [
+                'id' => 'pdf-visual-inspection-p1-s1-o4',
+                'kind' => 'inspection-issue',
+                'page' => 1,
+                'object' => 4,
+                'paintOrder' => 0,
+                'bbox' => null,
+                'visible' => null,
+                'placementEligible' => false,
+                'disposition' => 'unresolved',
+                'dispositionReason' => 'visual-content-stream-decode-failed',
+            ],
+        ];
+        $job = [
+            'imageMode' => 'all',
+            'documents' => [[
+                'format' => 'pdf',
+                'path' => 'inventory.pdf',
+                'pdfInspectionVisualOccurrences' => $placements,
+                'pdfInspectionPageGeometry' => [[
+                    'page_number' => 1,
+                    'bbox' => [0.0, 0.0, 612.0, 792.0],
+                ]],
+            ]],
+        ];
+
+        $requests = plpc_import_job_collect_form_render_requests($job);
+        $inventory = $job['documents'][0]['pdfVisualOccurrences'] ?? [];
+        $byId = array_column($inventory, null, 'id');
+
+        $t->same(3, count($requests), 'Only the eligible Form, inline image, and vector region need browser crops.');
+        $t->same(['form-xobject', 'inline-image', 'page-vector-region'], array_column($requests, 'visualKind'));
+        $t->same(count($placements), count($inventory), 'No inspected occurrence may disappear during request classification.');
+        $t->same(count($inventory), count(array_unique(array_column($inventory, 'id'))), 'Each occurrence keeps a stable unique source id.');
+        $t->same(true, $job['documents'][0]['pdfVisualInventoryComplete'] ?? null);
+        $t->same('pending', $byId['pdf-image-p1-n7-o27']['disposition'] ?? null);
+        $t->same('intentional_omission', $byId['pdf-form-p1-n8-o28']['disposition'] ?? null);
+        $t->same('visual-not-visible', $byId['pdf-form-p1-n8-o28']['reason'] ?? null);
+        $t->same('unresolved', $byId['pdf-form-p1-n9-o29']['disposition'] ?? null);
+        $t->same('small-decorative-visual', $byId['pdf-form-p1-n10-o30']['reason'] ?? null);
+        $t->same('visual-bbox-exceeds-render-limit', $byId['pdf-form-p1-n11-o31']['reason'] ?? null);
+        $t->same('unresolved', $byId['pdf-visual-inspection-p1-s1-o4']['disposition'] ?? null);
+    },
+    'playground media ledgers deduplicate stable PDF occurrence ids across arbitrary chunks' => static function (TestRunner $t): void {
+        $block = static fn (string $id, string $source): string => '<!-- wp:image --><figure>'
+            . '<img data-pandoc-pdf-visual-id="' . $id . '" data-pandoc-pdf-visual-kind="image-xobject" src="' . $source . '">'
+            . '</figure><!-- /wp:image -->';
+        $firstBlocks = $block('pdf-image-p1-n1-o20', 'media/first.png');
+        $secondBlocks = $block('pdf-image-p2-n1-o21', 'media/second.png');
+        $first = plpc_import_media_disposition_summary(
+            $firstBlocks,
+            $firstBlocks,
+            ['image-imported:media/first.png=>1']
+        );
+        $second = plpc_import_media_disposition_summary(
+            $secondBlocks,
+            $secondBlocks,
+            ['image-imported:media/second.png=>2']
+        );
+        $all = plpc_import_media_disposition_summary(
+            $firstBlocks . $secondBlocks,
+            $firstBlocks . $secondBlocks,
+            ['image-imported:media/first.png=>1', 'image-imported:media/second.png=>2']
+        );
+        $whole = plpc_import_aggregate_media_dispositions([$all]);
+        $chunked = plpc_import_aggregate_media_dispositions([$first, $second, $first]);
+
+        $t->same(2, $chunked['totalOccurrences'] ?? null, 'An overlapped chunk must not count the same stable occurrence twice.');
+        $t->same(2, $chunked['attachmentOccurrences'] ?? null);
+        $t->same(array_keys($whole['sourceDispositions'] ?? []), array_keys($chunked['sourceDispositions'] ?? []));
+        $t->same($whole['ledgerSha256'] ?? null, $chunked['ledgerSha256'] ?? null, 'The canonical occurrence ledger must not depend on chunk boundaries.');
+    },
+    'playground final PDF media report reconciles every source occurrence exactly once' => static function (TestRunner $t): void {
+        $blocks = '<!-- wp:image --><figure><img data-pandoc-pdf-visual-id="pdf-image-p1-n1-o20" src="media/chart.png"></figure><!-- /wp:image -->';
+        $base = plpc_import_aggregate_media_dispositions([
+            plpc_import_media_disposition_summary($blocks, $blocks, ['image-imported:media/chart.png=>1']),
+            plpc_import_media_disposition_summary($blocks, $blocks, ['image-imported:media/chart.png=>1']),
+        ]);
+        $summary = plpc_import_add_pdf_visual_dispositions($base, [
+            'documents' => [[
+                'path' => 'audit.pdf',
+                'pdfVisualInventoryComplete' => true,
+                'pdfVisualOccurrences' => [
+                    ['id' => 'pdf-image-p1-n1-o20', 'kind' => 'image-xobject', 'page' => 1, 'object' => 20, 'paintOrder' => 1, 'disposition' => 'pending', 'reason' => null],
+                    ['id' => 'pdf-vector-p1-n2-2', 'kind' => 'page-vector-region', 'page' => 1, 'object' => 0, 'paintOrder' => 2, 'disposition' => 'intentional_omission', 'reason' => 'isolated-or-decorative-vector-paint'],
+                    ['id' => 'pdf-form-p1-n3-o30', 'kind' => 'form-xobject', 'page' => 1, 'object' => 30, 'paintOrder' => 3, 'disposition' => 'unresolved', 'reason' => 'form-transform-invalid'],
+                    ['id' => 'pdf-inline-image-p1-n4', 'kind' => 'inline-image', 'page' => 1, 'object' => 0, 'paintOrder' => 4, 'disposition' => 'pending', 'reason' => 'browser-render-requested'],
+                ],
+            ]],
+        ], 'audit.pdf');
+        $byId = array_column($summary['sourceOccurrences'] ?? [], null, 'id');
+
+        $t->same(4, $summary['totalOccurrences'] ?? null);
+        $t->same(1, $summary['attachmentOccurrences'] ?? null);
+        $t->same(1, $summary['intentionalOmissionOccurrences'] ?? null);
+        $t->same(2, $summary['unresolvedOccurrences'] ?? null);
+        $t->same(4, $summary['sourceOccurrenceCount'] ?? null);
+        $t->same(true, $summary['inventoryComplete'] ?? null);
+        $t->same(false, $summary['complete'] ?? null);
+        $t->same('attachment', $byId['pdf-image-p1-n1-o20']['disposition'] ?? null);
+        $t->same('intentional_omission', $byId['pdf-vector-p1-n2-2']['disposition'] ?? null);
+        $t->same('unresolved', $byId['pdf-form-p1-n3-o30']['disposition'] ?? null);
+        $t->same('browser-render-occurrence-not-materialized', $byId['pdf-inline-image-p1-n4']['reason'] ?? null);
+    },
     'playground converter fingerprints text and image content before publication' => static function (TestRunner $t): void {
         $blocks = '<!-- wp:paragraph --><p>Hello <strong>stored world</strong>.</p><!-- /wp:paragraph -->'
             . '<!-- wp:image --><figure><img src="https://playground.test/media/chart.png"/></figure><!-- /wp:image -->';
@@ -829,6 +1350,57 @@ return [
         $t->same('Hello stored world.', $fingerprint['visibleText'] ?? null);
         $t->same(1, $fingerprint['imageCount'] ?? null);
         $t->true(($fingerprint['meaningfulBlockCount'] ?? 0) >= 2);
+        $t->true(($fingerprint['orderedStructureCount'] ?? 0) >= 4, 'The fingerprint must retain ordered block and HTML boundaries.');
+    },
+    'playground converter rejects structural publication loss even when visible text is identical' => static function (TestRunner $t): void {
+        $expectedBlocks = '<!-- wp:paragraph --><p>Alpha</p><!-- /wp:paragraph -->'
+            . '<!-- wp:paragraph --><p>Beta</p><!-- /wp:paragraph -->';
+        $collapsedBlocks = '<!-- wp:paragraph --><p>Alpha Beta</p><!-- /wp:paragraph -->';
+        $expected = plpc_import_content_fingerprint($expectedBlocks);
+        $collapsed = plpc_import_content_fingerprint($collapsedBlocks);
+
+        $t->same($expected['visibleTextSha256'], $collapsed['visibleTextSha256'], 'The fixture isolates structure rather than text loss.');
+        $error = null;
+        try {
+            plpc_import_assert_content_fingerprint($expected, $collapsedBlocks);
+        } catch (Throwable $throwable) {
+            $error = $throwable;
+        }
+        $t->true($error instanceof PlpcImportFailure);
+        $t->same('publication_structure_mismatch', $error instanceof PlpcImportFailure ? $error->failureCode : null);
+        $t->same(true, $error instanceof PlpcImportFailure ? $error->recoverable : null);
+    },
+    'playground converter fingerprints exact cells links captions and attachment ids' => static function (TestRunner $t): void {
+        $expectedBlocks = '<!-- wp:table --><figure><table><tbody><tr><td>A</td><td>B</td></tr></tbody></table></figure><!-- /wp:table -->'
+            . '<!-- wp:paragraph --><p><a href="https://example.test/first">Linked text</a></p><!-- /wp:paragraph -->'
+            . '<!-- wp:image {"sizeSlug":"large","id":41} --><figure><img src="https://example.test/chart.png" data-plpc-imported-media="41"/><figcaption>Chart caption</figcaption></figure><!-- /wp:image -->';
+        $mutations = [
+            'cell boundary' => str_replace('<td>A</td><td>B</td>', '<td>AB</td>', $expectedBlocks),
+            'link target' => str_replace('/first', '/second', $expectedBlocks),
+            'caption boundary' => str_replace('<figcaption>Chart caption</figcaption>', '<p>Chart caption</p>', $expectedBlocks),
+            'attachment id' => str_replace(['"id":41', 'media="41"'], ['"id":42', 'media="42"'], $expectedBlocks),
+        ];
+        $expected = plpc_import_content_fingerprint($expectedBlocks);
+
+        foreach ($mutations as $label => $storedBlocks) {
+            $t->same(
+                $expected['visibleTextSha256'],
+                plpc_import_content_fingerprint($storedBlocks)['visibleTextSha256'] ?? null,
+                $label . ' fixture must isolate structural identity from visible text.'
+            );
+            $error = null;
+            try {
+                plpc_import_assert_content_fingerprint($expected, $storedBlocks);
+            } catch (Throwable $throwable) {
+                $error = $throwable;
+            }
+            $t->true($error instanceof PlpcImportFailure, $label);
+            $t->same(
+                'publication_structure_mismatch',
+                $error instanceof PlpcImportFailure ? $error->failureCode : null,
+                $label
+            );
+        }
     },
     'playground converter normalizes unsupported controls before WordPress round trip verification' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
@@ -880,6 +1452,70 @@ return [
         $t->same(1, $storedFingerprint['imageCount'] ?? null);
         $t->true(!array_key_exists('visibleText', $storedFingerprint), 'Publication metadata must not duplicate the converted document text.');
     },
+    'playground importer applies finite defaults only to unlimited or more permissive runtimes' => static function (TestRunner $t): void {
+        $t->same('512M', plpc_import_memory_limit_policy('-1'));
+        $t->same('512M', plpc_import_memory_limit_policy('1G'));
+        $t->same(null, plpc_import_memory_limit_policy('512M'));
+        $t->same(null, plpc_import_memory_limit_policy('128M'));
+        $t->same(45, plpc_import_time_limit_policy('0'));
+        $t->same(45, plpc_import_time_limit_policy('120'));
+        $t->same(null, plpc_import_time_limit_policy('45'));
+        $t->same(null, plpc_import_time_limit_policy('30'));
+
+        $t->same(45.0, plpc_import_request_time_limit_from_observed(0, 45));
+        $t->same(45.0, plpc_import_request_time_limit_from_observed(120, 45));
+        $t->same(30.0, plpc_import_request_time_limit_from_observed(30, 45));
+        $t->same(null, plpc_import_request_time_limit_from_observed(0, null));
+    },
+    'playground importer runtime constants and filters can explicitly override or opt out' => static function (TestRunner $t): void {
+        $t->same('768M', plpc_import_memory_limit_policy('128M', '768M', true));
+        $t->same('-1', plpc_import_memory_limit_policy('128M', '-1', true));
+        $t->same(null, plpc_import_memory_limit_policy('-1', false, true));
+        $t->same(null, plpc_import_memory_limit_policy('-1', null, true));
+        $t->same('512M', plpc_import_memory_limit_policy('1G', 'invalid', true), 'An invalid override must not silently disable the safe default.');
+        $t->same(90, plpc_import_time_limit_policy('30', 90, true));
+        $t->same(0, plpc_import_time_limit_policy('30', 0, true));
+        $t->same(null, plpc_import_time_limit_policy('120', false, true));
+        $t->same(null, plpc_import_time_limit_policy('120', '', true));
+        $t->same(45, plpc_import_time_limit_policy('120', 'invalid', true), 'An invalid override must not silently disable the safe default.');
+
+        plpc_test_reset_import_job_state();
+        $memoryFilterArgs = [];
+        $timeFilterArgs = [];
+        add_filter('plpc_import_memory_limit', static function (
+            mixed $limit,
+            mixed $hostLimit,
+            mixed $hasConstant
+        ) use (&$memoryFilterArgs): mixed {
+            $memoryFilterArgs = [$limit, $hostLimit, $hasConstant];
+
+            return false;
+        }, 10, 3);
+        add_filter('plpc_import_time_limit', static function (
+            mixed $limit,
+            mixed $hostLimit,
+            mixed $hasConstant
+        ) use (&$timeFilterArgs): mixed {
+            $timeFilterArgs = [$limit, $hostLimit, $hasConstant];
+
+            return false;
+        }, 10, 3);
+        $optedOut = plpc_import_runtime_limit_policy('-1', '0');
+        $t->same(['512M', '-1', false], $memoryFilterArgs);
+        $t->same([45, '0', false], $timeFilterArgs);
+        $t->same(null, $optedOut['memoryLimit']);
+        $t->same(null, $optedOut['timeLimit']);
+        $t->same(null, $optedOut['effectiveTimeLimit']);
+
+        plpc_test_reset_import_job_state();
+        add_filter('plpc_import_memory_limit', static fn (mixed $limit): string => '768M');
+        add_filter('plpc_import_time_limit', static fn (mixed $limit): int => 90);
+        $overridden = plpc_import_runtime_limit_policy('128M', '30');
+        $t->same('768M', $overridden['memoryLimit']);
+        $t->same(90, $overridden['timeLimit']);
+        $t->same(90.0, $overridden['effectiveTimeLimit']);
+        plpc_test_reset_import_job_state();
+    },
     'playground pdf extraction scheduler adapts to measured fact time density and memory' => static function (TestRunner $t): void {
         $t->same(16, plpc_pdf_adaptive_pages_per_request(8, [
             'pages' => 8,
@@ -901,6 +1537,7 @@ return [
         ], 3));
         $t->same(134_217_728, plpc_php_ini_bytes('128M'));
         $t->same(0, plpc_php_ini_bytes('-1'));
+        $t->true(plpc_import_request_reserve_seconds(30.0) >= 6.0, 'A request must yield before consuming 80% of its PHP execution window.');
     },
     'playground single-page PDF limit can only tighten the hard memory and database ceilings' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
@@ -1081,6 +1718,208 @@ return [
         $t->same('queued', $snapshot['status'] ?? null);
         $t->same($created['events'], $snapshot['events']);
         $t->true(!array_key_exists('bytes', $snapshot), 'Status polling must never echo the uploaded source bytes back to the browser.');
+    },
+    'persisted import jobs verify each option checkpoint by revision and digest readback' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'commit.md',
+            'bytes' => base64_encode('# Commit verification'),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $option = PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId;
+        $job = plpc_import_job_from_request(plpc_test_import_job_request([], $jobId));
+        $storedRevision = (int) ($job['stateRevision'] ?? 0);
+        $GLOBALS['plpc_test_update_option_failure'] = $option;
+
+        $error = null;
+        try {
+            plpc_import_job_save($job);
+        } catch (Throwable $throwable) {
+            $error = $throwable;
+        } finally {
+            unset($GLOBALS['plpc_test_update_option_failure']);
+        }
+
+        $t->true($error instanceof PlpcImportFailure);
+        $t->same('job_state_commit_failed', $error instanceof PlpcImportFailure ? $error->failureCode : null);
+        $t->same($storedRevision, get_option($option)['stateRevision'] ?? null, 'An unverified write must not advance the durable cursor.');
+        $t->same(true, plpc_import_job_state_digest_is_valid(get_option($option)));
+    },
+    'persisted import job index serializes interleaved writers and retains both entries after bounded retry' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        add_filter('plpc_import_job_index_lock_timeout_ms', static fn (mixed $milliseconds): int => 10);
+        $firstCreated = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'first.md',
+            'bytes' => base64_encode('# First'),
+        ]))->get_data();
+        $secondCreated = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'second.md',
+            'bytes' => base64_encode('# Second'),
+        ]))->get_data();
+        $first = plpc_import_job_from_request(plpc_test_import_job_request([], (string) $firstCreated['jobId']));
+        $second = plpc_import_job_from_request(plpc_test_import_job_request([], (string) $secondCreated['jobId']));
+        update_option(PLPC_IMPORT_JOB_INDEX_OPTION, [], false);
+        $nestedFailure = null;
+        $interleaved = false;
+        add_action('plpc_import_job_index_locked', static function () use (&$interleaved, &$nestedFailure, $second): void {
+            if ($interleaved) {
+                return;
+            }
+            $interleaved = true;
+            try {
+                plpc_import_job_update_index($second);
+            } catch (PlpcImportFailure $error) {
+                $nestedFailure = $error->failureCode;
+            }
+        });
+
+        $started = microtime(true);
+        plpc_import_job_update_index($first);
+        $elapsed = microtime(true) - $started;
+        $afterFirst = get_option(PLPC_IMPORT_JOB_INDEX_OPTION, []);
+
+        $t->same('job_index_lock_timeout', $nestedFailure, 'The interleaved writer must fail fast instead of overwriting a stale snapshot.');
+        $t->true($elapsed < 0.5, 'Index contention must remain bounded.');
+        $t->true(isset($afterFirst[$first['id']]));
+        $t->true(!isset($afterFirst[$second['id']]));
+
+        plpc_import_job_update_index($second);
+        $afterRetry = get_option(PLPC_IMPORT_JOB_INDEX_OPTION, []);
+        $t->same([$first['id'], $second['id']], array_keys($afterRetry), 'Retrying after the lock releases must preserve both jobs.');
+    },
+    'persisted import job index reports an unverifiable write without discarding the job checkpoint' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'index-failure.md',
+            'bytes' => base64_encode('# Index failure'),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $job = plpc_import_job_from_request(plpc_test_import_job_request([], $jobId));
+        $job['status'] = 'ready_to_convert';
+        $job['updatedAt'] = ((int) ($job['updatedAt'] ?? time())) + 10;
+        $GLOBALS['plpc_test_update_option_failure'] = PLPC_IMPORT_JOB_INDEX_OPTION;
+        $error = null;
+        try {
+            plpc_import_job_update_index($job);
+        } catch (Throwable $throwable) {
+            $error = $throwable;
+        } finally {
+            unset($GLOBALS['plpc_test_update_option_failure']);
+        }
+
+        $t->true($error instanceof PlpcImportFailure);
+        $t->same('job_index_commit_failed', $error instanceof PlpcImportFailure ? $error->failureCode : null);
+        $t->true(is_array(get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId, null)), 'The authoritative per-job checkpoint must remain available.');
+    },
+    'persisted import jobs externalize large result trees and return bounded status snapshots' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'large-state.md',
+            'bytes' => base64_encode('# Large state'),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $job = plpc_import_job_from_request(plpc_test_import_job_request([], $jobId));
+        $children = [];
+        for ($index = 1; $index <= 300; $index++) {
+            $children[] = [
+                'postId' => $index,
+                'title' => 'Imported page ' . $index,
+                'pageUrl' => 'https://playground.test/page-' . $index,
+                'diagnostics' => [str_repeat('diagnostic-' . $index . '-', 40)],
+            ];
+        }
+        $job['status'] = 'complete';
+        $job['stage'] = 'complete';
+        $job['result'] = ['batch' => true, 'postId' => 1, 'children' => $children, 'documents' => $children];
+        $job['documentResults'] = [$job['result']];
+        $job['documents'] = [[
+            'path' => 'large-state.md',
+            'completed' => true,
+            'padding' => str_repeat('bounded-state-padding-', 4000),
+            'result' => ['children' => $children],
+        ]];
+        plpc_import_job_save($job);
+
+        $raw = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+        $t->true(strlen(serialize($raw)) <= PLPC_IMPORT_JOB_MAX_OPTION_BYTES, 'The transactional option must remain below 64 KiB.');
+        $t->true(plpc_import_job_state_blob_descriptor($raw['result'] ?? null) !== null, 'The repeated result tree belongs in private state storage.');
+        $t->true(plpc_import_job_state_blob_descriptor($raw['documents'] ?? null) !== null, 'An aggregate descriptor can safely contain another state-blob descriptor.');
+        $hydrated = plpc_import_job_from_request(plpc_test_import_job_request([], $jobId));
+        $t->same(300, count($hydrated['result']['children'] ?? []));
+        $t->same(300, count($hydrated['documents'][0]['result']['children'] ?? []), 'Transitive state blobs must survive stale-blob cleanup and hydrate recursively.');
+
+        $response = plpc_import_job_status(plpc_test_import_job_request([], $jobId));
+        $snapshot = $response->get_data();
+        $t->true(strlen(json_encode($snapshot, JSON_THROW_ON_ERROR)) <= PLPC_IMPORT_JOB_MAX_STATUS_BYTES);
+        $t->same(true, $snapshot['truncated']['result'] ?? null);
+        $t->same(300, $snapshot['result']['childrenTotal'] ?? null);
+        $t->true(count($snapshot['result']['children'] ?? []) <= PLPC_IMPORT_JOB_STATUS_MAX_RESULT_ITEMS);
+    },
+    'persisted import state remains bounded for 250 1000 and 2000 page topologies' => static function (TestRunner $t): void {
+        foreach ([250, 1000, 2000] as $pageCount) {
+            plpc_test_reset_import_job_state();
+            $created = plpc_create_import_job(plpc_test_import_job_request([
+                'filename' => 'state-' . $pageCount . '.md',
+                'bytes' => base64_encode('# Bounded state'),
+            ]))->get_data();
+            $jobId = (string) ($created['jobId'] ?? '');
+            $job = plpc_import_job_from_request(plpc_test_import_job_request([], $jobId));
+            $children = [];
+            for ($page = 1; $page <= $pageCount; $page++) {
+                $children[] = [
+                    'postId' => $page,
+                    'page' => $page,
+                    'sourceId' => 'pdf-page-' . $page,
+                    'fingerprint' => hash('sha256', 'page-' . $page),
+                ];
+            }
+            $job['status'] = 'complete';
+            $job['stage'] = 'complete';
+            $job['result'] = ['batch' => true, 'postId' => 1, 'children' => $children];
+            $job['documents'] = [[
+                'path' => 'state-' . $pageCount . '.md',
+                'pdfPageCount' => $pageCount,
+                'result' => ['children' => $children],
+            ]];
+            plpc_import_job_save($job);
+
+            $raw = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+            $t->true(
+                strlen(serialize($raw)) <= PLPC_IMPORT_JOB_MAX_OPTION_BYTES,
+                $pageCount . '-page job state exceeded the 64 KiB option bound.'
+            );
+            $hydrated = plpc_import_job_from_request(plpc_test_import_job_request([], $jobId));
+            $t->same($pageCount, count($hydrated['result']['children'] ?? []));
+            $snapshot = plpc_import_job_response($hydrated)->get_data();
+            $t->true(strlen(json_encode($snapshot, JSON_THROW_ON_ERROR)) <= PLPC_IMPORT_JOB_MAX_STATUS_BYTES);
+        }
+    },
+    'persisted import job retention removes expired unlocked storage but keeps resumable work' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $expired = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'expired.md',
+            'bytes' => base64_encode('# Expired'),
+        ]))->get_data();
+        $active = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'active.md',
+            'bytes' => base64_encode('# Active'),
+        ]))->get_data();
+        $expiredId = (string) ($expired['jobId'] ?? '');
+        $activeId = (string) ($active['jobId'] ?? '');
+        $now = time();
+        $index = get_option(PLPC_IMPORT_JOB_INDEX_OPTION, []);
+        $index[$expiredId] = ['updatedAt' => $now - PLPC_IMPORT_JOB_RETENTION_COMPLETE_SECONDS - 10, 'status' => 'complete', 'ownerId' => 1];
+        $index[$activeId] = ['updatedAt' => $now, 'status' => 'ready_to_convert', 'ownerId' => 1];
+        update_option(PLPC_IMPORT_JOB_INDEX_OPTION, $index, false);
+        $expiredDirectory = plpc_import_job_directory($expiredId);
+        file_put_contents($expiredDirectory . '/expired.tmp', 'temporary');
+
+        $result = plpc_cleanup_import_jobs($now);
+
+        $t->same(1, $result['removed'] ?? null);
+        $t->same(null, get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $expiredId, null));
+        $t->same(false, is_dir($expiredDirectory));
+        $t->true(is_array(get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $activeId, null)), 'An active resumable job must survive cleanup.');
     },
     'persisted import jobs store bounded PDF js facts privately with native fallback evidence' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
@@ -1300,6 +2139,16 @@ return [
         $jobAfterMerge = get_option($option);
         $t->same('ready_to_convert', $merged['status'] ?? null);
         $t->true(is_array($jobAfterMerge['documents'][0]['pdfDocumentFacts'] ?? null), 'All page facts should merge into one durable document snapshot before semantics run.');
+        $t->true(is_array($jobAfterMerge['documents'][0]['pdfDocumentProfile'] ?? null), 'A compact full-document layout profile must be durable beside bounded facts.');
+        $mergedFacts = plpc_import_job_load_pdf_document_facts($jobAfterMerge, $jobAfterMerge['documents'][0]);
+        $profile = $mergedFacts->structure()['documentProfile'] ?? [];
+        $t->same(true, $profile['complete'] ?? null);
+        $t->same([1, 2, 3], $profile['coveredPages'] ?? null);
+        $t->same(
+            $jobAfterMerge['documents'][0]['pdfDocumentProfile']['profileDigest'] ?? null,
+            $profile['profileDigest'] ?? null,
+            'Every semantic facts range must receive the exact same immutable document profile.'
+        );
         $t->same(0, count($GLOBALS['plpc_test_posts']));
 
         $semantics = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
@@ -1351,6 +2200,167 @@ return [
         $t->same(1, count($GLOBALS['plpc_test_posts']), 'Final-page retry must not publish a duplicate page.');
     },
 
+    'playground pdf visual checkpoints survive reload and continue with the next unscanned page' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        add_filter('plpc_pdf_pages_per_request', static fn (mixed $pages): int => 1);
+        add_filter('plpc_pdf_adaptive_pages_per_request', static fn (mixed $pages): int => 1);
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'visual-checkpoints.pdf',
+            'imageMode' => 'all',
+            'pdfMode' => 'layout',
+            'bytes' => base64_encode(plpc_test_two_page_form_xobject_pdf()),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $option = PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId;
+
+        $prepared = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('ready_to_convert', $prepared['status'] ?? null);
+        $first = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $firstRequest = $first['renderRequests'][0] ?? [];
+        $afterFirst = get_option($option);
+        $t->same('awaiting_renderer', $first['status'] ?? null);
+        $t->same(1, $firstRequest['page'] ?? null);
+        $t->same(2, $afterFirst['documents'][0]['pdfNextPage'] ?? null);
+        $t->same(1, $afterFirst['documents'][0]['pdfVisualInspectionCompleteThroughPage'] ?? null);
+        $t->same(false, $afterFirst['documents'][0]['pdfVisualInventoryComplete'] ?? null);
+
+        // A browser reload calls /advance again before returning the crop.
+        // The durable awaiting_renderer state must not parse page one again.
+        $reloaded = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $afterReload = get_option($option);
+        $t->same($firstRequest['id'] ?? null, $reloaded['renderRequests'][0]['id'] ?? null);
+        $t->same(1, count($afterReload['documents'][0]['pdfChunks'] ?? []));
+        $t->same(1, count($afterReload['documents'][0]['pdfVisualOccurrences'] ?? []));
+        $t->same(1, count($afterReload['documents'][0]['pdfChunkMetrics'] ?? []));
+
+        $submitted = plpc_submit_import_rendered_media(plpc_test_import_job_request([
+            'requestId' => $firstRequest['id'] ?? '',
+            'error' => 'Test renderer acknowledgement.',
+        ], $jobId))->get_data();
+        $t->same('ready_to_convert', $submitted['status'] ?? null);
+        $interrupted = get_option($option);
+        $interrupted['status'] = 'converting';
+        $interrupted['stage'] = 'reading';
+        $interrupted['checkpoint'] = [
+            'documentIndex' => 0,
+            'stage' => 'reading',
+            'deadlineYields' => 0,
+            'interruptedRetries' => 0,
+        ];
+        update_option($option, $interrupted, false);
+        $second = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $afterSecond = get_option($option);
+        $t->same('awaiting_renderer', $second['status'] ?? null);
+        $t->same(2, $second['renderRequests'][0]['page'] ?? null);
+        $t->true(($second['renderRequests'][0]['id'] ?? '') !== ($firstRequest['id'] ?? ''));
+        $t->same(3, $afterSecond['documents'][0]['pdfNextPage'] ?? null);
+        $t->same(2, $afterSecond['documents'][0]['pdfVisualInspectionCompleteThroughPage'] ?? null);
+        $t->same(3, $afterSecond['documents'][0]['pdfVisualInspectionNextPage'] ?? null);
+        $t->same(true, $afterSecond['documents'][0]['pdfVisualInventoryComplete'] ?? null);
+        $t->same(2, count($afterSecond['documents'][0]['pdfChunks'] ?? []));
+        $t->same(2, count($afterSecond['documents'][0]['pdfVisualOccurrences'] ?? []));
+    },
+    'playground migrates older saved PDF visual facts without rescanning prior source pages' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        add_filter('plpc_pdf_pages_per_request', static fn (mixed $pages): int => 1);
+        add_filter('plpc_pdf_adaptive_pages_per_request', static fn (mixed $pages): int => 1);
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'legacy-visual-checkpoint.pdf',
+            'imageMode' => 'all',
+            'bytes' => base64_encode(plpc_test_two_page_form_xobject_pdf()),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $option = PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId;
+        plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $legacy = get_option($option);
+        $legacy['status'] = 'ready_to_convert';
+        $legacy['stage'] = 'ready_to_convert';
+        $legacy['renderRequests'] = [];
+        unset(
+            $legacy['documents'][0]['pdfVisualInspectionCompleteThroughPage'],
+            $legacy['documents'][0]['pdfVisualInspectionNextPage'],
+            $legacy['documents'][0]['pdfVisualOccurrences'],
+            $legacy['documents'][0]['pdfVisualInventoryComplete'],
+            $legacy['documents'][0]['pdfVisualFormObjectCounts'],
+            $legacy['documents'][0]['pdfVisualRenderRequestCount']
+        );
+        update_option($option, $legacy, false);
+
+        $migrated = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $after = get_option($option);
+        $t->same('awaiting_renderer', $migrated['status'] ?? null);
+        $t->same(1, $migrated['renderRequests'][0]['page'] ?? null);
+        $t->same(2, $after['documents'][0]['pdfNextPage'] ?? null, 'Migration must not re-run source page extraction.');
+        $t->same(1, count($after['documents'][0]['pdfChunks'] ?? []));
+        $t->same(1, count($after['documents'][0]['pdfChunkMetrics'] ?? []));
+        $t->same(1, $after['documents'][0]['pdfVisualInspectionCompleteThroughPage'] ?? null);
+        $t->true(in_array('checkpoint_migrated', array_column($migrated['events'] ?? [], 'stage'), true));
+    },
+    'playground visual checkpoint cap emits a typed recoverable issue instead of growing the job' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        add_filter('plpc_pdf_visual_occurrence_limit', static fn (mixed $limit): int => 4);
+        $occurrences = [];
+        for ($index = 1; $index <= 6; $index++) {
+            $occurrences[] = [
+                'id' => 'pdf-image-p1-n' . $index . '-o' . (20 + $index),
+                'kind' => 'image-xobject',
+                'page' => 1,
+                'object' => 20 + $index,
+                'paintOrder' => $index,
+                'bbox' => ['x1' => 1.0, 'y1' => 1.0, 'x2' => 20.0, 'y2' => 20.0],
+                'visible' => true,
+                'placementEligible' => true,
+                'disposition' => 'pending',
+                'dispositionReason' => null,
+            ];
+        }
+        $facts = \PortLibs\MarkerPDF\PdfDocumentFacts::fromArray([
+            'schemaVersion' => 1,
+            'provider' => 'test-visual-cap',
+            'source' => ['sha256' => hash('sha256', 'visual-cap'), 'byteLength' => 10],
+            'inventory' => ['totalPages' => 1, 'pageNumbers' => [1]],
+            'pages' => [[
+                'schemaVersion' => 1,
+                'pageNumber' => 1,
+                'pageObject' => 3,
+                'label' => '1',
+                'geometry' => ['page_number' => 1, 'bbox' => [0.0, 0.0, 100.0, 100.0]],
+                'text' => ['lines' => [], 'runs' => [], 'spans' => [], 'positionedRunsLimited' => false],
+                'graphics' => ['filledRectangles' => [], 'images' => [], 'forms' => [], 'visualOccurrences' => $occurrences],
+                'annotations' => ['links' => [], 'text' => [], 'fileAttachments' => [], 'popups' => [], 'appearances' => []],
+                'structure' => [],
+                'issues' => [],
+            ]],
+            'structure' => [],
+            'diagnostics' => [],
+            'unassignedAnnotations' => [],
+        ]);
+        $job = [
+            'imageMode' => 'all',
+            'renderRequests' => [],
+            'renderedForms' => [],
+            'documents' => [[
+                'path' => 'cap.pdf',
+                'format' => 'pdf',
+                'pdfVisualInspectionCompleteThroughPage' => 0,
+                'pdfVisualInspectionNextPage' => 1,
+                'pdfVisualOccurrences' => [],
+                'pdfVisualInventoryComplete' => false,
+            ]],
+        ];
+
+        plpc_import_job_checkpoint_pdf_chunk_visuals($job, 0, $facts, 1, 1, 1);
+        $inventory = $job['documents'][0]['pdfVisualOccurrences'] ?? [];
+        $issue = $inventory[count($inventory) - 1] ?? [];
+        $t->same(4, count($inventory));
+        $t->same('inspection-issue', $issue['kind'] ?? null);
+        $t->same('resource-limit', $issue['issueType'] ?? null);
+        $t->same(true, $issue['recoverable'] ?? null);
+        $t->same('visual-occurrence-limit', $issue['reason'] ?? null);
+        $t->same(3, $issue['omittedOccurrences'] ?? null);
+        $t->same(true, $job['documents'][0]['pdfVisualInventoryComplete'] ?? null);
+    },
     'playground pdf segment planner uses durable fact bytes instead of upload size or document special cases' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
         add_filter('plpc_pdf_segment_max_fact_bytes', static fn (mixed $bytes): int => 300000);
@@ -1381,7 +2391,6 @@ return [
         plpc_test_reset_import_job_state();
         add_filter('plpc_pdf_pages_per_request', static fn (mixed $pages): int => 1);
         add_filter('plpc_pdf_adaptive_pages_per_request', static fn (mixed $pages): int => 1);
-        add_filter('plpc_pdf_segment_max_pages', static fn (mixed $pages): int => 2);
         $sentinels = [
             'SEGMENTED PAGE ONE SENTINEL',
             'SEGMENTED PAGE TWO SENTINEL',
@@ -1389,6 +2398,10 @@ return [
             'SEGMENTED PAGE FOUR SENTINEL',
             'SEGMENTED PAGE FIVE SENTINEL',
             'SEGMENTED PAGE SIX SENTINEL',
+            'SEGMENTED PAGE SEVEN SENTINEL',
+            'SEGMENTED PAGE EIGHT SENTINEL',
+            'SEGMENTED PAGE NINE SENTINEL',
+            'SEGMENTED PAGE TEN SENTINEL',
         ];
         $pdf = plpc_test_multipage_pdf($sentinels);
         $created = plpc_create_import_job(plpc_test_import_job_request([
@@ -1426,11 +2439,9 @@ return [
         $t->same(1, count($GLOBALS['plpc_test_posts']), 'Internal semantic ranges must become one WordPress page, not range pages plus an index.');
         $job = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
         $segments = $job['documents'][0]['pdfSegments'] ?? [];
-        $t->same(3, count($segments));
-        $t->same([[1, 2], [3, 4], [5, 6]], array_map(
-            static fn (array $segment): array => [$segment['startPage'], $segment['endPage']],
-            $segments
-        ));
+        $t->same([], $segments, 'Completed segment descriptors must not be duplicated in the compact job option.');
+        $t->same(true, $job['documents'][0]['durableConversionRetained'] ?? null);
+        $t->same(1, $job['publicationSummary']['documents'] ?? null, 'Completed source results are summarized rather than duplicated beside the public result.');
 
         $postId = (int) ($snapshot['result']['postId'] ?? 0);
         $rangeContent = (string) ($GLOBALS['plpc_test_posts'][$postId]['post_content'] ?? '');
@@ -1442,6 +2453,31 @@ return [
         // Model the assembled page committing immediately before the job
         // cursor is saved. The stable single-output identity must recover it.
         $t->true(is_array($jobBeforeFinalPublication), 'Every bounded range should have a post-ready bundle before assembly.');
+        $t->same(
+            [[1, 8], [9, 10]],
+            array_map(
+                static fn (array $segment): array => [
+                    (int) ($segment['startPage'] ?? 0),
+                    (int) ($segment['endPage'] ?? 0),
+                ],
+                $jobBeforeFinalPublication['documents'][0]['pdfSegments'] ?? []
+            ),
+            'One-page extraction requests must be repacked into the canonical eight-page semantic grain.'
+        );
+        $profileDigest = $jobBeforeFinalPublication['documents'][0]['pdfDocumentProfile']['profileDigest'] ?? null;
+        foreach ($jobBeforeFinalPublication['documents'][0]['pdfSegments'] ?? [] as $segment) {
+            $segmentFacts = plpc_import_job_load_pdf_facts_record(
+                $jobBeforeFinalPublication,
+                $segment['facts'],
+                (int) $segment['startPage'],
+                (int) $segment['endPage']
+            );
+            $t->same(
+                $profileDigest,
+                $segmentFacts->structure()['documentProfile']['profileDigest'] ?? null,
+                'Every bounded semantic segment needs the same full-document layout evidence.'
+            );
+        }
         update_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId, $jobBeforeFinalPublication, false);
         $recovered = [];
         for ($attempt = 0; $attempt < 4 && ($recovered['status'] ?? '') !== 'complete'; $attempt++) {
@@ -1501,6 +2537,234 @@ return [
         }
         $t->true(!str_contains($rootBlocks, 'Conversion notes'));
         $t->true(!str_contains($rootBlocks, 'Import quality:'));
+    },
+
+    'playground page-tree refuses to publish an undecodable nonblank page as an intentional blank' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $content = 'BT /F1 12 Tf 72 720 Td (THIS NONBLANK TEXT MUST NOT BECOME AN EMPTY PAGE) Tj ET';
+        // The raw stream contains visible PDF operators, but its declared
+        // RunLength filter is deliberately malformed. Extraction therefore
+        // yields no text and a page-scoped failed_content_decode issue.
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . '4 0 obj' . "\n<< /Filter /RunLengthDecode /Length " . strlen($content) . ">>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "%%EOF";
+        $facts = (new \PortLibs\MarkerPDF\NativePdfFactsProvider())->extract($pdf);
+        $page = $facts->page(1);
+        $t->same([], $page?->text()['runs'] ?? null);
+        $t->same('failed_content_decode', $page?->issues()[0]['reason'] ?? null);
+
+        $job = ['id' => 'undecodableblank00000001'];
+        $stored = plpc_import_job_store_pdf_chunk($job, 0, [
+            'facts' => $facts,
+            'startPage' => 1,
+            'endPage' => 1,
+            'pageNumbers' => [1],
+        ]);
+        $factsRecord = [
+            'startPage' => 1,
+            'endPage' => 1,
+            'storage' => $stored['facts'],
+            'sha256' => $stored['sha256'],
+            'bytes' => $stored['bytes'],
+        ];
+        $allowEmpty = plpc_import_job_pdf_page_is_certified_blank($job, $factsRecord);
+        $t->same(false, $allowEmpty, 'An unreadable page is not a facts-certified blank page.');
+
+        $document = [
+            'path' => 'undecodable-nonblank.pdf',
+            'format' => 'pdf',
+            'pdfSegments' => [['startPage' => 1, 'endPage' => 1]],
+        ];
+        $t->throws(PlpcImportFailure::class, static function () use ($job, $document, $pdf, $allowEmpty): void {
+            plpc_import_job_finalize_pdf_document(
+                $job,
+                0,
+                $document,
+                $pdf,
+                null,
+                'Undecodable nonblank page',
+                null,
+                null,
+                0,
+                ['startPage' => 1, 'endPage' => 1],
+                [],
+                'page',
+                [
+                    'blocks' => '',
+                    'diagnostics' => [],
+                    'imageTagCount' => 0,
+                    'imagesImported' => 0,
+                    'mediaDisposition' => [],
+                    'format' => 'pdf',
+                ],
+                $allowEmpty
+            );
+        });
+        $t->same([], $GLOBALS['plpc_test_posts'], 'The empty draft guard must run before WordPress creates a page row.');
+    },
+
+    'playground pdf page-tree keeps page-scoped tagged heading list and table semantics' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        add_filter('plpc_pdf_pages_per_request', static fn (mixed $pages): int => 2);
+        add_filter('plpc_pdf_adaptive_pages_per_request', static fn (mixed $pages): int => 2);
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'tagged-physical-pages.pdf',
+            'title' => 'Tagged physical pages',
+            'imageMode' => 'none',
+            'pdfMode' => 'layout',
+            'pdfOutputMode' => 'pages',
+            'bytes' => base64_encode(plpc_test_tagged_page_tree_pdf()),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $snapshot = $created;
+        for ($attempt = 0; $attempt < 40 && ($snapshot['status'] ?? '') !== 'complete'; $attempt++) {
+            $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        }
+
+        $t->same('complete', $snapshot['status'] ?? null);
+        $t->same('pdf-page-tree', $snapshot['result']['kind'] ?? null);
+        $children = $snapshot['result']['children'] ?? [];
+        $t->same(2, count($children));
+        foreach ($children as $index => $child) {
+            $page = $index + 1;
+            $otherPage = $page === 1 ? 2 : 1;
+            $postId = (int) ($child['postId'] ?? 0);
+            $blocks = (string) ($GLOBALS['plpc_test_posts'][$postId]['post_content'] ?? '');
+            $t->same(1, substr_count($blocks, 'Tagged page ' . $page . ' heading'));
+            $t->same(1, substr_count($blocks, 'Tagged page ' . $page . ' item'));
+            $t->same(1, substr_count($blocks, 'Tagged page ' . $page . ' entry'));
+            $t->true(!str_contains($blocks, 'Tagged page ' . $otherPage), 'A child page must not duplicate another page\'s tagged source objects.');
+            $t->contains('data-pdf-role="H1"', $blocks);
+            $t->contains('data-pdf-role="LI"', $blocks);
+            $t->contains('data-pdf-role="TH"', $blocks);
+            $t->contains('data-pdf-role="TD"', $blocks);
+            $t->contains('<!-- wp:table -->', $blocks);
+        }
+    },
+
+    'playground pdf page-tree child failure rolls public siblings back to drafts and resumes without duplicates' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $fixture = plpc_test_pdf_page_tree_publication_job();
+        $job = $fixture['job'];
+        [$firstChild, $secondChild] = $fixture['childIds'];
+        $rootId = $fixture['rootId'];
+
+        plpc_import_job_publish_next_result($job);
+        $t->same('publish', get_post_status($firstChild));
+        $t->same('draft', get_post_status($secondChild));
+        $t->same('draft', get_post_status($rootId), 'The hierarchy root is the visibility commit point and must remain a draft.');
+
+        $failedOnce = false;
+        $GLOBALS['plpc_test_wp_update_failure_injector'] = static function (int $postId, array $update) use ($secondChild, &$failedOnce): bool {
+            if (!$failedOnce && $postId === $secondChild && ($update['post_status'] ?? '') === 'publish') {
+                $failedOnce = true;
+
+                return true;
+            }
+
+            return false;
+        };
+        $error = null;
+        try {
+            plpc_import_job_publish_next_result($job);
+        } catch (Throwable $throwable) {
+            $error = $throwable;
+        }
+
+        $t->true($error instanceof PlpcImportFailure);
+        $t->same('publishing_pdf_child', $error instanceof PlpcImportFailure ? $error->failureStage : null);
+        $t->same('rolled_back', $job['publicationRecovery']['status'] ?? null);
+        $t->same(0, $job['publishNextResult'] ?? null);
+        $t->same('draft', get_post_status($firstChild), 'A prior child must not remain public after its sibling transition fails.');
+        $t->same('draft', get_post_status($secondChild));
+        $t->same('draft', get_post_status($rootId));
+        $t->same(3, count($GLOBALS['plpc_test_posts']));
+
+        unset($GLOBALS['plpc_test_wp_update_failure_injector']);
+        plpc_import_job_fail($job, (string) $error?->getMessage(), [
+            'code' => $error instanceof PlpcImportFailure ? $error->failureCode : 'publication_update_failed',
+            'stage' => $error instanceof PlpcImportFailure ? $error->failureStage : 'publishing_pdf_child',
+            'recoverable' => true,
+        ]);
+        plpc_import_job_resume_retryable_failure($job);
+        plpc_import_job_publish_next_result($job);
+        plpc_import_job_publish_next_result($job);
+        $t->same('publish', get_post_status($firstChild));
+        $t->same('publish', get_post_status($secondChild));
+        $t->same('draft', get_post_status($rootId), 'Both children may be staged, but the hierarchy remains undiscoverable until root-last commit.');
+        plpc_import_job_publish_next_result($job);
+
+        $t->same('complete', $job['status'] ?? null);
+        $t->same('publish', get_post_status($rootId));
+        $t->same(3, count($GLOBALS['plpc_test_posts']), 'Recovery must reuse every verified draft rather than insert duplicates.');
+    },
+
+    'playground pdf page-tree root failure rolls the complete child set back before retry' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $fixture = plpc_test_pdf_page_tree_publication_job();
+        $job = $fixture['job'];
+        [$firstChild, $secondChild] = $fixture['childIds'];
+        $rootId = $fixture['rootId'];
+        plpc_import_job_publish_next_result($job);
+        plpc_import_job_publish_next_result($job);
+        $t->same('publish', get_post_status($firstChild));
+        $t->same('publish', get_post_status($secondChild));
+        $t->same('draft', get_post_status($rootId));
+
+        $failedRoot = false;
+        $failedRollback = false;
+        $GLOBALS['plpc_test_wp_update_failure_injector'] = static function (int $postId, array $update) use (
+            $rootId,
+            $firstChild,
+            &$failedRoot,
+            &$failedRollback
+        ): bool {
+            if (!$failedRoot && $postId === $rootId && ($update['post_status'] ?? '') === 'publish') {
+                $failedRoot = true;
+
+                return true;
+            }
+            if (!$failedRollback && $postId === $firstChild && ($update['post_status'] ?? '') === 'draft') {
+                $failedRollback = true;
+
+                return true;
+            }
+
+            return false;
+        };
+        $error = null;
+        try {
+            plpc_import_job_publish_next_result($job);
+        } catch (Throwable $throwable) {
+            $error = $throwable;
+        }
+
+        $t->true($error instanceof PlpcImportFailure);
+        $t->same('publishing_pdf_root', $error instanceof PlpcImportFailure ? $error->failureStage : null);
+        $t->same('rollback_incomplete', $job['publicationRecovery']['status'] ?? null);
+        $t->same(1, count($job['publicationRecovery']['failedPostIds'] ?? []));
+        $t->same('publish', get_post_status($firstChild), 'A failed rollback must remain explicit rather than pretending the hierarchy is private.');
+        $t->same('draft', get_post_status($secondChild));
+        $t->same('draft', get_post_status($rootId));
+        $t->same(0, $job['publishNextResult'] ?? null);
+        $t->same(3, count($GLOBALS['plpc_test_posts']));
+
+        unset($GLOBALS['plpc_test_wp_update_failure_injector']);
+        plpc_import_job_fail($job, (string) $error?->getMessage(), [
+            'code' => $error instanceof PlpcImportFailure ? $error->failureCode : 'publication_update_failed',
+            'stage' => $error instanceof PlpcImportFailure ? $error->failureStage : 'publishing_pdf_root',
+            'recoverable' => true,
+        ]);
+        plpc_import_job_resume_retryable_failure($job);
+        $t->same('rolled_back', $job['publicationRecovery']['status'] ?? null);
+        $t->same('draft', get_post_status($firstChild));
+        $t->same('draft', get_post_status($secondChild));
+        $t->same('draft', get_post_status($rootId), 'Resume must finish rollback before any new publication transition.');
+        $t->same('ready_to_publish', $job['status'] ?? null);
     },
 
     'playground oversized single-page PDF stops before post creation and resumes the same job as a page tree' => static function (TestRunner $t): void {
@@ -1594,6 +2858,77 @@ return [
         $t->same($first, $second);
         $t->same(1, count($GLOBALS['plpc_test_uploads']), 'A retry in a new PHP request must reuse the existing upload.');
         $t->same(1, count($GLOBALS['plpc_test_attachments']), 'A retry in a new PHP request must reuse the existing attachment.');
+    },
+    'playground publication failures retain a typed recoverable cursor and retry idempotently' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'publication-retry.md',
+            'bytes' => base64_encode("# Publication retry\n\nDurable body.\n"),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('ready_to_convert', $snapshot['status'] ?? null);
+        $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('ready_to_publish', $snapshot['status'] ?? null);
+        $t->same(1, count($GLOBALS['plpc_test_posts']));
+        $postId = (int) array_key_first($GLOBALS['plpc_test_posts']);
+        $t->same('draft', $GLOBALS['plpc_test_posts'][$postId]['post_status'] ?? null);
+
+        $GLOBALS['plpc_test_wp_update_failures'] = 1;
+        $failed = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $snapshot = $failed->get_data();
+        $t->same(200, $failed->get_status(), 'A persisted recoverable failure is a successful state-machine response.');
+        $t->same('retryable_failure', $snapshot['status'] ?? null);
+        $t->same(false, $snapshot['ok'] ?? null);
+        $t->same('publication_update_failed', $snapshot['failure']['code'] ?? null);
+        $t->same(true, $snapshot['failure']['recoverable'] ?? null);
+        $t->same(0, $snapshot['publication']['completed'] ?? null);
+        $t->same(1, count($GLOBALS['plpc_test_posts']), 'The publication retry must keep the verified draft rather than duplicating it.');
+
+        $resumed = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('ready_to_publish', $resumed['status'] ?? null);
+        $completed = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('complete', $completed['status'] ?? null);
+        $t->same($postId, $completed['result']['postId'] ?? null);
+        $t->same(1, count($GLOBALS['plpc_test_posts']));
+        $t->same('publish', $GLOBALS['plpc_test_posts'][$postId]['post_status'] ?? null);
+    },
+    'playground interrupted PDF ranges contract durably before parser work is retried' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $pdf = plpc_test_multipage_pdf([
+            'RANGE ONE', 'RANGE TWO', 'RANGE THREE', 'RANGE FOUR',
+            'RANGE FIVE', 'RANGE SIX', 'RANGE SEVEN', 'RANGE EIGHT',
+        ]);
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'contract.pdf',
+            'bytes' => base64_encode($pdf),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $option = PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId;
+        $job = get_option($option);
+        $job['status'] = 'converting';
+        $job['stage'] = 'reading';
+        $job['documents'][0]['pdfPagesPerRequest'] = 8;
+        update_option($option, $job, false);
+
+        $first = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $afterFirst = get_option($option);
+        $t->same('ready_to_convert', $first['status'] ?? null);
+        $t->same(4, $afterFirst['documents'][0]['pdfPagesPerRequest'] ?? null);
+        $t->same(true, $afterFirst['checkpoint']['rangeContracted'] ?? null);
+        $t->same(0, $first['metrics']['pdfPagesExtracted'] ?? null, 'The smaller range must be acknowledged before extraction restarts.');
+
+        $afterFirst['status'] = 'converting';
+        $afterFirst['stage'] = 'reading';
+        update_option($option, $afterFirst, false);
+        $second = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $afterSecond = get_option($option);
+        $t->same('ready_to_convert', $second['status'] ?? null);
+        $t->same(2, $afterSecond['documents'][0]['pdfPagesPerRequest'] ?? null);
+        $t->same(1, $afterSecond['checkpoint']['rangeStartPage'] ?? null);
+        $t->true(in_array('range_contracted', array_column($second['events'] ?? [], 'stage'), true));
+        $t->same(0, count($GLOBALS['plpc_test_posts']));
     },
     'playground converter resumes a checkpoint left converting by an interrupted PHP request' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
@@ -1693,6 +3028,7 @@ return [
             'bytes' => base64_encode(plpc_test_page_wrapper_form_xobject_pdf()),
         ]))->get_data();
         $jobId = (string) ($created['jobId'] ?? '');
+        plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
         $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
 
         $t->same([], $snapshot['renderRequests'] ?? null, 'A page-sized layout wrapper must not become a blocking browser figure request.');
@@ -1711,6 +3047,131 @@ return [
         $t->same('complete', $snapshot['status'] ?? null);
         $postId = max(0, (int) ($snapshot['result']['postId'] ?? 0));
         $t->contains('Readable page text', (string) ($GLOBALS['plpc_test_posts'][$postId]['post_content'] ?? ''));
+    },
+    'playground converter preserves a unique content-rich full-page Form as an infographic request' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'full-page-infographic.pdf',
+            'title' => 'Full-page infographic',
+            'imageMode' => 'all',
+            'pdfMode' => 'layout',
+            'bytes' => base64_encode(plpc_test_full_page_infographic_form_xobject_pdf()),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+
+        $t->same(1, count($snapshot['renderRequests'] ?? []));
+        $t->contains('Full-page PDF visual', (string) ($snapshot['renderRequests'][0]['label'] ?? ''));
+        $t->same(1, $snapshot['metrics']['pdfPageSizedVisualFormsRendered'] ?? null);
+        $t->same(0, $snapshot['metrics']['pdfPageSizedFormsSkipped'] ?? null);
+    },
+    'playground migrates legacy rendered Form byte totals once and persists the counter' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'legacy-render-counter.md',
+            'bytes' => base64_encode('# Legacy render counter'),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $option = PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId;
+        $job = get_option($option);
+        $directory = plpc_import_job_directory($job);
+        plpc_import_job_write_file($directory, 'rendered/legacy-a.png', str_repeat('a', 17));
+        plpc_import_job_write_file($directory, 'rendered/legacy-b.png', str_repeat('b', 23));
+        $job['renderedForms'] = [
+            'legacy-a' => ['storage' => 'rendered/legacy-a.png'],
+            'legacy-b' => ['storage' => 'rendered/legacy-b.png'],
+        ];
+        unset($job['renderedFormBytes']);
+
+        $t->same(40, plpc_import_job_rendered_form_total_bytes($job));
+        $t->same(40, $job['renderedFormBytes'] ?? null, 'The one-time legacy scan must populate the durable counter.');
+        update_option($option, $job, false);
+        $migrated = get_option($option);
+        $t->same(40, $migrated['renderedFormBytes'] ?? null);
+
+        $firstPath = plpc_import_job_storage_path($migrated, 'rendered/legacy-a.png');
+        $secondPath = plpc_import_job_storage_path($migrated, 'rendered/legacy-b.png');
+        unlink($firstPath);
+        unlink($secondPath);
+        $t->same(
+            40,
+            plpc_import_job_rendered_form_total_bytes($migrated),
+            'A migrated job must use its O(1) counter instead of rescanning rendered files.'
+        );
+    },
+    'playground renderer counts successful bytes once across duplicate error and budget paths' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL0oAAAAABJRU5ErkJggg==', true);
+        $t->true(is_string($png) && $png !== '');
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'render-counter.md',
+            'bytes' => base64_encode('# Render counter'),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $option = PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId;
+        $requestFor = static fn (string $id, string $visualId): array => [
+            'id' => $id,
+            'formId' => $visualId,
+            'visualId' => $visualId,
+            'visualKind' => 'form-xobject',
+            'path' => 'render-counter.pdf',
+            'page' => 1,
+            'bbox' => [0.0, 0.0, 1.0, 1.0],
+        ];
+        $firstId = 'form-' . str_repeat('1', 40);
+        $errorId = 'form-' . str_repeat('2', 40);
+        $secondId = 'form-' . str_repeat('3', 40);
+        $job = get_option($option);
+        $job['status'] = 'awaiting_renderer';
+        $job['stage'] = 'awaiting_renderer';
+        $job['renderRequests'] = [
+            $requestFor($firstId, 'visual-first'),
+            $requestFor($errorId, 'visual-error'),
+            $requestFor($secondId, 'visual-second'),
+        ];
+        update_option($option, $job, false);
+
+        $imagePayload = static fn (string $requestId): array => [
+            'requestId' => $requestId,
+            'bytes' => base64_encode($png),
+            'mimeType' => 'image/png',
+            'width' => 1,
+            'height' => 1,
+        ];
+        $first = plpc_submit_import_rendered_media(plpc_test_import_job_request($imagePayload($firstId), $jobId));
+        $t->same(200, $first->get_status());
+        $afterFirst = get_option($option);
+        $t->same(strlen($png), $afterFirst['renderedFormBytes'] ?? null);
+        $t->same(strlen($png), $afterFirst['renderedForms'][$firstId]['bytes'] ?? null);
+
+        $duplicate = plpc_submit_import_rendered_media(plpc_test_import_job_request($imagePayload($firstId), $jobId));
+        $t->true($duplicate->get_status() >= 400);
+        $t->same(strlen($png), get_option($option)['renderedFormBytes'] ?? null, 'A duplicate acknowledgement must not count twice.');
+
+        $failed = plpc_submit_import_rendered_media(plpc_test_import_job_request([
+            'requestId' => $errorId,
+            'error' => 'The browser could not render this optional figure.',
+        ], $jobId));
+        $t->same(200, $failed->get_status());
+        $t->same(strlen($png), get_option($option)['renderedFormBytes'] ?? null, 'A renderer error has no stored media bytes.');
+
+        $second = plpc_submit_import_rendered_media(plpc_test_import_job_request($imagePayload($secondId), $jobId));
+        $t->same(200, $second->get_status());
+        $afterSecond = get_option($option);
+        $t->same(strlen($png) * 2, $afterSecond['renderedFormBytes'] ?? null, 'Two successful renders must accumulate exactly once each.');
+
+        $budgetId = 'form-' . str_repeat('4', 40);
+        $afterSecond['status'] = 'awaiting_renderer';
+        $afterSecond['stage'] = 'awaiting_renderer';
+        $afterSecond['renderRequests'] = [$requestFor($budgetId, 'visual-budget')];
+        $afterSecond['renderedFormBytes'] = PLPC_IMPORT_JOB_MAX_FORM_RENDER_BYTES;
+        update_option($option, $afterSecond, false);
+        $budgeted = plpc_submit_import_rendered_media(plpc_test_import_job_request($imagePayload($budgetId), $jobId));
+        $t->same(200, $budgeted->get_status());
+        $afterBudget = get_option($option);
+        $t->same(PLPC_IMPORT_JOB_MAX_FORM_RENDER_BYTES, $afterBudget['renderedFormBytes'] ?? null, 'A rejected over-budget render must not increment the counter.');
+        $t->contains('budget was reached', (string) ($afterBudget['renderedForms'][$budgetId]['error'] ?? ''));
     },
     'playground converter round trips a PDF Form XObject through the browser renderer job protocol' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
@@ -1737,6 +3198,11 @@ return [
         $t->true(($snapshot['renderRequests'] ?? []) !== [], 'A placed Form XObject should request a browser PDF.js render rather than silently disappearing.');
         $renderRequest = $snapshot['renderRequests'][0];
         $t->true(is_string($renderRequest['id'] ?? null) && $renderRequest['id'] !== '', 'A renderer request needs an opaque id.');
+        $t->true(
+            is_string($renderRequest['visualId'] ?? null) && str_starts_with($renderRequest['visualId'], 'pdf-form-'),
+            'A renderer request must retain the source occurrence id separately from its transport request id.'
+        );
+        $t->same('form-xobject', $renderRequest['visualKind'] ?? null);
         $t->same(1, $renderRequest['page'] ?? null);
         $t->true(is_array($renderRequest['bbox'] ?? null) && count($renderRequest['bbox']) === 4, 'A renderer request needs the page-space Form bounding box.');
 
@@ -1788,8 +3254,64 @@ return [
         $t->true(in_array($snapshot['status'] ?? '', ['complete', 'completed'], true), 'The job should continue after the browser returns its PDF.js render.');
         $t->true(is_array($snapshot['result'] ?? null), 'The completed browser-rendered import needs a page result.');
         $t->true(($snapshot['result']['imagesImported'] ?? 0) >= 1, 'The returned browser render should become imported WordPress media.');
+        $sourceOccurrences = array_column(
+            $snapshot['result']['mediaDisposition']['sourceOccurrences'] ?? [],
+            null,
+            'id'
+        );
+        $t->same(
+            'attachment',
+            $sourceOccurrences[$renderRequest['visualId']]['disposition'] ?? null,
+            'The browser crop and uploaded attachment must reconcile to the same source occurrence.'
+        );
         $t->true(count($GLOBALS['plpc_test_uploads']) >= 1, 'The returned browser render should be written through the normal media importer.');
         $t->same($png, $GLOBALS['plpc_test_uploads'][0]['bits'] ?? null);
+    },
+    'playground converter records a browser renderer failure against its stable PDF occurrence' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'failed-chart.pdf',
+            'title' => 'Failed browser chart',
+            'imageMode' => 'all',
+            'pdfMode' => 'layout',
+            'bytes' => base64_encode(plpc_test_full_page_infographic_form_xobject_pdf()),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $snapshot = $created;
+        for ($attempt = 0; $attempt < 3 && ($snapshot['renderRequests'] ?? []) === []; $attempt++) {
+            $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        }
+        $request = $snapshot['renderRequests'][0] ?? [];
+        $visualId = (string) ($request['visualId'] ?? '');
+        $t->true($visualId !== '');
+
+        $submitted = plpc_submit_import_rendered_media(plpc_test_import_job_request([
+            'requestId' => $request['id'] ?? '',
+            'error' => 'PDF.js could not decode this object.',
+        ], $jobId));
+        $t->same(200, $submitted->get_status());
+        $job = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+        $inventory = array_column($job['documents'][0]['pdfVisualOccurrences'] ?? [], null, 'id');
+        $t->same('unresolved', $inventory[$visualId]['disposition'] ?? null, 'The durable job inventory must record the renderer failure.');
+        $t->same('browser-render-failed', $inventory[$visualId]['reason'] ?? null, 'The job inventory needs the renderer failure reason.');
+        $t->same($visualId, $job['renderedForms'][$request['id']]['visualId'] ?? null);
+
+        $snapshot = $submitted->get_data();
+        for ($attempt = 0; $attempt < 8 && ($snapshot['status'] ?? '') !== 'complete'; $attempt++) {
+            $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        }
+        $t->same(
+            'complete',
+            $snapshot['status'] ?? null,
+            'The text import must finish even when an optional browser crop fails: ' . (string) ($snapshot['message'] ?? '')
+        );
+        $sourceOccurrences = array_column(
+            $snapshot['result']['mediaDisposition']['sourceOccurrences'] ?? [],
+            null,
+            'id'
+        );
+        $t->same('unresolved', $sourceOccurrences[$visualId]['disposition'] ?? null, 'The final media report must retain the failed source occurrence.');
+        $t->same('browser-render-failed', $sourceOccurrences[$visualId]['reason'] ?? null, 'The final media report needs the renderer failure reason.');
     },
     'playground renderer rejects image dimensions that do not match the returned PNG' => static function (TestRunner $t): void {
         $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL0oAAAAABJRU5ErkJggg==', true);
@@ -1802,18 +3324,137 @@ return [
             'height' => 1,
         ]));
     },
-    'playground import storage adds server-side web access protections' => static function (TestRunner $t): void {
-        plpc_test_reset_import_job_state();
-        plpc_create_import_job(plpc_test_import_job_request([
-            'filename' => 'private.md',
-            'bytes' => base64_encode('# Private source'),
-        ]));
+    'playground import storage defaults outside public uploads and reports its protection' => static function (TestRunner $t): void {
+        $previousSoftware = $_SERVER['SERVER_SOFTWARE'] ?? null;
+        $_SERVER['SERVER_SOFTWARE'] = 'nginx/1.27.0';
+        try {
+            plpc_test_reset_import_job_state();
+            $response = plpc_create_import_job(plpc_test_import_job_request([
+                'filename' => 'private.md',
+                'bytes' => base64_encode('# Private source'),
+            ]));
+            $snapshot = $response->get_data();
+            $jobId = (string) ($snapshot['jobId'] ?? '');
+            $job = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId, []);
+            $directory = plpc_import_job_directory(is_array($job) ? $job : $jobId);
+            $uploads = plpc_test_import_job_upload_dir();
+            $root = dirname($directory);
 
-        $root = plpc_test_import_job_upload_dir() . '/' . PLPC_IMPORT_JOB_DIRECTORY;
-        $rules = file_get_contents($root . '/.htaccess');
-        $t->true(is_string($rules), 'Import storage should create an Apache deny rule when permitted.');
-        $t->contains('Require all denied', (string) $rules);
-        $t->true(is_file($root . '/web.config'), 'Import storage should include the IIS deny rule when permitted.');
+            $t->same(201, $response->get_status());
+            $t->same('private', $snapshot['storage']['mode'] ?? null);
+            $t->same(false, $snapshot['storage']['fallback'] ?? null);
+            $t->same(true, $snapshot['storage']['outsidePublicUploads'] ?? null);
+            $t->same('filesystem-private', $snapshot['storage']['accessProtection'] ?? null);
+            $t->same('nginx', $snapshot['storage']['serverFamily'] ?? null);
+            $t->true(!plpc_import_job_path_is_within($directory, $uploads), 'Source and render files should not default to the web-served uploads tree.');
+            $rules = file_get_contents($root . '/.htaccess');
+            $t->true(is_string($rules), 'Private import storage should still receive defense-in-depth Apache rules.');
+            $t->contains('Require all denied', (string) $rules);
+            $t->true(is_file($root . '/web.config'), 'Private import storage should include the IIS deny rule when permitted.');
+        } finally {
+            if ($previousSoftware === null) {
+                unset($_SERVER['SERVER_SOFTWARE']);
+            } else {
+                $_SERVER['SERVER_SOFTWARE'] = $previousSoftware;
+            }
+        }
+    },
+    'playground import storage uses and accurately reports an Apache uploads fallback' => static function (TestRunner $t): void {
+        $previousSoftware = $_SERVER['SERVER_SOFTWARE'] ?? null;
+        $_SERVER['SERVER_SOFTWARE'] = 'Apache/2.4.62 (Unix)';
+        try {
+            plpc_test_reset_import_job_state();
+            add_filter(
+                'plpc_import_job_private_storage_root',
+                static fn (mixed $root): string => plpc_test_import_job_upload_dir() . '/unacceptable-private-root'
+            );
+            $response = plpc_create_import_job(plpc_test_import_job_request([
+                'filename' => 'fallback.md',
+                'bytes' => base64_encode('# Apache fallback'),
+            ]));
+            $snapshot = $response->get_data();
+            $jobId = (string) ($snapshot['jobId'] ?? '');
+            $job = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId, []);
+            $directory = plpc_import_job_directory(is_array($job) ? $job : $jobId);
+            $root = plpc_test_import_job_upload_dir() . '/' . PLPC_IMPORT_JOB_DIRECTORY;
+
+            $t->same(201, $response->get_status());
+            $t->same('uploads-fallback', $snapshot['storage']['mode'] ?? null);
+            $t->same(true, $snapshot['storage']['fallback'] ?? null);
+            $t->same(false, $snapshot['storage']['outsidePublicUploads'] ?? null);
+            $t->same('apache-htaccess-deny', $snapshot['storage']['accessProtection'] ?? null);
+            $t->same('apache', $snapshot['storage']['serverFamily'] ?? null);
+            $t->true(plpc_import_job_path_is_within($directory, plpc_test_import_job_upload_dir()));
+            $t->contains('Apache .htaccess deny rule', implode(' ', array_column($snapshot['events'] ?? [], 'message')));
+            $t->contains('Require all denied', (string) file_get_contents($root . '/.htaccess'));
+        } finally {
+            if ($previousSoftware === null) {
+                unset($_SERVER['SERVER_SOFTWARE']);
+            } else {
+                $_SERVER['SERVER_SOFTWARE'] = $previousSoftware;
+            }
+        }
+    },
+    'playground import storage uses and accurately reports an IIS uploads fallback' => static function (TestRunner $t): void {
+        $previousSoftware = $_SERVER['SERVER_SOFTWARE'] ?? null;
+        $_SERVER['SERVER_SOFTWARE'] = 'Microsoft-IIS/10.0';
+        try {
+            plpc_test_reset_import_job_state();
+            add_filter(
+                'plpc_import_job_private_storage_root',
+                static fn (mixed $root): string => plpc_test_import_job_upload_dir() . '/unacceptable-private-root'
+            );
+            $response = plpc_create_import_job(plpc_test_import_job_request([
+                'filename' => 'fallback.md',
+                'bytes' => base64_encode('# IIS fallback'),
+            ]));
+            $snapshot = $response->get_data();
+            $root = plpc_test_import_job_upload_dir() . '/' . PLPC_IMPORT_JOB_DIRECTORY;
+
+            $t->same(201, $response->get_status());
+            $t->same('uploads-fallback', $snapshot['storage']['mode'] ?? null);
+            $t->same('iis-web-config-deny', $snapshot['storage']['accessProtection'] ?? null);
+            $t->same('iis', $snapshot['storage']['serverFamily'] ?? null);
+            $t->contains('IIS web.config deny rule', implode(' ', array_column($snapshot['events'] ?? [], 'message')));
+            $t->contains('<deny users="*" />', (string) file_get_contents($root . '/web.config'));
+        } finally {
+            if ($previousSoftware === null) {
+                unset($_SERVER['SERVER_SOFTWARE']);
+            } else {
+                $_SERVER['SERVER_SOFTWARE'] = $previousSoftware;
+            }
+        }
+    },
+    'playground import storage refuses an uploads fallback on Nginx and unknown servers' => static function (TestRunner $t): void {
+        $previousSoftware = $_SERVER['SERVER_SOFTWARE'] ?? null;
+        try {
+            foreach (['nginx/1.27.0' => 'Nginx', 'Caddy' => 'unknown web server'] as $software => $expectedLabel) {
+                $_SERVER['SERVER_SOFTWARE'] = $software;
+                plpc_test_reset_import_job_state();
+                add_filter(
+                    'plpc_import_job_private_storage_root',
+                    static fn (mixed $root): string => plpc_test_import_job_upload_dir() . '/unacceptable-private-root'
+                );
+                $response = plpc_create_import_job(plpc_test_import_job_request([
+                    'filename' => 'must-not-be-public.md',
+                    'bytes' => base64_encode('# Never public'),
+                ]));
+                $snapshot = $response->get_data();
+                $fallbackRoot = plpc_test_import_job_upload_dir() . '/' . PLPC_IMPORT_JOB_DIRECTORY;
+
+                $t->same(400, $response->get_status());
+                $t->contains($expectedLabel, (string) ($snapshot['message'] ?? ''));
+                $t->contains('No source file was saved in public uploads', (string) ($snapshot['message'] ?? ''));
+                $t->same([], get_option(PLPC_IMPORT_JOB_INDEX_OPTION, []));
+                $t->same(false, is_dir($fallbackRoot), 'An unsupported web server must fail before fallback storage is created.');
+            }
+        } finally {
+            if ($previousSoftware === null) {
+                unset($_SERVER['SERVER_SOFTWARE']);
+            } else {
+                $_SERVER['SERVER_SOFTWARE'] = $previousSoftware;
+            }
+        }
     },
     'playground converter only enables svg uploads in trusted contexts' => static function (TestRunner $t): void {
         $previousHost = $_SERVER['HTTP_HOST'] ?? null;
@@ -2201,6 +3842,22 @@ return [
         ]);
         $t->same(['docs/book.pdf'], array_keys($byPath));
         $t->same('00017', $byPath['docs/book.pdf'][0]['object'] ?? null);
+
+        $boundedPaths = plpc_pdf_raster_images_by_path([
+            'one.pdf' => [[
+                'object' => '1', 'bytes' => base64_encode('123456'),
+                'mimeType' => 'image/png', 'width' => 1, 'height' => 1,
+            ]],
+            'two.pdf' => [[
+                'object' => '2', 'bytes' => base64_encode('abcdef'),
+                'mimeType' => 'image/png', 'width' => 1, 'height' => 1,
+            ]],
+        ], 10);
+        $t->same(['one.pdf'], array_keys($boundedPaths), 'The decoded raster budget must apply to the whole collection, not once per PDF path.');
+        $t->same([], plpc_pdf_raster_images_from_payload([[
+            'object' => '3', 'bytes' => base64_encode('too-large'),
+            'mimeType' => 'image/png', 'width' => 1, 'height' => 1,
+        ]], 4));
     },
     'playground importer turns browser PDF rasters into WordPress media' => static function (TestRunner $t): void {
         $GLOBALS['plpc_imported_media_by_hash'] = [];
@@ -2240,6 +3897,34 @@ return [
         $t->true(in_array('extract-media-pdf-image-raster-loaded:00017:important', $result['diagnostics'] ?? [], true));
         $t->same(1, count($GLOBALS['plpc_test_attachments']));
         $t->contains('https://playground.test/uploads/attachment-1.png', $GLOBALS['plpc_test_posts'][1]['post_content'] ?? '');
+    },
+    'playground media disposition accounts for repeated occurrences and replaces unresolved images' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $blocks = '<!-- wp:image --><figure><img src="media/chart.png" alt="First chart"></figure><!-- /wp:image -->'
+            . '<!-- wp:image --><figure><img src="media/chart.png" alt="Repeated chart"></figure><!-- /wp:image -->';
+        $collection = [
+            'label' => 'Media collection',
+            'files' => [['path' => 'media/chart.png', 'bytes' => 'same chart bytes']],
+        ];
+        $imported = plpc_import_rendered_images($blocks, ['media/chart.png'], '', 'document.md', $collection, 'document.md');
+        $importedSummary = plpc_import_media_disposition_summary($blocks, $imported['blocks'], $imported['diagnostics']);
+
+        $t->same(2, $imported['imported'] ?? null, 'One deduplicated attachment satisfies two placed occurrences.');
+        $t->same(2, $importedSummary['totalOccurrences'] ?? null);
+        $t->same(2, $importedSummary['attachmentOccurrences'] ?? null);
+        $t->same(0, $importedSummary['unresolvedOccurrences'] ?? null);
+        $t->same(2, count(plpc_rendered_media_occurrences($imported['blocks'])));
+        plpc_import_assert_media_disposition($imported['blocks'], $importedSummary);
+
+        $missing = plpc_import_rendered_images($blocks, ['media/chart.png'], '', 'document.md');
+        $missingSummary = plpc_import_media_disposition_summary($blocks, $missing['blocks'], $missing['diagnostics']);
+        $t->same(0, $missing['imported'] ?? null);
+        $t->same(2, $missingSummary['placeholderOccurrences'] ?? null);
+        $t->same(0, $missingSummary['unresolvedOccurrences'] ?? null);
+        $t->true(!str_contains($missing['blocks'], '<img'), 'A successful conversion must not retain a broken local image URL.');
+        $t->same(2, substr_count($missing['blocks'], 'pandoc-import-image-placeholder'));
+        $t->same(2, substr_count($missing['blocks'], '<!-- wp:html -->'), 'Image placeholders must not leave invalid core/image blocks behind.');
+        plpc_import_assert_media_disposition($missing['blocks'], $missingSummary);
     },
     'playground importer preserves an unrasterized JPEG 2000 PDF image as a downloadable attachment' => static function (TestRunner $t): void {
         $GLOBALS['plpc_imported_media_by_hash'] = [];
@@ -2443,7 +4128,7 @@ HTML;
 
         $t->true($changed, 'Matching image sources should be rewritten through parsed block data.');
         $t->same(['id' => 42], $blocks[0]['attrs']);
-        $t->contains('<img src="https://playground.test/uploads/photo.png?x=1&amp;y=2" alt="First" class="wp-image-42">', $blocks[0]['innerContent'][0]);
+        $t->contains('<img src="https://playground.test/uploads/photo.png?x=1&amp;y=2" alt="First" class="wp-image-42" data-plpc-imported-media="42">', $blocks[0]['innerContent'][0]);
         $t->same([], $blocks[1]['attrs']);
         $t->contains('<img src="media/other.png" alt="Other"/>', $blocks[1]['innerContent'][0]);
         $t->contains('<div><img src="https://playground.test/uploads/photo.png?x=1&amp;y=2" alt="Raw"></div>', $blocks[2]['innerContent'][0]);

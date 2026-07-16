@@ -70,6 +70,16 @@ assert.equal(cleanedPages, 2);
 assert.equal(destroyed, true);
 assert(progress.some(({ label }) => label.includes('page 2 of 2')));
 
+const secondPageOnly = await collectPdfJsFacts({
+  source,
+  pdfjsModule,
+  startPage: 2,
+  maxPages: 1,
+});
+assert.deepEqual(secondPageOnly.range, { startPage: 2, endPage: 2 });
+assert.equal(secondPageOnly.pageCount, 2);
+assert.deepEqual(secondPageOnly.pages.map((page) => page.spans[0].text), ['Beta']);
+
 const bounded = await collectPdfJsFacts({
   source,
   pdfjsModule,

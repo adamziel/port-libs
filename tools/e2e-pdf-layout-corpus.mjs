@@ -11,15 +11,27 @@
  *     --review-url http://127.0.0.1:4174/pdf-layout-corpus.html
  */
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import {
+  validatePdfLayoutManifest,
+  validatePdfTableManifest,
+} from './pdf-corpus-manifest-policy.mjs';
+
+const root = path.resolve(import.meta.dirname, '..');
+const maximumFetchedArtifactBytes = 64 * 1024 * 1024;
 
 const defaults = {
   chrome: 'http://127.0.0.1:9222',
   url: 'http://127.0.0.1:4174/examples.html',
   reviewUrl: 'http://127.0.0.1:4174/pdf-layout-corpus.html',
   manifest: 'tools/pdf-layout-corpus-manifest.json',
+  tableManifest: 'tools/pdf-corpus-table-manifest.json',
+  archive: 'pandoc-showcase/playground/port-libs-playground-converter.zip',
+  archiveManifest: 'pandoc-showcase/playground/port-libs-playground-converter.manifest.json',
   output: 'artifacts/pdf-layout-screenshots',
   timeoutMs: 60_000,
   pollMs: 150,
@@ -48,6 +60,15 @@ function parseOptions(args) {
     } else if (argument === '--manifest') {
       options.manifest = value || options.manifest;
       index += 1;
+    } else if (argument === '--table-manifest') {
+      options.tableManifest = value || options.tableManifest;
+      index += 1;
+    } else if (argument === '--archive') {
+      options.archive = value || options.archive;
+      index += 1;
+    } else if (argument === '--archive-manifest') {
+      options.archiveManifest = value || options.archiveManifest;
+      index += 1;
     } else if (argument === '--output') {
       options.output = value || options.output;
       index += 1;
@@ -60,13 +81,106 @@ function parseOptions(args) {
     } else if (argument === '--review-only') {
       options.reviewOnly = true;
     } else if (argument === '--help' || argument === '-h') {
-      console.log('Usage: node tools/e2e-pdf-layout-corpus.mjs [--url URL] [--review-url URL] [--review-only] [--chrome URL] [--manifest FILE] [--output DIR]');
+      console.log('Usage: node tools/e2e-pdf-layout-corpus.mjs [--url URL] [--review-url URL] [--review-only] [--chrome URL] [--manifest FILE] [--table-manifest FILE] [--archive FILE] [--archive-manifest FILE] [--output DIR]');
       process.exit(0);
     } else {
       throw new Error(`Unknown argument: ${argument}`);
     }
   }
   return options;
+}
+
+function sha256(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+async function fileIdentity(filename) {
+  const absolutePath = path.resolve(filename);
+  const [bytes, metadata] = await Promise.all([readFile(absolutePath), stat(absolutePath)]);
+  return {
+    path: path.relative(root, absolutePath) || path.basename(absolutePath),
+    bytes: metadata.size,
+    sha256: sha256(bytes),
+  };
+}
+
+async function fetchedIdentity(url) {
+  const response = await fetch(url, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`Could not fetch tested artifact ${url}: HTTP ${response.status}.`);
+  const declaredBytes = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declaredBytes) && declaredBytes > maximumFetchedArtifactBytes) {
+    throw new Error(`Tested artifact ${url} exceeds the ${maximumFetchedArtifactBytes}-byte fetch limit.`);
+  }
+  if (!response.body) throw new Error(`Tested artifact ${url} has no response body.`);
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maximumFetchedArtifactBytes) throw new Error(`Tested artifact ${url} exceeds the fetch limit.`);
+      chunks.push(Buffer.from(value));
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => {});
+    throw error;
+  }
+  const bytes = Buffer.concat(chunks, total);
+  return { url: String(url), bytes: bytes.length, sha256: sha256(bytes), contents: bytes };
+}
+
+async function productionRunIdentity(options) {
+  const archive = await fileIdentity(options.archive);
+  const archiveManifestFile = await fileIdentity(options.archiveManifest);
+  const archiveManifest = JSON.parse(await readFile(path.resolve(options.archiveManifest), 'utf8'));
+  if (archiveManifest.archiveSha256 !== archive.sha256) {
+    throw new Error(`Production archive SHA-256 ${archive.sha256} does not match ${options.archiveManifest}.`);
+  }
+  if (archiveManifest.archiveBytes !== archive.bytes) {
+    throw new Error(`Production archive size ${archive.bytes} does not match ${options.archiveManifest}.`);
+  }
+  if (!archiveManifest.entries || typeof archiveManifest.entries !== 'object' || Object.keys(archiveManifest.entries).length < 1) {
+    throw new Error(`${options.archiveManifest} does not contain an archive content manifest.`);
+  }
+  const servedArchiveUrl = new URL('playground/port-libs-playground-converter.zip', options.reviewUrl);
+  const servedManifestUrl = new URL('playground/port-libs-playground-converter.manifest.json', options.reviewUrl);
+  const [servedArchiveWithBytes, servedManifestWithBytes] = await Promise.all([
+    fetchedIdentity(servedArchiveUrl),
+    fetchedIdentity(servedManifestUrl),
+  ]);
+  const servedManifest = JSON.parse(servedManifestWithBytes.contents.toString('utf8'));
+  const servedArchive = { ...servedArchiveWithBytes };
+  const servedManifestFile = { ...servedManifestWithBytes };
+  delete servedArchive.contents;
+  delete servedManifestFile.contents;
+  if (servedArchive.sha256 !== archive.sha256 || servedArchive.bytes !== archive.bytes) {
+    throw new Error(`The tested site serves archive ${servedArchive.sha256}/${servedArchive.bytes}, not the local production artifact ${archive.sha256}/${archive.bytes}.`);
+  }
+  if (servedManifest.archiveSha256 !== servedArchive.sha256 || servedManifest.archiveBytes !== servedArchive.bytes) {
+    throw new Error('The tested site archive and its deployed content manifest disagree.');
+  }
+  if (servedManifestFile.sha256 !== archiveManifestFile.sha256) {
+    throw new Error(`The tested site serves archive manifest ${servedManifestFile.sha256}, not ${archiveManifestFile.sha256}.`);
+  }
+  const commitSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+  const dirtyPaths = execFileSync('git', ['status', '--porcelain=v1', '--untracked-files=no'], { cwd: root, encoding: 'utf8' })
+    .split(/\r?\n/)
+    .filter(Boolean);
+  return {
+    commitSha,
+    workingTreeDirty: dirtyPaths.length > 0,
+    dirtyTrackedPathCount: dirtyPaths.length,
+    archive,
+    archiveManifest: archiveManifestFile,
+    archiveSha256: archive.sha256,
+    archiveEntries: Object.keys(archiveManifest.entries).length,
+    servedArchive,
+    servedArchiveManifest: servedManifestFile,
+    corpusManifest: await fileIdentity(options.manifest),
+    tableManifest: await fileIdentity(options.tableManifest),
+  };
 }
 
 function sleep(milliseconds) {
@@ -193,7 +307,8 @@ const outerSnapshotExpression = `(() => {
 })()`;
 
 const iframeSnapshotExpression = `(() => {
-  const bodyText = String(document.body?.innerText || '').replace(/\\s+/g, ' ').trim();
+  const rawText = String(document.body?.innerText || '');
+  const bodyText = rawText.replace(/\\s+/g, ' ').trim();
   const paragraphs = Array.from(document.querySelectorAll('p'));
   const compactLength = (value) => Array.from(String(value || '').replace(/\\s+/gu, '')).length;
   const singleGlyphParagraphs = paragraphs
@@ -229,8 +344,52 @@ const iframeSnapshotExpression = `(() => {
     const ratio = (light + 0.05) / (dark + 0.05);
     if (ratio < 4.5) lowContrastPdfFillCells.push(String(node.textContent || '').trim().slice(0, 120));
   }
+  const forbiddenControlCounts = new Map();
+  let replacementCharacterCount = 0;
+  for (const character of rawText) {
+    const codePoint = character.codePointAt(0);
+    if (codePoint === 0xfffd) replacementCharacterCount += 1;
+    if (codePoint <= 0x08 || (codePoint >= 0x0b && codePoint <= 0x0c)
+      || (codePoint >= 0x0e && codePoint <= 0x1f) || (codePoint >= 0x7f && codePoint <= 0x9f)) {
+      const label = 'U+' + codePoint.toString(16).toUpperCase().padStart(4, '0');
+      forbiddenControlCounts.set(label, (forbiddenControlCounts.get(label) || 0) + 1);
+    }
+  }
+  const images = Array.from(document.querySelectorAll('img'));
+  const pendingImages = images.filter((node) => !node.complete).length;
+  const brokenImages = images
+    .filter((node) => node.complete && node.naturalWidth === 0)
+    .map((node) => String(node.getAttribute('src') || '').slice(0, 200));
+  const mediaNodes = [
+    ...Array.from(document.querySelectorAll('[data-pdf-media-disposition], .pdf-media-placeholder, .wp-block-pdf-media-placeholder, .pandoc-pdf-form-figure')),
+    ...images.filter((node) => !node.closest('[data-pdf-media-disposition], .pdf-media-placeholder, .wp-block-pdf-media-placeholder, .pandoc-pdf-form-figure')),
+  ];
+  const mediaOccurrences = mediaNodes.map((node, index) => {
+    const image = node.matches('img') ? node : node.querySelector('img');
+    const declared = String(node.getAttribute('data-pdf-media-disposition') || image?.getAttribute('data-pdf-media-disposition') || '');
+    const disposition = declared || (image ? 'imported' : (node.matches('.pdf-media-placeholder, .wp-block-pdf-media-placeholder, .pandoc-pdf-form-placeholder') ? 'original-placeholder' : 'unresolved'));
+    const page = String(node.getAttribute('data-pandoc-pdf-page') || image?.getAttribute('data-pandoc-pdf-page') || 'unknown');
+    const object = String(node.getAttribute('data-pandoc-pdf-image-object') || image?.getAttribute('data-pandoc-pdf-image-object') || '');
+    const request = String(node.getAttribute('data-pdf-form-request') || '');
+    const source = String(image?.getAttribute('src') || node.getAttribute('data-pdf-media-source') || '');
+    const stablePart = object || request || source || String(index + 1);
+    return {
+      id: disposition + ':' + page + ':' + stablePart,
+      disposition,
+      page,
+      object,
+      request,
+      source,
+      caption: String(node.closest('figure')?.querySelector('figcaption')?.textContent || '').replace(/\\s+/g, ' ').trim(),
+    };
+  });
+  const mediaDispositionCounts = {};
+  for (const occurrence of mediaOccurrences) {
+    mediaDispositionCounts[occurrence.disposition] = (mediaDispositionCounts[occurrence.disposition] || 0) + 1;
+  }
   return {
-    ready: document.readyState === 'complete' || document.readyState === 'interactive',
+    ready: document.readyState === 'complete' && pendingImages === 0,
+    rawText,
     bodyText,
     textBytes: new TextEncoder().encode(bodyText).length,
     paragraphs: paragraphs.length,
@@ -243,6 +402,12 @@ const iframeSnapshotExpression = `(() => {
     singleGlyphParagraphs,
     spacedGlyphRuns,
     lowContrastPdfFillCells,
+    forbiddenControls: Array.from(forbiddenControlCounts, ([codePoint, count]) => ({ codePoint, count })),
+    replacementCharacterCount,
+    pendingImages,
+    brokenImages,
+    mediaOccurrences,
+    mediaDispositionCounts,
     documentOverflow: document.documentElement
       ? Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)
       : 0,
@@ -279,7 +444,11 @@ async function iframeSnapshot(page, chromeUrl, clients, contexts) {
   }
 }
 
-function criterionErrors(criteria, snapshot) {
+function significantCharacters(value) {
+  return String(value || '').normalize('NFC').replace(/[\t\n\r\f ]+/gu, '');
+}
+
+function criterionErrors(criteria, verification, snapshot) {
   const checks = {
     minTextBytes: ['textBytes', (actual, expected) => actual >= expected],
     minParagraphs: ['paragraphs', (actual, expected) => actual >= expected],
@@ -319,7 +488,54 @@ function criterionErrors(criteria, snapshot) {
       break;
     }
   }
+  const significantText = significantCharacters(snapshot.rawText);
+  for (const expectedText of Array.isArray(verification.exactSignificantText) ? verification.exactSignificantText : []) {
+    if (!significantText.includes(significantCharacters(expectedText))) {
+      errors.push(`exactSignificantText: missing exact character sequence ${JSON.stringify(expectedText)}`);
+    }
+  }
+  if (verification.forbidControlCharacters && snapshot.forbiddenControls.length > 0) {
+    errors.push(`forbiddenControls: ${snapshot.forbiddenControls.map(({ codePoint, count }) => `${codePoint}×${count}`).join(', ')}`);
+  }
+  if (verification.forbidReplacementCharacter && snapshot.replacementCharacterCount > 0) {
+    errors.push(`replacement characters: observed ${snapshot.replacementCharacterCount} U+FFFD occurrences`);
+  }
+  const media = verification.media || {};
+  const unresolvedMedia = snapshot.mediaOccurrences.filter((occurrence) => occurrence.disposition === 'unresolved');
+  if (media.requireExplicitDisposition && unresolvedMedia.length > 0) {
+    errors.push(`media disposition: ${unresolvedMedia.length} visible occurrences lack an explicit disposition`);
+  }
+  if (Number.isFinite(media.maxBroken) && snapshot.brokenImages.length > media.maxBroken) {
+    errors.push(`broken media: expected at most ${media.maxBroken}, observed ${snapshot.brokenImages.length}`);
+  }
+  if (Number.isFinite(media.maxUnresolved) && unresolvedMedia.length > media.maxUnresolved) {
+    errors.push(`unresolved media: expected at most ${media.maxUnresolved}, observed ${unresolvedMedia.length}`);
+  }
+  if (Number.isFinite(media.exactOccurrences) && snapshot.mediaOccurrences.length !== media.exactOccurrences) {
+    errors.push(`media occurrences: expected ${media.exactOccurrences}, observed ${snapshot.mediaOccurrences.length}`);
+  }
+  if (Array.isArray(media.orderedOccurrenceIds)) {
+    const actualIds = snapshot.mediaOccurrences.map((occurrence) => occurrence.id);
+    if (JSON.stringify(actualIds) !== JSON.stringify(media.orderedOccurrenceIds)) {
+      errors.push(`media order: expected ${media.orderedOccurrenceIds.join(' → ')}, observed ${actualIds.join(' → ')}`);
+    }
+  }
   return errors;
+}
+
+function verificationEvidence(document, snapshot) {
+  const significantText = significantCharacters(snapshot.rawText);
+  return {
+    expected: document.verification,
+    significantCharacterCount: Array.from(significantText).length,
+    significantTextSha256: sha256(Buffer.from(significantText, 'utf8')),
+    forbiddenControls: snapshot.forbiddenControls,
+    replacementCharacterCount: snapshot.replacementCharacterCount,
+    brokenImages: snapshot.brokenImages,
+    mediaOccurrenceIds: snapshot.mediaOccurrences.map((occurrence) => occurrence.id),
+    mediaDispositionCounts: snapshot.mediaDispositionCounts,
+    mediaOccurrences: snapshot.mediaOccurrences,
+  };
 }
 
 function layoutErrors(snapshot) {
@@ -537,7 +753,13 @@ async function captureScreenshot(page, filename) {
     fromSurface: true,
     captureBeyondViewport: false,
   });
-  await writeFile(filename, Buffer.from(capture.data, 'base64'));
+  const bytes = Buffer.from(capture.data, 'base64');
+  await writeFile(filename, bytes);
+  return {
+    path: path.relative(root, path.resolve(filename)),
+    bytes: bytes.length,
+    sha256: sha256(bytes),
+  };
 }
 
 async function settleVisualPaint(page, milliseconds = 250) {
@@ -634,9 +856,12 @@ class VerificationError extends Error {
 async function main() {
   const options = parseOptions(process.argv.slice(2));
   const manifest = JSON.parse(await readFile(options.manifest, 'utf8'));
-  if (!Array.isArray(manifest) || manifest.length < 10) {
-    throw new Error(`Expected at least 10 PDF corpus documents in ${options.manifest}.`);
-  }
+  const tableManifest = JSON.parse(await readFile(options.tableManifest, 'utf8'));
+  const manifestValidation = validatePdfLayoutManifest(manifest, { rootDir: root });
+  const tableManifestValidation = validatePdfTableManifest(tableManifest, { rootDir: root });
+  const manifestErrors = [...manifestValidation.errors, ...tableManifestValidation.errors];
+  if (manifestErrors.length > 0) throw new Error(`PDF corpus manifest validation failed: ${manifestErrors.join('; ')}`);
+  const runIdentity = await productionRunIdentity(options);
   await mkdir(options.output, { recursive: true });
 
   const browser = await CdpClient.connect(await browserWebSocketUrl(options.chrome));
@@ -672,7 +897,7 @@ async function main() {
       const snapshot = await waitForExample(page, options, document, iframeClients, parentFrameContexts);
       const errors = [
         ...layoutErrors(snapshot.outer),
-        ...criterionErrors(document.success || {}, snapshot.frame),
+        ...criterionErrors(document.success || {}, document.verification || {}, snapshot.frame),
       ];
       if (snapshot.frame.documentOverflow > 2) errors.push(`preview overflows by ${snapshot.frame.documentOverflow}px`);
       if (snapshot.frame.spacedGlyphRuns.length > 0) errors.push(`sustained inter-glyph spacing remains: ${snapshot.frame.spacedGlyphRuns.join(' | ')}`);
@@ -685,8 +910,7 @@ async function main() {
       for (const [viewportName, viewport] of Object.entries(viewports)) {
         await setViewport(page, viewport);
         const filename = path.join(options.output, `${document.id}-${viewportName}.png`);
-        await captureScreenshot(page, filename);
-        screenshots[viewportName] = filename;
+        screenshots[viewportName] = await captureScreenshot(page, filename);
       }
       await setViewport(page, viewports.mobile);
       const navigation = {};
@@ -704,7 +928,20 @@ async function main() {
       }
       const frameSummary = { ...snapshot.frame };
       delete frameSummary.bodyText;
-      results.push({ id: expectedId, outer: snapshot.outer, frame: frameSummary, screenshots, navigation });
+      delete frameSummary.rawText;
+      results.push({
+        id: expectedId,
+        sourceArtifact: document.artifact,
+        provenance: document.provenance,
+        license: document.license,
+        review: document.review,
+        failureClasses: document.failureClasses,
+        criteria: verificationEvidence(document, snapshot.frame),
+        outer: snapshot.outer,
+        frame: frameSummary,
+        screenshots,
+        navigation,
+      });
         console.log(`PASS ${expectedId}: ${snapshot.frame.textBytes} text bytes, ${snapshot.frame.paragraphs} paragraphs`);
       }
     }
@@ -731,9 +968,9 @@ async function main() {
     if (reviewerFailures.length > 0) {
       throw new VerificationError(`The desktop converted reviewer failed: ${reviewerFailures.join('; ')}`, reviewerSnapshot);
     }
-    reviewer.screenshots.multicolumnDesktop = path.join(options.output, 'reviewer-multicolumn-desktop.png');
+    const multicolumnDesktopScreenshot = path.join(options.output, 'reviewer-multicolumn-desktop.png');
     await settleVisualPaint(page);
-    await captureScreenshot(page, reviewer.screenshots.multicolumnDesktop);
+    reviewer.screenshots.multicolumnDesktop = await captureScreenshot(page, multicolumnDesktopScreenshot);
 
     if (!(await selectReviewerExample(page, formulaId))) {
       throw new VerificationError(`The reviewer picker does not contain ${formulaId}.`);
@@ -753,9 +990,9 @@ async function main() {
     if (reviewerFailures.length > 0) {
       throw new VerificationError(`The formula reviewer deep link failed: ${reviewerFailures.join('; ')}`, reviewerSnapshot);
     }
-    reviewer.screenshots.formulaDesktop = path.join(options.output, 'reviewer-formula-desktop.png');
+    const formulaDesktopScreenshot = path.join(options.output, 'reviewer-formula-desktop.png');
     await settleVisualPaint(page, 500);
-    await captureScreenshot(page, reviewer.screenshots.formulaDesktop);
+    reviewer.screenshots.formulaDesktop = await captureScreenshot(page, formulaDesktopScreenshot);
 
     if (!(await selectReviewerExample(page, theatreId))) {
       throw new VerificationError(`The reviewer picker does not contain ${theatreId}.`);
@@ -765,9 +1002,9 @@ async function main() {
     if (reviewerFailures.length > 0) {
       throw new VerificationError(`The theatre reviewer failed: ${reviewerFailures.join('; ')}`, reviewerSnapshot);
     }
-    reviewer.screenshots.theatreDesktop = path.join(options.output, 'reviewer-theatre-desktop.png');
+    const theatreDesktopScreenshot = path.join(options.output, 'reviewer-theatre-desktop.png');
     await settleVisualPaint(page, 500);
-    await captureScreenshot(page, reviewer.screenshots.theatreDesktop);
+    reviewer.screenshots.theatreDesktop = await captureScreenshot(page, theatreDesktopScreenshot);
 
     if (!(await selectReviewerExample(page, formulaId))) {
       throw new VerificationError(`The reviewer picker does not contain ${formulaId}.`);
@@ -801,9 +1038,9 @@ async function main() {
     if (reviewerFailures.length > 0) {
       throw new VerificationError(`The mobile reviewer failed: ${reviewerFailures.join('; ')}`, reviewerSnapshot);
     }
-    reviewer.screenshots.multicolumnMobile = path.join(options.output, 'reviewer-multicolumn-mobile.png');
+    const multicolumnMobileScreenshot = path.join(options.output, 'reviewer-multicolumn-mobile.png');
     await settleVisualPaint(page);
-    await captureScreenshot(page, reviewer.screenshots.multicolumnMobile);
+    reviewer.screenshots.multicolumnMobile = await captureScreenshot(page, multicolumnMobileScreenshot);
 
     await setViewport(page, viewports.desktop);
     if (!(await clickControl(page, '[data-review-view="compare"]'))) {
@@ -814,9 +1051,9 @@ async function main() {
     if (reviewerFailures.length > 0) {
       throw new VerificationError(`The compare reviewer failed: ${reviewerFailures.join('; ')}`, reviewerSnapshot);
     }
-    reviewer.screenshots.multicolumnCompareDesktop = path.join(options.output, 'reviewer-multicolumn-compare-desktop.png');
+    const multicolumnCompareDesktopScreenshot = path.join(options.output, 'reviewer-multicolumn-compare-desktop.png');
     await settleVisualPaint(page, 2_000);
-    await captureScreenshot(page, reviewer.screenshots.multicolumnCompareDesktop);
+    reviewer.screenshots.multicolumnCompareDesktop = await captureScreenshot(page, multicolumnCompareDesktopScreenshot);
     reviewer.finalSnapshot = reviewerSnapshot;
     console.log(`PASS PDF layout reviewer: ${manifest.length} public documents, deep links, mobile safety, and comparison view`);
 
@@ -831,9 +1068,14 @@ async function main() {
 
     const report = {
       ok: true,
+      runIdentity,
       url: options.url,
       reviewUrl: options.reviewUrl,
       manifest: options.manifest,
+      corpus: {
+        layout: manifestValidation.summary,
+        tables: tableManifestValidation.summary,
+      },
       documents: results.length,
       viewports,
       results,

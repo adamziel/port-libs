@@ -16,7 +16,7 @@ $pageFactsPdf = static function (): string {
     $imageBytes = "\xff\x00\x00";
 
     return "%PDF-1.4\n"
-        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels << /Nums [0 << /P (front-) /S /r >> 1 << /P (body-) /S /D /St 7 >>] >> >>\nendobj\n"
         . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>\nendobj\n"
         . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 600] /CropBox [10 20 390 580] "
         . "/Resources << /Font << /F1 7 0 R >> /XObject << /Im1 8 0 R >> >> "
@@ -70,7 +70,12 @@ return [
         $pageOne = $facts->page(1);
         $t->true($pageOne instanceof PdfPageFacts);
         $t->same(3, $pageOne->pageObject());
+        $t->same('front-i', $pageOne->label());
         $t->same([10.0, 20.0, 390.0, 580.0], $pageOne->geometry()['bbox']);
+        $t->same('CropBox', $pageOne->geometry()['bboxSource']);
+        $t->same(false, $pageOne->geometry()['bboxInherited']);
+        $t->same(false, $pageOne->geometry()['bboxInferred']);
+        $t->same(1.0, $pageOne->geometry()['layoutConfidence']);
         $t->same(['Alpha', 'Beta'], array_column($pageOne->text()['lines'], 'text'));
         $t->true(count($pageOne->text()['spans']) >= 2);
         $t->same(1, count($pageOne->graphics()['filledRectangles']));
@@ -79,6 +84,7 @@ return [
 
         $pageTwo = $facts->page(2);
         $t->true($pageTwo instanceof PdfPageFacts);
+        $t->same('body-7', $pageTwo->label());
         $t->same(90, $pageTwo->geometry()['rotation']);
         $t->same(1, count($pageTwo->graphics()['forms']));
 
@@ -87,6 +93,27 @@ return [
         foreach ($ids as $id) {
             $t->true(is_string($id) && preg_match('/^[a-z-]+-[a-f0-9]{24}$/', $id) === 1);
         }
+    },
+    'labels a missing page box as bounded inferred geometry' => static function (TestRunner $t): void {
+        $content = 'BT (bounded fallback) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $page = (new NativePdfFactsProvider())->extract($pdf)->page(1);
+
+        $t->true($page instanceof PdfPageFacts);
+        $t->same([0.0, 0.0, 612.0, 792.0], $page->geometry()['bbox']);
+        $t->same('default-letter', $page->geometry()['bboxSource']);
+        $t->same(true, $page->geometry()['bboxInferred']);
+        $t->same(0.45, $page->geometry()['layoutConfidence']);
+        $issue = array_values(array_filter(
+            $page->issues(),
+            static fn (array $row): bool => ($row['reason'] ?? null) === 'inferred_page_box'
+        ));
+        $t->same(1, count($issue));
+        $t->same(true, $issue[0]['recoverable'] ?? null);
     },
     'round trips page facts through stable JSON without source bytes' => static function (
         TestRunner $t

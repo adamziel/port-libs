@@ -1,5 +1,4 @@
-import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';
-import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';
+import { renderPdfFormRequestsIncrementally } from './pdfjs-form-rasterizer.mjs';
 
 // This matches the server-side per-import cap. Keep the decoded image bytes
 // in multipart fields, not JSON/base64, so a regular WordPress upload does
@@ -34,6 +33,7 @@ if (root) {
   let statusTimer = null;
   let activeJobId = '';
   let lastSnapshot = null;
+  const jobSession = createAdminImportJobSession(config);
 
   input.addEventListener('change', () => {
     selected = uploadFromFiles(Array.from(input.files || []));
@@ -60,6 +60,11 @@ if (root) {
     } catch (error) {
       showError(errorMessage(error));
     }
+  });
+  window.addEventListener('beforeunload', (event) => {
+    if (!active) return;
+    event.preventDefault();
+    event.returnValue = '';
   });
 
   function updateSelection({ clearResult = false } = {}) {
@@ -116,6 +121,7 @@ if (root) {
       if (snapshot.status === 'failed') {
         throw new Error(snapshot.message || 'Import failed.');
       }
+      jobSession.forget(snapshot.jobId);
       showResult(snapshot.result || {});
     } finally {
       active = false;
@@ -129,34 +135,48 @@ if (root) {
         statusTimer = null;
       }
       updateSelection();
+      if (lastSnapshot?.status !== 'awaiting_output_mode' && jobSession.load()) {
+        showSavedImportAction(lastSnapshot);
+      }
     }
   }
 
   async function driveImportJob(initialSnapshot, pdfFiles) {
     let snapshot = initialSnapshot;
+    let remainingPixels = pdfFormRenderTotalPixelLimit;
+    let remainingImageBytes = pdfFormRenderTotalImageByteLimit;
     while (!['complete', 'failed', 'awaiting_output_mode'].includes(String(snapshot.status || ''))) {
         if (Array.isArray(snapshot.renderRequests) && snapshot.renderRequests.length > 0) {
-          await ensurePdfRenderSources(snapshot, pdfFiles);
           appendEvent('renderer', `Rendering ${snapshot.renderRequests.length} PDF figure${snapshot.renderRequests.length === 1 ? '' : 's'} locally in this browser.`);
-          const rendered = await renderPdfFormRequests({
-            filesByPath: pdfFiles,
-            requests: snapshot.renderRequests,
-            pdfjs: config,
-            maxTotalPixels: pdfFormRenderTotalPixelLimit,
-            maxTotalImageBytes: pdfFormRenderTotalImageByteLimit,
-            onProgress: ({ completed, total, label }) => {
-              setProgress({
-                ...snapshot,
-                progress: { completed, total: Math.max(total, 1), label },
-              }, { replaceEvents: false });
-            },
-          });
-          for (const item of rendered) {
-            const body = item.error
-              ? { requestId: item.requestId, error: item.error }
-              : renderedImageFormData(item);
-            snapshot = await request(`imports/${encodeURIComponent(snapshot.jobId)}/rendered-media`, { method: 'POST', body });
-            setProgress(snapshot);
+          for (const requests of pdfRenderRequestGroups(snapshot.renderRequests)) {
+            const filesByPath = remainingPixels <= 0 || remainingImageBytes <= 0
+              ? new Map()
+              : await pdfFilesForAdminRenderRequests(snapshot, pdfFiles, requests);
+            for await (const item of renderPdfFormRequestsIncrementally({
+              filesByPath,
+              requests,
+              pdfjs: config,
+              maxTotalPixels: remainingPixels,
+              maxTotalImageBytes: remainingImageBytes,
+              onProgress: ({ completed, total, label }) => {
+                setProgress({
+                  ...snapshot,
+                  progress: { completed, total: Math.max(total, 1), label },
+                }, { replaceEvents: false });
+              },
+            })) {
+              if (!item.error && item.bytes instanceof Uint8Array) {
+                const pixels = Math.max(0, Number(item.width) || 0) * Math.max(0, Number(item.height) || 0);
+                remainingPixels = Math.max(0, remainingPixels - pixels);
+                remainingImageBytes = Math.max(0, remainingImageBytes - item.bytes.byteLength);
+              }
+              if (item.budgetExhausted === 'pixels') remainingPixels = 0;
+              if (item.budgetExhausted === 'image-bytes') remainingImageBytes = 0;
+              snapshot = await submitRenderedMedia(snapshot, item);
+              setProgress(snapshot);
+              if (['complete', 'failed'].includes(String(snapshot.status || ''))) break;
+            }
+            if (['complete', 'failed'].includes(String(snapshot.status || ''))) break;
           }
           continue;
         }
@@ -165,6 +185,34 @@ if (root) {
       }
 
     return snapshot;
+  }
+
+  async function submitRenderedMedia(snapshot, item) {
+    const jobId = encodeURIComponent(String(snapshot?.jobId || ''));
+    const requestId = String(item?.requestId || '');
+    if (!jobId || !requestId) {
+      throw new Error('WordPress returned an invalid PDF figure request.');
+    }
+    const body = () => (item.error
+      ? { requestId, error: item.error }
+      : renderedImageFormData(item));
+    try {
+      return await request(`imports/${jobId}/rendered-media`, { method: 'POST', body: body() });
+    } catch (error) {
+      appendEvent('recovery', 'The PDF figure upload ended unexpectedly. Checking the saved import before sending it again…');
+      const recovered = await request(`imports/${jobId}`, { method: 'GET' });
+      setProgress(recovered);
+      const stillOutstanding = (recovered.renderRequests || [])
+        .some((requestItem) => String(requestItem?.id || '') === requestId);
+      if (!stillOutstanding || ['complete', 'failed'].includes(String(recovered.status || ''))) {
+        return recovered;
+      }
+      try {
+        return await request(`imports/${jobId}/rendered-media`, { method: 'POST', body: body() });
+      } catch (retryError) {
+        throw new Error(`${errorMessage(retryError)} The rendered figure remains recoverable; use Resume saved import to re-check WordPress before rendering it again.`);
+      }
+    }
   }
 
   function startStatusPolling() {
@@ -177,7 +225,10 @@ if (root) {
         return;
       }
       try {
-        setProgress(await request(`imports/${encodeURIComponent(jobId)}`, { method: 'GET' }));
+        const snapshot = await request(`imports/${encodeURIComponent(jobId)}`, { method: 'GET' });
+        if (active && activeJobId === jobId && !['complete', 'failed'].includes(String(lastSnapshot?.status || ''))) {
+          setProgress(snapshot);
+        }
       } catch {
         // The foreground request reports actionable errors. A transient poll
         // failure must not interrupt an import that is still running.
@@ -203,28 +254,46 @@ if (root) {
           'recovery',
           `The server request ended unexpectedly. Checking the saved import state (${recoveryAttempt + 1} of ${maxAdvanceRecoveryAttempts})…`,
         );
-        await pause(400 * (recoveryAttempt + 1));
-        try {
-          const recovered = await request(`imports/${encodeURIComponent(jobId)}`, { method: 'GET' });
-          setProgress(recovered);
-          // A completed checkpoint, browser-render request, or a fresh
-          // ready-to-convert state is safe for the outer state machine to
-          // handle. Only "converting" needs another bounded advance retry.
-          if (String(recovered.status || '') !== 'converting') {
-            return recovered;
+        for (let statusAttempt = 1; statusAttempt <= 3; statusAttempt += 1) {
+          await pause(400 * statusAttempt);
+          try {
+            const recovered = await request(`imports/${encodeURIComponent(jobId)}`, { method: 'GET' });
+            setProgress(recovered);
+            // The mutation may have committed even when its response was
+            // lost. While WordPress still reports the original worker as
+            // converting, wait instead of retransmitting /advance.
+            if (String(recovered.status || '') !== 'converting') {
+              return recovered;
+            }
+          } catch (statusError) {
+            lastError = statusError;
           }
-        } catch (statusError) {
-          lastError = statusError;
         }
       }
     }
     throw new Error(`${errorMessage(lastError)} The importer stopped retrying automatically to avoid duplicating work. Refresh to inspect the saved import state, then start a new import if WordPress marked it failed.`);
   }
 
-  async function ensurePdfRenderSources(snapshot, pdfFiles) {
-    for (const renderRequest of snapshot.renderRequests || []) {
+  function pdfRenderRequestGroups(requests) {
+    const groups = new Map();
+    for (const requestItem of Array.isArray(requests) ? requests : []) {
+      const path = String(requestItem?.path || '');
+      const sourceKey = String(requestItem?.sourceKey || path);
+      if (!groups.has(sourceKey)) groups.set(sourceKey, []);
+      groups.get(sourceKey).push(requestItem);
+    }
+    return Array.from(groups.values());
+  }
+
+  async function pdfFilesForAdminRenderRequests(snapshot, pdfFiles, renderRequests) {
+    const filesByPath = new Map();
+    for (const renderRequest of renderRequests || []) {
       const path = String(renderRequest?.path || '');
-      if (!path || pdfFiles.has(path)) {
+      if (!path || filesByPath.has(path)) {
+        continue;
+      }
+      if (pdfFiles.has(path)) {
+        filesByPath.set(path, pdfFiles.get(path));
         continue;
       }
       try {
@@ -237,7 +306,8 @@ if (root) {
         if (sourceBytes.length === 0) {
           throw new Error('The server returned an empty PDF renderer source.');
         }
-        pdfFiles.set(sourcePath, sourceBytes);
+        filesByPath.set(path, sourceBytes);
+        filesByPath.set(sourcePath, sourceBytes);
       } catch (error) {
         // Keep the request outstanding: the shared renderer turns this into a
         // per-figure error, which lets PHP continue with its regular source
@@ -245,10 +315,13 @@ if (root) {
         appendEvent('renderer', `One PDF figure source could not be loaded in this browser (${errorMessage(error)}). The text import will continue.`);
       }
     }
+
+    return filesByPath;
   }
 
   function setProgress(snapshot, { replaceEvents = true } = {}) {
     lastSnapshot = snapshot;
+    jobSession.remember(snapshot);
     const state = snapshot?.progress || {};
     const total = Math.max(1, Number(state.total) || 1);
     const completed = Math.min(total, Math.max(0, Number(state.completed) || 0));
@@ -349,6 +422,7 @@ if (root) {
           showOutputModeRecovery(resumed, pdfFiles);
           return;
         }
+        jobSession.forget(resumed.jobId);
         showResult(resumed.result || {});
       } catch (error) {
         showError(errorMessage(error));
@@ -361,6 +435,9 @@ if (root) {
           statusTimer = null;
         }
         updateSelection();
+        if (lastSnapshot?.status !== 'awaiting_output_mode' && jobSession.load()) {
+          showSavedImportAction(lastSnapshot);
+        }
       }
     });
     result.append(heading, explanation, button);
@@ -371,6 +448,9 @@ if (root) {
     progressLabel.textContent = 'Import stopped';
     progressDetail.textContent = message;
     appendEvent('failed', message);
+    if (jobSession.load()) {
+      showSavedImportAction(lastSnapshot);
+    }
   }
 
   async function request(path, { method, body }) {
@@ -385,7 +465,11 @@ if (root) {
       body: body === undefined ? undefined : (multipart ? body : JSON.stringify(body)),
     });
     const data = await response.json().catch(() => null);
-    if (!response.ok || !data || data.ok === false) {
+    const jobErrorSnapshot = data
+      && typeof data === 'object'
+      && String(data.jobId || '') !== ''
+      && ['failed', 'retryable_failure'].includes(String(data.status || ''));
+    if (!data || ((!response.ok || data.ok === false) && !jobErrorSnapshot)) {
       throw new Error(data?.message || `Import request failed (${response.status}).`);
     }
     return data;
@@ -420,22 +504,31 @@ if (root) {
         continue;
       }
       if (entry.file.size > pdfRasterSourceByteLimit) {
-        reportProgress(`Skipping optional PDF.js facts and image decoding for ${entry.file.name}; it is over the 24 MiB browser safety limit. Native PHP extraction will continue.`);
+        reportProgress(`Skipping optional browser PDF enhancements for ${entry.file.name}; it is over the 24 MiB browser safety limit. Native PHP extraction will continue.`);
         continue;
       }
-      reportProgress(`Reading PDF.js text and structure facts from ${entry.file.name} (${index + 1} of ${upload.entries.length})…`);
       const bytes = new Uint8Array(await entry.file.arrayBuffer());
-      try {
-        const facts = await collectPdfJsFacts({
-          source: bytes,
-          pdfjs: config,
-          onProgress({ label }) { reportProgress(label); },
-        });
-        if (facts.pages.length > 0) {
-          pdfBrowserFacts[entry.path] = facts;
+      // Browser text/structure facts are opt-in until PdfReader consumes the
+      // handoff. Avoid a second eager parse of every PDF merely to store data
+      // that cannot affect the import. When enabled by a future server, the
+      // provider can request a bounded page range per handoff.
+      if (config.enablePdfBrowserFacts === true) {
+        reportProgress(`Reading requested PDF.js text and structure facts from ${entry.file.name} (${index + 1} of ${upload.entries.length})…`);
+        try {
+          const { collectPdfJsFacts } = await import(new URL('./pdfjs-facts-provider.mjs', import.meta.url).href);
+          const facts = await collectPdfJsFacts({
+            source: bytes,
+            pdfjs: config,
+            startPage: Math.max(1, Number(config.pdfBrowserFactsStartPage) || 1),
+            maxPages: Math.max(1, Number(config.pdfBrowserFactsMaxPages) || Number.POSITIVE_INFINITY),
+            onProgress({ label }) { reportProgress(label); },
+          });
+          if (facts.pages.length > 0) {
+            pdfBrowserFacts[entry.path] = facts;
+          }
+        } catch (error) {
+          reportProgress(`Optional PDF.js text and structure facts are unavailable for ${entry.file.name} (${errorMessage(error)}). Native PHP extraction will continue.`);
         }
-      } catch (error) {
-        reportProgress(`Optional PDF.js text and structure facts are unavailable for ${entry.file.name} (${errorMessage(error)}). Native PHP extraction will continue.`);
       }
       if (imageMode === 'none' || remainingRasterBytes <= 0) {
         continue;
@@ -511,6 +604,101 @@ if (root) {
       totalSize: entries.reduce((total, { file }) => total + file.size, 0),
     };
   }
+
+  function showSavedImportAction(snapshot = null) {
+    const saved = jobSession.load();
+    if (!saved || active) return;
+    result.hidden = false;
+    result.replaceChildren();
+    const heading = document.createElement('h2');
+    heading.textContent = 'An unfinished import can continue';
+    const explanation = document.createElement('p');
+    const completed = Math.max(0, Number(snapshot?.metrics?.pdfPagesExtracted) || 0);
+    const total = Math.max(0, Number(snapshot?.metrics?.pdfPagesTotal) || 0);
+    explanation.textContent = total > 0
+      ? `${completed} of ${total} PDF pages are safely checkpointed in WordPress. Resume without uploading or re-reading the document.`
+      : 'WordPress has durable checkpoints for this import. Resume without uploading the document again.';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'button button-secondary';
+    button.textContent = 'Resume saved import';
+    button.addEventListener('click', async () => {
+      if (active) return;
+      active = true;
+      activeJobId = saved.jobId;
+      button.disabled = true;
+      result.hidden = true;
+      progress.hidden = false;
+      startStatusPolling();
+      try {
+        let resumed = await request(`imports/${encodeURIComponent(saved.jobId)}`, { method: 'GET' });
+        setProgress(resumed);
+        if (resumed.status === 'awaiting_output_mode') {
+          showOutputModeRecovery(resumed, new Map());
+          return;
+        }
+        resumed = await driveImportJob(resumed, new Map());
+        if (resumed.status === 'failed') {
+          throw new Error(resumed.message || 'Import failed.');
+        }
+        if (resumed.status === 'awaiting_output_mode') {
+          showOutputModeRecovery(resumed, new Map());
+          return;
+        }
+        jobSession.forget(resumed.jobId);
+        showResult(resumed.result || {});
+      } catch (error) {
+        showError(errorMessage(error));
+      } finally {
+        active = false;
+        activeJobId = '';
+        button.disabled = false;
+        if (statusTimer !== null) {
+          window.clearInterval(statusTimer);
+          statusTimer = null;
+        }
+        updateSelection();
+        if (lastSnapshot?.status !== 'awaiting_output_mode' && jobSession.load()) {
+          showSavedImportAction(lastSnapshot);
+        }
+      }
+    });
+    result.append(heading, explanation, button);
+  }
+
+  async function restoreSavedImport() {
+    const saved = jobSession.load();
+    if (!saved) return;
+    try {
+      const snapshot = await request(`imports/${encodeURIComponent(saved.jobId)}`, { method: 'GET' });
+      setProgress(snapshot);
+      if (snapshot.status === 'complete' && snapshot.result) {
+        jobSession.forget(snapshot.jobId);
+        showResult(snapshot.result);
+        return;
+      }
+      if (snapshot.status === 'failed') {
+        jobSession.forget(snapshot.jobId);
+        showError(snapshot.message || 'The saved import failed.');
+        return;
+      }
+      if (snapshot.status === 'awaiting_output_mode') {
+        showOutputModeRecovery(snapshot, new Map());
+        return;
+      }
+      showSavedImportAction(snapshot);
+    } catch (error) {
+      // Keep the pointer after a transient network failure. A definite 404 is
+      // the only safe indication that WordPress no longer has this job.
+      if (/404|not found|does not exist|unknown import/i.test(errorMessage(error))) {
+        jobSession.forget(saved.jobId);
+        return;
+      }
+      showError(`Could not inspect the saved import yet: ${errorMessage(error)}`);
+    }
+  }
+
+  void restoreSavedImport();
 }
 
 /**
@@ -519,10 +707,45 @@ if (root) {
  * PDF import usable, with the server retaining its normal original-media
  * placeholder instead.
  */
+// PDF filter names are ASCII tokens. Search the existing byte view directly
+// so ordinary PDFs do not pay for a full-source string copy merely to decide
+// whether an optional image decoder is relevant.
+function pdfBytesContainAscii(bytes, ascii) {
+  const needleLength = typeof ascii === 'string' ? ascii.length : 0;
+  if (!(bytes instanceof Uint8Array) || needleLength < 1 || needleLength > 32 || bytes.length < needleLength) {
+    return false;
+  }
+  for (let index = 0; index < needleLength; index += 1) {
+    if (ascii.charCodeAt(index) > 0x7f) {
+      return false;
+    }
+  }
+
+  const firstByte = ascii.charCodeAt(0);
+  const lastStart = bytes.length - needleLength;
+  let offset = 0;
+  while (offset <= lastStart) {
+    const matchStart = bytes.indexOf(firstByte, offset);
+    if (matchStart < 0 || matchStart > lastStart) {
+      return false;
+    }
+    let needleIndex = 1;
+    while (needleIndex < needleLength && bytes[matchStart + needleIndex] === ascii.charCodeAt(needleIndex)) {
+      needleIndex += 1;
+    }
+    if (needleIndex === needleLength) {
+      return true;
+    }
+    offset = matchStart + 1;
+  }
+  return false;
+}
+
 async function browserPdfRasterImages(bytes, imageMode, maxPngBytes, reportProgress = () => {}) {
   const decoderEntries = [
     {
       label: 'JBIG2',
+      filterName: '/JBIG2Decode',
       load: async () => {
         if (!decodePdfJbig2Rasters) {
           const module = await import(new URL('./pdf-jbig2-rasterizer.mjs', import.meta.url).href);
@@ -533,6 +756,7 @@ async function browserPdfRasterImages(bytes, imageMode, maxPngBytes, reportProgr
     },
     {
       label: 'JPEG 2000',
+      filterName: '/JPXDecode',
       load: async () => {
         if (!decodePdfJpxRasters) {
           const module = await import(new URL('./pdf-jpx-rasterizer.mjs', import.meta.url).href);
@@ -541,7 +765,7 @@ async function browserPdfRasterImages(bytes, imageMode, maxPngBytes, reportProgr
         return decodePdfJpxRasters;
       },
     },
-  ];
+  ].filter(({ filterName }) => pdfBytesContainAscii(bytes, filterName));
   const loaded = await Promise.allSettled(decoderEntries.map(async (entry) => ({
     entry,
     decode: await entry.load(),
@@ -610,6 +834,54 @@ function renderedImageFormData(item) {
   body.append('plpc_rendered', new Blob([item.bytes], { type: item.mimeType || 'image/png' }), 'pdf-figure.png');
 
   return body;
+}
+
+function createAdminImportJobSession(importerConfig) {
+  const endpoint = String(importerConfig?.restRoot || '/wp-json/port-libs/v1/');
+  const storageKey = `port-libs.admin-active-import.v1:${endpoint}`;
+  const maxAgeMs = 7 * 24 * 60 * 60 * 1_000;
+  const storage = (() => {
+    try { return window.localStorage; } catch { return null; }
+  })();
+
+  const load = () => {
+    let record;
+    try { record = JSON.parse(storage?.getItem(storageKey) || 'null'); } catch { return null; }
+    const jobId = String(record?.jobId || '');
+    const updatedAt = Number(record?.updatedAt || 0);
+    if (!/^[A-Za-z0-9_-]{12,128}$/.test(jobId)
+      || !Number.isFinite(updatedAt)
+      || updatedAt <= 0
+      || Date.now() - updatedAt > maxAgeMs
+    ) {
+      try { storage?.removeItem(storageKey); } catch { /* Storage is optional. */ }
+      return null;
+    }
+    return { jobId, status: String(record?.status || ''), updatedAt };
+  };
+
+  const forget = (expectedJobId = '') => {
+    const current = load();
+    if (expectedJobId && current && current.jobId !== String(expectedJobId)) return;
+    try { storage?.removeItem(storageKey); } catch { /* Storage is optional. */ }
+  };
+
+  const remember = (snapshot) => {
+    const jobId = String(snapshot?.jobId || '');
+    const status = String(snapshot?.status || '');
+    if (!/^[A-Za-z0-9_-]{12,128}$/.test(jobId)) return;
+    if (['complete', 'failed'].includes(status)) {
+      forget(jobId);
+      return;
+    }
+    try {
+      storage?.setItem(storageKey, JSON.stringify({ jobId, status, updatedAt: Date.now() }));
+    } catch {
+      // The live import remains usable even when the browser blocks storage.
+    }
+  };
+
+  return { load, remember, forget };
 }
 
 function bytesFromBase64(encoded) {

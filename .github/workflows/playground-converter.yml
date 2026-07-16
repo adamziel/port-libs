@@ -16,16 +16,22 @@ on:
       - 'pandoc-showcase/vendor/pdfjs-openjpeg/**'
       - 'pandoc-showcase/pdfjs-form-rasterizer.mjs'
       - 'pandoc-showcase/pdfjs-facts-provider.mjs'
+      - 'pandoc-showcase/import-job-session.mjs'
       - 'pandoc-showcase/vendor/pdfjs/**'
       - 'pandoc-showcase/playground/**'
       - 'tools/build-pandoc-showcase.php'
       - 'tools/pdf-layout-corpus-manifest.json'
+      - 'tools/pdf-corpus-table-manifest.json'
+      - 'tools/pdf-corpus-manifest-policy.mjs'
       - 'tools/e2e-pdf-layout-corpus.mjs'
       - 'tools/e2e-playground-import.mjs'
+      - 'tools/generate-pdf-resource-fixture.php'
       - 'tools/check-pdf-layout-reviewer.mjs'
       - 'tools/check-showcase-examples-page.js'
       - 'tools/check-playground-converter-ui.js'
       - 'tools/check-pdfjs-facts-provider.mjs'
+      - 'tools/check-pdf-form-rasterizer.mjs'
+      - 'tools/check-import-job-session.mjs'
       - 'tools/decode-pdf-jbig2-media.mjs'
       - 'tools/check-pdf-jbig2-rasterizer.mjs'
       - 'tools/decode-pdf-jpx-media.mjs'
@@ -33,6 +39,7 @@ on:
       - 'tools/decode-pdf-raster-media.mjs'
       - 'tools/measure-pandoc-import-memory.php'
       - 'tools/build-playground-converter-plugin.php'
+      - 'tools/verify-playground-converter-distribution.php'
       - 'tools/vendor-pdfjs.sh'
       - 'tools/playground-converter-plugin/**'
   push:
@@ -52,16 +59,22 @@ on:
       - 'pandoc-showcase/vendor/pdfjs-openjpeg/**'
       - 'pandoc-showcase/pdfjs-form-rasterizer.mjs'
       - 'pandoc-showcase/pdfjs-facts-provider.mjs'
+      - 'pandoc-showcase/import-job-session.mjs'
       - 'pandoc-showcase/vendor/pdfjs/**'
       - 'pandoc-showcase/playground/**'
       - 'tools/build-pandoc-showcase.php'
       - 'tools/pdf-layout-corpus-manifest.json'
+      - 'tools/pdf-corpus-table-manifest.json'
+      - 'tools/pdf-corpus-manifest-policy.mjs'
       - 'tools/e2e-pdf-layout-corpus.mjs'
       - 'tools/e2e-playground-import.mjs'
+      - 'tools/generate-pdf-resource-fixture.php'
       - 'tools/check-pdf-layout-reviewer.mjs'
       - 'tools/check-showcase-examples-page.js'
       - 'tools/check-playground-converter-ui.js'
       - 'tools/check-pdfjs-facts-provider.mjs'
+      - 'tools/check-pdf-form-rasterizer.mjs'
+      - 'tools/check-import-job-session.mjs'
       - 'tools/decode-pdf-jbig2-media.mjs'
       - 'tools/check-pdf-jbig2-rasterizer.mjs'
       - 'tools/decode-pdf-jpx-media.mjs'
@@ -69,6 +82,7 @@ on:
       - 'tools/decode-pdf-raster-media.mjs'
       - 'tools/measure-pandoc-import-memory.php'
       - 'tools/build-playground-converter-plugin.php'
+      - 'tools/verify-playground-converter-distribution.php'
       - 'tools/vendor-pdfjs.sh'
       - 'tools/playground-converter-plugin/**'
   workflow_dispatch:
@@ -83,7 +97,7 @@ permissions:
 jobs:
   focused-playground-converter:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -129,6 +143,9 @@ jobs:
           php -l lanes/pandoc/src/PdfSemanticRecordPipeline.php
           php -l lanes/pandoc/src/PdfSemanticRecordProcessor.php
           php -l lanes/pandoc/src/PdfTextFidelityLedger.php
+          php -l lanes/pandoc/src/PdfSourceDispositionLedger.php
+          php -l lanes/pandoc/src/PdfSemanticChunkReconciler.php
+          php -l lanes/markerpdf/src/PdfDocumentLayoutProfile.php
           php -l lanes/pandoc/tests/BibtexCslProcessorTest.php
           php -l lanes/pandoc/tests/EpubReaderTest.php
           php -l lanes/pandoc/tests/EpubXmlEncodingAndProcessingInstructionRecoveryTest.php
@@ -148,10 +165,16 @@ jobs:
           php -l lanes/pandoc/tests/PdfReaderTest.php
           php -l lanes/pandoc/tests/PdfSemanticRecordPipelineTest.php
           php -l lanes/pandoc/tests/PdfTextFidelityLedgerTest.php
+          php -l lanes/pandoc/tests/PdfSourceDispositionLedgerTest.php
+          php -l lanes/pandoc/tests/PdfProtectedTableLayoutTest.php
+          php -l lanes/markerpdf/tests/PdfDocumentLayoutProfileTest.php
+          php -l lanes/markerpdf/tests/PdfResourceLimitDiagnosticsTest.php
+          php -l lanes/markerpdf/tests/PdfVisualOccurrenceInventoryTest.php
           php -l lanes/pandoc/tests/ShowcaseHaskellReferenceTimeoutTest.php
           php -l lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php
           php -l lanes/pandoc/tests/ShowcaseQualitySignatureTest.php
           php -l tools/build-pandoc-showcase.php
+          php -l tools/generate-pdf-resource-fixture.php
           node --check pandoc-showcase/playground-converter.js
           node --check pandoc-showcase/examples.js
           node --check pandoc-showcase/pdf-layout-review.js
@@ -159,6 +182,7 @@ jobs:
           node --check pandoc-showcase/pdf-jpx-rasterizer.mjs
           node --check pandoc-showcase/pdfjs-form-rasterizer.mjs
           node --check pandoc-showcase/pdfjs-facts-provider.mjs
+          node --check pandoc-showcase/import-job-session.mjs
           node --check tools/playground-converter-plugin/assets/admin-importer.mjs
           node --check tools/decode-pdf-jbig2-media.mjs
           node --check tools/decode-pdf-jpx-media.mjs
@@ -166,8 +190,12 @@ jobs:
           node --check tools/e2e-pdf-layout-corpus.mjs
           node --check tools/e2e-playground-import.mjs
           node --check tools/check-pdf-layout-reviewer.mjs
+          node --check tools/check-pdf-form-rasterizer.mjs
+          node --check tools/check-import-job-session.mjs
           node tools/check-playground-converter-ui.js
           node tools/check-pdfjs-facts-provider.mjs
+          node tools/check-pdf-form-rasterizer.mjs
+          node tools/check-import-job-session.mjs
           php tools/build-pandoc-showcase.php --build-examples-page
           node tools/check-showcase-examples-page.js
           node tools/check-pdf-layout-reviewer.mjs
@@ -181,9 +209,12 @@ jobs:
             lanes/markerpdf/tests/BrowserPdfFactsProviderTest.php \
             lanes/markerpdf/tests/PdfDecodeParmsTest.php \
             lanes/markerpdf/tests/PdfDocumentFactsMergerTest.php \
+            lanes/markerpdf/tests/PdfDocumentLayoutProfileTest.php \
             lanes/markerpdf/tests/PdfMetadataHardeningTest.php \
             lanes/markerpdf/tests/PdfFormXObjectPlacementTest.php \
             lanes/markerpdf/tests/PdfPageFactsTest.php \
+            lanes/markerpdf/tests/PdfResourceLimitDiagnosticsTest.php \
+            lanes/markerpdf/tests/PdfVisualOccurrenceInventoryTest.php \
             lanes/pandoc/tests/BibtexCslProcessorTest.php \
             lanes/pandoc/tests/EpubReaderTest.php \
             lanes/pandoc/tests/EpubXmlEncodingAndProcessingInstructionRecoveryTest.php \
@@ -202,14 +233,24 @@ jobs:
             lanes/pandoc/tests/PdfReaderTest.php \
             lanes/pandoc/tests/PdfSemanticRecordPipelineTest.php \
             lanes/pandoc/tests/PdfTextFidelityLedgerTest.php \
+            lanes/pandoc/tests/PdfSourceDispositionLedgerTest.php \
+            lanes/pandoc/tests/PdfProtectedTableLayoutTest.php \
             lanes/pandoc/tests/ShowcaseHaskellReferenceTimeoutTest.php \
             lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php \
             lanes/pandoc/tests/ShowcaseQualitySignatureTest.php
 
       - name: Build plugin archive
         run: |
+          set -euo pipefail
           php tools/build-playground-converter-plugin.php
           test -s pandoc-showcase/playground/port-libs-playground-converter.zip
+          php tools/verify-playground-converter-distribution.php
+          first_archive_hash="$(sha256sum pandoc-showcase/playground/port-libs-playground-converter.zip)"
+          first_manifest_hash="$(sha256sum pandoc-showcase/playground/port-libs-playground-converter.manifest.json)"
+          php tools/build-playground-converter-plugin.php
+          test "$first_archive_hash" = "$(sha256sum pandoc-showcase/playground/port-libs-playground-converter.zip)"
+          test "$first_manifest_hash" = "$(sha256sum pandoc-showcase/playground/port-libs-playground-converter.manifest.json)"
+          php tools/verify-playground-converter-distribution.php
 
       - name: Verify archive includes current converter code
         run: |
@@ -260,14 +301,27 @@ jobs:
             --pdf-output-mode pages \
             --expected-pdf-pages 4 \
             --timeout-ms 240000 \
-            --max-browser-rss-mb 3072
+            --max-browser-rss-mb 1536
           node tools/e2e-playground-import.mjs \
             --file "$PWD/pandoc-showcase/samples/pdf-tracemonkey-tracemonkey.pdf" \
             --pdf-output-mode single \
             --expected-pdf-pages 14 \
             --expected-image-count 8 \
             --timeout-ms 240000 \
-            --max-browser-rss-mb 3072
+            --max-browser-rss-mb 1536
+          # Generate 5,000 positioned searchable lines; legal padding only
+          # fills the remainder of the realistic 8–10 MiB upload envelope.
+          php tools/generate-pdf-resource-fixture.php \
+            --output="$RUNNER_TEMP/searchable-250-pages.pdf" \
+            --pages=250 \
+            --padding-bytes-per-page=32768
+          node tools/e2e-playground-import.mjs \
+            --file "$RUNNER_TEMP/searchable-250-pages.pdf" \
+            --pdf-output-mode single \
+            --expected-pdf-pages 250 \
+            --expected-image-count 0 \
+            --timeout-ms 600000 \
+            --max-browser-rss-mb 1536
 
       - name: Upload PDF layout screenshots
         if: always()

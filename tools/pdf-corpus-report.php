@@ -89,6 +89,9 @@ foreach ($manifest as $entry) {
         'kind' => $entry['kind'] ?? '',
         'url' => $entry['url'],
         'expectedTables' => $entry['expectedTables'] ?? null,
+        'expectedPhysicalTables' => $entry['expectedPhysicalTables'] ?? null,
+        'expectedLogicalInstances' => $entry['expectedLogicalInstances'] ?? null,
+        'expectedLogicalFamilies' => $entry['expectedLogicalFamilies'] ?? null,
         'notes' => $entry['notes'] ?? '',
         'download' => $download,
         'modes' => $modeRecords,
@@ -440,10 +443,24 @@ function review_status(array $entry, AstNode $document, string $plainText): arra
 {
     $expectedTables = (int) ($entry['expectedTables'] ?? 0);
     $tableCount = count_nodes($document, 'table');
+    $metadata = $document->attr('meta', []);
+    $metadata = is_array($metadata) ? $metadata : [];
     $spacing = spacing_review($plainText);
     $issues = [];
     if ($expectedTables > 0 && $tableCount < 1) {
         $issues[] = 'expected-table-missing';
+    }
+    if (isset($entry['expectedPhysicalTables'])
+        && $tableCount !== (int) $entry['expectedPhysicalTables']) {
+        $issues[] = 'physical-table-count-mismatch';
+    }
+    if (isset($entry['expectedLogicalFamilies'])
+        && (int) ($metadata['pdfLogicalTableFamilyCount'] ?? -1) !== (int) $entry['expectedLogicalFamilies']) {
+        $issues[] = 'logical-table-family-count-mismatch';
+    }
+    if (isset($entry['expectedLogicalInstances'])
+        && (int) ($metadata['pdfLogicalTableInstanceCount'] ?? -1) !== (int) $entry['expectedLogicalInstances']) {
+        $issues[] = 'logical-table-instance-count-mismatch';
     }
     if (($spacing['counts']['braceArtifacts'] ?? 0) > 0) {
         $issues[] = 'brace-artifacts';
@@ -461,6 +478,9 @@ function review_status(array $entry, AstNode $document, string $plainText): arra
         'paragraphs' => count_nodes($document, 'paragraph'),
         'headings' => count_nodes($document, 'heading'),
         'tables' => $tableCount,
+        'logicalTables' => (int) ($metadata['pdfLogicalTableCount'] ?? $tableCount),
+        'logicalTableFamilies' => (int) ($metadata['pdfLogicalTableFamilyCount'] ?? 0),
+        'logicalTableInstances' => (int) ($metadata['pdfLogicalTableInstanceCount'] ?? 0),
         'lists' => count_nodes($document, 'bullet_list') + count_nodes($document, 'ordered_list'),
         'codeBlocks' => count_nodes($document, 'code_block'),
         'lineOrientedBlocks' => count_nodes($document, 'line_block'),

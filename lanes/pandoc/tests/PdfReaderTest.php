@@ -4020,6 +4020,9 @@ return [
 
         $t->same('table', $document->children[0]->type);
         $t->same(1, $meta['pdfDetectedTables']);
+        $t->same('tagged', $meta['pdfTableReconstruction']);
+        $t->same(0, $meta['pdfGeometryLayoutHypothesisCount']);
+        $t->same(0, $meta['pdfIndependentColumnRegions']);
         $t->same('Name', $document->children[0]->children[0]->children[0]->children[0]->attr('text'));
         $t->same('Count', $document->children[0]->children[0]->children[0]->children[1]->attr('text'));
         $t->same('Apples', $document->children[0]->children[1]->children[0]->children[0]->attr('text'));
@@ -4374,6 +4377,8 @@ return [
         $t->same(true, $meta['pdfDiagnostics']['encrypted']);
         $t->same(['DCTDecode'], $meta['pdfUnsupportedFilters']);
         $t->same([999999], $meta['pdfMalformedXrefOffsets']);
+        $t->same(0, $meta['pdfControlCharacterRepairs']);
+        $t->same(0, $meta['pdfControlCharacterBulletRepairs']);
         $t->contains('Unsupported PDF stream filters: DCTDecode.', $warningText);
         $t->contains('Malformed PDF xref data was detected.', $warningText);
     },
@@ -8050,6 +8055,34 @@ return [
             "Keep\x03non-word control marks spaced",
         ]));
     },
+    'sanitizes forbidden pdf controls without joining adjacent text' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $normalize = (function (array $lines): array {
+            return $this->normalizeLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $repairCounts = (function (): array {
+            return [
+                $this->controlCharacterRepairCount,
+                $this->controlCharacterBulletRepairCount,
+            ];
+        })->bindTo($reader, PdfReader::class);
+        $t->true($normalize instanceof \Closure);
+        $t->true($repairCounts instanceof \Closure);
+
+        $normalized = $normalize([
+            "\u{0084}\u{0084} Recovered list item",
+            "left\u{0084}right",
+            "\x95 Properly encoded bullet",
+        ]);
+
+        $t->same([
+            '• Recovered list item',
+            'left right',
+            '• Properly encoded bullet',
+        ], $normalized);
+        $t->same([3, 1], $repairCounts());
+        $t->same(0, preg_match_all('/[\x{0000}-\x{0008}\x{000B}\x{000C}\x{000E}-\x{001F}\x{007F}-\x{009F}]/u', implode('', $normalized)));
+    },
     'repairs pdf acronym boundaries in glued prose' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines): array {
@@ -8264,6 +8297,570 @@ return [
         $t->contains('<th>Product</th><th>Qty</th><th>Total</th>', $blocks);
         $t->contains('<td>Alpha</td><td>2</td><td>$6.00</td>', $blocks);
         $t->true(!str_contains($html, '</p><p>may affect'));
+    },
+    'chooses two independent short dialogue columns over a geometry table' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 760 Tm (A short introduction spans the page before both independent dialogue columns begin.) Tj '
+            . '1 0 0 1 72 720 Tm (MARA: Morning begins.) Tj 1 0 0 1 340 720 Tm (ELI: Bells answer.) Tj '
+            . '1 0 0 1 72 704 Tm (ELI : We should leave.) Tj 1 0 0 1 340 704 Tm (MARA: The path is clear.) Tj '
+            . '1 0 0 1 72 688 Tm (MARA: Then let us go.) Tj 1 0 0 1 340 688 Tm (ELI : I will follow.) Tj '
+            . '1 0 0 1 72 672 Tm (ELI: Bring the lantern.) Tj 1 0 0 1 340 672 Tm (MARA : It is ready.) Tj '
+            . '1 0 0 1 72 632 Tm (A closing sentence spans the page after both independent dialogue columns finish.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader(['pdfGeometryTables' => true, 'pdfRepairProseText' => true]))->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $html = PandocConverter::write($document, 'html');
+        $meta = $document->attr('meta');
+
+        $t->same(0, $meta['pdfDetectedTables']);
+        $t->true(($meta['pdfIndependentColumnRegions'] ?? 0) > 0);
+        $t->true(($meta['pdfGeometryLayoutHypothesisCount'] ?? 0) > 0);
+        $t->same('independent-columns', $meta['pdfGeometryLayoutHypotheses'][0]['selected'] ?? null);
+        $t->true(($meta['pdfGeometryLayoutHypotheses'][0]['columnMinusTableMargin'] ?? 0) >= 0.12);
+        $t->true(!str_contains($blocks, '<!-- wp:table -->'));
+        $t->true(!str_contains($blocks, '<!-- wp:code -->'));
+        $t->true(!str_contains($blocks, '<pre'));
+        $intro = strpos($html, 'A short introduction');
+        $leftLast = strpos($html, 'Bring the lantern.');
+        $rightFirst = strpos($html, 'Bells answer.');
+        $closing = strpos($html, 'A closing sentence');
+        $t->true($intro !== false && $leftLast !== false && $rightFirst !== false && $closing !== false);
+        $t->true($intro < $leftLast && $leftLast < $rightFirst && $rightFirst < $closing, 'Full-width transitions should bracket column-major dialogue order.');
+    },
+    'does not let incidental numbers or numbered speakers turn dialogue columns into tables' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $fixtures = [
+            'incidental numeric row' => 'BT /F1 11 Tf '
+                . '1 0 0 1 72 720 Tm (MARA: Morning begins.) Tj 1 0 0 1 340 720 Tm (ELI: Bells answer.) Tj '
+                . '1 0 0 1 72 704 Tm (ELI: We should leave.) Tj 1 0 0 1 340 704 Tm (MARA: The path is clear.) Tj '
+                . '1 0 0 1 72 688 Tm (MARA: Then let us go.) Tj 1 0 0 1 340 688 Tm (ELI: I will follow.) Tj '
+                . '1 0 0 1 72 672 Tm (2024) Tj 1 0 0 1 340 672 Tm (17) Tj ET',
+            'numbered speaker cues' => 'BT /F1 11 Tf '
+                . '1 0 0 1 72 720 Tm (SPEAKER 1: Morning begins.) Tj 1 0 0 1 340 720 Tm (SPEAKER 2: Bells answer.) Tj '
+                . '1 0 0 1 72 704 Tm (SPEAKER 2: We should leave.) Tj 1 0 0 1 340 704 Tm (SPEAKER 1: The path is clear.) Tj '
+                . '1 0 0 1 72 688 Tm (SPEAKER 1: Then let us go.) Tj 1 0 0 1 340 688 Tm (SPEAKER 2: I will follow.) Tj '
+                . '1 0 0 1 72 672 Tm (SPEAKER 2: Bring the lantern.) Tj 1 0 0 1 340 672 Tm (SPEAKER 1: It is ready.) Tj ET',
+        ];
+
+        foreach ($fixtures as $name => $content) {
+            $document = (new PdfReader(['pdfGeometryTables' => true, 'pdfRepairProseText' => true]))->read($pdfWithContent($content));
+            $meta = $document->attr('meta');
+            $hypothesis = $meta['pdfGeometryLayoutHypotheses'][0] ?? [];
+            $blocks = PandocConverter::write($document, 'blocks');
+
+            $t->same(0, $meta['pdfDetectedTables'], $name);
+            $t->true(($meta['pdfIndependentColumnRegions'] ?? 0) > 0, $name);
+            $t->same('independent-columns', $hypothesis['selected'] ?? null, $name);
+            $t->same(false, $hypothesis['features']['hardNumericEvidence'] ?? null, $name);
+            $t->same(0, $hypothesis['features']['recurringNumericColumns'] ?? null, $name);
+            $t->true(!str_contains($blocks, '<!-- wp:table -->'), $name);
+        }
+    },
+    'does not treat one shared painted region as table cell fill evidence' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'q 0.9 g 60 650 500 100 re f Q BT /F1 11 Tf '
+            . '1 0 0 1 72 720 Tm (MARA: Morning begins.) Tj 1 0 0 1 340 720 Tm (ELI: Bells answer.) Tj '
+            . '1 0 0 1 72 704 Tm (ELI: We should leave.) Tj 1 0 0 1 340 704 Tm (MARA: The path is clear.) Tj '
+            . '1 0 0 1 72 688 Tm (MARA: Then let us go.) Tj 1 0 0 1 340 688 Tm (ELI: I will follow.) Tj '
+            . '1 0 0 1 72 672 Tm (ELI: Bring the lantern.) Tj 1 0 0 1 340 672 Tm (MARA: It is ready.) Tj ET'
+        );
+
+        $document = (new PdfReader(['pdfGeometryTables' => true, 'pdfRepairProseText' => true]))->read($pdf);
+        $meta = $document->attr('meta');
+        $hypothesis = $meta['pdfGeometryLayoutHypotheses'][0] ?? [];
+        $blocks = PandocConverter::write($document, 'blocks');
+
+        $t->same(0, $meta['pdfDetectedTables']);
+        $t->true(($meta['pdfIndependentColumnRegions'] ?? 0) > 0);
+        $t->same('independent-columns', $hypothesis['selected'] ?? null);
+        $t->same(8, $hypothesis['features']['filledCells'] ?? null);
+        $t->same(0, $hypothesis['features']['rowDiscriminatingFilledCells'] ?? null);
+        $t->same(false, $hypothesis['features']['hardFillEvidence'] ?? null);
+        $t->true(!str_contains($blocks, '<!-- wp:table -->'));
+    },
+    'keeps recurring numeric columns and row-local fills as hard table controls' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $fixtures = [
+            'recurring numeric column' => 'BT /F1 11 Tf '
+                . '1 0 0 1 72 720 Tm (North) Tj 1 0 0 1 300 720 Tm (12) Tj '
+                . '1 0 0 1 72 704 Tm (South) Tj 1 0 0 1 300 704 Tm (17) Tj '
+                . '1 0 0 1 72 688 Tm (East) Tj 1 0 0 1 300 688 Tm (9) Tj '
+                . '1 0 0 1 72 672 Tm (West) Tj 1 0 0 1 300 672 Tm (4) Tj ET',
+            'row-local header band' => 'q 0.92 g 60 714 460 18 re f Q BT /F1 11 Tf '
+                . '1 0 0 1 72 720 Tm (Field) Tj 1 0 0 1 300 720 Tm (Current) Tj '
+                . '1 0 0 1 72 704 Tm (STATUS: Open now.) Tj 1 0 0 1 300 704 Tm (STATUS: Closed now.) Tj '
+                . '1 0 0 1 72 688 Tm (OWNER: Alice here.) Tj 1 0 0 1 300 688 Tm (OWNER: Bob here.) Tj '
+                . '1 0 0 1 72 672 Tm (STATE: Ready soon.) Tj 1 0 0 1 300 672 Tm (STATE: Waiting now.) Tj ET',
+        ];
+
+        foreach ($fixtures as $name => $content) {
+            $document = (new PdfReader(['pdfGeometryTables' => true, 'pdfRepairProseText' => true]))->read($pdfWithContent($content));
+            $meta = $document->attr('meta');
+            $hypothesis = $meta['pdfGeometryLayoutHypotheses'][0] ?? [];
+            $blocks = PandocConverter::write($document, 'blocks');
+
+            $t->same(1, $meta['pdfDetectedTables'], $name);
+            $t->same(0, $meta['pdfIndependentColumnRegions'], $name);
+            $t->same('table', $hypothesis['selected'] ?? null, $name);
+            $t->contains('<!-- wp:table -->', $blocks, $name);
+        }
+
+        $numeric = (new PdfReader(['pdfGeometryTables' => true]))->read($pdfWithContent($fixtures['recurring numeric column']));
+        $numericFeatures = $numeric->attr('meta')['pdfGeometryLayoutHypotheses'][0]['features'] ?? [];
+        $t->same(true, $numericFeatures['hardNumericEvidence'] ?? null);
+        $t->same(1, $numericFeatures['recurringNumericColumns'] ?? null);
+
+        $banded = (new PdfReader(['pdfGeometryTables' => true]))->read($pdfWithContent($fixtures['row-local header band']));
+        $bandedFeatures = $banded->attr('meta')['pdfGeometryLayoutHypotheses'][0]['features'] ?? [];
+        $t->same(true, $bandedFeatures['hardFillEvidence'] ?? null);
+        $t->same(2, $bandedFeatures['rowDiscriminatingFilledCells'] ?? null);
+    },
+    'keeps the independent-column decision under generic PDF metamorphic transformations' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $ordinary = static fn (string $leftCue, string $rightCue): string =>
+            'BT /F1 11 Tf '
+            . '1 0 0 1 72 720 Tm (' . $leftCue . ': Left first.) Tj 1 0 0 1 340 720 Tm (' . $rightCue . ': Right first.) Tj '
+            . '1 0 0 1 72 704 Tm (' . $rightCue . ': Left second.) Tj 1 0 0 1 340 704 Tm (' . $leftCue . ': Right second.) Tj '
+            . '1 0 0 1 72 688 Tm (' . $leftCue . ': Left third.) Tj 1 0 0 1 340 688 Tm (' . $rightCue . ': Right third.) Tj '
+            . '1 0 0 1 72 672 Tm (' . $rightCue . ': Left fourth.) Tj 1 0 0 1 340 672 Tm (' . $leftCue . ': Right fourth.) Tj ET';
+        $fragmented = 'BT /F1 11 Tf '
+            . '1 0 0 1 72 720 Tm (AK) Tj /F2 11 Tf (TOR: Left first.) Tj 1 0 0 1 340 720 Tm /F1 11 Tf (RE) Tj /F2 11 Tf (ŻYSER: Right first.) Tj '
+            . '1 0 0 1 72 704 Tm /F1 11 Tf (REŻYSER: Left second.) Tj 1 0 0 1 340 704 Tm (AKTOR: Right second.) Tj '
+            . '1 0 0 1 72 688 Tm (AKTOR: Left third.) Tj 1 0 0 1 340 688 Tm (REŻYSER: Right third.) Tj '
+            . '1 0 0 1 72 672 Tm (REŻYSER: Left fourth.) Tj 1 0 0 1 340 672 Tm (AKTOR: Right fourth.) Tj ET';
+        $scaled = 'q 1.35 0 0 1.35 24 -230 cm ' . $ordinary('SOL', 'LUNA') . ' Q';
+        $leftStream = 'BT /F1 11 Tf '
+            . '1 0 0 1 72 720 Tm (NORTH: Left first.) Tj 1 0 0 1 72 704 Tm (SOUTH: Left second.) Tj '
+            . '1 0 0 1 72 688 Tm (NORTH: Left third.) Tj 1 0 0 1 72 672 Tm (SOUTH: Left fourth.) Tj ET';
+        $rightStream = 'BT /F1 11 Tf '
+            . '1 0 0 1 340 720 Tm (SOUTH: Right first.) Tj 1 0 0 1 340 704 Tm (NORTH: Right second.) Tj '
+            . '1 0 0 1 340 688 Tm (SOUTH: Right third.) Tj 1 0 0 1 340 672 Tm (NORTH: Right fourth.) Tj ET';
+        $objectReordered = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents [6 0 R 5 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($rightStream) . " >>\nstream\n{$rightStream}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($leftStream) . " >>\nstream\n{$leftStream}\nendstream\nendobj\n%%EOF";
+        $rotatedContent = $ordinary('EAST', 'WEST');
+        $rotated = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Rotate 90 /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($rotatedContent) . " >>\nstream\n{$rotatedContent}\nendstream\nendobj\n%%EOF";
+
+        $fixtures = [
+            'unrelated labels and language' => $pdfWithContent($ordinary('SOL', 'LUNA')),
+            'fragmented operators and mid-word font switch' => $pdfWithContent($fragmented),
+            'translated and scaled coordinates' => $pdfWithContent($scaled),
+            'reordered content objects' => $objectReordered,
+            'inherited page rotation' => $rotated,
+        ];
+        foreach ($fixtures as $name => $pdf) {
+            $document = (new PdfReader(['pdfGeometryTables' => true, 'pdfRepairProseText' => true]))->read($pdf);
+            $meta = $document->attr('meta');
+            $blocks = PandocConverter::write($document, 'blocks');
+            $plain = PandocConverter::write($document, 'plain');
+
+            $t->same(0, $meta['pdfDetectedTables'], $name);
+            $t->same(0, $meta['pdfDetectedCodeBlocks'], $name);
+            $t->true(($meta['pdfIndependentColumnRegions'] ?? 0) > 0, $name);
+            $t->same(0, $meta['pdfTextFidelity']['addedSignificantCharacterCount'] ?? null, $name);
+            $t->same(0, $meta['pdfSourceDisposition']['unresolvedOccurrenceCount'] ?? null, $name);
+            $t->same(true, $meta['pdfSourceDisposition']['allOccurrencesResolved'] ?? null, $name);
+            $t->same(true, $meta['pdfSourceDisposition']['orderedSignificantCharactersPreserved'] ?? null, $name);
+            $t->same(0, $meta['pdfSourceDisposition']['unclaimedEmittedSignificantCharacterCount'] ?? null, $name);
+            $t->same(true, $meta['pdfSemanticTextComplete'] ?? null, $name);
+            $t->true(
+                count(array_filter(
+                    $meta['pdfTextFidelity']['unresolvedCharacterSample'] ?? [],
+                    static fn (array $sample): bool => ($sample['character'] ?? null) !== ':'
+                )) === 0,
+                $name . ' may represent only proven cue colons as semantic structure.'
+            );
+            $t->true(!str_contains($blocks, '<!-- wp:table -->') && !str_contains($blocks, '<!-- wp:code -->'), $name);
+            $leftLast = strpos($plain, 'Left fourth.');
+            $rightFirst = strpos($plain, 'Right first.');
+            $t->true($leftLast !== false && $rightFirst !== false && $leftLast < $rightFirst, $name);
+        }
+    },
+    'orders three independent short stage columns without creating a table or code block' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 11 Tf '
+            . '1 0 0 1 72 720 Tm (MARA: Left one.) Tj 1 0 0 1 250 720 Tm (ELI: Centre one.) Tj 1 0 0 1 430 720 Tm (NOAH: Right one.) Tj '
+            . '1 0 0 1 72 704 Tm (ELI: Left two.) Tj 1 0 0 1 250 704 Tm (NOAH: Centre two.) Tj 1 0 0 1 430 704 Tm (MARA: Right two.) Tj '
+            . '1 0 0 1 72 688 Tm (MARA: Left three.) Tj 1 0 0 1 250 688 Tm (ELI: Centre three.) Tj 1 0 0 1 430 688 Tm (NOAH: Right three.) Tj '
+            . '1 0 0 1 72 672 Tm (ELI: Left four.) Tj 1 0 0 1 250 672 Tm (NOAH: Centre four.) Tj 1 0 0 1 430 672 Tm (MARA: Right four.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader(['pdfGeometryTables' => true, 'pdfRepairProseText' => true]))->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $html = PandocConverter::write($document, 'html');
+        $meta = $document->attr('meta');
+
+        $t->same(0, $meta['pdfDetectedTables']);
+        $t->true(($meta['pdfIndependentColumnRegions'] ?? 0) > 0);
+        $t->true(!str_contains($blocks, '<!-- wp:table -->'));
+        $t->true(!str_contains($blocks, '<!-- wp:code -->'));
+        $leftLast = strpos($html, 'Left four.');
+        $centreFirst = strpos($html, 'Centre one.');
+        $centreLast = strpos($html, 'Centre four.');
+        $rightFirst = strpos($html, 'Right one.');
+        $t->true($leftLast !== false && $centreFirst !== false && $centreLast !== false && $rightFirst !== false);
+        $t->true($leftLast < $centreFirst && $centreLast < $rightFirst, 'Each independent column should stay contiguous.');
+    },
+    'keeps dialogue and unequal stage direction lanes as independent flows' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 11 Tf '
+            . '1 0 0 1 72 760 Tm (A full-width scene introduction precedes the parallel action.) Tj '
+            . '1 0 0 1 72 720 Tm (ORBIT: Open the gate.) Tj 1 0 0 1 235 720 Tm (Footsteps approach.) Tj 1 0 0 1 405 720 Tm (A lantern moves.) Tj '
+            . '1 0 0 1 72 704 Tm (NOVA: Not yet.) Tj 1 0 0 1 235 704 Tm (A bell rings.) Tj 1 0 0 1 405 704 Tm (Wind crosses the yard.) Tj '
+            . '1 0 0 1 72 688 Tm (ORBIT: Then wait.) Tj 1 0 0 1 405 688 Tm (The latch rattles.) Tj '
+            . '1 0 0 1 72 672 Tm (NOVA: I hear it.) Tj 1 0 0 1 235 672 Tm (Silence.) Tj '
+            . '1 0 0 1 72 632 Tm (A full-width closing sentence follows every parallel action.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader(['pdfGeometryTables' => true, 'pdfRepairProseText' => true]))->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $plain = PandocConverter::write($document, 'plain');
+        $meta = $document->attr('meta');
+
+        $t->same(0, $meta['pdfDetectedTables']);
+        $t->same(0, $meta['pdfDetectedCodeBlocks']);
+        $t->true(($meta['pdfIndependentColumnRegions'] ?? 0) > 0);
+        $t->same(true, $meta['pdfSemanticTextComplete'] ?? null);
+        $t->same(0, $meta['pdfSourceDisposition']['unresolvedOccurrenceCount'] ?? null);
+        $t->true(!str_contains($blocks, '<!-- wp:table -->') && !str_contains($blocks, '<!-- wp:code -->'));
+        $intro = strpos($plain, 'full-width scene introduction');
+        $lastDialogue = strpos($plain, 'I hear it.');
+        $firstMiddle = strpos($plain, 'Footsteps approach.');
+        $lastMiddle = strpos($plain, 'Silence.');
+        $firstRight = strpos($plain, 'A lantern moves.');
+        $closing = strpos($plain, 'full-width closing sentence');
+        $t->true(
+            $intro !== false
+                && $lastDialogue !== false
+                && $firstMiddle !== false
+                && $lastMiddle !== false
+                && $firstRight !== false
+                && $closing !== false
+        );
+        $t->true(
+            $intro < $lastDialogue
+                && $lastDialogue < $firstMiddle
+                && $lastMiddle < $firstRight
+                && $firstRight < $closing,
+            'Unequal dialogue, sound, and stage-direction lanes should each remain contiguous.'
+        );
+    },
+    'keeps a numbered theatre page with hanging dialogue wraps out of table and code layouts' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 11 Tf '
+            . '1 0 0 1 72 760 Tm (A fresh morning in the mountains before the parallel action begins.) Tj '
+            . '1 0 0 1 300 744 Tm (143) Tj '
+            . '1 0 0 1 72 720 Tm (JANEK: Lead Baska onto the green) Tj 1 0 0 1 390 720 Tm (Janek leads Baska to pasture.) Tj '
+            . '1 0 0 1 98 704 Tm (grass.) Tj 1 0 0 1 390 704 Tm (A bell and chain sound.) Tj '
+            . '1 0 0 1 72 688 Tm (MATKA: Drive the stake well so she) Tj 1 0 0 1 390 688 Tm (JANEK: Here will be good.) Tj '
+            . '1 0 0 1 98 672 Tm (does not wander again.) Tj 1 0 0 1 390 672 Tm (He drives the stake.) Tj '
+            . '1 0 0 1 72 656 Tm (JANEK: All right, mother.) Tj 1 0 0 1 390 656 Tm (A lark sings above.) Tj '
+            . '1 0 0 1 72 640 Tm (MATKA: Good.) Tj 1 0 0 1 390 640 Tm (The morning remains quiet.) Tj ET'
+        );
+
+        $document = (new PdfReader(['pdfGeometryTables' => true, 'pdfRepairProseText' => true]))->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $plain = PandocConverter::write($document, 'plain');
+        $meta = $document->attr('meta');
+        $hypothesis = $meta['pdfGeometryLayoutHypotheses'][0] ?? [];
+
+        $t->same(0, $meta['pdfDetectedTables']);
+        $t->same(0, $meta['pdfDetectedCodeBlocks']);
+        $t->true(($meta['pdfIndependentColumnRegions'] ?? 0) > 0);
+        $t->same('independent-columns', $hypothesis['selected'] ?? null);
+        $t->same(false, $hypothesis['features']['hardNumericEvidence'] ?? null);
+        $t->contains('Lead Baska onto the green grass.', $blocks);
+        $t->contains('Drive the stake well so she does not wander again.', $blocks);
+        $t->true(!str_contains($blocks, '<!-- wp:table -->') && !str_contains($blocks, '<!-- wp:code -->'));
+        $intro = strpos($plain, 'fresh morning');
+        $pageNumber = strpos($plain, '143');
+        $leftEnd = strpos($plain, 'Good.');
+        $rightStart = strpos($plain, 'Janek leads Baska');
+        $t->true($intro !== false && $pageNumber !== false && $leftEnd !== false && $rightStart !== false);
+        $t->true($intro < $pageNumber && $pageNumber < $leftEnd && $leftEnd < $rightStart, 'Intro, page number, and unequal columns should retain column-major order.');
+    },
+    'rejoins same-baseline justified dialogue tails without inventing a lane or absorbing the page number' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 11 Tf '
+            . '1 0 0 1 72 760 Tm (A full width scene introduction before the parallel action.) Tj '
+            . '1 0 0 1 300 744 Tm (143) Tj '
+            . '1 0 0 1 72 720 Tm (MARA: This sentence begins) Tj 1 0 0 1 270 720 Tm (now.) Tj 1 0 0 1 390 720 Tm (Footsteps sound outside.) Tj '
+            . '1 0 0 1 72 704 Tm (NOVA: Another long sentence) Tj 1 0 0 1 270 704 Tm (ends.) Tj 1 0 0 1 390 704 Tm (A bell rings nearby.) Tj '
+            . '1 0 0 1 72 688 Tm (MARA: Then we should wait.) Tj 1 0 0 1 390 688 Tm (The latch rattles.) Tj '
+            . '1 0 0 1 72 672 Tm (NOVA: I agree with you.) Tj 1 0 0 1 390 672 Tm (Silence follows.) Tj ET'
+        );
+
+        $document = (new PdfReader(['pdfGeometryTables' => true, 'pdfRepairProseText' => true]))->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $plain = PandocConverter::write($document, 'plain');
+        $meta = $document->attr('meta');
+
+        $t->same(0, $meta['pdfDetectedTables']);
+        $t->same(0, $meta['pdfDetectedCodeBlocks']);
+        $t->true(($meta['pdfIndependentColumnRegions'] ?? 0) > 0);
+        $t->contains('This sentence begins now.', $blocks);
+        $t->contains('Another long sentence ends.', $blocks);
+        $t->true(!str_contains($blocks, '<!-- wp:table -->') && !str_contains($blocks, '<!-- wp:code -->'));
+        $leftEnd = strpos($plain, 'I agree with you.');
+        $rightStart = strpos($plain, 'Footsteps sound outside.');
+        $t->true($leftEnd !== false && $rightStart !== false && $leftEnd < $rightStart);
+        $t->true(
+            preg_match('/(?:^|\R)143(?:\R|$)/u', $plain) === 1,
+            'An isolated centered page number must remain atomic instead of joining a stage direction.'
+        );
+        $disposition = $meta['pdfSourceDisposition'];
+        $t->same(['emitted' => 2, 'semantic-structure' => 4], $disposition['dispositionCounts']);
+        $t->same(4, $disposition['evidencedOrderChangeOccurrenceCount']);
+        $t->same(true, $disposition['orderedSignificantCharactersPreserved']);
+        $t->same('evidenced-layout-reorder', $disposition['orderedSignificantCharacterBasis']);
+        $t->same(0, $disposition['unclaimedEmittedSignificantCharacterCount']);
+        $t->same(0, $disposition['unresolvedOccurrenceCount']);
+        foreach ($disposition['evidencedSuppressionSample'] as $sample) {
+            $t->true(!in_array($sample['text'], ['143', 'A full width scene introduction before the parallel action.'], true));
+            $t->same('bbox-intersection', $sample['evidence']['localGeometryMatch'] ?? null);
+            $t->true(is_array($sample['evidence']['sourceBounds'] ?? null));
+        }
+    },
+    'requires occurrence-local geometry for independent columns and recurring furniture dispositions' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $dispositionsFor = (function (array $hypotheses, array $profile, array $items): array {
+            $this->geometryLayoutHypotheses = $hypotheses;
+            $this->documentLayoutProfile = $profile;
+
+            return $this->explicitPdfSourceDispositions($items);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($dispositionsFor instanceof \Closure);
+        $attachSourceGeometry = (function (array $items, array $runs): array {
+            $this->withPdfSourceOccurrenceGeometry($items, $runs);
+
+            return $items;
+        })->bindTo($reader, PdfReader::class);
+        $t->true($attachSourceGeometry instanceof \Closure);
+
+        $geometry = static fn (float $x1, float $y1, float $x2, float $y2, string $orientation = 'horizontal'): array => [
+            'page' => 1,
+            'stream' => 1,
+            'x1' => $x1,
+            'y1' => $y1,
+            'x2' => $x2,
+            'y2' => $y2,
+            'orientation' => $orientation,
+        ];
+        $items = [
+            [
+                'id' => 'column-inside',
+                'page' => 1,
+                'stream' => 1,
+                'text' => 'ALFA: Repeated dialogue.',
+            ],
+            [
+                'id' => 'column-outside',
+                'page' => 1,
+                'stream' => 1,
+                'text' => 'ALFA: Repeated dialogue.',
+            ],
+            [
+                'id' => 'footer-edge',
+                'page' => 1,
+                'stream' => 1,
+                'text' => 'Repeated footer',
+                'sourceGeometry' => $geometry(250, 10, 360, 22),
+            ],
+            [
+                'id' => 'footer-body',
+                'page' => 1,
+                'stream' => 1,
+                'text' => 'Repeated footer',
+                'sourceGeometry' => $geometry(250, 390, 360, 402),
+            ],
+        ];
+        $mappedDuplicates = $attachSourceGeometry(
+            [$items[1], $items[0]],
+            [
+                $geometry(72, 620, 480, 636) + [
+                    'text' => 'ALFA: Repeated dialogue.',
+                    'fontSize' => 11.0,
+                    'textY1' => 622.0,
+                    'wordBoundarySource' => 'text-show',
+                ],
+                $geometry(72, 180, 480, 196) + [
+                    'text' => 'ALFA: Repeated dialogue.',
+                    'fontSize' => 11.0,
+                    'textY1' => 182.0,
+                    'wordBoundarySource' => 'line-break',
+                ],
+            ]
+        );
+        $t->same(620.0, $mappedDuplicates[0]['sourceGeometry']['y1'] ?? null);
+        $t->same(180.0, $mappedDuplicates[1]['sourceGeometry']['y1'] ?? null);
+        $items[1] = $mappedDuplicates[0];
+        $items[0] = $mappedDuplicates[1];
+        $punctuationMismatch = $attachSourceGeometry(
+            [[
+                'id' => 'punctuation-mismatch',
+                'page' => 1,
+                'stream' => 1,
+                'text' => 'ALFA; Repeated dialogue.',
+            ]],
+            [[
+                'page' => 1,
+                'stream' => 1,
+                'text' => 'ALFA: Repeated dialogue.',
+                'x1' => 72.0,
+                'y1' => 180.0,
+                'x2' => 480.0,
+                'y2' => 196.0,
+                'fontSize' => 11.0,
+                'textY1' => 182.0,
+                'direction' => 'horizontal',
+            ]]
+        );
+        $t->true(!isset($punctuationMismatch[0]['sourceGeometry']));
+        $edgeCandidate = [
+            'key' => 'repeated footer',
+            'text' => 'Repeated footer',
+            'edge' => 'bottom',
+            'position' => '12',
+            'orientation' => 'horizontal',
+        ];
+        $profile = [
+            'recurringFurniture' => [[
+                'key' => 'repeated footer',
+                'edge' => 'bottom',
+                'position' => '12',
+                'orientation' => 'horizontal',
+                'pages' => [1, 2],
+            ]],
+            'pageEvidence' => [
+                '1' => ['bbox' => [0, 0, 612, 792], 'edgeCandidates' => [$edgeCandidate]],
+                '2' => ['bbox' => [0, 0, 612, 792], 'edgeCandidates' => [$edgeCandidate]],
+            ],
+        ];
+        $dispositions = $dispositionsFor([[
+            'page' => 1,
+            'bounds' => ['x1' => 60, 'y1' => 150, 'x2' => 540, 'y2' => 260],
+            'columnMinusTableMargin' => 0.32,
+            'selected' => 'independent-columns',
+            'features' => ['cueRatio' => 0.4],
+        ]], $profile, $items);
+
+        $t->same(['column-inside', 'footer-edge'], array_keys($dispositions));
+        $t->same('semantic-structure', $dispositions['column-inside']['disposition']);
+        $t->same('bbox-intersection', $dispositions['column-inside']['evidence']['localGeometryMatch']);
+        $t->same('running-furniture', $dispositions['footer-edge']['disposition']);
+        $t->same('page-edge-slot', $dispositions['footer-edge']['evidence']['localGeometryMatch']);
+        $t->true(!isset($dispositions['column-outside']));
+        $t->true(!isset($dispositions['footer-body']));
+    },
+    'keeps a hanging dialogue wrap with its column before the neighboring column' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 11 Tf '
+            . '1 0 0 1 72 720 Tm (MARA: This sentence begins) Tj 1 0 0 1 340 720 Tm (ELI: Other one.) Tj '
+            . '1 0 0 1 98 704 Tm (and wraps inside its column.) Tj 1 0 0 1 340 704 Tm (MARA: Other two.) Tj '
+            . '1 0 0 1 72 688 Tm (ELI: Left reply.) Tj 1 0 0 1 340 688 Tm (ELI: Other three.) Tj '
+            . '1 0 0 1 72 672 Tm (MARA: Left ending.) Tj 1 0 0 1 340 672 Tm (MARA: Other four.) Tj '
+            . '1 0 0 1 72 656 Tm (ELI: Left coda.) Tj 1 0 0 1 340 656 Tm (ELI: Other five.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader(['pdfGeometryTables' => true, 'pdfRepairProseText' => true]))->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $html = PandocConverter::write($document, 'html');
+        $meta = $document->attr('meta');
+
+        $t->same(0, $meta['pdfDetectedTables']);
+        $t->contains('This sentence begins and wraps inside its column.', $html);
+        $t->true(strpos($html, 'Left coda.') < strpos($html, 'Other one.'));
+        $t->true(!str_contains($blocks, '<!-- wp:code -->'));
+    },
+    'keeps fewer than four cue turns as plain column text rather than guessing table or code semantics' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 11 Tf '
+            . '1 0 0 1 72 720 Tm (MARA: Left first.) Tj 1 0 0 1 340 720 Tm (ELI: Right first.) Tj '
+            . '1 0 0 1 72 704 Tm (ELI: Left second.) Tj 1 0 0 1 340 704 Tm (MARA: Right second.) Tj '
+            . '1 0 0 1 72 688 Tm (NOAH: Left third.) Tj 1 0 0 1 340 688 Tm (NOAH: Right third.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader(['pdfGeometryTables' => true, 'pdfRepairProseText' => true]))->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same(0, $meta['pdfDetectedTables']);
+        $t->same(0, $meta['pdfDetectedCodeBlocks']);
+        $t->same(0, $meta['pdfLineOrientedRegions']);
+        $t->true(($meta['pdfIndependentColumnRegions'] ?? 0) > 0);
+        $t->true(!str_contains($blocks, '<!-- wp:table -->'));
+        $t->true(!str_contains($blocks, '<!-- wp:code -->'));
+        $t->contains('MARA: Left first.', $blocks);
+        $t->contains('NOAH: Right third.', $blocks);
+    },
+    'keeps independent dialogue columns and a real table as separate page regions' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 11 Tf '
+            . '1 0 0 1 72 720 Tm (MARA: Left one.) Tj 1 0 0 1 340 720 Tm (ELI: Right one.) Tj '
+            . '1 0 0 1 72 704 Tm (ELI: Left two.) Tj 1 0 0 1 340 704 Tm (MARA: Right two.) Tj '
+            . '1 0 0 1 72 688 Tm (MARA: Left three.) Tj 1 0 0 1 340 688 Tm (ELI: Right three.) Tj '
+            . '1 0 0 1 72 672 Tm (ELI: Left four.) Tj 1 0 0 1 340 672 Tm (MARA: Right four.) Tj '
+            . '1 0 0 1 72 600 Tm (Item) Tj 1 0 0 1 250 600 Tm (Qty) Tj 1 0 0 1 340 600 Tm (Total) Tj '
+            . '1 0 0 1 72 584 Tm (Lantern) Tj 1 0 0 1 250 584 Tm (2) Tj 1 0 0 1 340 584 Tm ($8.00) Tj '
+            . '1 0 0 1 72 568 Tm (Rope) Tj 1 0 0 1 250 568 Tm (1) Tj 1 0 0 1 340 568 Tm ($3.00) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader(['pdfGeometryTables' => true, 'pdfRepairProseText' => true]))->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same(1, $meta['pdfDetectedTables']);
+        $t->same(1, substr_count($blocks, '<!-- wp:table -->'));
+        $t->true(($meta['pdfIndependentColumnRegions'] ?? 0) > 0);
+        $t->contains('<th>Item</th><th>Qty</th><th>Total</th>', $blocks);
+        $t->contains('<td>Lantern</td><td>2</td><td>$8.00</td>', $blocks);
+        $t->true(strpos($blocks, 'Left four.') < strpos($blocks, '<!-- wp:table -->'));
+        $t->true(strpos($blocks, 'Right one.') < strpos($blocks, '<!-- wp:table -->'));
+        $t->true(!str_contains($blocks, '<!-- wp:code -->'));
+    },
+    'keeps invoice and borderless text grids on the table side of the hypothesis margin' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $fixtures = [
+            'invoice' => $pdfWithContent(
+                'BT /F1 11 Tf '
+                . '1 0 0 1 72 720 Tm (Item) Tj 1 0 0 1 220 720 Tm (Qty) Tj 1 0 0 1 340 720 Tm (Total) Tj '
+                . '1 0 0 1 72 704 Tm (Consulting) Tj 1 0 0 1 220 704 Tm (2) Tj 1 0 0 1 340 704 Tm ($400.00) Tj '
+                . '1 0 0 1 72 688 Tm (Hosting) Tj 1 0 0 1 220 688 Tm (1) Tj 1 0 0 1 340 688 Tm ($50.00) Tj ET'
+            ),
+            'borderless text grid' => $pdfWithContent(
+                'BT /F1 11 Tf '
+                . '1 0 0 1 72 720 Tm (Role) Tj 1 0 0 1 220 720 Tm (Shift) Tj 1 0 0 1 340 720 Tm (Status) Tj '
+                . '1 0 0 1 72 704 Tm (Guide) Tj 1 0 0 1 220 704 Tm (Morning) Tj 1 0 0 1 340 704 Tm (Ready) Tj '
+                . '1 0 0 1 72 688 Tm (Keeper) Tj 1 0 0 1 220 688 Tm (Evening) Tj 1 0 0 1 340 688 Tm (Ready) Tj '
+                . '1 0 0 1 72 672 Tm (Host) Tj 1 0 0 1 220 672 Tm (Morning) Tj 1 0 0 1 340 672 Tm (Waiting) Tj '
+                . '1 0 0 1 72 656 Tm (Usher) Tj 1 0 0 1 220 656 Tm (Evening) Tj 1 0 0 1 340 656 Tm (Ready) Tj ET'
+            ),
+        ];
+
+        foreach ($fixtures as $name => $pdf) {
+            $document = (new PdfReader(['pdfGeometryTables' => true, 'pdfRepairProseText' => true]))->read($pdf);
+            $meta = $document->attr('meta');
+            $blocks = PandocConverter::write($document, 'blocks');
+
+            $t->same(1, $meta['pdfDetectedTables'], $name);
+            $t->same(0, $meta['pdfIndependentColumnRegions'], $name);
+            $t->same('table', $meta['pdfGeometryLayoutHypotheses'][0]['selected'] ?? null, $name);
+            $t->same(true, $meta['pdfGeometryLayoutHypotheses'][0]['features']['hardTableEvidence'] ?? null, $name);
+            $t->contains('<!-- wp:table -->', $blocks, $name);
+        }
     },
     'does not promote positioned prose word fragments to a table' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(

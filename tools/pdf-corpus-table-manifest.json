@@ -5,7 +5,16 @@
     "kind": "invoice",
     "url": "https://quickbooks.intuit.com/oidam/intuit/sbseg/en_au/quickbooks-online/web/content/QuickBooks-Invoice-Template-PDF.pdf",
     "expectedTables": 1,
-    "notes": "Business invoice with line-item amounts and totals."
+    "expectedPhysicalTables": 7,
+    "expectedLogicalInstances": 2,
+    "expectedLogicalFamilies": 1,
+    "notes": "Business invoice with line-item amounts and totals.",
+    "artifact": {"pinStatus": "checked-in", "bytes": 141704, "sha256": "0ad013d0026a6a6a5524e5e36b4d145acaeb91547989f3c27f19bf2ae482bc61", "localPath": "pandoc-showcase/samples/pdf-quickbooks-invoice-template-quickbooks-invoice-template.pdf"},
+    "provenance": {"sourceType": "public-business-template", "project": "Intuit QuickBooks", "upstreamPath": "QuickBooks-Invoice-Template-PDF.pdf"},
+    "license": {"status": "review-required", "spdx": null, "reference": "https://quickbooks.intuit.com/au/invoicing/invoice-templates/"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": ["License terms need maintainer review before redistributing newer revisions"]},
+    "failureClasses": ["C3", "D8"],
+    "success": {"expectedLogicalTables": 1, "expectedPhysicalTables": 7, "expectedLogicalInstances": 2, "expectedLogicalFamilies": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "azure-document-intelligence-invoice",
@@ -13,7 +22,13 @@
     "kind": "invoice",
     "url": "https://documentintelligence.ai.azure.com/documents/samples/prebuilt/invoice-english.pdf",
     "expectedTables": 1,
-    "notes": "Sample invoice used by a document extraction product."
+    "notes": "Sample invoice used by a document extraction product.",
+    "artifact": {"pinStatus": "blocked-license-review", "bytes": null, "sha256": null},
+    "provenance": {"sourceType": "public-product-sample", "project": "Microsoft Azure Document Intelligence", "upstreamPath": "documents/samples/prebuilt/invoice-english.pdf"},
+    "license": {"status": "review-required", "spdx": null, "reference": "https://documentintelligence.ai.azure.com/"},
+    "review": {"status": "blocked", "asOf": "2026-07-16", "visual": "blocked", "unresolved": ["artifact-sha256", "license-review"]},
+    "failureClasses": ["C2", "C3"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "chase-sample-statement",
@@ -21,7 +36,13 @@
     "kind": "statement",
     "url": "https://www.chase.com/content/dam/chase-ux/documents/digital/resources/paperless_statements_chase_sample.pdf",
     "expectedTables": 1,
-    "notes": "Financial statement with balance and transaction-style table content."
+    "notes": "Financial statement with balance and transaction-style table content.",
+    "artifact": {"pinStatus": "blocked-license-review", "bytes": null, "sha256": null},
+    "provenance": {"sourceType": "public-business-sample", "project": "JPMorgan Chase", "upstreamPath": "digital/resources/paperless_statements_chase_sample.pdf"},
+    "license": {"status": "review-required", "spdx": null, "reference": "https://www.chase.com/digital/resources/privacy-security/legal"},
+    "review": {"status": "blocked", "asOf": "2026-07-16", "visual": "blocked", "unresolved": ["artifact-sha256", "license-review"]},
+    "failureClasses": ["C2", "C3", "C6"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "irs-publication-15t",
@@ -29,7 +50,13 @@
     "kind": "tax-table",
     "url": "https://www.irs.gov/pub/irs-pdf/p15t.pdf",
     "expectedTables": 3,
-    "notes": "Federal income-tax withholding methods with many numeric tables."
+    "notes": "Federal income-tax withholding methods with many numeric tables.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 2480887, "sha256": "31b3e2428628e8d2e40f6266c2c8f1b9b0b6ccd24607895f9b3be3d9d306d3fb"},
+    "provenance": {"sourceType": "us-government-publication", "project": "Internal Revenue Service", "upstreamPath": "pub/irs-pdf/p15t.pdf"},
+    "license": {"status": "us-government-work", "spdx": "LicenseRef-US-Government-Work", "reference": "https://www.usa.gov/government-copyright"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C3", "C6", "C8"],
+    "success": {"expectedLogicalTables": 3, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "irs-tax-table-1040",
@@ -37,7 +64,13 @@
     "kind": "tax-table",
     "url": "https://www.irs.gov/pub/irs-pdf/i1040tt.pdf",
     "expectedTables": 3,
-    "notes": "Dense tax-table pages with repeated column groups."
+    "notes": "Dense tax-table pages with repeated column groups.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 1452403, "sha256": "8ae019bd3b28b07b37e46e18597d8e899222a2224ce7482c015b130033403532"},
+    "provenance": {"sourceType": "us-government-publication", "project": "Internal Revenue Service", "upstreamPath": "pub/irs-pdf/i1040tt.pdf"},
+    "license": {"status": "us-government-work", "spdx": "LicenseRef-US-Government-Work", "reference": "https://www.usa.gov/government-copyright"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C2", "C3", "C8"],
+    "success": {"expectedLogicalTables": 3, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "we-energies-electric-rates",
@@ -45,7 +78,13 @@
     "kind": "rate-schedule",
     "url": "https://www.we-energies.com/olb/26/2026-01-we-electric-rates.pdf",
     "expectedTables": 2,
-    "notes": "Utility-rate schedule with charges and tariff-style tables."
+    "notes": "Utility-rate schedule with charges and tariff-style tables.",
+    "artifact": {"pinStatus": "blocked-license-review", "bytes": null, "sha256": null},
+    "provenance": {"sourceType": "public-utility-rate-schedule", "project": "WE Energies", "upstreamPath": "olb/26/2026-01-we-electric-rates.pdf"},
+    "license": {"status": "review-required", "spdx": null, "reference": "https://www.we-energies.com/company/terms"},
+    "review": {"status": "blocked", "asOf": "2026-07-16", "visual": "blocked", "unresolved": ["artifact-sha256", "license-review"]},
+    "failureClasses": ["C2", "C3", "C6"],
+    "success": {"expectedLogicalTables": 2, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "uscis-i9-form",
@@ -53,7 +92,13 @@
     "kind": "form",
     "url": "https://www.uscis.gov/sites/default/files/document/forms/i-9.pdf",
     "expectedTables": 1,
-    "notes": "Government employment eligibility form with structured field tables."
+    "notes": "Government employment eligibility form with structured field tables.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 524095, "sha256": "780f348c34df694bb0b4dbbfaf9f22b99b9757b80d16a37ba89aadf069597281"},
+    "provenance": {"sourceType": "us-government-form", "project": "U.S. Citizenship and Immigration Services", "upstreamPath": "sites/default/files/document/forms/i-9.pdf"},
+    "license": {"status": "us-government-work", "spdx": "LicenseRef-US-Government-Work", "reference": "https://www.usa.gov/government-copyright"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": ["E6: static AcroForm appearances and safe field values require explicit assertions"]},
+    "failureClasses": ["D9", "E6"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "cdc-hand-hygiene-brochure",
@@ -61,7 +106,13 @@
     "kind": "leaflet",
     "url": "https://www.cdc.gov/clean-hands/media/pdfs/cdc-handhygiene-brochure-508.pdf",
     "expectedTables": 0,
-    "notes": "Leaflet layout that previously exposed word-spacing and column-order failures."
+    "notes": "Leaflet layout that previously exposed word-spacing and column-order failures.",
+    "artifact": {"pinStatus": "checked-in", "bytes": 347256, "sha256": "b3c1c88eb59606cef0b34c3a0ca7bb23b43bb8ebd0314443972f8b1c6c17c15b", "localPath": "pandoc-showcase/samples/pdf-cdc-hand-hygiene-brochure-cdc-handhygiene-brochure.pdf"},
+    "provenance": {"sourceType": "us-government-brochure", "project": "Centers for Disease Control and Prevention", "upstreamPath": "clean-hands/media/pdfs/cdc-handhygiene-brochure-508.pdf"},
+    "license": {"status": "us-government-work", "spdx": "LicenseRef-US-Government-Work", "reference": "https://www.cdc.gov/other/agencymaterials.html"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": []},
+    "failureClasses": ["B3", "C1", "C4"],
+    "success": {"expectedLogicalTables": 0, "maxTables": 0, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-schools",
@@ -69,7 +120,13 @@
     "kind": "education-table",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/schools.pdf",
     "expectedTables": 1,
-    "notes": "School-data table fixture from tabula-java."
+    "notes": "School-data table fixture from tabula-java.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 72878, "sha256": "d73a342af0250f36b08b718dbf6b73def928e103aa7911ff18018534aa5c87fb"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/schools.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C2", "C3"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-12s0324",
@@ -77,7 +134,13 @@
     "kind": "scientific",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/12s0324.pdf",
     "expectedTables": 1,
-    "notes": "Public table-extraction regression PDF from tabula-java."
+    "notes": "Public table-extraction regression PDF from tabula-java.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 64081, "sha256": "092853e4af150d1c72f474a59ce902305e8675c1d04059d5e2af4a628bc6dfbd"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/12s0324.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C2", "C5"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-campaign-donors",
@@ -85,7 +148,13 @@
     "kind": "finance-table",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/campaign_donors.pdf",
     "expectedTables": 1,
-    "notes": "Donation ledger-style rows from tabula-java."
+    "notes": "Donation ledger-style rows from tabula-java.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 44296, "sha256": "e08bf501a22136360ac22020caae5ce21934de8cf18c62ca293dd02b8971088e"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/campaign_donors.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C2", "C3"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-eu-017",
@@ -93,7 +162,13 @@
     "kind": "government-table",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/eu-017.pdf",
     "expectedTables": 1,
-    "notes": "European government table fixture from tabula-java."
+    "notes": "European government table fixture from tabula-java.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 60891, "sha256": "3c053ef9e9c4e456727b108f6e9b5a02fae07d0c6c693df15262b9e42b3e33dc"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/eu-017.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C2", "C3"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-frx-disclosure",
@@ -101,7 +176,13 @@
     "kind": "finance-table",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/frx_2012_disclosure.pdf",
     "expectedTables": 1,
-    "notes": "Financial disclosure table fixture from tabula-java."
+    "notes": "Financial disclosure table fixture from tabula-java.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 21404, "sha256": "aa80de941ee2999798e2d36b63b475861468bcb958cb7106e9afcc12242ad54a"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/frx_2012_disclosure.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C2", "C3"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-award-of-bids",
@@ -109,7 +190,13 @@
     "kind": "procurement-table",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/Publication_of_award_of_Bids_for_Transport_Sector__August_2016.pdf",
     "expectedTables": 1,
-    "notes": "Procurement-award table with multiple row groups."
+    "notes": "Procurement-award table with multiple row groups.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 121559, "sha256": "038126d57e3d9aadfee6c3ac44acc66d4fbdc13598dad8deadd7ec76a2a7d2ab"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/Publication_of_award_of_Bids_for_Transport_Sector__August_2016.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C3", "C8"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-multicolumn",
@@ -117,7 +204,13 @@
     "kind": "multicolumn",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/MultiColumn.pdf",
     "expectedTables": 1,
-    "notes": "Small multicolumn layout fixture that stresses reading order."
+    "notes": "Small multicolumn layout fixture that stresses reading order.",
+    "artifact": {"pinStatus": "checked-in", "bytes": 8336, "sha256": "ad8639d78ff804aff84ec15eac915367f3aa177f39de12b7b02cbc6cb19d3162", "localPath": "pandoc-showcase/samples/pdf-tabula-multicolumn-multi-column.pdf"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/MultiColumn.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": []},
+    "failureClasses": ["C1", "C2", "C3"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-spanning-cells",
@@ -125,7 +218,13 @@
     "kind": "spanning-table",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/spanning_cells.pdf",
     "expectedTables": 1,
-    "notes": "Small table fixture with spanning cells."
+    "notes": "Small table fixture with spanning cells.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 27918, "sha256": "f0a8fb8a293a192ca896ff4100b7b7113149ca89145ba61da662bd9d9fec3acf"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/spanning_cells.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C3", "D8"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-us-007",
@@ -133,7 +232,13 @@
     "kind": "government-table",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/us-007.pdf",
     "expectedTables": 1,
-    "notes": "US table extraction fixture from tabula-java."
+    "notes": "US table extraction fixture from tabula-java.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 32528, "sha256": "0362973d6150f1af4cc5ebf1f15808bbf3d161090f9ab68be7523c90c26f1eb6"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/us-007.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C2", "C3"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-us-017",
@@ -141,7 +246,13 @@
     "kind": "government-table",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/us-017.pdf",
     "expectedTables": 1,
-    "notes": "US table extraction fixture from tabula-java."
+    "notes": "US table extraction fixture from tabula-java.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 54069, "sha256": "5f208f8587a592fc486ad3f3d11a0d91c366da6956a8ec7183aa2de06be89113"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/us-017.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C2", "C3"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-twotables",
@@ -149,7 +260,13 @@
     "kind": "multi-table",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/twotables.pdf",
     "expectedTables": 2,
-    "notes": "Two separate table regions on one page from tabula-java."
+    "notes": "Two separate table regions on one page from tabula-java.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 204955, "sha256": "72a9d20672e4d581ae9933a07cbe9a6f6db40632218fb7e73bd923dee033d8cd"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/twotables.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C3", "C5"],
+    "success": {"expectedLogicalTables": 2, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-argentina-voting",
@@ -157,7 +274,13 @@
     "kind": "government-table",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/argentina_diputados_voting_record.pdf",
     "expectedTables": 1,
-    "notes": "Legislative voting-record table with mixed text and image resources."
+    "notes": "Legislative voting-record table with mixed text and image resources.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 47834, "sha256": "101064f0dc6aaafbab30ebccce14f290e695ef220b01699254df607f2000b61e"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/argentina_diputados_voting_record.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C3", "E1", "E4"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-labor",
@@ -165,7 +288,13 @@
     "kind": "labor-table",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/labor.pdf",
     "expectedTables": 1,
-    "notes": "Labor statistics table fixture with many aligned text cells."
+    "notes": "Labor statistics table fixture with many aligned text cells.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 66972, "sha256": "cc4b4e4249ee98f7248fbcb3a1dbad52b62d44bc52c73e96234dbdca6ea3bab9"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/labor.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C2", "C3"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-spreadsheet-no-frame",
@@ -173,7 +302,13 @@
     "kind": "spreadsheet-table",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/spreadsheet_no_bounding_frame.pdf",
     "expectedTables": 1,
-    "notes": "Spreadsheet-style table without a single outer bounding frame."
+    "notes": "Spreadsheet-style table without a single outer bounding frame.",
+    "artifact": {"pinStatus": "checked-in", "bytes": 963925, "sha256": "67192f9b786462db2db772d4f526486fa65d8dc46e121957ce1ad08ec09c21e0", "localPath": "pandoc-showcase/samples/pdf-tabula-spreadsheet-no-frame-crop-table-no-frame.pdf"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/spreadsheet_no_bounding_frame.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": []},
+    "failureClasses": ["C1", "C2", "C3"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-us-020",
@@ -181,7 +316,13 @@
     "kind": "government-table",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/us-020.pdf",
     "expectedTables": 1,
-    "notes": "Large US government table fixture with several reconstructed table regions."
+    "notes": "Large US government table fixture with several reconstructed table regions.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 122078, "sha256": "d884d32bd2a1d620e0c7b5446e4d0b58ba67dab04e884839b2640b9a35749e99"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/us-020.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C3", "C8"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   },
   {
     "id": "tabula-us-024",
@@ -189,6 +330,12 @@
     "kind": "government-table",
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/us-024.pdf",
     "expectedTables": 1,
-    "notes": "US government table fixture with compact numeric columns."
+    "notes": "US government table fixture with compact numeric columns.",
+    "artifact": {"pinStatus": "remote-hash-pinned", "bytes": 71987, "sha256": "0621ef695e71725ae2ec262f7d90921995d565fd6008a544468ad7a0ee0bfdd5"},
+    "provenance": {"sourceType": "upstream-test-fixture", "project": "tabula-java", "upstreamPath": "src/test/resources/technology/tabula/us-024.pdf"},
+    "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
+    "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
+    "failureClasses": ["C2", "C3"],
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
   }
 ]

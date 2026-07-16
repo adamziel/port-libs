@@ -795,6 +795,9 @@ final class PandocMediaExtractor
             'data-pandoc-pdf-image-importance' => (string) $placement['importance'],
             'data-pandoc-pdf-image-placement' => 'inline',
         ];
+        if (is_string($placement['id'] ?? null) && $placement['id'] !== '') {
+            $attributes['data-pandoc-pdf-visual-id'] = $placement['id'];
+        }
         if (isset($placement['width']) && $placement['width'] !== null) {
             $attributes['data-pandoc-pdf-image-width'] = (string) $placement['width'];
         }

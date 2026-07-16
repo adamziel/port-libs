@@ -20,6 +20,7 @@ let pdfjsModulePromise = null;
  * @param {Map<string, File|Uint8Array|ArrayBuffer>} options.filesByPath
  * @param {Array<{id:string,path:string,page:number,bbox:{x1:number,y1:number,x2:number,y2:number}}>} options.requests
  * @param {{pdfjsModuleUrl:string,pdfjsWorkerUrl:string,pdfjsWasmUrl?:string,pdfjsCMapUrl?:string,pdfjsStandardFontDataUrl?:string}} options.pdfjs
+ * @param {Object} [options.pdfjsModule] Test/host injection for an already loaded PDF.js module.
  * @param {(progress:{completed:number,total:number,label:string}) => void} [options.onProgress]
  * @param {number} [options.maxPixels]
  * @param {number} [options.maxTotalPixels]
@@ -29,9 +30,39 @@ let pdfjsModulePromise = null;
  * @returns {Promise<Array<{requestId:string,bytes?:Uint8Array,mimeType?:string,width?:number,height?:number,error?:string}>>}
  */
 export async function renderPdfFormRequests({
+  ...options
+}) {
+  const results = [];
+  for await (const result of renderPdfFormRequestsIncrementally(options)) {
+    results.push(result);
+  }
+
+  return results;
+}
+
+/**
+ * Render one PDF crop at a time. Callers can upload and acknowledge each
+ * yielded result before the next canvas is allocated, so a late network or
+ * WordPress failure never strands an array of large PNGs in browser memory.
+ * Breaking out of the iterator destroys every open PDF.js document.
+ *
+ * @param {Object} options
+ * @param {Map<string, File|Uint8Array|ArrayBuffer>} options.filesByPath
+ * @param {Array<{id:string,path:string,page:number,bbox:{x1:number,y1:number,x2:number,y2:number}}>} options.requests
+ * @param {{pdfjsModuleUrl:string,pdfjsWorkerUrl:string,pdfjsWasmUrl?:string,pdfjsCMapUrl?:string,pdfjsStandardFontDataUrl?:string}} options.pdfjs
+ * @param {(progress:{completed:number,total:number,label:string}) => void} [options.onProgress]
+ * @param {number} [options.maxPixels]
+ * @param {number} [options.maxTotalPixels]
+ * @param {number} [options.maxTotalImageBytes]
+ * @param {number} [options.maxSourceBytes]
+ * @param {AbortSignal} [options.signal]
+ * @returns {AsyncGenerator<{requestId:string,bytes?:Uint8Array,mimeType?:string,width?:number,height?:number,error?:string,budgetExhausted?:string}>}
+ */
+export async function* renderPdfFormRequestsIncrementally({
   filesByPath,
   requests,
   pdfjs,
+  pdfjsModule = null,
   onProgress = () => {},
   maxPixels = DEFAULT_MAX_PIXELS,
   maxTotalPixels = Number.POSITIVE_INFINITY,
@@ -40,9 +71,25 @@ export async function renderPdfFormRequests({
   signal,
 }) {
   if (!Array.isArray(requests) || requests.length === 0) {
-    return [];
+    return;
   }
   throwIfAborted(signal);
+  const totalPixelsLimit = nonNegativeRenderLimit(maxTotalPixels);
+  const totalImageBytesLimit = nonNegativeRenderLimit(maxTotalImageBytes);
+  const initiallyExhausted = totalPixelsLimit <= 0
+    ? 'pixels'
+    : (totalImageBytesLimit <= 0 ? 'image-bytes' : '');
+  if (initiallyExhausted) {
+    const error = renderBudgetError(initiallyExhausted);
+    for (const request of requests) {
+      yield {
+        requestId: String(request?.id || ''),
+        error: error.message,
+        budgetExhausted: initiallyExhausted,
+      };
+    }
+    return;
+  }
   // Loading PDF.js itself is an optional browser-assisted enhancement.  A
   // missing worker, a CSP/module policy, or an unsupported browser must not
   // strand the server-side import in `awaiting_renderer`: report every
@@ -50,29 +97,27 @@ export async function renderPdfFormRequests({
   // WordPress continue with its normal source/placeholder handling.
   let module;
   try {
-    module = await loadPdfJs(pdfjs);
+    module = pdfjsModule || await loadPdfJs(pdfjs);
     throwIfAborted(signal);
   } catch (error) {
     if (signal?.aborted) {
       throw abortError(signal);
     }
     const message = errorMessage(error);
-    const results = requests.map((request) => ({
-      requestId: String(request?.id || ''),
-      error: message,
-    }));
     onProgress({
       completed: requests.length,
       total: requests.length,
       label: 'PDF figure rendering is unavailable; continuing the text import.',
     });
-
-    return results;
+    for (const request of requests) {
+      yield {
+        requestId: String(request?.id || ''),
+        error: message,
+      };
+    }
+    return;
   }
   const documents = new Map();
-  const results = [];
-  const totalPixelsLimit = nonNegativeRenderLimit(maxTotalPixels);
-  const totalImageBytesLimit = nonNegativeRenderLimit(maxTotalImageBytes);
   let renderedPixels = 0;
   let renderedImageBytes = 0;
   try {
@@ -87,6 +132,14 @@ export async function renderPdfFormRequests({
         label: `Rendering PDF figure ${index + 1} of ${requests.length}…`,
       });
       try {
+        const remainingPixels = totalPixelsLimit - renderedPixels;
+        if (remainingPixels <= 0) {
+          throw renderBudgetError('pixels');
+        }
+        const remainingImageBytes = totalImageBytesLimit - renderedImageBytes;
+        if (remainingImageBytes <= 0) {
+          throw renderBudgetError('image-bytes');
+        }
         if (!requestId || !path || !filesByPath?.has(path)) {
           throw new Error('The original PDF is no longer available in this browser. Choose the file again to render this figure.');
         }
@@ -109,10 +162,6 @@ export async function renderPdfFormRequests({
           documents.set(path, document);
           throwIfAborted(signal);
         }
-        const remainingPixels = totalPixelsLimit - renderedPixels;
-        if (remainingPixels <= 0) {
-          throw new Error('The PDF figure renderer reached its total pixel budget.');
-        }
         const rendered = await renderRequest(
           module,
           document,
@@ -123,20 +172,30 @@ export async function renderPdfFormRequests({
         throwIfAborted(signal);
         const pixelCount = rendered.width * rendered.height;
         if (pixelCount > remainingPixels) {
-          throw new Error('The PDF figure renderer reached its total pixel budget.');
+          renderedPixels = totalPixelsLimit;
+          throw renderBudgetError('pixels');
         }
-        const remainingImageBytes = totalImageBytesLimit - renderedImageBytes;
         if (rendered.bytes.length > remainingImageBytes) {
-          throw new Error('The PDF figure renderer reached its total image-byte budget.');
+          // The failed encode proves that the residual byte budget cannot
+          // accept this output. Exhaust it so later requests fail before
+          // another full PDF.js paint/PNG encode rather than repeating the
+          // same expensive miss hundreds of times.
+          renderedImageBytes = totalImageBytesLimit;
+          throw renderBudgetError('image-bytes');
         }
         renderedPixels += pixelCount;
         renderedImageBytes += rendered.bytes.length;
-        results.push({ requestId, ...rendered });
+        yield { requestId, ...rendered };
       } catch (error) {
         if (signal?.aborted) {
           throw abortError(signal);
         }
-        results.push({ requestId, error: errorMessage(error) });
+        const budgetExhausted = renderBudgetExhausted(error);
+        yield {
+          requestId,
+          error: errorMessage(error),
+          ...(budgetExhausted ? { budgetExhausted } : {}),
+        };
       }
     }
   } finally {
@@ -151,8 +210,6 @@ export async function renderPdfFormRequests({
   }
   throwIfAborted(signal);
   onProgress({ completed: requests.length, total: requests.length, label: 'PDF figure rendering complete.' });
-
-  return results;
 }
 
 async function loadPdfJs(pdfjs) {
@@ -209,6 +266,8 @@ async function renderRequest(module, pdfDocument, request, maxPixels, signal) {
     throw new Error('The requested PDF figure crop was invalid.');
   }
   const page = await pdfDocument.getPage(pageNumber);
+  let canvas = null;
+  let context = null;
   try {
     const scale = cropScale(bbox, maxPixels);
     const viewport = page.getViewport({ scale });
@@ -231,10 +290,10 @@ async function renderRequest(module, pdfDocument, request, maxPixels, signal) {
     if (width > DEFAULT_MAX_DIMENSION || height > DEFAULT_MAX_DIMENSION || width * height > maxPixels) {
       throw new Error('The PDF figure crop is too large to render safely in this browser.');
     }
-    const canvas = window.document.createElement('canvas');
+    canvas = window.document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
-    const context = canvas.getContext('2d', { alpha: false });
+    context = canvas.getContext('2d', { alpha: false });
     if (!context) {
       throw new Error('This browser could not create a canvas for the PDF figure.');
     }
@@ -260,6 +319,15 @@ async function renderRequest(module, pdfDocument, request, maxPixels, signal) {
 
     return { bytes, mimeType: 'image/png', width, height };
   } finally {
+    // A canvas keeps its full RGBA backing store even after its PNG Blob has
+    // been encoded. Explicitly collapse it before the iterator lets the next
+    // request allocate another crop; relying on a later GC caused large PDFs
+    // to retain several figure-sized buffers at once.
+    if (canvas) {
+      try { context?.clearRect(0, 0, canvas.width, canvas.height); } catch { /* Best effort. */ }
+      canvas.width = 0;
+      canvas.height = 0;
+    }
     page.cleanup?.();
   }
 }
@@ -268,6 +336,21 @@ function nonNegativeRenderLimit(value) {
   return Number.isFinite(value) && value >= 0
     ? Math.floor(value)
     : Number.POSITIVE_INFINITY;
+}
+
+function renderBudgetError(kind) {
+  const normalized = kind === 'pixels' ? 'pixels' : 'image-bytes';
+  const error = new Error(normalized === 'pixels'
+    ? 'The PDF figure renderer reached its total pixel budget.'
+    : 'The PDF figure renderer reached its total image-byte budget.');
+  error.budgetExhausted = normalized;
+  return error;
+}
+
+function renderBudgetExhausted(error) {
+  return error && typeof error === 'object' && ['pixels', 'image-bytes'].includes(error.budgetExhausted)
+    ? error.budgetExhausted
+    : '';
 }
 
 function abortError(signal) {

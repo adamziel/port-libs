@@ -3,7 +3,26 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-$sourcePlugin = $root . '/tools/playground-converter-plugin/port-libs-playground-converter.php';
+$cliOptions = getopt('', ['target-dir:', 'plugin-source:']);
+foreach (['target-dir', 'plugin-source'] as $optionName) {
+    $wasRequested = false;
+    foreach ($argv as $argument) {
+        if ($argument === '--' . $optionName || str_starts_with($argument, '--' . $optionName . '=')) {
+            $wasRequested = true;
+            break;
+        }
+    }
+    if ($wasRequested
+        && (!array_key_exists($optionName, $cliOptions)
+            || !is_string($cliOptions[$optionName])
+            || trim($cliOptions[$optionName]) === '')) {
+        fwrite(STDERR, "--{$optionName} requires a non-empty value.\n");
+        exit(1);
+    }
+}
+$sourcePlugin = isset($cliOptions['plugin-source']) && is_string($cliOptions['plugin-source'])
+    ? $cliOptions['plugin-source']
+    : $root . '/tools/playground-converter-plugin/port-libs-playground-converter.php';
 $sourceAssets = $root . '/tools/playground-converter-plugin/assets';
 $sourcePdfJsRasterizer = $root . '/pandoc-showcase/pdfjs-form-rasterizer.mjs';
 $sourcePdfJsFactsProvider = $root . '/pandoc-showcase/pdfjs-facts-provider.mjs';
@@ -12,13 +31,23 @@ $sourcePdfJpxRasterizer = $root . '/pandoc-showcase/pdf-jpx-rasterizer.mjs';
 $sourcePdfJbig2Rasterizer = $root . '/pandoc-showcase/pdf-jbig2-rasterizer.mjs';
 $sourcePdfOpenJpeg = $root . '/pandoc-showcase/vendor/pdfjs-openjpeg';
 $sourcePdfJbig2 = $root . '/pandoc-showcase/vendor/pdfjs-jbig2';
-$targetDir = $root . '/pandoc-showcase/playground';
+$targetDir = isset($cliOptions['target-dir']) && is_string($cliOptions['target-dir'])
+    ? rtrim($cliOptions['target-dir'], DIRECTORY_SEPARATOR)
+    : $root . '/pandoc-showcase/playground';
+if ($targetDir === '') {
+    fwrite(STDERR, "The plugin distribution target directory cannot be empty.\n");
+    exit(1);
+}
 $targetZip = $targetDir . '/port-libs-playground-converter.zip';
+$targetManifest = $targetDir . '/port-libs-playground-converter.manifest.json';
 // Many shared hosts configure PHP uploads at 8 MiB. Keep a little multipart
 // overhead below that ceiling; hosts still using PHP's 2 MiB default need a
 // normal server-level upload-limit increase for any feature-complete PDF.js
 // importer package.
 const PLPC_COMMON_PHP_UPLOAD_LIMIT = (8 * 1024 * 1024) - (64 * 1024);
+// ZIP metadata must not make two builds from the same source differ. 1980-01-01
+// is the earliest timestamp representable by the classic ZIP format.
+const PLPC_DISTRIBUTION_MTIME = 315532800;
 
 if (!is_file($sourcePlugin)) {
     fwrite(STDERR, "Missing plugin source: {$sourcePlugin}\n");
@@ -45,9 +74,11 @@ if ($zip->open($temporaryZip, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== tr
 }
 
 try {
-    // Keep the WordPress plugin-header comment intact; WordPress discovers a
-    // plugin from that header before it ever executes the file.
-    add_file_to_zip($zip, $sourcePlugin, 'port-libs-playground-converter/port-libs-playground-converter.php', false, true);
+    add_wordpress_plugin_php_to_zip(
+        $zip,
+        $sourcePlugin,
+        'port-libs-playground-converter/port-libs-playground-converter.php'
+    );
     add_tree_to_zip(
         $zip,
         $root . '/lanes/pandoc/src',
@@ -106,6 +137,7 @@ try {
     if (!rename($temporaryZip, $targetZip)) {
         throw new RuntimeException("Unable to publish {$targetZip}.");
     }
+    write_distribution_manifest($targetZip, $targetManifest);
 } catch (Throwable $error) {
     $zip->close();
     @unlink($temporaryZip);
@@ -113,6 +145,73 @@ try {
     exit(1);
 }
 echo $targetZip . "\n";
+echo $targetManifest . "\n";
+
+/**
+ * Preserve the exact WordPress discovery header while stripping comments and
+ * formatting from executable PHP. The header and executable are handled
+ * separately so module-extension rewriting cannot mutate plugin metadata.
+ */
+function add_wordpress_plugin_php_to_zip(ZipArchive $zip, string $source, string $local): void
+{
+    $sourceContents = file_get_contents($source);
+    if (!is_string($sourceContents)) {
+        throw new RuntimeException("Unable to read {$source} for the plugin archive.");
+    }
+    $header = wordpress_plugin_header_comment($sourceContents, $source);
+    $stripped = php_strip_whitespace($source);
+    if (!is_string($stripped) || $stripped === '') {
+        throw new RuntimeException("Unable to minify {$source} for the plugin archive.");
+    }
+    if (preg_match('/\A<\?php(?:\s|$)/', $stripped, $openingMatch) !== 1) {
+        throw new RuntimeException("The WordPress plugin source {$source} does not begin with an ordinary PHP open tag.");
+    }
+
+    $openingTag = $openingMatch[0];
+    $openingTag = rtrim($openingTag);
+    $executable = substr($stripped, strlen($openingMatch[0]));
+    if (!is_string($executable)) {
+        throw new RuntimeException("Unable to isolate executable PHP in {$source}.");
+    }
+    // Native WordPress/Playground servers commonly serve .mjs with the wrong
+    // MIME type. Keep the established production rewrite in minified PHP.
+    $executable = str_replace('.mjs', '.js', $executable);
+    $contents = $openingTag . "\n" . $header . "\n" . ltrim($executable, "\r\n");
+    $local = plugin_distribution_path($local);
+    if (!$zip->addFromString($local, $contents)) {
+        throw new RuntimeException("Unable to add {$source} to the plugin archive.");
+    }
+    set_distribution_entry_metadata($zip, $local);
+}
+
+/**
+ * Return the one exact header comment WordPress can discover in the first
+ * 8 KiB of the main plugin file. Missing or ambiguous headers fail closed.
+ */
+function wordpress_plugin_header_comment(string $source, string $label): string
+{
+    $headers = [];
+    $offset = 0;
+    foreach (token_get_all($source) as $token) {
+        $text = is_array($token) ? $token[1] : $token;
+        if (is_array($token)
+            && in_array($token[0], [T_COMMENT, T_DOC_COMMENT], true)
+            && preg_match('/^[ \t\/*#@]*Plugin Name\s*:\s*\S.*$/mi', $text) === 1
+            && $offset + strlen($text) <= 8192) {
+            $headers[] = $text;
+        }
+        $offset += strlen($text);
+    }
+    if (count($headers) !== 1) {
+        throw new RuntimeException(sprintf(
+            'Expected exactly one discoverable WordPress Plugin Name header comment in %s; found %d.',
+            $label,
+            count($headers)
+        ));
+    }
+
+    return $headers[0];
+}
 
 function add_file_to_zip(
     ZipArchive $zip,
@@ -142,6 +241,7 @@ function add_file_to_zip(
         if (!$zip->addFile($source, $local)) {
             throw new RuntimeException("Unable to add {$source} to the plugin archive.");
         }
+        set_distribution_entry_metadata($zip, $local);
 
         return;
     }
@@ -156,6 +256,7 @@ function add_file_to_zip(
     if (!$zip->addFromString($local, $contents)) {
         throw new RuntimeException("Unable to add {$source} to the plugin archive.");
     }
+    set_distribution_entry_metadata($zip, $local);
 }
 
 /**
@@ -163,6 +264,7 @@ function add_file_to_zip(
  */
 function add_tree_to_zip(ZipArchive $zip, string $source, string $localRoot, ?callable $include = null): void
 {
+    $entries = [];
     $files = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS),
         RecursiveIteratorIterator::LEAVES_ONLY
@@ -175,7 +277,68 @@ function add_tree_to_zip(ZipArchive $zip, string $source, string $localRoot, ?ca
         if ($include !== null && !$include($file, $relative)) {
             continue;
         }
-        add_file_to_zip($zip, $file->getPathname(), rtrim($localRoot, '/') . '/' . $relative);
+        $entries[str_replace(DIRECTORY_SEPARATOR, '/', $relative)] = $file->getPathname();
+    }
+    ksort($entries, SORT_STRING);
+    foreach ($entries as $relative => $path) {
+        add_file_to_zip($zip, $path, rtrim($localRoot, '/') . '/' . $relative);
+    }
+}
+
+function set_distribution_entry_metadata(ZipArchive $zip, string $local): void
+{
+    if (method_exists($zip, 'setMtimeName') && !$zip->setMtimeName($local, PLPC_DISTRIBUTION_MTIME)) {
+        throw new RuntimeException("Unable to normalize ZIP timestamp for {$local}.");
+    }
+    // Regular, world-readable file permissions. This avoids host umasks
+    // leaking into an otherwise identical production package.
+    if (method_exists($zip, 'setExternalAttributesName')
+        && !$zip->setExternalAttributesName($local, ZipArchive::OPSYS_UNIX, 0100644 << 16)) {
+        throw new RuntimeException("Unable to normalize ZIP permissions for {$local}.");
+    }
+}
+
+function write_distribution_manifest(string $archivePath, string $manifestPath): void
+{
+    $zip = new ZipArchive();
+    if ($zip->open($archivePath, ZipArchive::RDONLY) !== true) {
+        throw new RuntimeException("Unable to reopen {$archivePath} for manifest generation.");
+    }
+
+    $entries = [];
+    try {
+        for ($index = 0; $index < $zip->numFiles; $index++) {
+            $name = $zip->getNameIndex($index);
+            if (!is_string($name) || $name === '') {
+                throw new RuntimeException("Unable to read ZIP entry {$index}.");
+            }
+            $contents = $zip->getFromIndex($index);
+            if (!is_string($contents)) {
+                throw new RuntimeException("Unable to hash ZIP entry {$name}.");
+            }
+            $entries[$name] = [
+                'bytes' => strlen($contents),
+                'sha256' => hash('sha256', $contents),
+            ];
+        }
+    } finally {
+        $zip->close();
+    }
+    ksort($entries, SORT_STRING);
+
+    $manifest = [
+        'schemaVersion' => 1,
+        'archive' => basename($archivePath),
+        'archiveBytes' => filesize($archivePath),
+        'archiveSha256' => hash_file('sha256', $archivePath),
+        'entries' => $entries,
+    ];
+    $json = json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+    $temporaryManifest = $manifestPath . '.tmp-' . getmypid();
+    if (file_put_contents($temporaryManifest, $json, LOCK_EX) !== strlen($json)
+        || !rename($temporaryManifest, $manifestPath)) {
+        @unlink($temporaryManifest);
+        throw new RuntimeException("Unable to publish {$manifestPath}.");
     }
 }
 

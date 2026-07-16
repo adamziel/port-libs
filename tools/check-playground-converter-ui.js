@@ -24,6 +24,51 @@ function assert(condition, message) {
   }
 }
 
+function executableNamedFunction(source, name) {
+  const start = source.indexOf(`function ${name}(`);
+  if (start < 0) {
+    throw new Error(`Could not find ${name} for its executable regression.`);
+  }
+  const openingBrace = source.indexOf('{', start);
+  let depth = 0;
+  for (let index = openingBrace; index < source.length; index += 1) {
+    if (source[index] === '{') depth += 1;
+    if (source[index] !== '}') continue;
+    depth -= 1;
+    if (depth === 0) {
+      return Function(`"use strict"; return (${source.slice(start, index + 1)});`)();
+    }
+  }
+  throw new Error(`Could not read the complete ${name} function.`);
+}
+
+function checkPdfDecoderSignatureGate(source, clientLabel) {
+  const signatureSearch = executableNamedFunction(source, 'pdfBytesContainAscii');
+  const bytes = (value) => new Uint8Array(Buffer.from(value, 'ascii'));
+  const ordinary = bytes('%PDF-1.7\n5 0 obj <</Filter /FlateDecode>>\nendobj\n%%EOF');
+  const jbig2 = bytes('%PDF-1.7\n<</Filter /JBIG2Decode>>\n%%EOF');
+  const jpx = bytes('%PDF-1.7\n<</Filter[/ASCII85Decode /JPXDecode]>>\n%%EOF');
+  const both = bytes('%PDF-1.7\n/JPXDecode\nstream\0binary\xff/JBIG2Decode\n%%EOF');
+
+  assert(!signatureSearch(ordinary, '/JBIG2Decode') && !signatureSearch(ordinary, '/JPXDecode'), `${clientLabel} must skip both standalone image decoders when their PDF filter signatures are absent.`);
+  assert(signatureSearch(jbig2, '/JBIG2Decode'), `${clientLabel} must enable JBIG2 decoding when /JBIG2Decode is present.`);
+  assert(!signatureSearch(jbig2, '/JPXDecode'), `${clientLabel} must not enable JPEG 2000 decoding for a JBIG2-only PDF.`);
+  assert(signatureSearch(jpx, '/JPXDecode'), `${clientLabel} must enable JPEG 2000 decoding when /JPXDecode is present.`);
+  assert(!signatureSearch(jpx, '/JBIG2Decode'), `${clientLabel} must not enable JBIG2 decoding for a JPEG 2000-only PDF.`);
+  assert(signatureSearch(both, '/JBIG2Decode') && signatureSearch(both, '/JPXDecode'), `${clientLabel} must retain both decoder fallbacks when both filter signatures are present.`);
+  assert(!signatureSearch(bytes('/JBIG2Decod'), '/JBIG2Decode') && !signatureSearch(bytes('/JPXDecod'), '/JPXDecode'), `${clientLabel} must not accept partial PDF filter signatures.`);
+  assert(!signatureSearch(both, 'A'.repeat(33)) && !signatureSearch(both, '/JPXDecodé'), `${clientLabel} must keep its byte signature search bounded to short ASCII needles.`);
+
+  const implementation = signatureSearch.toString();
+  assert(implementation.includes('bytes.indexOf(firstByte, offset)'), `${clientLabel} must search the existing byte view without copying the PDF.`);
+  assert(!/TextDecoder|\.slice\(|\.subarray\(|String\.fromCharCode/.test(implementation), `${clientLabel} signature gating must not turn the full PDF into another byte or string copy.`);
+  assert(source.includes("filterName: '/JBIG2Decode'") && source.includes("filterName: '/JPXDecode'"), `${clientLabel} must associate each optional decoder with its own exact PDF filter signature.`);
+  const gate = source.indexOf('].filter(({ filterName }) => pdfBytesContainAscii(bytes, filterName));');
+  const decoderLoad = source.indexOf('const loaded = await Promise.allSettled(decoderEntries.map');
+  const decoderRun = source.indexOf('const decoded = await decode(bytes, {', decoderLoad);
+  assert(gate >= 0 && decoderLoad > gate && decoderRun > decoderLoad, `${clientLabel} must apply the byte-signature gate before loading or running either decoder module.`);
+}
+
 assert(js.includes('function qualityLogMessage(quality)'), 'Expected a plain-language quality log formatter.');
 assert(js.includes('log(qualityLogMessage(quality));'), 'Expected conversion logging to use the plain-language quality formatter.');
 assert(js.includes('setStatus(\'ready\', quality ? `Page created and opened. ${qualityMessageForStatus(String(quality.status || \'complete\'))}`'), 'Expected final status text to include the plain-language quality message.');
@@ -39,11 +84,14 @@ assert(js.includes('pdf-jpx-rasterizer.mjs'), 'Expected the browser JPEG 2000 ra
 assert(js.includes('decodePdfJpxRasters'), 'Expected browser JPEG 2000 rasters to be prepared for PDF imports.');
 assert(js.includes('Promise.allSettled'), 'A JPEG 2000 decoder failure must not discard usable JBIG2 rasters.');
 assert(js.includes('const pdfRasterPayloadByteLimit = 24_000_000;'), 'Expected browser PDF rasters to honor the Playground decoded-byte limit.');
+assert(js.includes('const pdfRasterBudget = { remainingBytes: pdfRasterPayloadByteLimit };') && js.includes('browserPdfRasterImages(bytes, imageMode, reportProgress, pdfRasterBudget)'), 'Expected a collection to share one browser PDF-raster byte budget across every source file.');
 assert(js.includes('maxPngBytes: remainingBytes'), 'Expected browser PDF decoders to share one raster byte budget.');
 assert(js.includes('pdfRasterImages'), 'Expected browser-decoded PDF rasters to be included in the import payload.');
-assert(js.includes("import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';"), 'Expected the shared PDF.js Form renderer to be loaded by the Playground importer.');
-assert(js.includes("import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';"), 'Expected bounded PDF.js text and structure facts in the Playground importer.');
-assert(js.includes('pdfBrowserFacts[entry.path] = facts;'), 'Expected Playground PDF.js facts to be associated with their source path.');
+assert(js.includes("import { renderPdfFormRequestsIncrementally } from './pdfjs-form-rasterizer.mjs';"), 'Expected the incremental PDF.js Form renderer in the Playground importer.');
+assert(js.includes("from './import-job-session.mjs';"), 'Expected GitHub Pages imports to share durable job recovery helpers.');
+assert(!js.includes('playgroundPersistence.forget()'), 'A transient Playground boot failure must retain the saved OPFS WordPress tree for retry.');
+assert(!js.includes('collectPdfJsFacts'), 'Playground must not eagerly parse PDF.js text facts before a consumer exists.');
+assert(!js.includes('pdfBrowserFacts'), 'Unused browser facts must not enlarge Playground import payloads.');
 assert(js.includes("playgroundPluginRequest('/imports', stagedUpload.payload)"), 'Expected imports to start through the persisted import-job endpoint.');
 assert(js.includes('function stageUploadInPlayground(client, upload, reportProgress = () => {})'), 'Expected Playground sources to be staged instead of base64-encoded into the REST body.');
 assert(js.includes('stagedFiles,'), 'Expected folder imports to send a staged-file manifest rather than a JSON byte collection.');
@@ -51,7 +99,10 @@ assert(!js.includes('function payloadFromUpload('), 'The Playground importer mus
 assert(js.includes('const pdfRasterSourceByteLimit = 24 * 1024 * 1024;'), 'Expected optional PDF raster decoding to skip over-limit sources before allocating decoder state.');
 assert(js.includes('/rendered-media'), 'Expected browser-rendered PDF figures to be sent back to the import job.');
 assert(js.includes('/render-source/'), 'Expected an expanded ZIP PDF source to be fetched only for its outstanding renderer request.');
+assert(js.includes('for (const requests of pdfRenderRequestGroups(job.renderRequests))'), 'Expected Playground to render one source PDF group at a time.');
+assert(js.includes('remainingPixels <= 0 || remainingImageBytes <= 0\n          ? new Map()'), 'Expected Playground to skip later PDF source fetches after a figure budget is exhausted.');
 assert(js.includes('function advanceImportJob(jobId, reportJob)'), 'Expected imports to advance through bounded server work units.');
+assert(js.includes("['failed', 'retryable_failure'].includes(String(data.status || ''))"), 'Expected Playground to resume a retryable server checkpoint instead of treating it as a malformed response.');
 assert(js.includes("undefined, 'GET'"), 'Expected the UI to poll the persisted job while a conversion request is running.');
 assert(js.includes("php: '8.4'"), 'Expected Playground to use PHP 8.4 for EPUB and HTML imports that need Dom\\HTMLDocument.');
 assert(!html.includes('id="format-input"'), 'Document type must not be exposed as a client-side form field.');
@@ -63,10 +114,13 @@ assert(js.includes('pdfOutputMode: selectedPdfOutputMode()'), 'Expected the stan
 assert(js.includes("'awaiting_output_mode'"), 'Expected the standalone importer to stop advancing while an output choice is required.');
 assert(js.includes('/output-mode`'), 'Expected the standalone importer to resume an oversized job without re-uploading it.');
 assert(!js.includes('unsupportedMessage'), 'Supported document formats must not carry a client-side blanket rejection.');
+checkPdfDecoderSignatureGate(js, 'Playground');
 
 assert(adminImporter.includes("new URL('./pdf-jbig2-rasterizer.mjs', import.meta.url)"), 'Expected the WordPress admin importer to load the bundled JBIG2 rasterizer relative to its module.');
-assert(adminImporter.includes("import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';"), 'Expected the WordPress admin importer to load the bundled PDF.js facts provider.');
-assert(adminImporter.includes('pdfBrowserFacts[entry.path] = facts;'), 'Expected admin PDF.js facts to be associated with their source path.');
+assert(!adminImporter.includes("import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';"), 'WordPress admin must not eagerly load the PDF.js facts provider.');
+assert(adminImporter.includes('config.enablePdfBrowserFacts === true'), 'Expected browser PDF facts to require an explicit server-side opt in.');
+assert(adminImporter.includes("await import(new URL('./pdfjs-facts-provider.mjs', import.meta.url).href)"), 'Expected opt-in browser facts to load only when requested.');
+assert(adminImporter.includes('pdfBrowserFacts[entry.path] = facts;'), 'Expected an opted-in facts range to retain its source path.');
 assert(adminImporter.includes("new URL('./pdf-jpx-rasterizer.mjs', import.meta.url)"), 'Expected the WordPress admin importer to load the bundled JPEG 2000 rasterizer relative to its module.');
 assert(adminImporter.includes('const pdfRasterPayloadByteLimit = 24_000_000;'), 'Expected WordPress admin PDF rasters to share the server-side per-import byte limit.');
 assert(adminImporter.includes('const pdfRasterSourceByteLimit = 24 * 1024 * 1024;'), 'Expected WordPress admin PDF decoding to skip over-limit sources before duplicating them in browser memory.');
@@ -79,9 +133,16 @@ assert(adminImporter.includes("root.searchParams.set('rest_route'"), 'Expected t
 assert(adminImporter.includes('response.json().catch(() => null)'), 'Expected a non-JSON REST response to stop the UI rather than silently stalling an import.');
 assert(adminImporter.includes('const maxAdvanceRecoveryAttempts = 2;'), 'Expected bounded recovery when a foreground advance request ends unexpectedly.');
 assert(adminImporter.includes('async function advanceImportJob(snapshot)'), 'Expected the admin importer to re-check a durable job after an interrupted advance request.');
+assert(adminImporter.includes('for (const requests of pdfRenderRequestGroups(snapshot.renderRequests))'), 'Expected wp-admin to release each PDF.js source before fetching another PDF from a collection.');
+assert(adminImporter.includes('remainingPixels <= 0 || remainingImageBytes <= 0\n              ? new Map()'), 'Expected wp-admin to skip later PDF source fetches after a figure budget is exhausted.');
+assert(adminImporter.includes("['failed', 'retryable_failure'].includes(String(data.status || ''))"), 'Expected wp-admin to pass retryable job snapshots back to its resumable driver.');
 assert(adminImporter.includes('The importer stopped retrying automatically to avoid duplicating work.'), 'Expected advance recovery to stop with an actionable message instead of retrying forever.');
+assert(adminImporter.includes('createAdminImportJobSession(config)'), 'Expected wp-admin to persist a pointer to the active server-owned job.');
+assert(adminImporter.includes('Resume saved import'), 'Expected wp-admin to surface a durable resume action after reload or interruption.');
+assert(adminImporter.includes('for (let statusAttempt = 1; statusAttempt <= 3; statusAttempt += 1)'), 'Expected wp-admin to re-check an uncertain mutation before retransmitting /advance.');
 assert(adminImporter.includes('function updateSelection({ clearResult = false } = {})'), 'Expected the admin importer to distinguish a new selection from ending an active import.');
 assert(adminImporter.includes('if (clearResult) {'), 'Expected completed admin import links to remain visible until the user chooses another file.');
+checkPdfDecoderSignatureGate(adminImporter, 'WordPress admin');
 assert(plugin.includes('data-plpc-pdf-output-options'), 'Expected wp-admin to expose the PDF publication shape beside its PDF-only controls.');
 assert(adminImporter.includes("checkedValue('plpc-pdf-output-mode', 'single')"), 'Expected wp-admin to default PDF publication to one page.');
 assert(adminImporter.includes('showOutputModeRecovery(snapshot, pdfFiles)'), 'Expected wp-admin to offer a same-job page-tree recovery after the size guard.');
@@ -95,6 +156,7 @@ assert(plugin.includes('function plpc_import_request_deadline(): ?float'), 'Expe
 assert(plugin.includes('function plpc_import_job_checkpoint_for_deadline('), 'Expected conversion phase progress to yield safely before the server execution deadline.');
 assert(plugin.includes('PLPC_IMPORT_JOB_MAX_DEADLINE_YIELDS_PER_DOCUMENT'), 'Expected deadline handoffs to be capped instead of spinning forever.');
 assert(plugin.includes('function plpc_import_job_store_browser_facts('), 'Expected browser PDF facts to be stored outside the WordPress options table.');
+assert(plugin.includes('plpc_pdf_raster_images_from_payload($records, $remainingBytes)') && plugin.includes('$totalBytes + strlen($contents) > PLPC_MAX_PDF_RASTER_BYTES'), 'Expected server raster decoding and storage to enforce one aggregate collection budget.');
 assert(plugin.includes('function plpc_import_job_load_browser_facts('), 'Expected durable browser PDF facts to be available to resumed imports.');
 assert(plugin.includes('function plpc_import_job_store_pdf_chunk('), 'Expected every PDF page range to become a durable facts checkpoint.');
 assert(plugin.includes('function plpc_import_job_load_pdf_chunk('), 'Expected resumed imports to verify and load durable page facts.');
@@ -118,11 +180,12 @@ assert(!/\$blocks\s*=\s*plpc_prepend_(?:conversion_warning|import_quality)_block
 assert(plugin.includes('function plpc_import_job_recover_interrupted_document('), 'Expected hard worker terminations to have a bounded durable recovery path.');
 assert(plugin.includes('function plpc_pdf_form_placement_covers_page('), 'Expected page-sized Form wrappers to be distinguished from inline PDF figures.');
 assert(plugin.includes('pdfPageSizedFormsSkipped'), 'Expected skipped page-layout wrappers to be visible in import metrics.');
+assert(plugin.includes("'sourceKey' => substr(hash('sha256', (string) ($request['path'] ?? '')), 0, 32)"), 'Expected long collection paths to retain an unambiguous PDF.js source-group identity.');
 assert(plugin.includes('Reaching an enhancement budget is not a document failure.'), 'Expected an exhausted optional figure budget to continue the text import.');
-assert(js.includes('const pdfFormRenderTotalPixelLimit = 48_000_000;') && js.includes('maxTotalPixels: pdfFormRenderTotalPixelLimit'), 'Expected the Playground converter to apply the server-compatible total figure pixel budget.');
-assert(js.includes('const pdfFormRenderTotalImageByteLimit = 24_000_000;') && js.includes('maxTotalImageBytes: pdfFormRenderTotalImageByteLimit'), 'Expected the Playground converter to apply the server-compatible total figure byte budget.');
-assert(adminImporter.includes('const pdfFormRenderTotalPixelLimit = 48_000_000;') && adminImporter.includes('maxTotalPixels: pdfFormRenderTotalPixelLimit'), 'Expected wp-admin to bound aggregate PDF figure pixels.');
-assert(adminImporter.includes('const pdfFormRenderTotalImageByteLimit = 24_000_000;') && adminImporter.includes('maxTotalImageBytes: pdfFormRenderTotalImageByteLimit'), 'Expected wp-admin to bound aggregate PDF figure bytes.');
+assert(js.includes('const pdfFormRenderTotalPixelLimit = 48_000_000;') && js.includes('let remainingPixels = pdfFormRenderTotalPixelLimit;') && js.includes('maxTotalPixels: remainingPixels'), 'Expected the Playground converter to apply a cumulative figure pixel budget.');
+assert(js.includes('const pdfFormRenderTotalImageByteLimit = 24_000_000;') && js.includes('let remainingImageBytes = pdfFormRenderTotalImageByteLimit;') && js.includes('maxTotalImageBytes: remainingImageBytes') && js.includes('remainingImageBytes = Math.max(0, remainingImageBytes - item.bytes.byteLength);'), 'Expected the Playground converter to apply a cumulative figure byte budget across source groups.');
+assert(adminImporter.includes('const pdfFormRenderTotalPixelLimit = 48_000_000;') && adminImporter.includes('let remainingPixels = pdfFormRenderTotalPixelLimit;') && adminImporter.includes('maxTotalPixels: remainingPixels'), 'Expected wp-admin to bound cumulative PDF figure pixels.');
+assert(adminImporter.includes('const pdfFormRenderTotalImageByteLimit = 24_000_000;') && adminImporter.includes('let remainingImageBytes = pdfFormRenderTotalImageByteLimit;') && adminImporter.includes('maxTotalImageBytes: remainingImageBytes') && adminImporter.includes('remainingImageBytes = Math.max(0, remainingImageBytes - item.bytes.byteLength);'), 'Expected wp-admin to bound cumulative PDF figure bytes across source groups.');
 assert(pdfFormRasterizer.includes('const DEFAULT_MAX_SOURCE_BYTES = 24 * 1024 * 1024;'), 'Expected PDF.js figure rendering to cap source bytes before copying a large PDF in the browser.');
 assert(pdfFormRasterizer.includes('pdfBytes(filesByPath.get(path), maxSourceBytes)'), 'Expected the PDF.js figure renderer to enforce its source-byte cap for every requested crop.');
 assert(pdfFormRasterizer.includes('maxTotalPixels = Number.POSITIVE_INFINITY') && pdfFormRasterizer.includes('totalPixelsLimit - renderedPixels'), 'Expected callers to be able to bound aggregate PDF figure pixels without changing the importer default.');
@@ -131,8 +194,11 @@ assert(pdfFormRasterizer.includes('throwIfAborted(signal)'), 'Expected static pr
 assert(pdfFormRasterizer.includes('The PDF is too large to render figures safely in this browser.'), 'Expected an over-limit PDF figure to fall back to the text import instead of crashing the browser.');
 assert(pdfFormRasterizer.includes("typeof viewport.convertToViewportRectangle === 'function'"), 'Expected PDF.js Form cropping to retain compatibility with PDF.js versions that removed rectangle conversion.');
 assert(pdfFormRasterizer.includes('viewport.convertToViewportPoint(bbox.x1, bbox.y1)'), 'Expected PDF.js Form cropping to fall back to point conversion on current PDF.js releases.');
+assert(pdfFormRasterizer.includes('export async function* renderPdfFormRequestsIncrementally'), 'Expected an acknowledgement-friendly one-crop-at-a-time renderer API.');
+assert(pdfFormRasterizer.includes('canvas.width = 0;') && pdfFormRasterizer.includes('canvas.height = 0;'), 'Expected each rendered canvas backing store to be released before the next crop.');
 assert(pdfFactsProvider.includes("provider: 'pdfjs-v1'"), 'Expected a versioned PDF.js facts handoff provider.');
 assert(pdfFactsProvider.includes('sourceSha256 = await sha256Hex(bytes)'), 'Expected browser facts to be cryptographically tied to their source PDF.');
 assert(pdfFactsProvider.includes('includeMarkedContent: true'), 'Expected marked-content boundaries to be retained alongside browser text spans.');
 assert(pdfFactsProvider.includes('page.getStructTree()'), 'Expected PDF.js tagged structure observations when available.');
 assert(pdfFactsProvider.includes('DEFAULT_MAX_HANDOFF_BYTES'), 'Expected browser PDF facts to have a bounded serialized handoff.');
+assert(pdfFactsProvider.includes('startPage = 1') && pdfFactsProvider.includes('maxPages = Number.POSITIVE_INFINITY'), 'Expected consumers to request PDF.js facts incrementally by page range.');

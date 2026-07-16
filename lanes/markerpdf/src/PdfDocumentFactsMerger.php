@@ -56,6 +56,7 @@ final class PdfDocumentFactsMerger
         $warnings = [];
         $browserFailures = [];
         $structure = [];
+        $layoutProfiles = [];
         $unassignedAnnotations = [];
         $diagnostics = [];
         foreach ($ranges as $range) {
@@ -73,6 +74,9 @@ final class PdfDocumentFactsMerger
             $rangeData = $range->toArray();
             if ($structure === [] && is_array($rangeData['structure'] ?? null)) {
                 $structure = $rangeData['structure'];
+            }
+            if (is_array($rangeData['structure']['documentProfile'] ?? null)) {
+                $layoutProfiles[] = $rangeData['structure']['documentProfile'];
             }
             if ($unassignedAnnotations === [] && is_array($rangeData['unassignedAnnotations'] ?? null)) {
                 $unassignedAnnotations = $rangeData['unassignedAnnotations'];
@@ -127,6 +131,9 @@ final class PdfDocumentFactsMerger
                 'appliedPages' => $browserPages,
                 'failures' => array_values($browserFailures),
             ];
+        }
+        if ($layoutProfiles !== []) {
+            $structure['documentProfile'] = PdfDocumentLayoutProfile::merge($layoutProfiles, $totalPages);
         }
 
         return new PdfDocumentFacts(
