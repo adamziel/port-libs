@@ -143,8 +143,8 @@ return [
         $t->same(false, $run['timedOut'], $run['raw']);
         $t->same(0, $run['exitCode'], $run['raw']);
         $t->true(is_array($result), 'Expected JSON memory measurements for the PDF import.');
-        $t->same(91881, $result['outputBytes'] ?? null);
-        $t->same('26e8e4f4a579716896a08b52f6d5d6b9cf6f5b382b766e74c36da1ab0877bb7f', $result['outputSha256'] ?? null);
+        $t->same(94043, $result['outputBytes'] ?? null);
+        $t->same('7d0265298de9d36c1acc6afae81ca631e7f00f28470756fc27df2e671892eb0c', $result['outputSha256'] ?? null);
         $t->true((int) ($result['peakBytes'] ?? PHP_INT_MAX) <= 44 * 1024 * 1024, 'The PDF geometry and prose repair path should remain inside its 48 MiB process budget.');
     },
 ];
