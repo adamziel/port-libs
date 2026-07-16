@@ -8,10 +8,12 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'pdf-verified-performance-20260715';
+const playgroundPluginBuild = 'pdf-marker-safe-forms-20260716';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 const playgroundPdfRasterByteLimit = 24_000_000;
+const playgroundPdfFormTotalPixelLimit = 48_000_000;
+const playgroundPdfFormTotalImageByteLimit = 24_000_000;
 const ownFileStatusPollIntervalMs = 1_000;
 const ownFileAdvanceRecoveryAttempts = 3;
 // The static example browser runs on the visitor's device, including phones.
@@ -882,6 +884,8 @@ async function openOwnFile(file) {
           filesByPath: await pdfFilesForOwnFile(playgroundClient, job, file, prepared.bytes),
           requests: job.renderRequests,
           pdfjs: playgroundPdfJsConfig(),
+          maxTotalPixels: playgroundPdfFormTotalPixelLimit,
+          maxTotalImageBytes: playgroundPdfFormTotalImageByteLimit,
           onProgress({ completed, total, label }) {
             if (!ownFileRequestIsCurrent(token)) {
               return;

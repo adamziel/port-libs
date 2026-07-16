@@ -81,7 +81,10 @@ assert(js.includes("const exampleUrlParameter = 'example';"), 'Expected a stable
 assert(js.includes('new URL(window.location.href)'), 'Expected example links to preserve other URL state safely.');
 assert(js.includes('window.history.replaceState'), 'Expected picker navigation to keep the current URL shareable.');
 assert(js.includes("import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';"), 'Expected own-file PDF figures to use the shared PDF.js renderer.');
-assert(js.includes("const playgroundPluginBuild = 'pdf-verified-performance-20260715';"), 'Expected the own-file importer to use the current Playground plugin build.');
+assert(js.includes("const playgroundPluginBuild = 'pdf-marker-safe-forms-20260716';"), 'Expected the own-file importer to use the current Playground plugin build.');
+assert(js.includes('const playgroundPdfFormTotalPixelLimit = 48_000_000;'), 'Expected own-file PDF figure rendering to have a total pixel budget.');
+assert(js.includes('const playgroundPdfFormTotalImageByteLimit = 24_000_000;'), 'Expected own-file PDF figure rendering to match the server media budget.');
+assert(/renderPdfFormRequests\(\{[\s\S]*?maxTotalPixels: playgroundPdfFormTotalPixelLimit,[\s\S]*?maxTotalImageBytes: playgroundPdfFormTotalImageByteLimit,/.test(js), 'Expected own-file rendering to pass its aggregate figure budgets to PDF.js.');
 assert(js.includes('window.__portLibsImportE2E'), 'Expected release E2E to inspect the real WordPress publication rows.');
 assert(js.includes('rawDataProvenanceCount'), 'Expected release E2E to reject embedded data-URI provenance.');
 assert(js.includes('Import complete. Converted pages were verified privately and published.'), 'Expected the browser to report verified publication before declaring a large import complete.');

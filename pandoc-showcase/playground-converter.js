@@ -1,7 +1,7 @@
 import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';
 import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';
 
-const pluginBuild = 'pdf-verified-performance-20260715';
+const pluginBuild = 'pdf-marker-safe-forms-20260716';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 // Keep browser-produced PDF rasters within the exact decoded-byte limit that
@@ -9,6 +9,8 @@ const playgroundUploadDirectory = '/tmp/port-libs-converter';
 // server limit is deliberately applied to the decoded media bytes.
 const pdfRasterPayloadByteLimit = 24_000_000;
 const pdfRasterSourceByteLimit = 24 * 1024 * 1024;
+const pdfFormRenderTotalPixelLimit = 48_000_000;
+const pdfFormRenderTotalImageByteLimit = 24_000_000;
 
 const iframe = document.getElementById('wp-playground');
 const playgroundPanel = document.getElementById('playground-panel');
@@ -192,6 +194,8 @@ async function convertSelectedFile() {
           filesByPath: await pdfFilesForImportJob(job, selectedUpload),
           requests: job.renderRequests,
           pdfjs: playgroundPdfJsConfig(),
+          maxTotalPixels: pdfFormRenderTotalPixelLimit,
+          maxTotalImageBytes: pdfFormRenderTotalImageByteLimit,
           onProgress({ completed, total, label }) {
             setProgressStatus(`${label} (${completed} of ${total})`);
           },

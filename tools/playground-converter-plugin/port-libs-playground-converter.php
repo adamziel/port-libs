@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Port Libs Document Importer
  * Description: Imports uploaded documents into WordPress block markup, with optional browser-assisted PDF facts and figure rendering.
- * Version: 0.5.2
+ * Version: 0.5.3
  */
 
 declare(strict_types=1);
@@ -35,6 +35,11 @@ const PLPC_IMPORT_JOB_MAX_FORM_RENDER_BYTES = 24000000;
 const PLPC_IMPORT_JOB_MAX_FORM_RENDER_IMAGE_BYTES = 16777216;
 const PLPC_IMPORT_JOB_MAX_FORM_RENDER_PIXELS = 48000000;
 const PLPC_IMPORT_JOB_MAX_RENDER_SOURCE_BYTES = 25000000;
+// A Form covering nearly the whole visible page is a page-layout wrapper,
+// background, or full-page composition—not an inline chart. Rasterizing it
+// duplicates the entire page and can make magazine/slide PDFs request dozens
+// of large images before text conversion starts.
+const PLPC_IMPORT_JOB_PAGE_LIKE_FORM_COVERAGE = 0.82;
 const PLPC_IMPORT_JOB_VERSION = 2;
 // A PDF's serialized page facts can be many times larger than its compressed
 // upload. Keep each document-semantics pass comfortably below both the memory
@@ -334,17 +339,17 @@ function plpc_enqueue_importer_admin_assets(string $hookSuffix = ''): void
         ? plugin_dir_url(__FILE__) . 'assets/'
         : '';
     if (function_exists('wp_enqueue_style')) {
-        wp_enqueue_style('port-libs-importer', $baseUrl . 'admin-importer.css', [], '0.5.2');
+        wp_enqueue_style('port-libs-importer', $baseUrl . 'admin-importer.css', [], '0.5.3');
     }
     if (function_exists('wp_enqueue_script_module')) {
-        wp_enqueue_script_module('port-libs-importer', $baseUrl . 'admin-importer.mjs', [], '0.5.2');
+        wp_enqueue_script_module('port-libs-importer', $baseUrl . 'admin-importer.mjs', [], '0.5.3');
 
         return;
     }
 
     // WordPress versions before native Script Modules support need a classic
     // enqueue plus the filter below to mark this static-ESM asset as a module.
-    wp_enqueue_script('port-libs-importer', $baseUrl . 'admin-importer.mjs', [], '0.5.2', true);
+    wp_enqueue_script('port-libs-importer', $baseUrl . 'admin-importer.mjs', [], '0.5.3', true);
     if (function_exists('wp_script_add_data')) {
         wp_script_add_data('port-libs-importer', 'type', 'module');
     }
@@ -741,17 +746,33 @@ function plpc_submit_import_rendered_media(WP_REST_Request $request): WP_REST_Re
                 ? plpc_import_job_rendered_image_from_uploaded_file($payload['uploadedRender'], $payload)
                 : plpc_import_job_rendered_image_from_payload($payload);
             if (plpc_import_job_rendered_form_total_bytes($job) + strlen($rendered['contents']) > PLPC_IMPORT_JOB_MAX_FORM_RENDER_BYTES) {
-                throw new RuntimeException('The browser-rendered PDF figures exceed the per-import media safety limit.');
+                // Reaching an enhancement budget is not a document failure.
+                // A magazine can contain dozens of legitimate vector Forms;
+                // acknowledge the outstanding request with a diagnostic so
+                // the durable text import continues instead of stranding the
+                // job in awaiting_renderer after minutes of browser work.
+                $job['renderedForms'][$requestId] = [
+                    'requestId' => $requestId,
+                    'path' => (string) ($renderRequest['path'] ?? ''),
+                    'error' => 'The PDF figure media budget was reached.',
+                ];
+                array_splice($job['renderRequests'], $requestIndex, 1);
+                plpc_import_job_add_event(
+                    $job,
+                    'renderer',
+                    'The PDF figure media budget was reached; remaining text and images will continue without this optional crop.'
+                );
+            } else {
+                $stored = plpc_import_job_store_rendered_form(
+                    plpc_import_job_directory($job),
+                    $requestId,
+                    $renderRequest,
+                    $rendered
+                );
+                $job['renderedForms'][$requestId] = $stored;
+                array_splice($job['renderRequests'], $requestIndex, 1);
+                plpc_import_job_add_event($job, 'renderer', 'Received a browser-rendered PDF figure.');
             }
-            $stored = plpc_import_job_store_rendered_form(
-                plpc_import_job_directory($job),
-                $requestId,
-                $renderRequest,
-                $rendered
-            );
-            $job['renderedForms'][$requestId] = $stored;
-            array_splice($job['renderRequests'], $requestIndex, 1);
-            plpc_import_job_add_event($job, 'renderer', 'Received a browser-rendered PDF figure.');
         }
 
         if (($job['renderRequests'] ?? []) === []) {
@@ -911,6 +932,7 @@ function plpc_import_job_prepare(array &$job): void
             // below avoids rebuilding the PDF object graph while discovering
             // browser-renderable figures.
             if (($job['imageMode'] ?? 'important') !== 'none') {
+                $record['pdfInspectionPageGeometry'] = $pdfExtractor->extractPageGeometry($pdfBytes);
                 $record['pdfInspectionForms'] = $pdfExtractor->extractFormXObjectPlacements($pdfBytes);
             }
             if (class_exists('PortLibs\\MarkerPDF\\PdfMetadataExtractor')) {
@@ -937,12 +959,22 @@ function plpc_import_job_prepare(array &$job): void
     $job['nextDocument'] = 0;
     $job['results'] = [];
     $job['renderRequests'] = plpc_import_job_collect_form_render_requests($job);
+    $pageLikeFormsSkipped = max(0, (int) ($job['pdfPageSizedFormsSkipped'] ?? 0));
     foreach ($job['documents'] as &$preparedDocument) {
         if (is_array($preparedDocument)) {
-            unset($preparedDocument['pdfInspectionForms']);
+            unset($preparedDocument['pdfInspectionForms'], $preparedDocument['pdfInspectionPageGeometry']);
         }
     }
     unset($preparedDocument);
+    if ($pageLikeFormsSkipped > 0) {
+        plpc_import_job_add_event(
+            $job,
+            'renderer',
+            'Skipped ' . $pageLikeFormsSkipped . ' page-sized PDF layout '
+                . ($pageLikeFormsSkipped === 1 ? 'wrapper' : 'wrappers')
+                . '; text and ordinary extracted images will still be imported.'
+        );
+    }
     $total = plpc_import_job_progress_total($job);
     if (($job['renderRequests'] ?? []) !== []) {
         plpc_import_job_set_progress(
@@ -2292,6 +2324,7 @@ function plpc_import_job_response(array $job, int $status = 200): WP_REST_Respon
             'pdfPagesExtracted' => $pdfPagesExtracted,
             'pdfPagesTotal' => $pdfPagesTotal,
             'pdfExtractionRequests' => $pdfChunkCount,
+            'pdfPageSizedFormsSkipped' => max(0, (int) ($job['pdfPageSizedFormsSkipped'] ?? 0)),
         ];
         if (is_array($pdfLastMetric)) {
             $snapshot['metrics']['lastExtraction'] = [
@@ -3038,6 +3071,72 @@ function plpc_import_job_store_expanded_collection(array &$job, array $collectio
  * @param array<string, mixed> $job
  * @return list<array<string, mixed>>
  */
+function plpc_pdf_page_geometry_by_number(array $rows): array
+{
+    $byPage = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $page = max(0, (int) ($row['page_number'] ?? $row['page'] ?? 0));
+        $bbox = $row['bbox'] ?? null;
+        if ($page < 1 || !is_array($bbox) || count($bbox) < 4) {
+            continue;
+        }
+        $normalized = plpc_import_job_normalize_bbox([
+            'x1' => $bbox['x1'] ?? $bbox[0] ?? null,
+            'y1' => $bbox['y1'] ?? $bbox[1] ?? null,
+            'x2' => $bbox['x2'] ?? $bbox[2] ?? null,
+            'y2' => $bbox['y2'] ?? $bbox[3] ?? null,
+        ]);
+        if ($normalized !== null) {
+            $byPage[$page] = $normalized;
+        }
+    }
+
+    return $byPage;
+}
+
+/**
+ * Return true only when the visible intersection of a Form covers almost the
+ * whole page. Raw Form boxes can extend beyond CropBox/MediaBox, so comparing
+ * their un-clipped area produces ratios above 100% and misses the structural
+ * fact that the browser would still rasterize a full page.
+ *
+ * @param array{x1:float,y1:float,x2:float,y2:float} $formBox
+ * @param array{x1:float,y1:float,x2:float,y2:float} $pageBox
+ */
+function plpc_pdf_form_placement_covers_page(array $formBox, array $pageBox): bool
+{
+    $pageWidth = max(0.0, $pageBox['x2'] - $pageBox['x1']);
+    $pageHeight = max(0.0, $pageBox['y2'] - $pageBox['y1']);
+    if ($pageWidth <= 0.0 || $pageHeight <= 0.0) {
+        return false;
+    }
+    $intersectionWidth = max(
+        0.0,
+        min($formBox['x2'], $pageBox['x2']) - max($formBox['x1'], $pageBox['x1'])
+    );
+    $intersectionHeight = max(
+        0.0,
+        min($formBox['y2'], $pageBox['y2']) - max($formBox['y1'], $pageBox['y1'])
+    );
+    $coverage = ($intersectionWidth * $intersectionHeight) / ($pageWidth * $pageHeight);
+    $threshold = PLPC_IMPORT_JOB_PAGE_LIKE_FORM_COVERAGE;
+    if (function_exists('apply_filters')) {
+        $filtered = apply_filters('plpc_pdf_page_like_form_coverage', $threshold, $formBox, $pageBox);
+        if (is_numeric($filtered)) {
+            $threshold = (float) $filtered;
+        }
+    }
+
+    return $coverage >= max(0.5, min(0.98, $threshold));
+}
+
+/**
+ * @param array<string, mixed> $job
+ * @return list<array<string, mixed>>
+ */
 function plpc_import_job_collect_form_render_requests(array &$job): array
 {
     if (($job['imageMode'] ?? 'important') === 'none'
@@ -3045,6 +3144,7 @@ function plpc_import_job_collect_form_render_requests(array &$job): array
         return [];
     }
     $requests = [];
+    $pageSizedFormsSkipped = 0;
     foreach ($job['documents'] ?? [] as $documentIndex => $document) {
         if (!is_array($document) || PandocConverter::canonicalInputFormat((string) ($document['format'] ?? '')) !== 'pdf') {
             continue;
@@ -3056,14 +3156,24 @@ function plpc_import_job_collect_form_render_requests(array &$job): array
         try {
             if (is_array($document['pdfInspectionForms'] ?? null)) {
                 $placements = $document['pdfInspectionForms'];
+                $pageGeometry = plpc_pdf_page_geometry_by_number(
+                    is_array($document['pdfInspectionPageGeometry'] ?? null)
+                        ? $document['pdfInspectionPageGeometry']
+                        : []
+                );
             } else {
                 $bytes = plpc_import_job_read_file($job, (string) ($document['storage'] ?? ''));
-                $placements = (new \PortLibs\MarkerPDF\PdfTextExtractor())->extractFormXObjectPlacements($bytes);
+                $extractor = new \PortLibs\MarkerPDF\PdfTextExtractor();
+                $pageGeometry = plpc_pdf_page_geometry_by_number($extractor->extractPageGeometry($bytes));
+                $placements = $extractor->extractFormXObjectPlacements($bytes);
             }
         } catch (Throwable) {
             continue;
         }
-        unset($job['documents'][$documentIndex]['pdfInspectionForms']);
+        unset(
+            $job['documents'][$documentIndex]['pdfInspectionForms'],
+            $job['documents'][$documentIndex]['pdfInspectionPageGeometry']
+        );
         foreach ($placements as $placement) {
             if (!is_array($placement)
                 || ($placement['visible'] ?? false) !== true
@@ -3081,25 +3191,33 @@ function plpc_import_job_collect_form_render_requests(array &$job): array
             if ($width < 12.0 || $height < 12.0 || $width > 10000.0 || $height > 10000.0) {
                 continue;
             }
+            $page = max(1, (int) ($placement['page'] ?? 1));
+            if (isset($pageGeometry[$page])
+                && plpc_pdf_form_placement_covers_page($bbox, $pageGeometry[$page])) {
+                $pageSizedFormsSkipped++;
+                continue;
+            }
             $formId = (string) ($placement['id'] ?? 'form');
             $requestId = 'form-' . substr(hash('sha256', $path . "\0" . $formId), 0, 28);
             $requests[] = [
                 'id' => $requestId,
                 'path' => $path,
-                'page' => max(1, (int) ($placement['page'] ?? 1)),
+                'page' => $page,
                 'bbox' => $bbox,
                 'formId' => $formId,
                 'object' => (int) ($placement['object'] ?? 0),
                 'paintOrder' => (int) ($placement['paintOrder'] ?? 0),
                 'precedingText' => is_string($placement['precedingText'] ?? null) ? $placement['precedingText'] : null,
                 'followingText' => is_string($placement['followingText'] ?? null) ? $placement['followingText'] : null,
-                'label' => 'PDF figure on page ' . max(1, (int) ($placement['page'] ?? 1)),
+                'label' => 'PDF figure on page ' . $page,
             ];
             if (count($requests) >= PLPC_IMPORT_JOB_MAX_FORM_RENDERS) {
                 break 2;
             }
         }
     }
+
+    $job['pdfPageSizedFormsSkipped'] = $pageSizedFormsSkipped;
 
     return $requests;
 }
@@ -4281,6 +4399,16 @@ function plpc_import_job_load_pdf_final_bundle(array $job, array $document, ?arr
     ];
 }
 
+/** Normalize controls that WordPress cannot store before verification. */
+function plpc_import_sanitize_post_content(string $blocks): string
+{
+    // WordPress/database layers remove non-whitespace C0 controls. Normalize
+    // them before fingerprinting and insertion so legitimate source damage
+    // cannot produce a false round-trip mismatch. Tabs and line endings stay
+    // intact; unsupported controls become spaces to avoid joining words.
+    return preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', ' ', $blocks) ?? $blocks;
+}
+
 /**
  * Describe the user-visible content that WordPress must preserve when it
  * accepts an imported page. This intentionally ignores byte-for-byte block
@@ -4366,7 +4494,8 @@ function plpc_import_assert_content_fingerprint(array $expected, string $storedB
  */
 function plpc_insert_verified_page(array $post): int
 {
-    $blocks = (string) ($post['post_content'] ?? '');
+    $blocks = plpc_import_sanitize_post_content((string) ($post['post_content'] ?? ''));
+    $post['post_content'] = $blocks;
     $expected = plpc_import_content_fingerprint($blocks);
     // Validate before any public side effect, including an empty draft row.
     plpc_import_assert_content_fingerprint($expected, $blocks);
