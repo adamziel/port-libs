@@ -30,6 +30,13 @@ final class PdfReader
     private int $frontMatterRecordCount = 0;
     private int $inlineMarkerRecordCount = 0;
     private int $formulaRegionCount = 0;
+    private int $rotatedRegionCount = 0;
+    private int $rotatedRegionPreservedCount = 0;
+    private int $runningFurnitureRegionRemovedCount = 0;
+    /** @var array<int, list<array{text:string,key:string,orientation:string,start:int,end:int,fragments:list<string>}>> */
+    private array $rotatedTextRegionsByPage = [];
+    /** @var array<int, list<array{text:string,key:string,orientation:string,start:int,end:int,fragments:list<string>}>> */
+    private array $tableExcludedRotatedTextRegionsByPage = [];
     /** @var array<string, true> */
     private array $interGlyphSpacingRepairKeys = [];
     /** @var list<array{run:int,stages:list<array<string,mixed>>}> */
@@ -51,6 +58,11 @@ final class PdfReader
         $this->frontMatterRecordCount = 0;
         $this->inlineMarkerRecordCount = 0;
         $this->formulaRegionCount = 0;
+        $this->rotatedRegionCount = 0;
+        $this->rotatedRegionPreservedCount = 0;
+        $this->runningFurnitureRegionRemovedCount = 0;
+        $this->rotatedTextRegionsByPage = [];
+        $this->tableExcludedRotatedTextRegionsByPage = [];
         $this->interGlyphSpacingRepairKeys = [];
         $this->semanticPipelineTrace = [];
 
@@ -169,12 +181,6 @@ final class PdfReader
             !$partialPageRange && is_array($diagnostics['taggedStructureItems'] ?? null) ? $diagnostics['taggedStructureItems'] : [],
             $limitedLines
         );
-        $geometryTableBlocksByPage = [];
-        $geometryTableBlocks = $geometryTablesEnabled && $taggedBlocks === []
-            ? $this->blocksFromPositionedTables($limitedPositionedRuns, $filledRectangles, $geometryTableBlocksByPage)
-            : [];
-        unset($filledRectangles);
-        $geometryTableCount = $this->countNodesOfType($geometryTableBlocks, 'table');
         $positionedLineItems = [];
         $positionedLines = [];
         $positionedRunsAreGlyphFragments = false;
@@ -186,6 +192,16 @@ final class PdfReader
             $positionedLineItems = $this->positionedProseLineItemsFromTextRuns($limitedPositionedRuns);
             $positionedLines = $this->positionedLineItemTexts($positionedLineItems);
         }
+        // Classify perpendicular edge regions before table inference.
+        // Otherwise the same margin fragments can masquerade as a narrow
+        // second column and turn ordinary prose into a false geometry table.
+        $geometryTableBlocksByPage = [];
+        $tablePositionedRuns = $this->positionedTextRunsWithoutEdgeOrientationRegions($limitedPositionedRuns);
+        $geometryTableBlocks = $geometryTablesEnabled && $taggedBlocks === []
+            ? $this->blocksFromPositionedTables($tablePositionedRuns, $filledRectangles, $geometryTableBlocksByPage)
+            : [];
+        unset($tablePositionedRuns, $filledRectangles);
+        $geometryTableCount = $this->countNodesOfType($geometryTableBlocks, 'table');
         // Media placement may be requested even when the caller has left
         // prose repair disabled. Retain only compact visual text lines as
         // potential anchors; the raw glyph runs are still released below.
@@ -451,6 +467,9 @@ final class PdfReader
             'pdfFrontMatterRecords' => $this->frontMatterRecordCount,
             'pdfInlineMarkerRecords' => $this->inlineMarkerRecordCount,
             'pdfFormulaRegions' => $this->formulaRegionCount,
+            'pdfRotatedRegions' => $this->rotatedRegionCount,
+            'pdfRotatedRegionsPreserved' => $this->rotatedRegionPreservedCount,
+            'pdfRunningFurnitureRegionsRemoved' => $this->runningFurnitureRegionRemovedCount,
             'pdfSemanticPipeline' => $this->semanticPipelineTrace,
             'pdfGeometryTables' => $geometryTableCount,
             'pdfGeometryTablesEnabled' => $geometryTablesEnabled,
@@ -1576,6 +1595,14 @@ final class PdfReader
         $ordered = [];
         $geometryPages = 0;
         foreach ($sourceByPage as $page => $pageSourceItems) {
+            $pageOutputStart = count($ordered);
+            $pageSourceItems = $this->removeSourcePdfOrientationRegionItems(
+                $pageSourceItems,
+                $this->rotatedTextRegionsByPage[(int) $page] ?? []
+            );
+            if ($pageSourceItems === []) {
+                continue;
+            }
             $pagePositionedItems = $positionedByPage[$page] ?? [];
             $positionedBodyColumns = $this->sourcePdfStableTextColumns($pagePositionedItems);
             $hasStablePositionedBodyColumns = $this->sourcePdfColumnsLookLikeParallelBodyColumns(
@@ -1595,6 +1622,11 @@ final class PdfReader
                 foreach ($this->sourcePdfReferenceItemsInSourceOrder($pageSourceItems, $pagePositionedItems) as $item) {
                     $ordered[] = $item;
                 }
+                $this->appendSourcePdfPreservedOrientationItems(
+                    $ordered,
+                    $pagePositionedItems,
+                    $pageOutputStart
+                );
                 continue;
             }
             $match = $this->matchSourcePdfLinesToPositionedItems(
@@ -1628,6 +1660,11 @@ final class PdfReader
                     foreach ($this->markPositionedPdfParagraphBoundaries($positionedBodyItems) as $item) {
                         $ordered[] = $item;
                     }
+                    $this->appendSourcePdfPreservedOrientationItems(
+                        $ordered,
+                        $pagePositionedItems,
+                        $pageOutputStart
+                    );
                     continue;
                 }
                 if (($geometryMatchIsReliable || $hasStableBodyColumns) && $preservesTextTable && $preservesCode) {
@@ -1635,6 +1672,11 @@ final class PdfReader
                     foreach ($this->markPositionedPdfParagraphBoundaries($geometryItems) as $item) {
                         $ordered[] = $item;
                     }
+                    $this->appendSourcePdfPreservedOrientationItems(
+                        $ordered,
+                        $pagePositionedItems,
+                        $pageOutputStart
+                    );
                     continue;
                 }
             }
@@ -1645,12 +1687,22 @@ final class PdfReader
                 foreach ($pagePositionedItems as $item) {
                     $ordered[] = $item;
                 }
+                $this->appendSourcePdfPreservedOrientationItems(
+                    $ordered,
+                    $pagePositionedItems,
+                    $pageOutputStart
+                );
                 continue;
             }
 
             foreach ($pageSourceItems as $sourceItem) {
                 $ordered[] = $this->sourcePdfLineItem($sourceItem);
             }
+            $this->appendSourcePdfPreservedOrientationItems(
+                $ordered,
+                $pagePositionedItems,
+                $pageOutputStart
+            );
         }
 
         $ordered = $this->prioritizeSourcePdfVerifiedCrossColumnContinuationPages($ordered);
@@ -1665,6 +1717,41 @@ final class PdfReader
             'items' => $ordered,
             'geometryPages' => $geometryPages,
         ];
+    }
+
+    /**
+     * A multi-fragment rotated region is removed from the ordinary source
+     * stream before matching so its fragments cannot puncture body words.
+     * If it is not repeated furniture, put its already reconstructed visual
+     * line back once, after the primary page flow.
+     *
+     * @param list<array<string, mixed>> $ordered
+     * @param list<array<string, mixed>> $positionedItems
+     */
+    private function appendSourcePdfPreservedOrientationItems(
+        array &$ordered,
+        array $positionedItems,
+        int $pageOutputStart
+    ): void {
+        $existing = [];
+        foreach (array_slice($ordered, $pageOutputStart) as $item) {
+            $key = $this->pdfComparableLineText((string) ($item['text'] ?? ''));
+            if ($key !== '') {
+                $existing[$key] = true;
+            }
+        }
+        foreach ($positionedItems as $item) {
+            if (($item['pdfPrimaryOrientation'] ?? true) === true) {
+                continue;
+            }
+            $key = $this->pdfComparableLineText((string) ($item['text'] ?? ''));
+            if ($key === '' || isset($existing[$key])) {
+                continue;
+            }
+            $item['forceBlockBreakBefore'] = true;
+            $ordered[] = $item;
+            $existing[$key] = true;
+        }
     }
 
     /**
@@ -7620,6 +7707,9 @@ final class PdfReader
                 'sourcePdfProtectedSemanticContent',
                 'sourcePdfFrontMatterRole',
                 'sourcePdfDisplayHeading',
+                'pdfTextOrientation',
+                'pdfTextRotation',
+                'pdfPrimaryOrientation',
                 'forceBlockBreakBefore',
             ] as $key) {
                 if (array_key_exists($key, $positionedItem)) {
@@ -7644,6 +7734,141 @@ final class PdfReader
         }
 
         return $item;
+    }
+
+    /**
+     * Remove only source records that can be reconciled exactly with a
+     * geometry-proven perpendicular region. This prevents the ordinary text
+     * layer from reintroducing a side label as many tiny, sometimes body-
+     * interleaved fragments. Preserved regions are reinserted coherently.
+     *
+     * @param list<array{page:int,stream:int,text:string}> $sourceItems
+     * @param list<array{text:string,key:string,orientation:string,start:int,end:int,fragments:list<string>}> $regions
+     * @return list<array{page:int,stream:int,text:string}>
+     */
+    private function removeSourcePdfOrientationRegionItems(array $sourceItems, array $regions): array
+    {
+        if ($sourceItems === [] || $regions === []) {
+            return $sourceItems;
+        }
+        $keys = array_map(
+            fn (array $item): string => $this->pdfComparableLineText((string) ($item['text'] ?? '')),
+            $sourceItems
+        );
+        $remove = [];
+        foreach ($regions as $region) {
+            $target = (string) ($region['key'] ?? '');
+            if ($target === '') {
+                continue;
+            }
+            $matched = $this->sourcePdfContiguousComparableSequence($keys, $target);
+            if ($matched === []) {
+                $fragmentKeys = [];
+                foreach ($region['fragments'] ?? [] as $fragment) {
+                    $key = $this->pdfComparableLineText((string) $fragment);
+                    if ($key !== '') {
+                        $fragmentKeys[] = $key;
+                    }
+                }
+                if ($fragmentKeys !== []) {
+                    $matched = $this->sourcePdfOrientationFragmentSequence($keys, $fragmentKeys);
+                }
+            }
+            foreach ($matched as $index) {
+                $remove[$index] = true;
+            }
+        }
+        if ($remove === []) {
+            return $sourceItems;
+        }
+
+        return array_values(array_filter(
+            $sourceItems,
+            static fn (array $item, int $index): bool => !isset($remove[$index]),
+            ARRAY_FILTER_USE_BOTH
+        ));
+    }
+
+    /**
+     * @param list<string> $sourceKeys
+     * @return list<int>
+     */
+    private function sourcePdfContiguousComparableSequence(array $sourceKeys, string $target): array
+    {
+        $targetLength = $this->length($target);
+        foreach ($sourceKeys as $start => $key) {
+            if ($key === '') {
+                continue;
+            }
+            $joined = '';
+            $matched = [];
+            $endLimit = min(count($sourceKeys), $start + 256);
+            for ($index = $start; $index < $endLimit; $index++) {
+                $part = $sourceKeys[$index];
+                if ($part === '') {
+                    continue;
+                }
+                $joined .= $part;
+                $matched[] = $index;
+                if ($joined === $target) {
+                    return $matched;
+                }
+                if ($this->length($joined) >= $targetLength || !str_starts_with($target, $joined)) {
+                    break;
+                }
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Match every exact painted fragment in order while permitting unrelated
+     * source records between them. No partial-word deletion is allowed: one
+     * source record must equal one or more complete geometry fragments.
+     *
+     * @param list<string> $sourceKeys
+     * @param list<string> $fragmentKeys
+     * @return list<int>
+     */
+    private function sourcePdfOrientationFragmentSequence(array $sourceKeys, array $fragmentKeys): array
+    {
+        $sourceCount = count($sourceKeys);
+        $fragmentCount = count($fragmentKeys);
+        $window = max(64, min(256, $fragmentCount * 8));
+        for ($start = 0; $start < $sourceCount; $start++) {
+            $fragmentIndex = 0;
+            $matched = [];
+            $end = min($sourceCount, $start + $window);
+            for ($sourceIndex = $start; $sourceIndex < $end && $fragmentIndex < $fragmentCount; $sourceIndex++) {
+                $sourceKey = $sourceKeys[$sourceIndex];
+                if ($sourceKey === '') {
+                    continue;
+                }
+                $joined = '';
+                $consumed = 0;
+                for ($candidate = $fragmentIndex; $candidate < $fragmentCount; $candidate++) {
+                    $joined .= $fragmentKeys[$candidate];
+                    if ($joined === $sourceKey) {
+                        $consumed = $candidate - $fragmentIndex + 1;
+                        break;
+                    }
+                    if (!str_starts_with($sourceKey, $joined)) {
+                        break;
+                    }
+                }
+                if ($consumed === 0) {
+                    continue;
+                }
+                $matched[] = $sourceIndex;
+                $fragmentIndex += $consumed;
+            }
+            if ($fragmentIndex === $fragmentCount) {
+                return $matched;
+            }
+        }
+
+        return [];
     }
 
     /**
@@ -8201,7 +8426,7 @@ final class PdfReader
             $items[] = $item;
         }
 
-        return $items;
+        return $this->classifyPositionedPdfOrientationRegions($items);
     }
 
     /**
@@ -8261,7 +8486,7 @@ final class PdfReader
             }
         }
 
-        return $items;
+        return $this->classifyPositionedPdfOrientationRegions($items);
     }
 
     /**
@@ -8278,6 +8503,553 @@ final class PdfReader
      * @return list<array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}>
      */
     private function positionedProseLineItemsForPage(array $runs): array
+    {
+        if ($runs === []) {
+            return [];
+        }
+
+        $groups = [];
+        foreach ($runs as $run) {
+            $groups[$this->positionedPdfOrientationBucket($run)][] = $run;
+        }
+        if ($groups === []) {
+            return [];
+        }
+
+        $scores = [];
+        foreach ($groups as $key => $groupRuns) {
+            $scores[$key] = $this->positionedPdfOrientationGroupScore($groupRuns);
+        }
+        uksort($groups, static function (string $left, string $right) use ($scores): int {
+            return ($scores[$right] <=> $scores[$left]) ?: strcmp($left, $right);
+        });
+        $primaryKey = (string) array_key_first($groups);
+        $primaryRotation = $this->positionedPdfOrientationBucketRotation($primaryKey);
+        $partitionedGroups = [$primaryKey => $groups[$primaryKey]];
+        foreach ($groups as $key => $groupRuns) {
+            if ($key === $primaryKey) {
+                continue;
+            }
+            $rotation = $this->positionedPdfOrientationBucketRotation((string) $key);
+            $difference = abs($rotation - $primaryRotation);
+            $difference = min($difference, 360.0 - $difference);
+            if (abs($difference - 90.0) <= 12.0
+                && count($groupRuns) >= 2
+                && $this->positionedPdfOrientationGroupScore($groupRuns) >= 4) {
+                $partitionedGroups[$key] = $groupRuns;
+                continue;
+            }
+            // Preserve the established reconstruction path for tiny
+            // perpendicular marks (notably superscript reference markers)
+            // and ordinary skew. They do not constitute a separate region.
+            array_push($partitionedGroups[$primaryKey], ...$groupRuns);
+        }
+
+        // A page with many unrelated angles is typically a map or diagram.
+        // Its existing low-coherence region classifier needs the complete
+        // page geometry; turning each angle into an isolated prose flow would
+        // instead promote the very labels it is designed to suppress.
+        if (count($groups) > 8 || count($partitionedGroups) === 1) {
+            $items = $this->positionedProseLineItemsForOrientation($runs);
+            foreach ($items as &$item) {
+                $item['pdfTextOrientation'] = $primaryKey;
+                $item['pdfTextRotation'] = $primaryRotation;
+                $item['pdfPrimaryOrientation'] = true;
+            }
+            unset($item);
+
+            return $items;
+        }
+        $groups = $partitionedGroups;
+
+        $items = [];
+        foreach ($groups as $key => $groupRuns) {
+            $basis = $this->positionedPdfOrientationBasis($groupRuns, $key !== $primaryKey);
+            $orientedRuns = array_map(
+                fn (array $run): array => $this->positionedPdfRunInOrientationSpace($run, $basis),
+                $groupRuns
+            );
+            foreach ($this->positionedProseLineItemsForOrientation($orientedRuns) as $item) {
+                $item = $this->positionedPdfItemFromOrientationSpace($item, $basis);
+                $item['pdfTextOrientation'] = $key;
+                $item['pdfTextRotation'] = $this->positionedPdfOrientationBucketRotation($key);
+                $item['pdfPrimaryOrientation'] = $key === $primaryKey;
+                if ($key !== $primaryKey) {
+                    $item['pdfOrientationSourceFragments'] = $this->positionedPdfOrientationItemFragments(
+                        $item,
+                        $groupRuns
+                    );
+                }
+                $items[] = $item;
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * Use a stable angular bucket rather than requiring perfectly orthogonal
+     * matrices. Scans and authoring tools commonly leave a small skew in the
+     * text matrix even when the intended flow is horizontal or vertical.
+     *
+     * @param array<string, mixed> $run
+     */
+    private function positionedPdfOrientationBucket(array $run): string
+    {
+        $rotation = $this->numericValue($run['rotation'] ?? null);
+        if ($rotation === null) {
+            $axisX = $this->numericValue($run['axisX'] ?? null) ?? 1.0;
+            $axisY = $this->numericValue($run['axisY'] ?? null) ?? 0.0;
+            $rotation = rad2deg(atan2($axisY, $axisX));
+        }
+        $rotation = $this->normalizedPdfTextRotation($rotation);
+        $nearest = 0.0;
+        $nearestDistance = 360.0;
+        foreach ([0.0, 90.0, 180.0, 270.0] as $orthogonal) {
+            $distance = abs($rotation - $orthogonal);
+            $distance = min($distance, 360.0 - $distance);
+            if ($distance < $nearestDistance) {
+                $nearest = $orthogonal;
+                $nearestDistance = $distance;
+            }
+        }
+        if ($nearestDistance <= 12.0) {
+            return 'r' . (string) (int) $nearest;
+        }
+
+        $skewBucket = $this->normalizedPdfTextRotation(round($rotation / 12.0) * 12.0);
+
+        return 'r' . rtrim(rtrim(number_format($skewBucket, 3, '.', ''), '0'), '.');
+    }
+
+    private function positionedPdfOrientationBucketRotation(string $bucket): float
+    {
+        if (preg_match('/^r(-?\d+(?:\.\d+)?)$/', $bucket, $matches) !== 1) {
+            return 0.0;
+        }
+
+        return $this->normalizedPdfTextRotation((float) $matches[1]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $runs
+     */
+    private function positionedPdfOrientationGroupScore(array $runs): int
+    {
+        $characters = 0;
+        foreach ($runs as $run) {
+            $characters += $this->positionedCompactTextLength((string) ($run['text'] ?? ''));
+        }
+
+        return $characters;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $runs
+     * @return array{uX:float,uY:float,nX:float,nY:float}
+     */
+    private function positionedPdfOrientationBasis(array $runs, bool $orientFromSourceOrder): array
+    {
+        $uX = 0.0;
+        $uY = 0.0;
+        foreach ($runs as $run) {
+            $weight = max(1, $this->positionedCompactTextLength((string) ($run['text'] ?? '')));
+            $axisX = $this->numericValue($run['axisX'] ?? null) ?? 1.0;
+            $axisY = $this->numericValue($run['axisY'] ?? null) ?? 0.0;
+            $length = hypot($axisX, $axisY);
+            if ($length <= 0.000001) {
+                continue;
+            }
+            $uX += ($axisX / $length) * $weight;
+            $uY += ($axisY / $length) * $weight;
+        }
+        $length = hypot($uX, $uY);
+        if ($length <= 0.000001) {
+            $uX = 1.0;
+            $uY = 0.0;
+        } else {
+            $uX /= $length;
+            $uY /= $length;
+        }
+
+        $nX = -$uY;
+        $nY = $uX;
+        // PDF page coordinates put ordinary top-to-bottom rows at decreasing
+        // Y values. For a rotated flow the equivalent direction may use the
+        // opposite perpendicular. Pick that sign from the first two distinct
+        // source-order baselines, without changing any text or vocabulary.
+        if ($orientFromSourceOrder) {
+            $ordered = $runs;
+            usort($ordered, static fn (array $left, array $right): int =>
+                ((int) ($left['order'] ?? 0)) <=> ((int) ($right['order'] ?? 0))
+            );
+            $previousCross = null;
+            $previousTolerance = 0.0;
+            foreach ($ordered as $run) {
+                $centerX = ((float) ($run['x1'] ?? 0.0) + (float) ($run['x2'] ?? 0.0)) / 2.0;
+                $centerY = ((float) ($run['y1'] ?? 0.0) + (float) ($run['y2'] ?? 0.0)) / 2.0;
+                $cross = $centerX * $nX + $centerY * $nY;
+                $tolerance = max(1.5, (float) ($run['fontSize'] ?? 1.0) * 0.35, $previousTolerance);
+                if ($previousCross !== null && abs($cross - $previousCross) > $tolerance) {
+                    if ($cross > $previousCross) {
+                        $nX *= -1.0;
+                        $nY *= -1.0;
+                    }
+                    break;
+                }
+                $previousCross = $cross;
+                $previousTolerance = $tolerance;
+            }
+        }
+
+        return [
+            'uX' => $uX,
+            'uY' => $uY,
+            'nX' => $nX,
+            'nY' => $nY,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $run
+     * @param array{uX:float,uY:float,nX:float,nY:float} $basis
+     * @return array<string, mixed>
+     */
+    private function positionedPdfRunInOrientationSpace(array $run, array $basis): array
+    {
+        $bounds = $this->positionedPdfProjectedBounds(
+            (float) $run['x1'],
+            (float) $run['y1'],
+            (float) $run['x2'],
+            (float) $run['y2'],
+            $basis
+        );
+        $textBounds = $this->positionedPdfProjectedBounds(
+            (float) ($run['textX1'] ?? $run['x1']),
+            (float) ($run['textY1'] ?? $run['y1']),
+            (float) ($run['textX2'] ?? $run['x2']),
+            (float) ($run['textY2'] ?? $run['y2']),
+            $basis
+        );
+        $run['x1'] = $bounds['x1'];
+        $run['y1'] = $bounds['y1'];
+        $run['x2'] = $bounds['x2'];
+        $run['y2'] = $bounds['y2'];
+        $run['textX1'] = $textBounds['x1'];
+        $run['textY1'] = $textBounds['y1'];
+        $run['textX2'] = $textBounds['x2'];
+        $run['textY2'] = $textBounds['y2'];
+        $run['axisX'] = 1.0;
+        $run['axisY'] = 0.0;
+        $run['rotation'] = 0.0;
+
+        return $run;
+    }
+
+    /**
+     * @param array{uX:float,uY:float,nX:float,nY:float} $basis
+     * @return array{x1:float,y1:float,x2:float,y2:float}
+     */
+    private function positionedPdfProjectedBounds(
+        float $x1,
+        float $y1,
+        float $x2,
+        float $y2,
+        array $basis
+    ): array {
+        $along = [];
+        $cross = [];
+        foreach ([[$x1, $y1], [$x1, $y2], [$x2, $y1], [$x2, $y2]] as [$x, $y]) {
+            $along[] = $x * $basis['uX'] + $y * $basis['uY'];
+            $cross[] = $x * $basis['nX'] + $y * $basis['nY'];
+        }
+
+        return [
+            'x1' => min($along),
+            'y1' => min($cross),
+            'x2' => max($along),
+            'y2' => max($cross),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array{uX:float,uY:float,nX:float,nY:float} $basis
+     * @return array<string, mixed>
+     */
+    private function positionedPdfItemFromOrientationSpace(array $item, array $basis): array
+    {
+        $xValues = [];
+        $yValues = [];
+        foreach ([
+            [(float) $item['x1'], (float) $item['y1']],
+            [(float) $item['x1'], (float) $item['y2']],
+            [(float) $item['x2'], (float) $item['y1']],
+            [(float) $item['x2'], (float) $item['y2']],
+        ] as [$along, $cross]) {
+            $xValues[] = $along * $basis['uX'] + $cross * $basis['nX'];
+            $yValues[] = $along * $basis['uY'] + $cross * $basis['nY'];
+        }
+        $item['x1'] = min($xValues);
+        $item['y1'] = min($yValues);
+        $item['x2'] = max($xValues);
+        $item['y2'] = max($yValues);
+
+        return $item;
+    }
+
+    /**
+     * Retain exact rotated run fragments only as reconciliation evidence. The
+     * source text layer may expose a side label as dozens of records even
+     * though orientation-space reconstruction correctly produces one line.
+     *
+     * @param array<string, mixed> $item
+     * @param list<array<string, mixed>> $runs
+     * @return list<string>
+     */
+    private function positionedPdfOrientationItemFragments(array $item, array $runs): array
+    {
+        $start = max(0, (int) ($item['sourceOrderStart'] ?? 0));
+        $end = max($start, (int) ($item['sourceOrderEnd'] ?? $start));
+        $fragments = [];
+        foreach ($runs as $run) {
+            $runStart = max(0, (int) ($run['order'] ?? 0));
+            $runEnd = max($runStart, (int) ($run['lastOrder'] ?? $runStart));
+            if ($runEnd < $start || $runStart > $end) {
+                continue;
+            }
+            $text = (string) ($run['text'] ?? '');
+            if ($this->pdfComparableLineText($text) !== '') {
+                $fragments[] = $text;
+            }
+        }
+
+        return $fragments;
+    }
+
+    /**
+     * Repeated perpendicular text at a physical page edge is running
+     * furniture. A one-off note, a central watermark, and a wholly rotated
+     * document are retained: repetition, edge geometry, and a non-primary
+     * orientation are all required before anything is removed.
+     *
+     * @param list<array<string, mixed>> $items
+     * @return list<array<string, mixed>>
+     */
+    private function classifyPositionedPdfOrientationRegions(array $items): array
+    {
+        $this->rotatedRegionCount = 0;
+        $this->rotatedRegionPreservedCount = 0;
+        $this->runningFurnitureRegionRemovedCount = 0;
+        $this->rotatedTextRegionsByPage = [];
+        $this->tableExcludedRotatedTextRegionsByPage = [];
+        if ($items === []) {
+            return [];
+        }
+
+        $boundsByPage = [];
+        foreach ($items as $item) {
+            if (!$this->pdfLayoutHasGeometry($item)) {
+                continue;
+            }
+            $page = max(1, (int) ($item['page'] ?? 1));
+            if (!isset($boundsByPage[$page])) {
+                $boundsByPage[$page] = [
+                    'x1' => (float) $item['x1'],
+                    'y1' => (float) $item['y1'],
+                    'x2' => (float) $item['x2'],
+                    'y2' => (float) $item['y2'],
+                ];
+                continue;
+            }
+            $boundsByPage[$page]['x1'] = min($boundsByPage[$page]['x1'], (float) $item['x1']);
+            $boundsByPage[$page]['y1'] = min($boundsByPage[$page]['y1'], (float) $item['y1']);
+            $boundsByPage[$page]['x2'] = max($boundsByPage[$page]['x2'], (float) $item['x2']);
+            $boundsByPage[$page]['y2'] = max($boundsByPage[$page]['y2'], (float) $item['y2']);
+        }
+
+        $candidates = [];
+        $edgeAligned = [];
+        foreach ($items as $index => $item) {
+            if (($item['pdfPrimaryOrientation'] ?? true) === true) {
+                continue;
+            }
+            $this->rotatedRegionCount++;
+            $page = max(1, (int) ($item['page'] ?? 1));
+            $side = isset($boundsByPage[$page])
+                ? $this->positionedPdfOrientationEdgeSide($item, $boundsByPage[$page])
+                : null;
+            if ($side !== null) {
+                $edgeAligned[$index] = true;
+            }
+            $fingerprint = $this->positionedPdfRunningFurnitureFingerprint($item);
+            if ($side === null || $this->length($fingerprint) < 4) {
+                continue;
+            }
+            $key = (string) ($item['pdfTextOrientation'] ?? '') . "\0" . $side . "\0" . $fingerprint;
+            $candidates[$key][$page][] = $index;
+        }
+
+        $remove = [];
+        foreach ($candidates as $pages) {
+            if (count($pages) < 2) {
+                continue;
+            }
+            foreach ($pages as $indexes) {
+                foreach ($indexes as $index) {
+                    $remove[$index] = true;
+                }
+            }
+        }
+
+        $kept = [];
+        foreach ($items as $index => $item) {
+            $page = max(1, (int) ($item['page'] ?? 1));
+            $sourceOrderStart = max(0, (int) ($item['sourceOrderStart'] ?? 0));
+            $fragments = is_array($item['pdfOrientationSourceFragments'] ?? null)
+                ? array_values(array_filter(
+                    $item['pdfOrientationSourceFragments'],
+                    static fn (mixed $fragment): bool => is_string($fragment) && $fragment !== ''
+                ))
+                : [];
+            $descriptor = [
+                'text' => (string) ($item['text'] ?? ''),
+                'key' => $this->pdfComparableLineText((string) ($item['text'] ?? '')),
+                'orientation' => (string) ($item['pdfTextOrientation'] ?? ''),
+                'start' => $sourceOrderStart,
+                'end' => max($sourceOrderStart, (int) ($item['sourceOrderEnd'] ?? $sourceOrderStart)),
+                'fragments' => $fragments,
+            ];
+            if (($item['pdfPrimaryOrientation'] ?? true) !== true) {
+                // A single-run region can still be matched atomically by the
+                // established source/geometry reconciler. Pre-removing it
+                // would shift source occurrence indexes used by inline
+                // markers and footnotes. Multi-fragment regions need explicit
+                // reconciliation so their glyphs cannot leak into body text;
+                // removed furniture always needs it as well.
+                if (isset($remove[$index]) || count($fragments) > 1) {
+                    $this->rotatedTextRegionsByPage[$page][] = $descriptor;
+                }
+                if (isset($edgeAligned[$index])) {
+                    $this->tableExcludedRotatedTextRegionsByPage[$page][] = $descriptor;
+                }
+            }
+            if (isset($remove[$index])) {
+                $this->runningFurnitureRegionRemovedCount++;
+                continue;
+            }
+            if (($item['pdfPrimaryOrientation'] ?? true) !== true) {
+                $this->rotatedRegionPreservedCount++;
+            }
+            unset($item['pdfOrientationSourceFragments']);
+            $kept[] = $item;
+        }
+
+        return $kept;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array{x1:float,y1:float,x2:float,y2:float} $bounds
+     */
+    private function positionedPdfOrientationEdgeSide(array $item, array $bounds): ?string
+    {
+        if (!$this->pdfLayoutHasGeometry($item)) {
+            return null;
+        }
+        $width = max(1.0, $bounds['x2'] - $bounds['x1']);
+        $height = max(1.0, $bounds['y2'] - $bounds['y1']);
+        $centerX = ((float) $item['x1'] + (float) $item['x2']) / 2.0;
+        $centerY = ((float) $item['y1'] + (float) $item['y2']) / 2.0;
+        $distances = [
+            'left' => ($centerX - $bounds['x1']) / $width,
+            'right' => ($bounds['x2'] - $centerX) / $width,
+            'bottom' => ($centerY - $bounds['y1']) / $height,
+            'top' => ($bounds['y2'] - $centerY) / $height,
+        ];
+        asort($distances, SORT_NUMERIC);
+        $side = (string) array_key_first($distances);
+
+        return ($distances[$side] ?? 1.0) <= 0.15 ? $side : null;
+    }
+
+    /** @param array<string, mixed> $item */
+    private function positionedPdfRunningFurnitureFingerprint(array $item): string
+    {
+        $candidates = [$this->pdfComparableLineText((string) ($item['text'] ?? ''))];
+        $fragments = [];
+        foreach ($item['pdfOrientationSourceFragments'] ?? [] as $fragment) {
+            $fragment = $this->pdfComparableLineText((string) $fragment);
+            if ($fragment !== '') {
+                $fragments[] = $fragment;
+            }
+        }
+        if (count($fragments) > 1) {
+            $candidates[] = implode('', $fragments);
+            $candidates[] = implode('', array_reverse($fragments));
+        }
+        foreach ($candidates as &$candidate) {
+            // Page numbers commonly trail or lead an otherwise stable running
+            // label. Strip only a short boundary number; interior digits
+            // remain part of the identity and no language-specific words are
+            // involved.
+            $candidate = preg_replace('/^\p{N}{1,4}|\p{N}{1,4}$/u', '', $candidate) ?? $candidate;
+        }
+        unset($candidate);
+        $candidates = array_values(array_unique(array_filter(
+            $candidates,
+            static fn (string $candidate): bool => $candidate !== ''
+        )));
+        sort($candidates, SORT_STRING);
+
+        return $candidates[0] ?? '';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $runs
+     * @return list<array<string, mixed>>
+     */
+    private function positionedTextRunsWithoutEdgeOrientationRegions(array $runs): array
+    {
+        if ($runs === [] || $this->tableExcludedRotatedTextRegionsByPage === []) {
+            return $runs;
+        }
+        $regionsByPage = [];
+        foreach ($this->tableExcludedRotatedTextRegionsByPage as $page => $regions) {
+            foreach ($regions as $region) {
+                $regionsByPage[$page][] = $region;
+            }
+        }
+
+        $kept = [];
+        foreach ($runs as $index => $run) {
+            $page = max(1, (int) ($run['page'] ?? 1));
+            $removed = false;
+            foreach ($regionsByPage[$page] ?? [] as $region) {
+                if ($index < $region['start'] || $index > $region['end']
+                    || $this->positionedPdfOrientationBucket($run) !== $region['orientation']) {
+                    continue;
+                }
+                $removed = true;
+                break;
+            }
+            if (!$removed) {
+                $kept[] = $run;
+            }
+        }
+
+        return $kept;
+    }
+
+    /**
+     * Reconstruct one orientation in a local coordinate system where its
+     * progression axis is horizontal. The established prose, spacing, code,
+     * and column logic can then operate without mixing perpendicular text.
+     *
+     * @param list<array<string, mixed>> $runs
+     * @return list<array<string, mixed>>
+     */
+    private function positionedProseLineItemsForOrientation(array $runs): array
     {
         if ($runs === []) {
             return [];
@@ -15539,7 +16311,7 @@ final class PdfReader
             $page = max(1, (int) ($run['page'] ?? 1));
             $whitespaceKey = $page . ':' . max(0, (int) ($run['stream'] ?? 0));
             $rawText = $this->normalizePdfTextEncoding((string) ($run['text'] ?? ''));
-            if ($rawText !== '' && trim($rawText) === '' && preg_match('/\s/u', $rawText) === 1) {
+            if ($rawText !== '' && preg_match('/^\s+$/u', $rawText) === 1) {
                 $pendingWhitespace[$whitespaceKey] = [
                     'hardBoundary' => (bool) (($pendingWhitespace[$whitespaceKey]['hardBoundary'] ?? false)
                         || preg_match('/[\t\r\n]/u', $rawText) === 1),
@@ -15603,6 +16375,42 @@ final class PdfReader
      */
     private function positionedRunsShareVisualBaseline(array $left, array $right): bool
     {
+        $leftAxisX = $this->numericValue($left['axisX'] ?? null);
+        $leftAxisY = $this->numericValue($left['axisY'] ?? null);
+        $rightAxisX = $this->numericValue($right['axisX'] ?? null);
+        $rightAxisY = $this->numericValue($right['axisY'] ?? null);
+        if ($leftAxisX !== null && $leftAxisY !== null
+            && $rightAxisX !== null && $rightAxisY !== null) {
+            $leftAxisLength = hypot($leftAxisX, $leftAxisY);
+            $rightAxisLength = hypot($rightAxisX, $rightAxisY);
+            if ($leftAxisLength > 0.000001 && $rightAxisLength > 0.000001) {
+                $leftAxisX /= $leftAxisLength;
+                $leftAxisY /= $leftAxisLength;
+                $rightAxisX /= $rightAxisLength;
+                $rightAxisY /= $rightAxisLength;
+                $axisAgreement = abs($leftAxisX * $rightAxisX + $leftAxisY * $rightAxisY);
+                $leftCenterX = (($this->numericValue($left['textX1'] ?? $left['x1'] ?? null) ?? 0.0)
+                    + ($this->numericValue($left['textX2'] ?? $left['x2'] ?? null) ?? 0.0)) / 2.0;
+                $leftCenterY = (($this->numericValue($left['textY1'] ?? $left['y1'] ?? null) ?? 0.0)
+                    + ($this->numericValue($left['textY2'] ?? $left['y2'] ?? null) ?? 0.0)) / 2.0;
+                $rightCenterX = (($this->numericValue($right['textX1'] ?? $right['x1'] ?? null) ?? 0.0)
+                    + ($this->numericValue($right['textX2'] ?? $right['x2'] ?? null) ?? 0.0)) / 2.0;
+                $rightCenterY = (($this->numericValue($right['textY1'] ?? $right['y1'] ?? null) ?? 0.0)
+                    + ($this->numericValue($right['textY2'] ?? $right['y2'] ?? null) ?? 0.0)) / 2.0;
+                $leftFontSize = $this->numericValue($left['fontSize'] ?? null) ?? 1.0;
+                $rightFontSize = $this->numericValue($right['fontSize'] ?? null) ?? 1.0;
+                $tolerance = max(1.5, max($leftFontSize, $rightFontSize, 1.0) * 0.35);
+                $normalX = -$leftAxisY;
+                $normalY = $leftAxisX;
+                if ($axisAgreement >= cos(deg2rad(12.0))) {
+                    return abs(
+                        ($leftCenterX - $rightCenterX) * $normalX
+                        + ($leftCenterY - $rightCenterY) * $normalY
+                    ) <= $tolerance;
+                }
+            }
+        }
+
         $leftY1 = $this->numericValue($left['textY1'] ?? $left['y1'] ?? null);
         $leftY2 = $this->numericValue($left['textY2'] ?? $left['y2'] ?? null);
         $rightY1 = $this->numericValue($right['textY1'] ?? $right['y1'] ?? null);
@@ -15620,7 +16428,7 @@ final class PdfReader
 
     /**
      * @param array<string, mixed> $run
-     * @return array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, startsWithWhitespace: bool, endsWithWhitespace: bool, wordBoundaryBefore: bool, hasWordBoundaryBefore: bool, wordBoundarySource: ?string}|null
+     * @return array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, rotation: float, axisX: float, axisY: float, startsWithWhitespace: bool, endsWithWhitespace: bool, wordBoundaryBefore: bool, hasWordBoundaryBefore: bool, wordBoundarySource: ?string}|null
      */
     private function positionedRun(array $run): ?array
     {
@@ -15639,6 +16447,28 @@ final class PdfReader
         }
 
         $fontSize = $this->numericValue($run['fontSize'] ?? null);
+        $axisX = $this->numericValue($run['axisX'] ?? null);
+        $axisY = $this->numericValue($run['axisY'] ?? null);
+        if ($axisX === null || $axisY === null || hypot($axisX, $axisY) <= 0.000001) {
+            $deltaX = $textX2 - $textX1;
+            $deltaY = $textY2 - $textY1;
+            if (abs($deltaY) > max(0.5, abs($deltaX) * 1.5)) {
+                $axisX = 0.0;
+                $axisY = 1.0;
+            } else {
+                $axisX = 1.0;
+                $axisY = 0.0;
+            }
+        }
+        $axisLength = max(0.000001, hypot($axisX, $axisY));
+        $axisX /= $axisLength;
+        $axisY /= $axisLength;
+        $axisX = abs($axisX) <= 0.000000001 ? 0.0 : $axisX;
+        $axisY = abs($axisY) <= 0.000000001 ? 0.0 : $axisY;
+        $rotation = $this->numericValue($run['rotation'] ?? null);
+        $rotation = $this->normalizedPdfTextRotation(
+            $rotation ?? rad2deg(atan2($axisY, $axisX))
+        );
         $rtlVisualUnitText = preg_replace_callback(
             '/(?:ل[أإآ]|(?<=ل)لا)/u',
             static fn (array $match): string => self::PDF_RTL_SHAPING_CLUSTER_START
@@ -15661,6 +16491,9 @@ final class PdfReader
             'textY2' => max($textY1, $textY2),
             'fontSize' => max(1.0, $fontSize ?? abs($y2 - $y1)),
             'nominalFontSize' => max(1.0, $fontSize ?? abs($y2 - $y1)),
+            'rotation' => $rotation,
+            'axisX' => $axisX,
+            'axisY' => $axisY,
             'startsWithWhitespace' => preg_match('/^\s/u', $rawText) === 1,
             'endsWithWhitespace' => preg_match('/\s$/u', $rawText) === 1,
             'wordBoundaryBefore' => ($run['wordBoundaryBefore'] ?? false) === true,
@@ -15672,6 +16505,21 @@ final class PdfReader
             'order' => max(0, (int) ($run['_order'] ?? 0)),
             'lastOrder' => max(0, (int) ($run['_order'] ?? 0)),
         ];
+    }
+
+    private function normalizedPdfTextRotation(float $rotation): float
+    {
+        $rotation = fmod($rotation, 360.0);
+        if ($rotation < 0.0) {
+            $rotation += 360.0;
+        }
+        foreach ([0.0, 90.0, 180.0, 270.0, 360.0] as $orthogonal) {
+            if (abs($rotation - $orthogonal) <= 0.000000001) {
+                return $orthogonal === 360.0 ? 0.0 : $orthogonal;
+            }
+        }
+
+        return $rotation;
     }
 
     /**
@@ -20121,8 +20969,10 @@ final class PdfReader
             $collectCells($table);
 
             $longProseCells = 0;
+            $veryLongProseCells = 0;
             $bulletCells = 0;
             $emptyCells = 0;
+            $numericValueCells = 0;
             foreach ($cellTexts as $text) {
                 if ($text === '') {
                     $emptyCells++;
@@ -20131,6 +20981,12 @@ final class PdfReader
                 if ($this->length($text) >= 72 || count($this->pdfLineWordTokens($text)) >= 12) {
                     $longProseCells++;
                 }
+                if ($this->length($text) >= 200 || count($this->pdfLineWordTokens($text)) >= 30) {
+                    $veryLongProseCells++;
+                }
+                if ($this->positionedCellIsNumericValue($text)) {
+                    $numericValueCells++;
+                }
                 if (preg_match('/(?:^|\s)[\x{2022}\x{25CF}\x{25AA}\x{25A0}\x{2043}]\s*/u', $text) === 1) {
                     $bulletCells++;
                 }
@@ -20138,6 +20994,17 @@ final class PdfReader
             $rowCount = count($rowWidths);
             $columnCount = $rowWidths === [] ? 0 : max($rowWidths);
             $emptyRatio = $cellTexts === [] ? 0.0 : $emptyCells / count($cellTexts);
+            if ($rowCount >= 4
+                && $columnCount >= 4
+                && $emptyRatio >= 0.35
+                && $veryLongProseCells >= 1
+                && $numericValueCells === 0) {
+                // Magazine sidebars and parallel narrative columns can align
+                // into a sparse grid with one enormous continuation cell.
+                // A semantic table does not normally have most coordinates
+                // empty while one non-numeric cell carries a full paragraph.
+                return true;
+            }
             if ($rowCount >= 10
                 && $columnCount >= 4
                 && $emptyRatio >= 0.35

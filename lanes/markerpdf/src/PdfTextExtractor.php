@@ -796,7 +796,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<array{page: int, stream: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, pageObject?: int}>
+     * @return list<array{page: int, stream: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, rotation: float, axisX: float, axisY: float, pageRotation: int, pageObject?: int}>
      */
     public function extractPositionedTextRuns(string $pdfBytes): array
     {
@@ -810,6 +810,7 @@ final class PdfTextExtractor
         foreach ($this->limitedStreamContextIterator($pdfBytes) as $context) {
             $streamNumber++;
             $page = is_int($context['page'] ?? null) ? $context['page'] : $streamNumber;
+            $pageRotation = is_int($context['rotation'] ?? null) ? $context['rotation'] : 0;
             foreach ($this->positionedTextRunsFromContentStream(
                 $context['stream'],
                 $context['fontToUnicodeMaps'],
@@ -826,6 +827,10 @@ final class PdfTextExtractor
                     'page' => $page,
                     'stream' => $streamNumber,
                 ] + $run;
+                $positionedRun['pageRotation'] = $pageRotation;
+                $positionedRun['rotation'] = $this->normalizedTextRotation(
+                    (float) ($run['rotation'] ?? 0.0) + $pageRotation
+                );
                 if (is_int($context['pageObject'] ?? null)) {
                     $positionedRun['pageObject'] = $context['pageObject'];
                 }
@@ -1787,7 +1792,7 @@ final class PdfTextExtractor
      *     stream: int,
      *     textLineItems: list<array{page: int, stream: int, text: string}>,
      *     textRuns: list<string>,
-     *     positionedTextRuns: list<array{page: int, stream: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, pageObject?: int}>,
+     *     positionedTextRuns: list<array{page: int, stream: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, rotation: float, axisX: float, axisY: float, pageRotation: int, pageObject?: int}>,
      *     filledRectangles: list<array{page: int, stream: int, x1: float, y1: float, x2: float, y2: float, fillColor: string, pageObject?: int}>,
      *     positionedTextRunsLimited: bool
      * }>
@@ -1810,6 +1815,7 @@ final class PdfTextExtractor
             $streamNumber++;
             $page = is_int($context['page'] ?? null) ? $context['page'] : $streamNumber;
             $pageObject = is_int($context['pageObject'] ?? null) ? $context['pageObject'] : null;
+            $pageRotation = is_int($context['rotation'] ?? null) ? $context['rotation'] : 0;
             $textLineItems = [];
             foreach ($this->textLinesFromContentStream(
                 $context['stream'],
@@ -1868,6 +1874,10 @@ final class PdfTextExtractor
                         'page' => $page,
                         'stream' => $streamNumber,
                     ] + $run;
+                    $positionedRun['pageRotation'] = $pageRotation;
+                    $positionedRun['rotation'] = $this->normalizedTextRotation(
+                        (float) ($run['rotation'] ?? 0.0) + $pageRotation
+                    );
                     if ($pageObject !== null) {
                         $positionedRun['pageObject'] = $pageObject;
                     }
@@ -6229,7 +6239,8 @@ final class PdfTextExtractor
      *     mcidActualTexts: array<int, string>,
      *     propertyMcids: array<string, int>,
      *     page: int,
-     *     pageObject: int
+     *     pageObject: int,
+     *     rotation: int
      * }>
      */
     private function pageContentStreamContextIterator(array $objects, ?string $pdfBytes = null): \Generator
@@ -6247,6 +6258,7 @@ final class PdfTextExtractor
             $propertyMcids = $this->propertyMcidsFromContext($resourceContext, $objects);
             $mcidActualTexts = $this->mcidActualTextsForPage($body, $objects, $objectNumber);
             $xObjects = $this->xObjectResourceObjectNumbers($resourceContext, $objects);
+            $pageRotation = $this->inheritedPageRotation($objectNumber, $objects);
 
             foreach ($this->pageContentsReferences($body) as $contentsObjectNumber) {
                 foreach ($this->resolveContentObjectNumbers($contentsObjectNumber, $objects) as $contentObjectNumber) {
@@ -6279,6 +6291,7 @@ final class PdfTextExtractor
                             'propertyMcids' => $streamPropertyMcids,
                             'page' => $pageNumber,
                             'pageObject' => $objectNumber,
+                            'rotation' => $pageRotation,
                         ];
                     }
                 }
@@ -17430,7 +17443,7 @@ final class PdfTextExtractor
 
     /**
      * @param array{x: float, y: float, scale: float} $axis
-     * @return array{text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, wordBoundaryBefore: bool, wordBoundarySource?: string}
+     * @return array{text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, rotation: float, axisX: float, axisY: float, wordBoundaryBefore: bool, wordBoundarySource?: string}
      */
     private function positionedTextRun(
         string $text,
@@ -17447,6 +17460,8 @@ final class PdfTextExtractor
         $resolvedFontSize = $fontSize ?? 12.0;
         $height = max(1.0, $resolvedFontSize * max(1.0, $axis['scale']));
         $padding = $height * 0.25;
+        $axisX = abs((float) $axis['x']) <= 0.000000001 ? 0.0 : (float) $axis['x'];
+        $axisY = abs((float) $axis['y']) <= 0.000000001 ? 0.0 : (float) $axis['y'];
 
         $run = [
             'text' => $text,
@@ -17459,6 +17474,9 @@ final class PdfTextExtractor
             'textX2' => max($startX, $endX),
             'textY2' => max($startY, $endY),
             'fontSize' => $resolvedFontSize,
+            'rotation' => $this->normalizedTextRotation(rad2deg(atan2($axisY, $axisX))),
+            'axisX' => $axisX,
+            'axisY' => $axisY,
             'wordBoundaryBefore' => $wordBoundaryBefore,
         ];
         if ($wordBoundarySource !== null) {
@@ -17466,6 +17484,21 @@ final class PdfTextExtractor
         }
 
         return $run;
+    }
+
+    private function normalizedTextRotation(float $rotation): float
+    {
+        $rotation = fmod($rotation, 360.0);
+        if ($rotation < 0.0) {
+            $rotation += 360.0;
+        }
+        foreach ([0.0, 90.0, 180.0, 270.0, 360.0] as $orthogonal) {
+            if (abs($rotation - $orthogonal) <= 0.000000001) {
+                return $orthogonal === 360.0 ? 0.0 : $orthogonal;
+            }
+        }
+
+        return $rotation;
     }
 
     /**
