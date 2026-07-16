@@ -25,6 +25,8 @@ on:
       - 'tools/pdf-corpus-manifest-policy.mjs'
       - 'tools/e2e-pdf-layout-corpus.mjs'
       - 'tools/e2e-playground-import.mjs'
+      - 'tools/browser-memory-monitor.mjs'
+      - 'tools/check-browser-memory-monitor.mjs'
       - 'tools/generate-pdf-resource-fixture.php'
       - 'tools/check-pdf-layout-reviewer.mjs'
       - 'tools/check-showcase-examples-page.js'
@@ -68,6 +70,8 @@ on:
       - 'tools/pdf-corpus-manifest-policy.mjs'
       - 'tools/e2e-pdf-layout-corpus.mjs'
       - 'tools/e2e-playground-import.mjs'
+      - 'tools/browser-memory-monitor.mjs'
+      - 'tools/check-browser-memory-monitor.mjs'
       - 'tools/generate-pdf-resource-fixture.php'
       - 'tools/check-pdf-layout-reviewer.mjs'
       - 'tools/check-showcase-examples-page.js'
@@ -189,6 +193,8 @@ jobs:
           node --check tools/decode-pdf-raster-media.mjs
           node --check tools/e2e-pdf-layout-corpus.mjs
           node --check tools/e2e-playground-import.mjs
+          node --check tools/browser-memory-monitor.mjs
+          node --check tools/check-browser-memory-monitor.mjs
           node --check tools/check-pdf-layout-reviewer.mjs
           node --check tools/check-pdf-form-rasterizer.mjs
           node --check tools/check-import-job-session.mjs
@@ -196,6 +202,7 @@ jobs:
           node tools/check-pdfjs-facts-provider.mjs
           node tools/check-pdf-form-rasterizer.mjs
           node tools/check-import-job-session.mjs
+          node tools/check-browser-memory-monitor.mjs
           php tools/build-pandoc-showcase.php --build-examples-page
           node tools/check-showcase-examples-page.js
           node tools/check-pdf-layout-reviewer.mjs
@@ -276,52 +283,110 @@ jobs:
           php -S 127.0.0.1:4174 -t pandoc-showcase >/tmp/port-libs-showcase-server.log 2>&1 &
           server_pid=$!
           chrome_binary="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium)"
-          "$chrome_binary" \
-            --headless=new \
-            --no-sandbox \
-            --disable-dev-shm-usage \
-            --remote-debugging-port=9222 \
-            --user-data-dir=/tmp/port-libs-chrome-profile \
-            about:blank >/tmp/port-libs-chrome.log 2>&1 &
-          chrome_pid=$!
-          trap 'kill "$server_pid" "$chrome_pid" 2>/dev/null || true' EXIT
-          for attempt in $(seq 1 50); do
-            if curl --silent --fail http://127.0.0.1:9222/json/version >/dev/null; then
-              break
+          chrome_pid=''
+          chrome_profile=''
+
+          stop_chrome() {
+            local cleanup_status=0
+            if [ -n "$chrome_pid" ]; then
+              kill "$chrome_pid" 2>/dev/null || true
+              wait "$chrome_pid" 2>/dev/null || true
             fi
-            sleep 0.2
-          done
-          curl --silent --fail http://127.0.0.1:9222/json/version >/dev/null
-          node tools/e2e-pdf-layout-corpus.mjs \
+            if [ -n "$chrome_profile" ]; then
+              for attempt in $(seq 1 50); do
+                if ! pgrep -f -- "--user-data-dir=$chrome_profile" >/dev/null; then
+                  break
+                fi
+                sleep 0.1
+              done
+              if pgrep -f -- "--user-data-dir=$chrome_profile" >/dev/null; then
+                pkill -TERM -f -- "--user-data-dir=$chrome_profile" 2>/dev/null || true
+                sleep 0.2
+                pkill -KILL -f -- "--user-data-dir=$chrome_profile" 2>/dev/null || true
+              fi
+              if pgrep -f -- "--user-data-dir=$chrome_profile" >/dev/null; then
+                echo "Chrome processes from $chrome_profile survived forced cleanup" >&2
+                cleanup_status=1
+              fi
+              rm -rf "$chrome_profile"
+            fi
+            chrome_pid=''
+            chrome_profile=''
+            return "$cleanup_status"
+          }
+
+          cleanup() {
+            stop_chrome || true
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          run_with_fresh_chrome() {
+            local scenario="$1"
+            shift
+            local chrome_log="$RUNNER_TEMP/port-libs-chrome-$scenario.log"
+            local command_status=0
+            local cleanup_status=0
+            chrome_profile="$(mktemp -d "$RUNNER_TEMP/port-libs-chrome-$scenario.XXXXXX")"
+            "$chrome_binary" \
+              --headless=new \
+              --no-sandbox \
+              --disable-dev-shm-usage \
+              --remote-debugging-port=9222 \
+              --user-data-dir="$chrome_profile" \
+              about:blank >"$chrome_log" 2>&1 &
+            chrome_pid=$!
+            for attempt in $(seq 1 50); do
+              if curl --silent --fail http://127.0.0.1:9222/json/version >/dev/null; then
+                break
+              fi
+              sleep 0.2
+            done
+            if ! curl --silent --fail http://127.0.0.1:9222/json/version >/dev/null; then
+              cat "$chrome_log" >&2
+              stop_chrome || true
+              return 1
+            fi
+
+            PORT_LIBS_CHROME_PID="$chrome_pid" "$@" || command_status=$?
+            stop_chrome || cleanup_status=$?
+            if [ "$command_status" -ne 0 ]; then
+              return "$command_status"
+            fi
+            return "$cleanup_status"
+          }
+
+          run_with_fresh_chrome layout-corpus node tools/e2e-pdf-layout-corpus.mjs \
             --url http://127.0.0.1:4174/examples.html \
             --review-url http://127.0.0.1:4174/pdf-layout-corpus.html \
             --output artifacts/pdf-layout-screenshots
-          node tools/e2e-playground-import.mjs \
+          run_with_fresh_chrome muir node tools/e2e-playground-import.mjs \
             --file "$PWD/pandoc-showcase/samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf" \
             --pdf-output-mode pages \
             --expected-pdf-pages 4 \
             --timeout-ms 240000 \
-            --max-browser-rss-mb 1536
-          node tools/e2e-playground-import.mjs \
+            --max-browser-memory-mb 1536
+          run_with_fresh_chrome tracemonkey node tools/e2e-playground-import.mjs \
             --file "$PWD/pandoc-showcase/samples/pdf-tracemonkey-tracemonkey.pdf" \
             --pdf-output-mode single \
             --expected-pdf-pages 14 \
             --expected-image-count 8 \
             --timeout-ms 240000 \
-            --max-browser-rss-mb 1536
+            --max-browser-memory-mb 1536
           # Generate 5,000 positioned searchable lines; legal padding only
           # fills the remainder of the realistic 8–10 MiB upload envelope.
           php tools/generate-pdf-resource-fixture.php \
             --output="$RUNNER_TEMP/searchable-250-pages.pdf" \
             --pages=250 \
             --padding-bytes-per-page=32768
-          node tools/e2e-playground-import.mjs \
+          run_with_fresh_chrome dense-250 node tools/e2e-playground-import.mjs \
             --file "$RUNNER_TEMP/searchable-250-pages.pdf" \
             --pdf-output-mode single \
             --expected-pdf-pages 250 \
             --expected-image-count 0 \
             --timeout-ms 600000 \
-            --max-browser-rss-mb 1536
+            --max-browser-memory-mb 1536
 
       - name: Upload PDF layout screenshots
         if: always()

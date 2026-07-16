@@ -446,7 +446,7 @@ Assertions: idempotence, no duplicate posts/media, preserved cursor, resumable U
 
 - Unit/native suite remains below 128 MiB RSS; current audited run is about 93 MiB.
 - A representative 8–10 MB/250-page import stays below 384 MiB PHP peak under a 512 MiB limit, leaving safety headroom.
-- Browser import stays below 1.5 GiB RSS and never retains canvases/renders for completed pages.
+- Browser import stays below 1.5 GiB proportional resident memory on Linux (PSS, with summed RSS retained as diagnostics and as the conservative fallback elsewhere) and never retains canvases/renders for completed pages.
 - No request deliberately consumes more than 80% of its PHP execution window; it checkpoints and yields first.
 - Job option/state remains below 64 KiB regardless of page count; page facts/results are separately paged.
 - UI reports a durable stage/page/occurrence update at least once per successful request and can recover progress in one status request after reload/lost response.
@@ -467,7 +467,7 @@ These are completion targets, not claims about the current build. If a public fi
 | Media | Every visual occurrence imported, intentionally omitted, original+placeholder, or unresolved | Ordered media manifest; decoder/browser/upload failure injection | **Green:** bounded occurrence ledger is exhaustive; TraceMonkey imports eight charts; decoder-missing originals and visible placeholders are tested |
 | WordPress integrity | Ordered Gutenberg structure after storage matches generated AST | Block types/boundaries, cells, links, media occurrences, captions, attachment IDs | **Green:** structural fingerprint and readback verification reject same-text structural loss and empty posts |
 | Resumption | Any uncertain mutation can be recovered without duplicate/lost work | Kill, response-loss, reload, lock, DB/disk failure matrix | **Green:** shared browser/admin job session, atomic page/visual cursors, idempotent media/publication, and legacy migration are tested |
-| Resources | Fixed ceilings above; no unbounded source/facts/canvas/job duplication | Dense 250-page import plus 1,000/2,000-page state tests | **Green in PHP/local functional gates:** 512 MiB/45-second request defaults, bounded decoders/visuals, compact state, and 128 MiB dense native run pass; Linux CI owns the 1.5 GiB browser-RSS gate |
+| Resources | Fixed ceilings above; no unbounded source/facts/canvas/job duplication | Dense 250-page import plus 1,000/2,000-page state tests | **Green in PHP/local functional gates:** 512 MiB/45-second request defaults, bounded decoders/visuals, compact state, and 128 MiB dense native run pass; Linux CI owns the 1.5 GiB browser-PSS gate while summed RSS remains visible as conservative telemetry |
 | Deployment | GitHub Pages serves the exact production artifact tested in CI | Deterministic content manifest/hash | **Implemented, release pending:** allowlisted `_site`, deterministic archive/manifest, deployed-hash verification, and PDF.js smoke checks are in the Pages workflow |
 | OCR boundary | Image-only pages are explicit unsupported inputs, never successful empties | Detection fixtures only; no OCR assertions | Implemented/tested |
 

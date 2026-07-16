@@ -16,7 +16,7 @@
  */
 
 import process from 'node:process';
-import { execFileSync } from 'node:child_process';
+import { browserProcessTreeMemory } from './browser-memory-monitor.mjs';
 
 const defaults = {
   chrome: 'http://127.0.0.1:9222',
@@ -27,7 +27,8 @@ const defaults = {
   // The release gate requires enough headroom for ordinary developer laptops
   // and CI workers. Completed canvases, render tasks, and staged source copies
   // must be released incrementally instead of expanding this ceiling.
-  maxBrowserRssMb: 1536,
+  maxBrowserMemoryMb: 1536,
+  chromePid: Math.max(0, Number(process.env.PORT_LIBS_CHROME_PID) || 0),
   pdfOutputMode: 'single',
   expectedPdfPages: 0,
   expectedImageCount: -1,
@@ -56,8 +57,11 @@ function parseOptions(args) {
     } else if (argument === '--max-elapsed-ms') {
       options.maxElapsedMs = Math.max(0, Number(value) || 0);
       index += 1;
-    } else if (argument === '--max-browser-rss-mb') {
-      options.maxBrowserRssMb = Math.max(0, Number(value) || 0);
+    } else if (argument === '--max-browser-memory-mb' || argument === '--max-browser-rss-mb') {
+      options.maxBrowserMemoryMb = Math.max(0, Number(value) || 0);
+      index += 1;
+    } else if (argument === '--chrome-pid') {
+      options.chromePid = Math.max(0, Number(value) || 0);
       index += 1;
     } else if (argument === '--pdf-output-mode') {
       if (!['single', 'pages'].includes(value)) {
@@ -203,49 +207,12 @@ function formatElapsed(milliseconds) {
   return `${Math.floor(seconds / 60)}m${String(seconds % 60).padStart(2, '0')}s`;
 }
 
-function browserProcessTreeRss(baseUrl) {
-  const port = new URL(baseUrl).port;
-  if (!port) {
-    return null;
-  }
-  let output;
-  try {
-    output = execFileSync('/bin/ps', ['-axo', 'pid=,ppid=,rss=,command='], {
-      encoding: 'utf8',
-      maxBuffer: 8 * 1024 * 1024,
-    });
-  } catch {
-    return null;
-  }
-  const rows = output.split('\n').map((line) => {
-    const match = line.match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.*)$/);
-    return match ? {
-      pid: Number(match[1]),
-      ppid: Number(match[2]),
-      rssKb: Number(match[3]),
-      command: match[4],
-    } : null;
-  }).filter(Boolean);
-  const roots = rows.filter((row) => row.command.includes(`--remote-debugging-port=${port}`)
-    && !row.command.includes('--type='));
-  if (roots.length === 0) {
-    return null;
-  }
-  const included = new Set(roots.map((row) => row.pid));
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const row of rows) {
-      if (!included.has(row.pid) && included.has(row.ppid)) {
-        included.add(row.pid);
-        changed = true;
-      }
-    }
-  }
-  const rssBytes = rows
-    .filter((row) => included.has(row.pid))
-    .reduce((sum, row) => sum + (row.rssKb * 1024), 0);
-  return { rssBytes, processCount: included.size };
+function formatMemoryMeasurement(memory) {
+  const measuredMiB = Math.ceil(memory.measurementBytes / 1024 / 1024);
+  const rssMiB = Math.ceil(memory.rssBytes / 1024 / 1024);
+  return memory.memoryMetric === 'pss'
+    ? `${measuredMiB} MiB PSS (${rssMiB} MiB summed RSS across ${memory.processCount} processes)`
+    : `${measuredMiB} MiB summed RSS across ${memory.processCount} processes`;
 }
 
 function fail(message) {
@@ -319,7 +286,7 @@ class CdpClient {
 async function main() {
   const options = parseOptions(process.argv.slice(2));
   if (!options.file) {
-    fail('Usage: node tools/e2e-playground-import.mjs --file /absolute/path/to/document [--pdf-output-mode single|pages] [--expected-pdf-pages N] [--expected-image-count N] [--url URL] [--chrome URL] [--timeout-ms N] [--max-elapsed-ms N] [--max-browser-rss-mb N]');
+    fail('Usage: node tools/e2e-playground-import.mjs --file /absolute/path/to/document [--pdf-output-mode single|pages] [--expected-pdf-pages N] [--expected-image-count N] [--url URL] [--chrome URL] [--chrome-pid PID] [--timeout-ms N] [--max-elapsed-ms N] [--max-browser-memory-mb N]');
   }
 
   const browser = await CdpClient.connect(await browserWebSocketUrl(options.chrome));
@@ -343,6 +310,47 @@ async function main() {
     const testUrl = withTestMarker(options.url);
     await page.call('Page.navigate', { url: testUrl });
     await waitForCondition(page, `Boolean(document.querySelector('#example-picker:not([disabled])'))`, options, 'the example catalogue to load');
+
+    let browserMemoryMetric = '';
+    let initialBrowserMemoryBytes = 0;
+    let initialBrowserRssBytes = 0;
+    let initialBrowserPssBytes = 0;
+    let peakBrowserMemoryBytes = 0;
+    let peakBrowserRssBytes = 0;
+    let peakBrowserPssBytes = 0;
+    let peakBrowserProcessCount = 0;
+    const sampleBrowserMemory = () => {
+      if (options.maxBrowserMemoryMb <= 0) {
+        return null;
+      }
+      let memory;
+      try {
+        memory = browserProcessTreeMemory(options.chrome, { rootPid: options.chromePid });
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new Error(`Could not measure Chrome memory while the safety ceiling is enabled: ${reason}`);
+      }
+      browserMemoryMetric = memory.memoryMetric;
+      peakBrowserRssBytes = Math.max(peakBrowserRssBytes, memory.rssBytes);
+      peakBrowserPssBytes = Math.max(peakBrowserPssBytes, memory.pssBytes);
+      if (memory.measurementBytes > peakBrowserMemoryBytes) {
+        peakBrowserMemoryBytes = memory.measurementBytes;
+        peakBrowserProcessCount = memory.processCount;
+      }
+      const ceilingBytes = options.maxBrowserMemoryMb * 1024 * 1024;
+      if (memory.measurementBytes > ceilingBytes) {
+        throw new Error(`Chrome exceeded the ${options.maxBrowserMemoryMb} MiB browser-memory safety ceiling (${formatMemoryMeasurement(memory)}).`);
+      }
+      return memory;
+    };
+    const initialMemory = sampleBrowserMemory();
+    if (initialMemory) {
+      initialBrowserMemoryBytes = initialMemory.measurementBytes;
+      initialBrowserRssBytes = initialMemory.rssBytes;
+      initialBrowserPssBytes = initialMemory.pssBytes;
+      console.log(`[memory] Initial Chrome footprint: ${formatMemoryMeasurement(initialMemory)}.`);
+    }
+
     await setFileInput(page, '#own-file-input', options.file);
     const isPdf = /\.pdf$/i.test(options.file);
     if (isPdf) {
@@ -353,20 +361,12 @@ async function main() {
     const startedAt = Date.now();
     let lastStatus = '';
     let completed = false;
-    let peakBrowserRssBytes = 0;
     let nextMemoryPollAt = 0;
     let recoveredToPages = false;
     while (Date.now() - startedAt < options.timeoutMs) {
-      if (options.maxBrowserRssMb > 0 && Date.now() >= nextMemoryPollAt) {
-        nextMemoryPollAt = Date.now() + 1_000;
-        const memory = browserProcessTreeRss(options.chrome);
-        if (memory) {
-          peakBrowserRssBytes = Math.max(peakBrowserRssBytes, memory.rssBytes);
-          const ceilingBytes = options.maxBrowserRssMb * 1024 * 1024;
-          if (memory.rssBytes > ceilingBytes) {
-            throw new Error(`Chrome exceeded the ${options.maxBrowserRssMb} MiB RSS safety ceiling (${Math.ceil(memory.rssBytes / 1024 / 1024)} MiB across ${memory.processCount} processes).`);
-          }
-        }
+      if (options.maxBrowserMemoryMb > 0 && Date.now() >= nextMemoryPollAt) {
+        nextMemoryPollAt = Date.now() + 500;
+        sampleBrowserMemory();
       }
       const status = await evaluate(page, `(() => {
         const status = document.querySelector('#viewer-status');
@@ -397,6 +397,7 @@ async function main() {
       }
       const importFinished = /^(?:(?:Import complete\..* )?Opened a new WordPress page for |The import completed and the WordPress page was saved)/.test(status.text);
       if (status.tone === 'success' && importFinished) {
+        sampleBrowserMemory();
         const integrity = await evaluate(page, `window.__portLibsImportE2E?.inspectLastImport()`);
         if (!integrity || !Array.isArray(integrity.posts) || integrity.posts.length < 1) {
           throw new Error('The UI reported success without inspectable WordPress pages.');
@@ -452,7 +453,14 @@ async function main() {
           file: options.file,
           url: testUrl,
           elapsedMs,
+          browserMemoryMetric,
+          initialBrowserMemoryBytes,
+          initialBrowserRssBytes,
+          initialBrowserPssBytes,
+          peakBrowserMemoryBytes,
           peakBrowserRssBytes,
+          peakBrowserPssBytes,
+          peakBrowserProcessCount,
           requestedPdfOutputMode: isPdf ? options.pdfOutputMode : null,
           recoveredToPages,
           integrity,

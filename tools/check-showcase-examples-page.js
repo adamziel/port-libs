@@ -95,9 +95,11 @@ assert(js.includes('window.__portLibsImportE2E'), 'Expected release E2E to inspe
 assert(js.includes('rawDataProvenanceCount'), 'Expected release E2E to reject embedded data-URI provenance.');
 assert(js.includes('Import complete. Converted pages were verified privately and published.'), 'Expected the browser to report verified publication before declaring a large import complete.');
 assert(importE2e.includes("browser.call('Target.closeTarget', { targetId })"), 'Every E2E import must close its Playground target instead of leaking a browser VM.');
-assert(importE2e.includes("'--max-browser-rss-mb'"), 'Expected large-import E2E to support a hard browser RSS ceiling.');
-assert(importE2e.includes('maxBrowserRssMb: 1536'), 'Expected the whole-browser RSS safety ceiling to be enabled by default.');
-assert(importE2e.includes('Chrome exceeded the ${options.maxBrowserRssMb} MiB RSS safety ceiling'), 'Expected the E2E memory ceiling to fail closed with a useful diagnostic.');
+assert(importE2e.includes("'--max-browser-memory-mb'") && importE2e.includes("'--max-browser-rss-mb'"), 'Expected large-import E2E to expose the accurate browser-memory ceiling while retaining the old CLI alias.');
+assert(importE2e.includes('maxBrowserMemoryMb: 1536'), 'Expected the whole-browser proportional-memory safety ceiling to be enabled by default.');
+assert(importE2e.includes('Could not measure Chrome memory while the safety ceiling is enabled'), 'Expected an unavailable browser-memory sample to fail closed.');
+assert(importE2e.includes('sampleBrowserMemory();') && importE2e.includes('Initial Chrome footprint'), 'Expected browser memory to be sampled before import and again before accepting success.');
+assert(importE2e.includes('Chrome exceeded the ${options.maxBrowserMemoryMb} MiB browser-memory safety ceiling'), 'Expected the E2E memory ceiling to fail closed with a useful diagnostic.');
 assert(js.includes("const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';"), 'Expected Try your own file to use the Playground client.');
 assert(js.includes("const playgroundUploadDirectory = '/tmp/port-libs-converter';"), 'Expected own files to use Playground temporary staging.');
 assert(js.includes("php: '8.4'"), 'Expected own-file imports to use PHP 8.4 for EPUB and HTML documents.');
