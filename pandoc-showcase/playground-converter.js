@@ -1,7 +1,7 @@
 import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';
 import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';
 
-const pluginBuild = 'pdf-output-modes-utf8-20260716';
+const pluginBuild = 'rotated-pdf-furniture-20260716';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 // Keep browser-produced PDF rasters within the exact decoded-byte limit that

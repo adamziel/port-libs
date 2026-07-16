@@ -5387,7 +5387,7 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'pdf-output-modes-utf8-20260716';
+const playgroundPluginBuild = 'rotated-pdf-furniture-20260716';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 const playgroundPdfRasterByteLimit = 24_000_000;
