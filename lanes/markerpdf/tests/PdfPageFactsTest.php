@@ -101,6 +101,22 @@ return [
         $t->same(PdfDocumentFacts::SCHEMA_VERSION, $restored->toArray()['schemaVersion']);
         $t->same(PdfPageFacts::SCHEMA_VERSION, $restored->page(1)?->toArray()['schemaVersion']);
     },
+    'replaces malformed source bytes when persisting durable pdf facts' => static function (TestRunner $t): void {
+        $facts = new PdfDocumentFacts(
+            'test-provider',
+            ['sha256' => str_repeat('a', 64), 'byteLength' => 1],
+            ['pageNumbers' => []],
+            [],
+            [],
+            ['message' => 'Before ' . "\xFF" . ' after']
+        );
+
+        $json = $facts->toJson();
+        $restored = PdfDocumentFacts::fromJson($json);
+
+        $t->same(1, preg_match('//u', $json));
+        $t->same('Before ' . "\u{FFFD}" . ' after', $restored->diagnostics()['message'] ?? null);
+    },
     'uses the same fact IDs when a page is extracted in a resumed range' => static function (
         TestRunner $t
     ) use ($pageFactsPdf, $allFactIds): void {

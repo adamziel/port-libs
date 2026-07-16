@@ -6,7 +6,8 @@
  * a fresh checkout can use Node 22+ and Chrome's built-in CDP WebSocket.
  *
  * Usage:
- *   node tools/e2e-playground-import.mjs --file path/to/input.pdf
+ *   node tools/e2e-playground-import.mjs --file path/to/input.pdf \
+ *     --pdf-output-mode single
  *
  * The page starts a real WordPress Playground, installs the packaged plugin,
  * stages the selected document, and waits for the visible success/error state.
@@ -28,6 +29,9 @@ const defaults = {
   // an 8 GiB developer machine; pass 0 explicitly only when a larger,
   // externally supervised browser budget is intentional.
   maxBrowserRssMb: 3 * 1024,
+  pdfOutputMode: 'single',
+  expectedPdfPages: 0,
+  expectedImageCount: -1,
 };
 
 function parseOptions(args) {
@@ -55,6 +59,18 @@ function parseOptions(args) {
       index += 1;
     } else if (argument === '--max-browser-rss-mb') {
       options.maxBrowserRssMb = Math.max(0, Number(value) || 0);
+      index += 1;
+    } else if (argument === '--pdf-output-mode') {
+      if (!['single', 'pages'].includes(value)) {
+        fail('--pdf-output-mode must be either "single" or "pages".');
+      }
+      options.pdfOutputMode = value;
+      index += 1;
+    } else if (argument === '--expected-pdf-pages') {
+      options.expectedPdfPages = Math.max(0, Number(value) || 0);
+      index += 1;
+    } else if (argument === '--expected-image-count') {
+      options.expectedImageCount = Math.max(0, Number(value) || 0);
       index += 1;
     } else {
       fail(`Unknown argument: ${argument}`);
@@ -127,6 +143,27 @@ async function setFileInput(page, selector, file) {
     throw new Error(`Could not find file input ${selector}.`);
   }
   await page.call('DOM.setFileInputFiles', { files: [file], nodeId: result.nodeId });
+}
+
+async function submitPdfOutputDialog(page, mode, options, description) {
+  await waitForCondition(
+    page,
+    `Boolean(document.querySelector('#own-pdf-output-dialog')?.open)`,
+    options,
+    description,
+  );
+  const submitted = await evaluate(page, `(() => {
+    const dialog = document.querySelector('#own-pdf-output-dialog');
+    const input = document.querySelector('input[name="own-pdf-output-mode"][value="${mode}"]');
+    const submit = dialog?.querySelector('.dialog-import');
+    if (!dialog?.open || !input || input.disabled || !submit) return false;
+    input.checked = true;
+    submit.click();
+    return true;
+  })()`);
+  if (!submitted) {
+    throw new Error(`Could not choose the PDF output mode ${mode}.`);
+  }
 }
 
 async function waitForCondition(page, expression, options, description) {
@@ -283,7 +320,7 @@ class CdpClient {
 async function main() {
   const options = parseOptions(process.argv.slice(2));
   if (!options.file) {
-    fail('Usage: node tools/e2e-playground-import.mjs --file /absolute/path/to/document [--url URL] [--chrome URL] [--timeout-ms N] [--max-elapsed-ms N] [--max-browser-rss-mb N]');
+    fail('Usage: node tools/e2e-playground-import.mjs --file /absolute/path/to/document [--pdf-output-mode single|pages] [--expected-pdf-pages N] [--expected-image-count N] [--url URL] [--chrome URL] [--timeout-ms N] [--max-elapsed-ms N] [--max-browser-rss-mb N]');
   }
 
   const browser = await CdpClient.connect(await browserWebSocketUrl(options.chrome));
@@ -308,6 +345,10 @@ async function main() {
     await page.call('Page.navigate', { url: testUrl });
     await waitForCondition(page, `Boolean(document.querySelector('#example-picker:not([disabled])'))`, options, 'the example catalogue to load');
     await setFileInput(page, '#own-file-input', options.file);
+    const isPdf = /\.pdf$/i.test(options.file);
+    if (isPdf) {
+      await submitPdfOutputDialog(page, options.pdfOutputMode, options, 'the PDF output-mode dialog');
+    }
 
     const statusHistory = [];
     const startedAt = Date.now();
@@ -315,6 +356,7 @@ async function main() {
     let completed = false;
     let peakBrowserRssBytes = 0;
     let nextMemoryPollAt = 0;
+    let recoveredToPages = false;
     while (Date.now() - startedAt < options.timeoutMs) {
       if (options.maxBrowserRssMb > 0 && Date.now() >= nextMemoryPollAt) {
         nextMemoryPollAt = Date.now() + 1_000;
@@ -343,6 +385,17 @@ async function main() {
         statusHistory.push({ atMs: Date.now() - startedAt, ...status });
         console.log(`[${formatElapsed(Date.now() - startedAt)}] ${status.text}`);
       }
+      const recoveryDialogOpen = isPdf && await evaluate(
+        page,
+        `Boolean(document.querySelector('#own-pdf-output-dialog')?.open
+          && document.querySelector('input[name="own-pdf-output-mode"][value="single"]')?.disabled)`,
+      );
+      if (recoveryDialogOpen) {
+        await submitPdfOutputDialog(page, 'pages', options, 'the recoverable oversized-PDF dialog');
+        recoveredToPages = true;
+        console.log(`[${formatElapsed(Date.now() - startedAt)}] Continuing the saved conversion as one child page per PDF page.`);
+        continue;
+      }
       const importFinished = /^(?:(?:Import complete\..* )?Opened a new WordPress page for |The import completed and the WordPress page was saved)/.test(status.text);
       if (status.tone === 'success' && importFinished) {
         const integrity = await evaluate(page, `window.__portLibsImportE2E?.inspectLastImport()`);
@@ -350,15 +403,42 @@ async function main() {
           throw new Error('The UI reported success without inspectable WordPress pages.');
         }
         for (const post of integrity.posts) {
-          if (post.status !== 'publish' || post.contentBytes < 1
-              || (post.visibleTextBytes < 1 && post.imageCount < 1)) {
+          const emptyButCertified = post.intentionalBlank
+            && post.contentBytes === 0
+            && post.visibleTextBytes === 0
+            && post.imageCount === 0;
+          if (post.status !== 'publish' || (!emptyButCertified && (post.contentBytes < 1
+              || (post.visibleTextBytes < 1 && post.imageCount < 1)))) {
             throw new Error(`WordPress page ${post.postId} failed publication integrity: ${JSON.stringify(post)}`);
           }
           if (post.rawDataProvenanceCount !== 0) {
             throw new Error(`WordPress page ${post.postId} retained an encoded data-URI provenance attribute.`);
           }
+          if (post.importNoticeCount !== 0) {
+            throw new Error(`WordPress page ${post.postId} prepended import diagnostics to the document body.`);
+          }
         }
-        if (/\.pdf$/i.test(options.file)) {
+        if (isPdf) {
+          const effectiveMode = recoveredToPages ? 'pages' : options.pdfOutputMode;
+          const expectedKind = effectiveMode === 'pages' ? 'pdf-page-tree' : 'single';
+          if (integrity.resultKind !== expectedKind || integrity.pdfOutputMode !== effectiveMode) {
+            throw new Error(`The PDF publication topology was ${integrity.resultKind}/${integrity.pdfOutputMode}; expected ${expectedKind}/${effectiveMode}.`);
+          }
+          const expectedPosts = effectiveMode === 'pages'
+            ? Math.max(1, integrity.pageCount + 1)
+            : 1;
+          if (integrity.posts.length !== expectedPosts) {
+            throw new Error(`The ${effectiveMode} PDF import published ${integrity.posts.length} posts; expected ${expectedPosts}.`);
+          }
+          if (options.expectedPdfPages > 0 && integrity.pageCount !== options.expectedPdfPages) {
+            throw new Error(`The PDF import retained ${integrity.pageCount} physical pages; expected ${options.expectedPdfPages}.`);
+          }
+          if (options.expectedImageCount >= 0) {
+            const imageCount = integrity.posts.reduce((sum, post) => sum + post.imageCount, 0);
+            if (imageCount !== options.expectedImageCount) {
+              throw new Error(`The PDF import retained ${imageCount} images; expected ${options.expectedImageCount}.`);
+            }
+          }
           const messages = statusHistory.map((entry) => entry.text).join('\n');
           if (!messages.includes('verified privately') || !/(?:Import complete|import completed)/.test(messages)) {
             throw new Error('The PDF did not expose verified-draft and completion stages in the UI.');
@@ -374,6 +454,8 @@ async function main() {
           url: testUrl,
           elapsedMs,
           peakBrowserRssBytes,
+          requestedPdfOutputMode: isPdf ? options.pdfOutputMode : null,
+          recoveredToPages,
           integrity,
           statusHistory,
           consoleErrors: observations.consoleErrors,

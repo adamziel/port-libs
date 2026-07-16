@@ -42,6 +42,9 @@ assert(!html.includes('format-filter'), 'The browser must not render a format se
 assert(/<a\b[^>]*\bid="download-source"[^>]*\bdownload\b[^>]*>Download original<\/a>/.test(html), 'Expected a Download original button.');
 assert(/<button\b[^>]*\bid="try-own-file"[^>]*>Try your own file<\/button>/.test(html), 'Expected a Try your own file button.');
 assert(/<input\b[^>]*\bid="own-file-input"[^>]*\btype="file"[^>]*\bhidden\b/.test(html), 'Expected the hidden own-file picker.');
+assert(/<dialog\b[^>]*\bid="own-pdf-output-dialog"/.test(html), 'Expected a PDF-only publication-shape dialog for own files.');
+assert(html.includes('name="own-pdf-output-mode" value="single" checked'), 'Expected one WordPress page to be the own-PDF default.');
+assert(html.includes('name="own-pdf-output-mode" value="pages"'), 'Expected one child page per physical PDF page as the alternate choice.');
 assert(!/<input\b[^>]*\bid="own-file-input"[^>]*\bmultiple\b/.test(html), 'Try your own file should open one selected file at a time.');
 assert(/<div class="example-toolbar"><button[^>]*\bid="previous-example"[\s\S]*?<h1[^>]*class="example-title"[\s\S]*?<select[^>]*\bid="example-picker"[\s\S]*?<a[^>]*\bid="download-source"[\s\S]*?<button[^>]*\bid="try-own-file"[\s\S]*?<button[^>]*\bid="next-example"/.test(html), 'Expected the toolbar order to be previous, title, picker, download, try-own-file, next.');
 assert(/<p[^>]*\bid="viewer-status"[^>]*\brole="status"[^>]*\baria-live="polite"[^>]*\bhidden/.test(html), 'Expected an initially hidden, accessible own-file status message.');
@@ -81,7 +84,7 @@ assert(js.includes("const exampleUrlParameter = 'example';"), 'Expected a stable
 assert(js.includes('new URL(window.location.href)'), 'Expected example links to preserve other URL state safely.');
 assert(js.includes('window.history.replaceState'), 'Expected picker navigation to keep the current URL shareable.');
 assert(js.includes("import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';"), 'Expected own-file PDF figures to use the shared PDF.js renderer.');
-assert(js.includes("const playgroundPluginBuild = 'pdf-marker-safe-forms-20260716';"), 'Expected the own-file importer to use the current Playground plugin build.');
+assert(js.includes("const playgroundPluginBuild = 'pdf-output-modes-utf8-20260716';"), 'Expected the own-file importer to use the current Playground plugin build.');
 assert(js.includes('const playgroundPdfFormTotalPixelLimit = 48_000_000;'), 'Expected own-file PDF figure rendering to have a total pixel budget.');
 assert(js.includes('const playgroundPdfFormTotalImageByteLimit = 24_000_000;'), 'Expected own-file PDF figure rendering to match the server media budget.');
 assert(/renderPdfFormRequests\(\{[\s\S]*?maxTotalPixels: playgroundPdfFormTotalPixelLimit,[\s\S]*?maxTotalImageBytes: playgroundPdfFormTotalImageByteLimit,/.test(js), 'Expected own-file rendering to pass its aggregate figure budgets to PDF.js.');
@@ -98,10 +101,13 @@ assert(js.includes("php: '8.4'"), 'Expected own-file imports to use PHP 8.4 for 
 assert(js.includes("const tryOwnFileButton = document.getElementById('try-own-file');"), 'Expected Try your own file controls to be wired.');
 assert(js.includes("const ownFileInput = document.getElementById('own-file-input');"), 'Expected the hidden own-file picker to be wired.');
 assert(js.includes('ownFileInput.click();'), 'Expected the Try your own file button to open its file picker.');
-assert(/ownFileInput\.addEventListener\('change',[\s\S]*?void openOwnFile\(file\);/.test(js), 'Selecting a file should open it immediately in the view area.');
+assert(/ownFileInput\.addEventListener\('change',[\s\S]*?isLikelyPdfFile\(file\) \? await chooseOwnPdfOutputMode\(\) : 'single'[\s\S]*?void openOwnFile\(file, outputMode\);/.test(js), 'Selecting a file should infer PDF, ask only for its publication shape, and open it immediately.');
 assert(js.includes('async function bootOwnFilePlayground()'), 'Expected a reusable Playground boot path for own-file imports.');
 assert(/async function bootOwnFilePlayground\(\)[\s\S]*?if \(state\.playgroundReady\)/.test(js), 'Expected a loaded Playground to be reused for another file.');
 assert(js.includes("let job = await ownFilePluginRequest(playgroundClient, '/imports', {"), 'Expected own files to create persisted import jobs.');
+assert(js.includes("pdfOutputMode: pdfOutputMode === 'pages' ? 'pages' : 'single'"), 'Expected the compact importer to send its PDF publication choice.');
+assert(js.includes("job.status === 'awaiting_output_mode'"), 'Expected the compact importer to surface the safe single-page limit.');
+assert(js.includes('`/imports/${encodeURIComponent(job.jobId)}/output-mode`'), 'Expected compact recovery to reuse the same persisted import job.');
 assert(js.includes('`/imports/${jobId}/advance`'), 'Expected own files to advance their persisted import jobs.');
 assert(js.includes('`/imports/${encodeURIComponent(job.jobId)}/rendered-media`'), 'Expected browser-rendered PDF figures to be returned to WordPress.');
 assert(js.includes('async function advanceOwnFileImport'), 'Expected an explicit bounded import advance flow.');

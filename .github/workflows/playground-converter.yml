@@ -21,6 +21,7 @@ on:
       - 'tools/build-pandoc-showcase.php'
       - 'tools/pdf-layout-corpus-manifest.json'
       - 'tools/e2e-pdf-layout-corpus.mjs'
+      - 'tools/e2e-playground-import.mjs'
       - 'tools/check-pdf-layout-reviewer.mjs'
       - 'tools/check-showcase-examples-page.js'
       - 'tools/check-playground-converter-ui.js'
@@ -56,6 +57,7 @@ on:
       - 'tools/build-pandoc-showcase.php'
       - 'tools/pdf-layout-corpus-manifest.json'
       - 'tools/e2e-pdf-layout-corpus.mjs'
+      - 'tools/e2e-playground-import.mjs'
       - 'tools/check-pdf-layout-reviewer.mjs'
       - 'tools/check-showcase-examples-page.js'
       - 'tools/check-playground-converter-ui.js'
@@ -162,6 +164,7 @@ jobs:
           node --check tools/decode-pdf-jpx-media.mjs
           node --check tools/decode-pdf-raster-media.mjs
           node --check tools/e2e-pdf-layout-corpus.mjs
+          node --check tools/e2e-playground-import.mjs
           node --check tools/check-pdf-layout-reviewer.mjs
           node tools/check-playground-converter-ui.js
           node tools/check-pdfjs-facts-provider.mjs
@@ -252,6 +255,19 @@ jobs:
             --url http://127.0.0.1:4174/examples.html \
             --review-url http://127.0.0.1:4174/pdf-layout-corpus.html \
             --output artifacts/pdf-layout-screenshots
+          node tools/e2e-playground-import.mjs \
+            --file "$PWD/pandoc-showcase/samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf" \
+            --pdf-output-mode pages \
+            --expected-pdf-pages 4 \
+            --timeout-ms 240000 \
+            --max-browser-rss-mb 3072
+          node tools/e2e-playground-import.mjs \
+            --file "$PWD/pandoc-showcase/samples/pdf-tracemonkey-tracemonkey.pdf" \
+            --pdf-output-mode single \
+            --expected-pdf-pages 14 \
+            --expected-image-count 8 \
+            --timeout-ms 240000 \
+            --max-browser-rss-mb 3072
 
       - name: Upload PDF layout screenshots
         if: always()

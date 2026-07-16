@@ -4587,6 +4587,7 @@ function showcase_write_examples_page(string $siteDir, array $records, string $g
     $page .= '<div class="picker-controls"><label class="screen-reader-text" for="example-picker">Example</label><select id="example-picker" disabled><option>Loading examples…</option></select></div>';
     $page .= '<a id="download-source" class="download-source" href="" download hidden>Download original</a>';
     $page .= '<button id="try-own-file" class="try-own-file" type="button">Try your own file</button><input id="own-file-input" type="file" hidden>';
+    $page .= '<dialog id="own-pdf-output-dialog" class="own-pdf-output-dialog"><form method="dialog"><h2>PDF pages</h2><p id="own-pdf-output-message">Choose how this PDF should become WordPress pages.</p><label><input type="radio" name="own-pdf-output-mode" value="single" checked> One WordPress page</label><label><input type="radio" name="own-pdf-output-mode" value="pages"> One child page per PDF page</label><div class="dialog-actions"><button type="submit" value="cancel" class="dialog-cancel">Cancel</button><button type="submit" value="import" class="dialog-import">Import PDF</button></div></form></dialog>';
     $page .= '<button id="next-example" class="example-arrow next-arrow" type="button" aria-label="Next example" title="Next example" disabled><span class="arrow-glyph" aria-hidden="true">→</span><span class="arrow-label">Next example</span></button></div>';
     $page .= '<p id="viewer-status" class="viewer-status" role="status" aria-live="polite" hidden>Preparing the selected example…</p></div>';
     $page .= '<div class="view-tabs" role="group" aria-label="Preview format">';
@@ -5235,6 +5236,21 @@ select:disabled { cursor: not-allowed; opacity: .58; }
 .download-source:hover { border-color: var(--accent); background: #e6eefb; }
 .try-own-file:hover:not(:disabled) { border-color: var(--accent); background: #e6eefb; }
 .download-source[aria-disabled="true"] { cursor: wait; opacity: .58; pointer-events: none; }
+.own-pdf-output-dialog {
+  width: min(92vw, 460px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0;
+  box-shadow: 0 20px 60px #13233a55;
+}
+.own-pdf-output-dialog::backdrop { background: #13233a88; }
+.own-pdf-output-dialog form { display: grid; gap: 14px; padding: 22px; }
+.own-pdf-output-dialog h2,
+.own-pdf-output-dialog p { margin: 0; }
+.own-pdf-output-dialog label { display: flex; gap: 9px; align-items: flex-start; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.dialog-actions button { min-height: 42px; padding: 8px 14px; border: 1px solid #aeb9c7; border-radius: 8px; }
+.dialog-import { background: var(--accent); color: #fff; border-color: var(--accent) !important; }
 .view-tabs {
   display: flex;
   grid-row: 2;
@@ -5371,7 +5387,7 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'pdf-marker-safe-forms-20260716';
+const playgroundPluginBuild = 'pdf-output-modes-utf8-20260716';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 const playgroundPdfRasterByteLimit = 24_000_000;
@@ -5396,6 +5412,9 @@ const viewerStatus = document.getElementById('viewer-status');
 const downloadSource = document.getElementById('download-source');
 const tryOwnFileButton = document.getElementById('try-own-file');
 const ownFileInput = document.getElementById('own-file-input');
+const ownPdfOutputDialog = document.getElementById('own-pdf-output-dialog');
+const ownPdfOutputMessage = document.getElementById('own-pdf-output-message');
+const ownPdfOutputInputs = Array.from(document.querySelectorAll('input[name="own-pdf-output-mode"]'));
 const frame = document.getElementById('example-frame');
 
 const state = {
@@ -6159,7 +6178,35 @@ async function startOwnFilePlayground() {
   }
 }
 
-async function openOwnFile(file) {
+function chooseOwnPdfOutputMode({ recovery = false, job = null } = {}) {
+  if (!ownPdfOutputDialog || typeof ownPdfOutputDialog.showModal !== 'function') {
+    return Promise.resolve(recovery ? 'pages' : 'single');
+  }
+  const actual = Math.max(0, Number(job?.failure?.actualBytes) || Number(job?.output?.assembledBytes) || 0);
+  const allowed = Math.max(0, Number(job?.failure?.allowedBytes) || Number(job?.output?.singlePageLimitBytes) || 0);
+  ownPdfOutputMessage.textContent = recovery
+    ? `${formatBytes(actual)} of converted blocks exceeds the safe ${formatBytes(allowed)} single-page limit. No partial page was created; continue with the saved conversion.`
+    : 'Choose how this PDF should become WordPress pages.';
+  for (const input of ownPdfOutputInputs) {
+    input.disabled = recovery && input.value === 'single';
+    input.checked = input.value === (recovery ? 'pages' : 'single');
+  }
+
+  return new Promise((resolve) => {
+    const closed = () => {
+      ownPdfOutputDialog.removeEventListener('close', closed);
+      if (ownPdfOutputDialog.returnValue !== 'import') {
+        resolve(null);
+        return;
+      }
+      resolve(ownPdfOutputInputs.find((input) => input.checked)?.value || (recovery ? 'pages' : 'single'));
+    };
+    ownPdfOutputDialog.addEventListener('close', closed);
+    ownPdfOutputDialog.showModal();
+  });
+}
+
+async function openOwnFile(file, pdfOutputMode = 'single') {
   if (!file || file.size <= 0) {
     setStatus('Choose a non-empty file to open in WordPress Playground.');
     return;
@@ -6204,7 +6251,7 @@ async function openOwnFile(file) {
 
     setOwnFileBusy(true, 'Preparing file…');
     setStatus('Preparing ' + file.name + ' for upload…', { visible: true });
-    const prepared = await payloadFromOwnFile(file, (message) => {
+    const prepared = await payloadFromOwnFile(file, pdfOutputMode, (message) => {
       setOwnFileBusy(true, message);
       setStatus(message, { visible: true });
     });
@@ -6241,6 +6288,20 @@ async function openOwnFile(file) {
     while (!['complete', 'failed'].includes(String(job.status || ''))) {
       if (!ownFileRequestIsCurrent(token)) {
         return;
+      }
+      if (job.status === 'awaiting_output_mode') {
+        const recoveredMode = await chooseOwnPdfOutputMode({ recovery: true, job });
+        if (recoveredMode !== 'pages') {
+          setStatus('The completed conversion remains saved in WordPress Playground.', { visible: true });
+          return;
+        }
+        job = await ownFilePluginRequest(
+          playgroundClient,
+          `/imports/${encodeURIComponent(job.jobId)}/output-mode`,
+          { pdfOutputMode: 'pages' },
+        );
+        reportJob(job);
+        continue;
       }
       if (Array.isArray(job.renderRequests) && job.renderRequests.length > 0) {
         const rendered = await renderPdfFormRequests({
@@ -6350,13 +6411,26 @@ if (new URL(window.location.href).searchParams.has('e2e')) {
       if (!job?.result || !client) {
         throw new Error('No completed Playground import is available for inspection.');
       }
-      const children = Array.isArray(job.result.posts) ? job.result.posts : [];
-      const ids = Array.from(new Set([
-        Number(job.result.postId) || 0,
-        ...children.map((post) => Number(post?.postId) || 0),
-      ].filter((id) => id > 0)));
+      const children = Array.isArray(job.result.children)
+        ? job.result.children
+        : (Array.isArray(job.result.posts) ? job.result.posts : []);
+      const ids = [];
+      const resultsByPostId = new Map();
+      const collectPostIds = (result) => {
+        if (!result || typeof result !== 'object') return;
+        const postId = Number(result.postId) || 0;
+        if (postId > 0) {
+          ids.push(postId);
+          if (!resultsByPostId.has(postId)) resultsByPostId.set(postId, result);
+        }
+        for (const key of ['children', 'posts', 'documents']) {
+          for (const child of Array.isArray(result[key]) ? result[key] : []) collectPostIds(child);
+        }
+      };
+      collectPostIds(job.result);
+      const uniqueIds = Array.from(new Set(ids));
       const posts = [];
-      for (const postId of ids) {
+      for (const postId of uniqueIds) {
         const response = await client.request({
           method: 'GET',
           url: `/wp-json/wp/v2/pages/${postId}?context=view`,
@@ -6366,6 +6440,7 @@ if (new URL(window.location.href).searchParams.has('e2e')) {
         const raw = String(page?.content?.rendered || '');
         const visible = new DOMParser().parseFromString(raw.replace(/<!--.*?-->/gs, ' '), 'text/html')
           .body.textContent.replace(/\s+/g, ' ').trim();
+        const result = resultsByPostId.get(postId) || {};
         posts.push({
           postId,
           status: String(page?.status || ''),
@@ -6373,6 +6448,8 @@ if (new URL(window.location.href).searchParams.has('e2e')) {
           visibleTextBytes: new TextEncoder().encode(visible).byteLength,
           imageCount: (raw.match(/<img\b/gi) || []).length,
           rawDataProvenanceCount: (raw.match(/data-pandoc-media-(?:canonical-)?source=["']data:/gi) || []).length,
+          importNoticeCount: (raw.match(/port-libs-(?:conversion-notice|import-quality)/gi) || []).length,
+          intentionalBlank: Boolean(result.intentionalBlank),
           restErrorCode: String(page?.code || ''),
         });
       }
@@ -6380,6 +6457,9 @@ if (new URL(window.location.href).searchParams.has('e2e')) {
       return {
         jobId: String(job.jobId || ''),
         resultPostId: Number(job.result.postId) || 0,
+        resultKind: String(job.result.kind || ''),
+        pdfOutputMode: String(job.output?.pdfOutputMode || job.pdfOutputMode || ''),
+        pageCount: Math.max(0, Number(job.result.pageCount) || 0),
         childPostCount: children.length,
         posts,
       };
@@ -6596,13 +6676,14 @@ function playgroundPdfJsConfig() {
   };
 }
 
-async function payloadFromOwnFile(file, reportProgress) {
+async function payloadFromOwnFile(file, pdfOutputMode, reportProgress) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const payload = {
     filename: file.name,
     title: titleFromFilename(file.name),
     imageMode: 'important',
     pdfMode: 'layout',
+    pdfOutputMode: pdfOutputMode === 'pages' ? 'pages' : 'single',
   };
   if (!isLikelyPdfFile(file)) {
     return { payload, bytes };
@@ -6790,11 +6871,14 @@ tryOwnFileButton.addEventListener('click', () => {
   ownFileInput.click();
 });
 
-ownFileInput.addEventListener('change', () => {
+ownFileInput.addEventListener('change', async () => {
   const file = ownFileInput.files && ownFileInput.files[0];
   ownFileInput.value = '';
   if (file) {
-    void openOwnFile(file);
+    const outputMode = isLikelyPdfFile(file) ? await chooseOwnPdfOutputMode() : 'single';
+    if (outputMode) {
+      void openOwnFile(file, outputMode);
+    }
   }
 });
 

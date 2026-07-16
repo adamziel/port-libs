@@ -58,6 +58,10 @@ assert(!html.includes('id="format-input"'), 'Document type must not be exposed a
 assert(!js.includes('formatByExtension'), 'Document type inference must be authoritative on the server, not duplicated in the browser.');
 assert(!js.includes('format: upload.format'), 'The browser must not send a user-controlled document type hint.');
 assert(js.includes('function isLikelyPdfFile(file)'), 'Expected PDF-only browser preparation to remain available without choosing a document type.');
+assert(html.includes('id="pdf-output-mode-control"'), 'Expected the standalone importer to offer PDF publication shape only with its PDF controls.');
+assert(js.includes('pdfOutputMode: selectedPdfOutputMode()'), 'Expected the standalone importer to send the selected PDF publication shape.');
+assert(js.includes("'awaiting_output_mode'"), 'Expected the standalone importer to stop advancing while an output choice is required.');
+assert(js.includes('/output-mode`'), 'Expected the standalone importer to resume an oversized job without re-uploading it.');
 assert(!js.includes('unsupportedMessage'), 'Supported document formats must not carry a client-side blanket rejection.');
 
 assert(adminImporter.includes("new URL('./pdf-jbig2-rasterizer.mjs', import.meta.url)"), 'Expected the WordPress admin importer to load the bundled JBIG2 rasterizer relative to its module.');
@@ -78,6 +82,10 @@ assert(adminImporter.includes('async function advanceImportJob(snapshot)'), 'Exp
 assert(adminImporter.includes('The importer stopped retrying automatically to avoid duplicating work.'), 'Expected advance recovery to stop with an actionable message instead of retrying forever.');
 assert(adminImporter.includes('function updateSelection({ clearResult = false } = {})'), 'Expected the admin importer to distinguish a new selection from ending an active import.');
 assert(adminImporter.includes('if (clearResult) {'), 'Expected completed admin import links to remain visible until the user chooses another file.');
+assert(plugin.includes('data-plpc-pdf-output-options'), 'Expected wp-admin to expose the PDF publication shape beside its PDF-only controls.');
+assert(adminImporter.includes("checkedValue('plpc-pdf-output-mode', 'single')"), 'Expected wp-admin to default PDF publication to one page.');
+assert(adminImporter.includes('showOutputModeRecovery(snapshot, pdfFiles)'), 'Expected wp-admin to offer a same-job page-tree recovery after the size guard.');
+assert(adminImporter.includes('/output-mode`'), 'Expected wp-admin recovery to reuse the persisted job.');
 assert(plugin.includes("wp_enqueue_script_module('port-libs-importer'"), 'Expected modern WordPress admin installs to enqueue the ESM importer through the native module API.');
 assert(plugin.includes('function plpc_print_importer_configuration_script(): void'), 'Expected importer configuration to be emitted independently of a classic script handle.');
 assert(plugin.includes('plpc_print_importer_configuration_script();'), 'Expected the configuration script to appear before the deferred importer module runs.');
@@ -97,6 +105,16 @@ assert(plugin.includes('->mergeRange($ranges, $startPage, $endPage)'), 'Expected
 assert(plugin.includes('function plpc_import_job_prepare_pdf_final_bundle('), 'Expected each bounded semantic pass to become durable before WordPress publication.');
 assert(plugin.includes('function plpc_import_job_store_pdf_final_bundle('), 'Expected private block and media bundles to be durable.');
 assert(plugin.includes('function plpc_import_job_load_pdf_final_bundle('), 'Expected publication retries to reuse the durable final PDF bundle.');
+assert(plugin.includes('PLPC_PDF_SINGLE_PAGE_HARD_LIMIT_BYTES = 8388608'), 'Expected one post_content value to have an explicit 8 MiB hard ceiling.');
+assert(plugin.includes('function plpc_pdf_single_page_limit_bytes()'), 'Expected the single-page limit to account for PHP and database policy.');
+assert(plugin.includes("'pdf_single_page_too_large'"), 'Expected an oversized assembled page to have a stable recoverable failure code.');
+assert(plugin.includes('function plpc_import_job_store_pdf_publication_bundle('), 'Expected media-rewritten segment blocks to remain durable until safe assembly.');
+assert(plugin.includes('function plpc_import_job_finalize_single_pdf_output('), 'Expected bounded internal segments to assemble into one continuous page.');
+assert(plugin.includes('function plpc_import_job_finalize_pdf_page_tree('), 'Expected physical PDF pages to become a root and ordered children when selected.');
+assert(plugin.includes("'_plpc_import_pdf_role' => 'root'"), 'Expected a stable private root identity for resumable page-tree publication.');
+assert(plugin.includes("'post_parent' => $rootPostId"), 'Expected physical PDF pages to be WordPress children of their PDF root.');
+assert(!/\$blockMarkup\s*=\s*plpc_prepend_(?:conversion_warning|import_quality)_blocks/.test(plugin), 'PDF publication must not prepend conversion or quality notes to imported content.');
+assert(!/\$blocks\s*=\s*plpc_prepend_(?:conversion_warning|import_quality)_blocks/.test(plugin), 'Non-PDF publication must not prepend conversion or quality notes to imported content.');
 assert(plugin.includes('function plpc_import_job_recover_interrupted_document('), 'Expected hard worker terminations to have a bounded durable recovery path.');
 assert(plugin.includes('function plpc_pdf_form_placement_covers_page('), 'Expected page-sized Form wrappers to be distinguished from inline PDF figures.');
 assert(plugin.includes('pdfPageSizedFormsSkipped'), 'Expected skipped page-layout wrappers to be visible in import metrics.');

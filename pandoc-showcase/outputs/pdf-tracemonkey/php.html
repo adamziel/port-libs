@@ -253,7 +253,33 @@ jmp epilog             // jump to ret statement</code></pre>
 <ul>
 <li><p>Some programs trace very well, and speed up compared to the interpreter, but are not as fast as SFX and/or V8, namely bitops-bits-in-byte, bitops-nsieve-bits, access-fannkuch, access-nsieve, and crypto-aes. The reason is not clear, but all of these programs have nested loops with small bodies, so we suspect that the implementation has a relatively high cost for calling nested traces. string-fasta traces well, but its run time is dominated by string processing builtins, which are unaffected by tracing and seem to be less efficient in SpiderMonkey than in the two other VMs.</p></li>
 </ul>
-<p>Detailed performance metrics. In Figure 11 we show the fraction of instructions interpreted and the fraction of instructions executed as native code. This figure shows that for many programs, we are able to execute almost all the code natively. Figure 12 breaks down the total execution time into four activities: interpreting bytecodes while not recording, recording traces (including time taken to interpret the recorded trace), compiling traces to native code, and executing native code traces. These detailed metrics allow us to estimate parameters for a simple model of tracing performance.</p>
+<p>Detailed performance metrics. In Figure 11 we show the fraction of instructions interpreted and the fraction of instructions executed as native code. This figure shows that for many programs, we are able to execute almost all the code natively. Figure 12 breaks down the total execution time into four activities: interpreting bytecodes while not recording, recording traces (including time taken to interpret the recorded trace), compiling traces to native code, and executing native code traces. These detailed metrics allow us to estimate parameters for a simple model of tracing performance. These estimates should be considered very rough, as the values observed on the individual benchmarks have large standard deviations (on the order of the</p>
+<p>3d-cube 25 27 29 3</p>
+<p>3d-morph5 8 8 2</p>
+<p>3d-raytrace 10 25 100 10</p>
+<p>access-binary-trees0 0 0 5</p>
+<p>access-fannkuch 10 34 57 24</p>
+<p>access-nbody8 16 18 5</p>
+<p>access-nsieve3 6 8 3</p>
+<p>bitops-3 bit-bits-in-byte 2 2 2 0</p>
+<p>bitops-bits-in-byte3 3 4 1</p>
+<p>bitops-bitwise-and1 1 1 0</p>
+<p>bitops-nsieve-bits3 3 5 0</p>
+<p>controlflow-recursive0 0 0 1</p>
+<p>crypto-aes 50 72 78 19</p>
+<p>crypto-md 54 4 5 0</p>
+<p>crypto-sha 15 5 10 0</p>
+<p>date-format-tofte3 3 4 7</p>
+<p>date-format-xparb3 3 11 3</p>
+<p>math-cordic2 4 5 1</p>
+<p>math-partial-sums2 4 4 1</p>
+<p>math-spectral-norm 15 20 20 0</p>
+<p>regexp-dna2 2 2 0</p>
+<p>string-base 643 5 7 0</p>
+<p>string-fasta5 11 15 6</p>
+<p>string-tagcloud3 6 6 5</p>
+<p>string-unpack-code4 4 37 0</p>
+<p>string-validate-input6 10 13 1</p>
 <p>Figure 13. Detailed trace recording statistics for the SunSpider benchmark set.</p>
 <p>We exclude regexp-dna from the following calculations, because most of its time is spent in the regular expression matcher, which has much different performance characteristics from the other programs. (Note that this only makes a difference of about 10% in the results.) Dividing the total execution time in processor clock cycles by the number of bytecodes executed in the base interpreter shows that on average, a bytecode executes in about 35 cycles. Native traces take about 9 cycles per bytecode, a 3.9x speedup over the interpreter.</p>
 <p>Using similar computations, we find that trace recording takes about 3800 cycles per bytecode, and compilation 3150 cycles per bytecode. Hence, during recording and compiling the VM runs at 1/200 the speed of the interpreter. Because it costs 6950 cycles to compile a bytecode, and we save 26 cycles each time that code is run natively, we break even after running a trace 270 times.</p>

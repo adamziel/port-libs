@@ -172,7 +172,14 @@ final class PdfDocumentFacts implements JsonSerializable
     /** @throws JsonException */
     public function toJson(): string
     {
-        return json_encode($this, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
+        return json_encode(
+            $this,
+            JSON_THROW_ON_ERROR
+                | JSON_INVALID_UTF8_SUBSTITUTE
+                | JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+                | JSON_PRESERVE_ZERO_FRACTION
+        );
     }
 
     /** @return array<string, mixed> */

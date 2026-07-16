@@ -109,6 +109,21 @@ select:disabled { cursor: not-allowed; opacity: .58; }
 .download-source:hover { border-color: var(--accent); background: #e6eefb; }
 .try-own-file:hover:not(:disabled) { border-color: var(--accent); background: #e6eefb; }
 .download-source[aria-disabled="true"] { cursor: wait; opacity: .58; pointer-events: none; }
+.own-pdf-output-dialog {
+  width: min(92vw, 460px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0;
+  box-shadow: 0 20px 60px #13233a55;
+}
+.own-pdf-output-dialog::backdrop { background: #13233a88; }
+.own-pdf-output-dialog form { display: grid; gap: 14px; padding: 22px; }
+.own-pdf-output-dialog h2,
+.own-pdf-output-dialog p { margin: 0; }
+.own-pdf-output-dialog label { display: flex; gap: 9px; align-items: flex-start; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.dialog-actions button { min-height: 42px; padding: 8px 14px; border: 1px solid #aeb9c7; border-radius: 8px; }
+.dialog-import { background: var(--accent); color: #fff; border-color: var(--accent) !important; }
 .view-tabs {
   display: flex;
   grid-row: 2;

@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-15T17:30:57+00:00",
+    "generatedAt": "2026-07-16T13:28:28+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -877,11 +877,11 @@
         "totals": {
             "code": 653,
             "group": 401,
-            "heading": 4276,
+            "heading": 4271,
             "html": 52,
             "image": 130,
             "list": 1409,
-            "paragraph": 23502,
+            "paragraph": 23533,
             "quote": 56,
             "separator": 66,
             "table": 586,
@@ -4498,8 +4498,8 @@
                         "mimeType": "image/png",
                         "byteLength": 68,
                         "sha1": "bac187a7c86d691ecc6d34841319cd3d2649f08e",
-                        "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
-                        "canonicalSource": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
+                        "source": "data-uri:sha1:bac187a7c86d691ecc6d34841319cd3d2649f08e",
+                        "canonicalSource": "data-uri:sha1:bac187a7c86d691ecc6d34841319cd3d2649f08e",
                         "sourcePath": "data-uri",
                         "pathRepairSummary": "data-uri-hash-path",
                         "extractionPathRepairSummary": "data-uri-hash-path",
@@ -4524,8 +4524,8 @@
                         "mimeType": "image/png",
                         "byteLength": 68,
                         "sha1": "bac187a7c86d691ecc6d34841319cd3d2649f08e",
-                        "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
-                        "canonicalSource": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
+                        "source": "data-uri:sha1:bac187a7c86d691ecc6d34841319cd3d2649f08e",
+                        "canonicalSource": "data-uri:sha1:bac187a7c86d691ecc6d34841319cd3d2649f08e",
                         "sourcePath": "data-uri",
                         "pathRepairSummary": "data-uri-hash-path",
                         "extractionPathRepairSummary": "data-uri-hash-path",
@@ -14953,8 +14953,8 @@
                         "mimeType": "image/png",
                         "byteLength": 68,
                         "sha1": "bac187a7c86d691ecc6d34841319cd3d2649f08e",
-                        "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
-                        "canonicalSource": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
+                        "source": "data-uri:sha1:bac187a7c86d691ecc6d34841319cd3d2649f08e",
+                        "canonicalSource": "data-uri:sha1:bac187a7c86d691ecc6d34841319cd3d2649f08e",
                         "sourcePath": "data-uri",
                         "pathRepairSummary": "data-uri-hash-path",
                         "extractionPathRepairSummary": "data-uri-hash-path",
@@ -14979,8 +14979,8 @@
                         "mimeType": "image/png",
                         "byteLength": 68,
                         "sha1": "bac187a7c86d691ecc6d34841319cd3d2649f08e",
-                        "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
-                        "canonicalSource": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
+                        "source": "data-uri:sha1:bac187a7c86d691ecc6d34841319cd3d2649f08e",
+                        "canonicalSource": "data-uri:sha1:bac187a7c86d691ecc6d34841319cd3d2649f08e",
                         "sourcePath": "data-uri",
                         "pathRepairSummary": "data-uri-hash-path",
                         "extractionPathRepairSummary": "data-uri-hash-path",
@@ -18651,7 +18651,7 @@
                 "code": 2,
                 "heading": 27,
                 "list": 8,
-                "paragraph": 202,
+                "paragraph": 228,
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
@@ -18686,18 +18686,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9431,
+                        "score": 0.948,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9431,
+                        "textScore": 0.948,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9431,
+                        "score": 0.948,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9431,
+                        "textScore": 0.948,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     }
@@ -18709,13 +18709,13 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9529,
+                        "actual": 0.9567,
                         "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
                     },
                     "native_source_coverage": {
                         "status": "pass",
                         "expected": ">=0.65",
-                        "actual": 0.904,
+                        "actual": 0.914,
                         "detail": "native PDFKit source tokens retained in the WordPress output"
                     },
                     "pdf_geometry_reference": {
@@ -18732,8 +18732,8 @@
                         "status": "pass",
                         "expected": "at least 14 semantic text blocks and no more than 90% of 1572 visual lines as paragraphs",
                         "actual": {
-                            "textBlocks": 269,
-                            "paragraphs": 202,
+                            "textBlocks": 295,
+                            "paragraphs": 228,
                             "sourceLines": 1572
                         },
                         "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
@@ -18754,7 +18754,7 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/240 WordPress blocks are Custom HTML"
+                        "detail": "0/266 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
@@ -19916,10 +19916,10 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 15,
+                "heading": 10,
                 "image": 7,
                 "list": 1,
-                "paragraph": 120
+                "paragraph": 125
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
@@ -19953,18 +19953,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.8088,
+                        "score": 0.8156,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.8088,
+                        "textScore": 0.8156,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.8088,
+                        "score": 0.8156,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.8088,
+                        "textScore": 0.8156,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     }
@@ -19976,13 +19976,13 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.872,
+                        "actual": 0.8773,
                         "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
                     },
                     "native_source_coverage": {
                         "status": "pass",
                         "expected": ">=0.65",
-                        "actual": 0.715,
+                        "actual": 0.718,
                         "detail": "native PDFKit source tokens retained in the WordPress output"
                     },
                     "pdf_geometry_reference": {
@@ -20000,7 +20000,7 @@
                         "expected": "at least 4 semantic text blocks and no more than 90% of 424 visual lines as paragraphs",
                         "actual": {
                             "textBlocks": 138,
-                            "paragraphs": 120,
+                            "paragraphs": 125,
                             "sourceLines": 424
                         },
                         "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."

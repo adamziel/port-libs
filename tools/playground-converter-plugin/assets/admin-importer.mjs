@@ -21,6 +21,7 @@ if (root) {
   const selection = root.querySelector('[data-plpc-selection]');
   const submit = root.querySelector('[data-plpc-submit]');
   const pdfOptions = root.querySelector('[data-plpc-pdf-options]');
+  const pdfOutputOptions = root.querySelector('[data-plpc-pdf-output-options]');
   const progress = root.querySelector('[data-plpc-progress]');
   const progressLabel = root.querySelector('[data-plpc-progress-label]');
   const progressBar = root.querySelector('[data-plpc-progress-bar]');
@@ -73,10 +74,13 @@ if (root) {
     if (!selected) {
       selection.textContent = 'No file selected.';
       pdfOptions.hidden = true;
+      pdfOutputOptions.hidden = true;
       return;
     }
     selection.textContent = `${selected.displayName} (${formatBytes(selected.totalSize)})`;
-    pdfOptions.hidden = !selected.entries.some(({ file }) => isPdf(file));
+    const hasPdf = selected.entries.some(({ file }) => isPdf(file));
+    pdfOptions.hidden = !hasPdf;
+    pdfOutputOptions.hidden = !hasPdf;
   }
 
   async function runImport() {
@@ -104,7 +108,33 @@ if (root) {
       startStatusPolling();
       setProgress(snapshot);
       const pdfFiles = new Map(selected.entries.filter(({ file }) => isPdf(file)).map(({ path, file }) => [path, file]));
-      while (!['complete', 'failed'].includes(String(snapshot.status || ''))) {
+      snapshot = await driveImportJob(snapshot, pdfFiles);
+      if (snapshot.status === 'awaiting_output_mode') {
+        showOutputModeRecovery(snapshot, pdfFiles);
+        return;
+      }
+      if (snapshot.status === 'failed') {
+        throw new Error(snapshot.message || 'Import failed.');
+      }
+      showResult(snapshot.result || {});
+    } finally {
+      active = false;
+      activeJobId = '';
+      if (elapsedTimer !== null) {
+        window.clearInterval(elapsedTimer);
+        elapsedTimer = null;
+      }
+      if (statusTimer !== null) {
+        window.clearInterval(statusTimer);
+        statusTimer = null;
+      }
+      updateSelection();
+    }
+  }
+
+  async function driveImportJob(initialSnapshot, pdfFiles) {
+    let snapshot = initialSnapshot;
+    while (!['complete', 'failed', 'awaiting_output_mode'].includes(String(snapshot.status || ''))) {
         if (Array.isArray(snapshot.renderRequests) && snapshot.renderRequests.length > 0) {
           await ensurePdfRenderSources(snapshot, pdfFiles);
           appendEvent('renderer', `Rendering ${snapshot.renderRequests.length} PDF figure${snapshot.renderRequests.length === 1 ? '' : 's'} locally in this browser.`);
@@ -133,23 +163,8 @@ if (root) {
         snapshot = await advanceImportJob(snapshot);
         setProgress(snapshot);
       }
-      if (snapshot.status === 'failed') {
-        throw new Error(snapshot.message || 'Import failed.');
-      }
-      showResult(snapshot.result || {});
-    } finally {
-      active = false;
-      activeJobId = '';
-      if (elapsedTimer !== null) {
-        window.clearInterval(elapsedTimer);
-        elapsedTimer = null;
-      }
-      if (statusTimer !== null) {
-        window.clearInterval(statusTimer);
-        statusTimer = null;
-      }
-      updateSelection();
-    }
+
+    return snapshot;
   }
 
   function startStatusPolling() {
@@ -299,6 +314,58 @@ if (root) {
     }
   }
 
+  function showOutputModeRecovery(snapshot, pdfFiles) {
+    const failure = snapshot?.failure || {};
+    const actual = Math.max(0, Number(failure.actualBytes) || Number(snapshot?.output?.assembledBytes) || 0);
+    const allowed = Math.max(0, Number(failure.allowedBytes) || Number(snapshot?.output?.singlePageLimitBytes) || 0);
+    result.hidden = false;
+    result.replaceChildren();
+    const heading = document.createElement('h2');
+    heading.textContent = 'The PDF is too large for one safe page';
+    const explanation = document.createElement('p');
+    explanation.textContent = `${formatBytes(actual)} of converted blocks exceeds this server’s ${formatBytes(allowed)} single-page limit. No partial page was created, and the completed PDF extraction is preserved.`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'button button-secondary';
+    button.textContent = 'Continue as one page per PDF page';
+    button.addEventListener('click', async () => {
+      if (active) return;
+      active = true;
+      activeJobId = String(snapshot.jobId || '');
+      button.disabled = true;
+      result.hidden = true;
+      try {
+        let resumed = await request(`imports/${encodeURIComponent(activeJobId)}/output-mode`, {
+          method: 'POST',
+          body: { pdfOutputMode: 'pages' },
+        });
+        setProgress(resumed);
+        startStatusPolling();
+        resumed = await driveImportJob(resumed, pdfFiles);
+        if (resumed.status === 'failed') {
+          throw new Error(resumed.message || 'Import failed.');
+        }
+        if (resumed.status === 'awaiting_output_mode') {
+          showOutputModeRecovery(resumed, pdfFiles);
+          return;
+        }
+        showResult(resumed.result || {});
+      } catch (error) {
+        showError(errorMessage(error));
+      } finally {
+        active = false;
+        activeJobId = '';
+        button.disabled = false;
+        if (statusTimer !== null) {
+          window.clearInterval(statusTimer);
+          statusTimer = null;
+        }
+        updateSelection();
+      }
+    });
+    result.append(heading, explanation, button);
+  }
+
   function showError(message) {
     progress.hidden = false;
     progressLabel.textContent = 'Import stopped';
@@ -342,6 +409,7 @@ if (root) {
   async function payloadFromUpload(upload, reportProgress = () => {}) {
     const imageMode = checkedValue('plpc-image-mode', 'important');
     const pdfMode = checkedValue('plpc-pdf-mode', 'layout');
+    const pdfOutputMode = checkedValue('plpc-pdf-output-mode', 'single');
     const body = new FormData();
     const pdfRasterImages = [];
     const pdfBrowserFacts = {};
@@ -411,6 +479,7 @@ if (root) {
       title: titleFromFilename(upload.kind === 'single' ? upload.entries[0].file.name : upload.displayName),
       imageMode,
       pdfMode,
+      pdfOutputMode,
       entries: upload.entries.map(({ path, file }) => ({ path, filename: file.name })),
       pdfBrowserFacts,
       pdfRasterImages: rasterDescriptors,
