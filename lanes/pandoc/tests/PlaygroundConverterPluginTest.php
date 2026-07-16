@@ -677,6 +677,21 @@ function plpc_test_renderable_form_xobject_pdf(): string
         . "%%EOF\n";
 }
 
+function plpc_test_page_wrapper_form_xobject_pdf(): string
+{
+    $pageContent = "q\n/Backdrop Do\nQ\nBT /F1 14 Tf 72 700 Td (Readable page text) Tj ET\n";
+    $formContent = "0.95 0.95 0.95 rg\n0 0 600 800 re\nf\n";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources << /Font << /F1 6 0 R >> /XObject << /Backdrop 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}endstream\nendobj\n"
+        . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 600 800] /Resources << >> /Length " . strlen($formContent) . " >>\nstream\n{$formContent}endstream\nendobj\n"
+        . "6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF\n";
+}
+
 /** @param list<string> $pageTexts */
 function plpc_test_multipage_pdf(array $pageTexts): string
 {
@@ -772,6 +787,26 @@ function plpc_test_assert_import_job_snapshot(TestRunner $t, array $snapshot, st
 require_once dirname(__DIR__, 3) . '/tools/playground-converter-plugin/port-libs-playground-converter.php';
 
 return [
+    'playground converter skips page-sized Form wrappers but keeps ordinary figures' => static function (TestRunner $t): void {
+        $page = ['x1' => 0.0, 'y1' => 0.0, 'x2' => 600.0, 'y2' => 800.0];
+
+        $t->same(true, plpc_pdf_form_placement_covers_page(
+            ['x1' => 0.0, 'y1' => 0.0, 'x2' => 600.0, 'y2' => 800.0],
+            $page
+        ));
+        $t->same(true, plpc_pdf_form_placement_covers_page(
+            ['x1' => -200.0, 'y1' => -100.0, 'x2' => 900.0, 'y2' => 900.0],
+            $page
+        ), 'A clipped oversized layout wrapper still covers the visible page.');
+        $t->same(false, plpc_pdf_form_placement_covers_page(
+            ['x1' => 50.0, 'y1' => 400.0, 'x2' => 550.0, 'y2' => 700.0],
+            $page
+        ), 'A large chart occupying part of a page remains renderable.');
+        $t->same(false, plpc_pdf_form_placement_covers_page(
+            ['x1' => 0.0, 'y1' => 720.0, 'x2' => 600.0, 'y2' => 800.0],
+            $page
+        ), 'A full-width header or banner is not mistaken for a page wrapper.');
+    },
     'playground converter scopes browser-rendered PDF figures to the active page range' => static function (TestRunner $t): void {
         $renders = [
             ['id' => 'first', 'page' => 1, 'contents' => 'one'],
@@ -793,6 +828,19 @@ return [
         $t->same('Hello stored world.', $fingerprint['visibleText'] ?? null);
         $t->same(1, $fingerprint['imageCount'] ?? null);
         $t->true(($fingerprint['meaningfulBlockCount'] ?? 0) >= 2);
+    },
+    'playground converter normalizes unsupported controls before WordPress round trip verification' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $postId = plpc_insert_verified_page([
+            'post_type' => 'page',
+            'post_title' => 'Control-safe content',
+            'post_content' => "<!-- wp:paragraph --><p>Alpha\x1EBeta\x1FGamma</p><!-- /wp:paragraph -->",
+        ]);
+        $stored = (string) ($GLOBALS['plpc_test_posts'][$postId]['post_content'] ?? '');
+
+        $t->same(0, preg_match_all('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', $stored));
+        $t->contains('Alpha Beta Gamma', $stored);
+        plpc_import_verify_stored_page($postId);
     },
     'playground converter refuses a WordPress insert that silently empties converted blocks' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
@@ -1477,6 +1525,35 @@ return [
         $t->same('failed', $snapshot['status'] ?? null);
         $t->contains('stopped to avoid a retry loop', strtolower((string) ($snapshot['message'] ?? '')));
         $t->same(0, count($GLOBALS['plpc_test_posts']), 'The retry cap must fail before duplicate page work begins.');
+    },
+    'playground converter skips a full-page Form wrapper without blocking its text import' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'page-wrapper.pdf',
+            'title' => 'Page wrapper',
+            'imageMode' => 'all',
+            'pdfMode' => 'layout',
+            'bytes' => base64_encode(plpc_test_page_wrapper_form_xobject_pdf()),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+
+        $t->same([], $snapshot['renderRequests'] ?? null, 'A page-sized layout wrapper must not become a blocking browser figure request.');
+        $t->same(1, $snapshot['metrics']['pdfPageSizedFormsSkipped'] ?? null);
+        $t->true(
+            count(array_filter(
+                $snapshot['events'] ?? [],
+                static fn (array $event): bool => str_contains((string) ($event['message'] ?? ''), 'page-sized PDF layout wrapper')
+            )) >= 1,
+            'The skipped enhancement should remain visible in progress diagnostics.'
+        );
+
+        for ($attempt = 0; $attempt < 12 && ($snapshot['status'] ?? '') !== 'complete'; $attempt++) {
+            $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        }
+        $t->same('complete', $snapshot['status'] ?? null);
+        $postId = max(0, (int) ($snapshot['result']['postId'] ?? 0));
+        $t->contains('Readable page text', (string) ($GLOBALS['plpc_test_posts'][$postId]['post_content'] ?? ''));
     },
     'playground converter round trips a PDF Form XObject through the browser renderer job protocol' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();

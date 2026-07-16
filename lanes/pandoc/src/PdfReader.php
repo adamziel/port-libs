@@ -13963,6 +13963,24 @@ final class PdfReader
 
         foreach ($records as $record) {
             $layout = is_array($record['layout'] ?? null) ? $record['layout'] : null;
+            $recordText = (string) ($record['text'] ?? '');
+            // Semantic markers are an internal line protocol, not prose. A
+            // map-label record followed by ordinary text used to enter the
+            // prose merger, where the numbered-heading heuristic could wrap
+            // it in a second marker. blocksFromLines() decoded only the outer
+            // marker and leaked the inner C0-delimited sentinel into the
+            // WordPress post. WordPress correctly strips those controls,
+            // which then made publication verification fail after every PDF
+            // page had already been checkpointed. Keep every already-typed
+            // record atomic so semantic roles cannot be nested accidentally.
+            if ($this->pdfLineStartsWithSemanticPrefix($recordText)) {
+                $flushProse();
+                $flushCode();
+                $flushFormula();
+                $flushLineBlock();
+                $merged[] = $recordText;
+                continue;
+            }
             if (($layout['code'] ?? false) === true) {
                 $flushProse();
                 $flushLineBlock();
@@ -14059,7 +14077,12 @@ final class PdfReader
         }
 
         return array_values(array_filter(
-            array_map(static fn (mixed $line): string => is_string($line) ? trim($line) : '', $decoded),
+            array_map(
+                fn (mixed $line): string => is_string($line)
+                    ? trim($this->pdfTextWithoutSemanticPrefixes($line))
+                    : '',
+                $decoded
+            ),
             static fn (string $line): bool => $line !== ''
         ));
     }
@@ -15102,6 +15125,55 @@ final class PdfReader
         return $significant > 0 && $titleLike / $significant >= 0.6;
     }
 
+    /** @return list<string> */
+    private function pdfSemanticLinePrefixes(): array
+    {
+        return [
+            self::PDF_CODE_BLOCK_PREFIX,
+            PdfFormulaSemanticProcessor::LINE_PREFIX,
+            self::PDF_LINE_BLOCK_PREFIX,
+            self::PDF_MAP_LABEL_PREFIX,
+            self::PDF_FRONT_MATTER_PREFIX,
+            self::PDF_DISPLAY_HEADING_PREFIX,
+            self::PDF_NUMBERED_HEADING_PREFIX,
+        ];
+    }
+
+    private function pdfLineStartsWithSemanticPrefix(string $line): bool
+    {
+        foreach ($this->pdfSemanticLinePrefixes() as $prefix) {
+            if (str_starts_with($line, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Decode any accidentally nested semantic roles defensively. The outer
+     * role still determines the block type, while every inner marker is
+     * removed from user-visible text. This is intentionally prefix-only: an
+     * ordinary code block or paragraph may discuss the marker names without
+     * being rewritten.
+     */
+    private function pdfTextWithoutSemanticPrefixes(string $text): string
+    {
+        do {
+            $removed = false;
+            foreach ($this->pdfSemanticLinePrefixes() as $prefix) {
+                if (!str_starts_with($text, $prefix)) {
+                    continue;
+                }
+                $text = substr($text, strlen($prefix));
+                $removed = true;
+                break;
+            }
+        } while ($removed);
+
+        return $text;
+    }
+
     /**
      * @param list<string> $lines
      * @return list<AstNode>
@@ -15127,7 +15199,9 @@ final class PdfReader
             $line = $lines[$index];
             if (str_starts_with($line, self::PDF_CODE_BLOCK_PREFIX)) {
                 $flushList();
-                $code = substr($line, strlen(self::PDF_CODE_BLOCK_PREFIX));
+                $code = $this->pdfTextWithoutSemanticPrefixes(
+                    substr($line, strlen(self::PDF_CODE_BLOCK_PREFIX))
+                );
                 if ($code !== '') {
                     $blocks[] = new AstNode('code_block', ['text' => $code]);
                 }
@@ -15136,7 +15210,9 @@ final class PdfReader
             }
             if (str_starts_with($line, PdfFormulaSemanticProcessor::LINE_PREFIX)) {
                 $flushList();
-                $formula = trim(substr($line, strlen(PdfFormulaSemanticProcessor::LINE_PREFIX)));
+                $formula = trim($this->pdfTextWithoutSemanticPrefixes(
+                    substr($line, strlen(PdfFormulaSemanticProcessor::LINE_PREFIX))
+                ));
                 if ($formula !== '') {
                     $blocks[] = new AstNode(
                         'paragraph',
@@ -15170,7 +15246,9 @@ final class PdfReader
             }
             if (str_starts_with($line, self::PDF_MAP_LABEL_PREFIX)) {
                 $flushList();
-                $label = trim(substr($line, strlen(self::PDF_MAP_LABEL_PREFIX)));
+                $label = trim($this->pdfTextWithoutSemanticPrefixes(
+                    substr($line, strlen(self::PDF_MAP_LABEL_PREFIX))
+                ));
                 if ($label !== '') {
                     $blocks[] = $this->paragraph($label);
                 }
@@ -15179,7 +15257,9 @@ final class PdfReader
             }
             if (str_starts_with($line, self::PDF_FRONT_MATTER_PREFIX)) {
                 $flushList();
-                $credit = trim(substr($line, strlen(self::PDF_FRONT_MATTER_PREFIX)));
+                $credit = trim($this->pdfTextWithoutSemanticPrefixes(
+                    substr($line, strlen(self::PDF_FRONT_MATTER_PREFIX))
+                ));
                 if ($credit !== '') {
                     $blocks[] = new AstNode(
                         'paragraph',
@@ -15192,7 +15272,9 @@ final class PdfReader
             }
             if (str_starts_with($line, self::PDF_DISPLAY_HEADING_PREFIX)) {
                 $flushList();
-                $heading = trim(substr($line, strlen(self::PDF_DISPLAY_HEADING_PREFIX)));
+                $heading = trim($this->pdfTextWithoutSemanticPrefixes(
+                    substr($line, strlen(self::PDF_DISPLAY_HEADING_PREFIX))
+                ));
                 if ($heading !== '') {
                     $blocks[] = new AstNode('heading', ['level' => $index === 0 ? 1 : 2, 'text' => $heading], $this->inlines($heading));
                 }
@@ -15201,7 +15283,9 @@ final class PdfReader
             }
             if (str_starts_with($line, self::PDF_NUMBERED_HEADING_PREFIX)) {
                 $flushList();
-                $heading = trim(substr($line, strlen(self::PDF_NUMBERED_HEADING_PREFIX)));
+                $heading = trim($this->pdfTextWithoutSemanticPrefixes(
+                    substr($line, strlen(self::PDF_NUMBERED_HEADING_PREFIX))
+                ));
                 if ($heading !== '') {
                     $blocks[] = new AstNode('heading', ['level' => $index === 0 ? 1 : 2, 'text' => $heading], $this->inlines($heading));
                 }

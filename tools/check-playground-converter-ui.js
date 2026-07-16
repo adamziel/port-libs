@@ -98,6 +98,13 @@ assert(plugin.includes('function plpc_import_job_prepare_pdf_final_bundle('), 'E
 assert(plugin.includes('function plpc_import_job_store_pdf_final_bundle('), 'Expected private block and media bundles to be durable.');
 assert(plugin.includes('function plpc_import_job_load_pdf_final_bundle('), 'Expected publication retries to reuse the durable final PDF bundle.');
 assert(plugin.includes('function plpc_import_job_recover_interrupted_document('), 'Expected hard worker terminations to have a bounded durable recovery path.');
+assert(plugin.includes('function plpc_pdf_form_placement_covers_page('), 'Expected page-sized Form wrappers to be distinguished from inline PDF figures.');
+assert(plugin.includes('pdfPageSizedFormsSkipped'), 'Expected skipped page-layout wrappers to be visible in import metrics.');
+assert(plugin.includes('Reaching an enhancement budget is not a document failure.'), 'Expected an exhausted optional figure budget to continue the text import.');
+assert(js.includes('const pdfFormRenderTotalPixelLimit = 48_000_000;') && js.includes('maxTotalPixels: pdfFormRenderTotalPixelLimit'), 'Expected the Playground converter to apply the server-compatible total figure pixel budget.');
+assert(js.includes('const pdfFormRenderTotalImageByteLimit = 24_000_000;') && js.includes('maxTotalImageBytes: pdfFormRenderTotalImageByteLimit'), 'Expected the Playground converter to apply the server-compatible total figure byte budget.');
+assert(adminImporter.includes('const pdfFormRenderTotalPixelLimit = 48_000_000;') && adminImporter.includes('maxTotalPixels: pdfFormRenderTotalPixelLimit'), 'Expected wp-admin to bound aggregate PDF figure pixels.');
+assert(adminImporter.includes('const pdfFormRenderTotalImageByteLimit = 24_000_000;') && adminImporter.includes('maxTotalImageBytes: pdfFormRenderTotalImageByteLimit'), 'Expected wp-admin to bound aggregate PDF figure bytes.');
 assert(pdfFormRasterizer.includes('const DEFAULT_MAX_SOURCE_BYTES = 24 * 1024 * 1024;'), 'Expected PDF.js figure rendering to cap source bytes before copying a large PDF in the browser.');
 assert(pdfFormRasterizer.includes('pdfBytes(filesByPath.get(path), maxSourceBytes)'), 'Expected the PDF.js figure renderer to enforce its source-byte cap for every requested crop.');
 assert(pdfFormRasterizer.includes('maxTotalPixels = Number.POSITIVE_INFINITY') && pdfFormRasterizer.includes('totalPixelsLimit - renderedPixels'), 'Expected callers to be able to bound aggregate PDF figure pixels without changing the importer default.');

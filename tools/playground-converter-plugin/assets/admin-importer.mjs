@@ -6,6 +6,8 @@ import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';
 // not temporarily duplicate a large PDF and its raster fallbacks in memory.
 const pdfRasterPayloadByteLimit = 24_000_000;
 const pdfRasterSourceByteLimit = 24 * 1024 * 1024;
+const pdfFormRenderTotalPixelLimit = 48_000_000;
+const pdfFormRenderTotalImageByteLimit = 24_000_000;
 const maxAdvanceRecoveryAttempts = 2;
 let decodePdfJbig2Rasters = null;
 let decodePdfJpxRasters = null;
@@ -110,6 +112,8 @@ if (root) {
             filesByPath: pdfFiles,
             requests: snapshot.renderRequests,
             pdfjs: config,
+            maxTotalPixels: pdfFormRenderTotalPixelLimit,
+            maxTotalImageBytes: pdfFormRenderTotalImageByteLimit,
             onProgress: ({ completed, total, label }) => {
               setProgress({
                 ...snapshot,
