@@ -8,7 +8,7 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'pdf-memory-safe-finalization-20260715';
+const playgroundPluginBuild = 'pdf-verified-performance-20260715';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 const playgroundPdfRasterByteLimit = 24_000_000;
@@ -51,6 +51,7 @@ const state = {
   decodePdfJpxRasters: null,
   staticPdfPreviewCache: new Map(),
   staticPdfPreviewAbortController: null,
+  lastOwnFileJob: null,
 };
 
 function selectedExample() {
@@ -800,6 +801,7 @@ async function openOwnFile(file) {
   }
 
   abortStaticPdfPreview({ clearCache: true });
+  state.lastOwnFileJob = null;
   const token = state.ownFileToken + 1;
   state.ownFileToken = token;
   const reusingPlayground = state.frameMode === 'playground'
@@ -923,6 +925,7 @@ async function openOwnFile(file) {
     if (job.status === 'failed' || !job.result) {
       throw new Error(job.message || 'Conversion failed.');
     }
+    state.lastOwnFileJob = job;
     if (!ownFileRequestIsCurrent(token)) {
       return;
     }
@@ -947,7 +950,7 @@ async function openOwnFile(file) {
       }
     }
     if (ownFileRequestIsCurrent(token)) {
-      setStatus('Opened a new WordPress page for ' + file.name + '.', { visible: true, tone: 'success' });
+      setStatus('Import complete. Converted pages were verified privately and published. Opened a new WordPress page for ' + file.name + '.', { visible: true, tone: 'success' });
     }
   } catch (error) {
     if (ownFileRequestIsCurrent(token)) {
@@ -967,6 +970,54 @@ async function openOwnFile(file) {
       setOwnFileBusy(false);
     }
   }
+}
+
+// The release E2E driver opts in with ?e2e=... and verifies the actual
+// WordPress rows after the UI reports success. Keep the hook absent for
+// ordinary visitors and return only integrity counts, never document text.
+if (new URL(window.location.href).searchParams.has('e2e')) {
+  window.__portLibsImportE2E = {
+    async inspectLastImport() {
+      const job = state.lastOwnFileJob;
+      const client = state.playgroundClient;
+      if (!job?.result || !client) {
+        throw new Error('No completed Playground import is available for inspection.');
+      }
+      const children = Array.isArray(job.result.posts) ? job.result.posts : [];
+      const ids = Array.from(new Set([
+        Number(job.result.postId) || 0,
+        ...children.map((post) => Number(post?.postId) || 0),
+      ].filter((id) => id > 0)));
+      const posts = [];
+      for (const postId of ids) {
+        const response = await client.request({
+          method: 'GET',
+          url: `/wp-json/wp/v2/pages/${postId}?context=view`,
+        });
+        const body = typeof response.text === 'function' ? await response.text() : response.text;
+        const page = JSON.parse(String(body || '{}'));
+        const raw = String(page?.content?.rendered || '');
+        const visible = new DOMParser().parseFromString(raw.replace(/<!--.*?-->/gs, ' '), 'text/html')
+          .body.textContent.replace(/\s+/g, ' ').trim();
+        posts.push({
+          postId,
+          status: String(page?.status || ''),
+          contentBytes: new TextEncoder().encode(raw).byteLength,
+          visibleTextBytes: new TextEncoder().encode(visible).byteLength,
+          imageCount: (raw.match(/<img\b/gi) || []).length,
+          rawDataProvenanceCount: (raw.match(/data-pandoc-media-(?:canonical-)?source=["']data:/gi) || []).length,
+          restErrorCode: String(page?.code || ''),
+        });
+      }
+
+      return {
+        jobId: String(job.jobId || ''),
+        resultPostId: Number(job.result.postId) || 0,
+        childPostCount: children.length,
+        posts,
+      };
+    },
+  };
 }
 
 async function ownFilePluginRequest(playgroundClient, path, payload = {}, method = 'POST') {
@@ -1075,7 +1126,21 @@ function ownFileImportProgressLabel(job) {
   const completed = Math.max(0, Number(progress.completed || 0));
   const total = Math.max(1, Number(progress.total || 1));
 
-  return total > 1 ? `${label} (${completed} of ${total})` : label;
+  const details = [];
+  const metrics = job && typeof job.metrics === 'object' ? job.metrics : {};
+  const pdfTotal = Math.max(0, Number(metrics.pdfPagesTotal || 0));
+  const pdfCompleted = Math.max(0, Number(metrics.pdfPagesExtracted || 0));
+  if (pdfTotal > 0 && pdfCompleted < pdfTotal) {
+    details.push(`${pdfCompleted} of ${pdfTotal} PDF pages saved`);
+  }
+  const publication = job && typeof job.publication === 'object' ? job.publication : {};
+  const publicationTotal = Math.max(0, Number(publication.total || 0));
+  if (publicationTotal > 0 && String(job?.status || '') === 'ready_to_publish') {
+    details.push(`${Math.max(0, Number(publication.completed || 0))} of ${publicationTotal} pages published`);
+  }
+  const step = total > 1 ? `${label} (${completed} of ${total})` : label;
+
+  return details.length > 0 ? `${step} ${details.join('; ')}.` : step;
 }
 
 function ownFileImportLatestNewEvent(job, reportedEventKeys) {

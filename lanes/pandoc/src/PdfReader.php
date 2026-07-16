@@ -36,7 +36,7 @@ final class PdfReader
     private array $semanticPipelineTrace = [];
 
     /**
-     * @param array{maxTextBytes?: int, startPage?: int, pdfStartPage?: int, start_page?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool, pdfFastTextOnly?: bool, fastTextOnly?: bool, pdfFastModeBytes?: int, pdfFastMaxPages?: int, maxPositionedTextRuns?: int, pdfMaxPositionedTextRuns?: int, pdfCollectImagePlacements?: bool, collectPdfImagePlacements?: bool, pdfCollectFormXObjectPlacements?: bool, collectPdfFormXObjectPlacements?: bool, pdfDocumentFacts?: PdfDocumentFacts|array<string,mixed>} $options
+     * @param array{maxTextBytes?: int, startPage?: int, pdfStartPage?: int, start_page?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool, pdfFastTextOnly?: bool, fastTextOnly?: bool, pdfFastModeBytes?: int, pdfFastMaxPages?: int, maxPositionedTextRuns?: int, pdfMaxPositionedTextRuns?: int, pdfCollectImagePlacements?: bool, collectPdfImagePlacements?: bool, pdfCollectFormXObjectPlacements?: bool, collectPdfFormXObjectPlacements?: bool, pdfDocumentFacts?: PdfDocumentFacts|array<string,mixed>, pdfReaderStructuralMetadata?: array<string,mixed>, pdfReaderMetadata?: array<string,mixed>} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -59,7 +59,10 @@ final class PdfReader
         }
 
         $suppliedDocumentFacts = $this->suppliedDocumentFacts($pdfBytes);
-        $structuralMetadata = $this->structuralMetadata($pdfBytes);
+        $suppliedStructuralMetadata = $this->options['pdfReaderStructuralMetadata'] ?? null;
+        $structuralMetadata = is_array($suppliedStructuralMetadata)
+            ? $this->structuralMetadataFromDocumentMetadata($pdfBytes, $suppliedStructuralMetadata)
+            : $this->structuralMetadata($pdfBytes);
         if ($suppliedDocumentFacts !== null) {
             $structuralMetadata['pdfFactsProvider'] = $suppliedDocumentFacts->provider();
             $structuralMetadata['pdfFactsSourceSha256'] = $suppliedDocumentFacts->source()['sha256'];
@@ -67,7 +70,12 @@ final class PdfReader
         $fastTextOnly = $suppliedDocumentFacts === null
             && $this->fastTextOnlyMode($pdfBytes, $structuralMetadata);
         if (!$fastTextOnly) {
-            $structuralMetadata = $this->withReaderMetadata($structuralMetadata, $pdfBytes);
+            $suppliedReaderMetadata = $this->options['pdfReaderMetadata'] ?? null;
+            $structuralMetadata = $this->withReaderMetadata(
+                $structuralMetadata,
+                $pdfBytes,
+                is_array($suppliedReaderMetadata) ? $suppliedReaderMetadata : null
+            );
         }
         $maxTextBytes = max(0, (int) ($this->options['maxTextBytes'] ?? self::DEFAULT_MAX_TEXT_BYTES));
         $extractorOptions = $this->options;
@@ -1264,11 +1272,21 @@ final class PdfReader
      */
     private function structuralMetadata(string $pdfBytes): array
     {
+        return $this->structuralMetadataFromDocumentMetadata(
+            $pdfBytes,
+            $this->documentStructuralMetadata($pdfBytes)
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $documentMetadata
+     * @return array<string, mixed>
+     */
+    private function structuralMetadataFromDocumentMetadata(string $pdfBytes, array $documentMetadata): array
+    {
         $metadata = [
             'pdfHeader' => preg_match('/%PDF-\d\.\d/', substr($pdfBytes, 0, 64), $match) === 1 ? $match[0] : 'unknown',
         ];
-
-        $documentMetadata = $this->documentStructuralMetadata($pdfBytes);
         $metadata['pdfEstimatedPages'] = max(0, (int) ($documentMetadata['page_count'] ?? 0));
         $metadata['pdfObjectCount'] = max(0, (int) ($documentMetadata['object_count'] ?? 0));
         $metadata['pdfStreamCount'] = max(0, (int) ($documentMetadata['stream_count'] ?? 0));
@@ -1287,9 +1305,9 @@ final class PdfReader
      * @param array<string, mixed> $metadata
      * @return array<string, mixed>
      */
-    private function withReaderMetadata(array $metadata, string $pdfBytes): array
+    private function withReaderMetadata(array $metadata, string $pdfBytes, ?array $suppliedDocumentMetadata = null): array
     {
-        $documentMetadata = $this->documentMetadata($pdfBytes);
+        $documentMetadata = $suppliedDocumentMetadata ?? $this->documentMetadata($pdfBytes);
         $info = is_array($documentMetadata['info'] ?? null) ? $documentMetadata['info'] : [];
 
         $title = $this->metadataString($info, 'Title');

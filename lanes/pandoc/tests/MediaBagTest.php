@@ -11,6 +11,29 @@ use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 return [
+    'compacts resolved data uri provenance without retaining the encoded body' => static function (TestRunner $t): void {
+        $contents = "compact image bytes\n";
+        $source = 'data:image/png;base64,' . base64_encode($contents);
+        $bag = new MediaBag();
+        $bag->insertDataUri($source);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', ['url' => $source], [new AstNode('text', ['text' => 'Chart'])]),
+            ]),
+        ]);
+
+        $extracted = $bag->extractMedia($document, 'media');
+        $entry = $extracted['entries'][0];
+        $image = $extracted['document']->children[0]->children[0];
+        $attributes = $image->attr('attributes', []);
+        $compactSource = 'data-uri:sha1:' . sha1($contents);
+
+        $t->same($compactSource, $entry['source'] ?? null);
+        $t->same($compactSource, $entry['canonicalSource'] ?? null);
+        $t->same($compactSource, $attributes['data-pandoc-media-source'] ?? null);
+        $t->same($compactSource, $attributes['data-pandoc-media-canonical-source'] ?? null);
+        $t->true(!str_contains(json_encode($extracted, JSON_THROW_ON_ERROR), 'data:image/png;base64,'));
+    },
     'keeps unplaced pdf image objects out of reconstructed document text' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', ['text' => 'Reconstructed PDF text.'], [

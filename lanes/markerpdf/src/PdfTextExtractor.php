@@ -198,6 +198,18 @@ final class PdfTextExtractor
     /** @var array<string, array<string, mixed>|null> */
     private array $authenticatedEncryptionContexts = [];
 
+    /**
+     * Parsing the xref/object graph is document-global. A single facts pass
+     * asks for text, geometry, images, forms, annotations, and diagnostics;
+     * reparsing the same multi-megabyte source for every one of those views
+     * dominated import time. Keep one copy-on-write graph per extractor and
+     * replace it if a caller reuses the instance for another source.
+     *
+     * @var array<int, string>
+     */
+    private array $pdfObjectsCache = [];
+    private ?string $pdfObjectsCacheKey = null;
+
     private const ZAPF_DINGBATS_ENCODING_GLYPHS = [
         0x20 => 'space', 0x21 => 'a1', 0x22 => 'a2', 0x23 => 'a202',
         0x24 => 'a3', 0x25 => 'a4', 0x26 => 'a5', 0x27 => 'a119',
@@ -724,6 +736,63 @@ final class PdfTextExtractor
             'hasMorePages' => $hasMorePages,
             'nextPage' => $hasMorePages ? $endPage + 1 : null,
         ];
+    }
+
+    /**
+     * Return the page geometry needed by provider-neutral import facts from
+     * the already parsed object graph. MarkerAppPreview intentionally builds
+     * a much richer review model; using it merely to populate facts reparsed
+     * and traversed a large PDF once for every checkpoint.
+     *
+     * @return list<array{page_number:int,object_id:int,bbox:list<float>,rotation:int}>
+     */
+    public function extractPageGeometry(string $pdfBytes): array
+    {
+        $objects = $this->pdfObjects($pdfBytes);
+        $rows = [];
+        foreach ($this->limitedPageObjectNumbers($objects, $pdfBytes) as $pageNumber => $pageObjectNumber) {
+            $box = $this->effectivePageVisibleBox($pageObjectNumber, $objects)
+                ?? ['x1' => 0.0, 'y1' => 0.0, 'x2' => 612.0, 'y2' => 792.0];
+            $rotation = $this->inheritedPageRotation($pageObjectNumber, $objects);
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'object_id' => $pageObjectNumber,
+                'bbox' => [
+                    (float) $box['x1'],
+                    (float) $box['y1'],
+                    (float) $box['x2'],
+                    (float) $box['y2'],
+                ],
+                'rotation' => $rotation,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /** @param array<int, string> $objects */
+    private function inheritedPageRotation(int $pageObjectNumber, array $objects): int
+    {
+        $seen = [];
+        $objectNumber = $pageObjectNumber;
+        while (isset($objects[$objectNumber]) && !isset($seen[$objectNumber])) {
+            $seen[$objectNumber] = true;
+            $body = $objects[$objectNumber];
+            if (preg_match('/\/Rotate\s+([+-]?\d+)\b/', $body, $match) === 1) {
+                $rotation = (int) $match[1] % 360;
+                if ($rotation < 0) {
+                    $rotation += 360;
+                }
+
+                return $rotation;
+            }
+            if (preg_match('/\/Parent\s+(\d+)\s+\d+\s+R\b/', $body, $match) !== 1) {
+                break;
+            }
+            $objectNumber = (int) $match[1];
+        }
+
+        return 0;
     }
 
     /**
@@ -12707,11 +12776,19 @@ final class PdfTextExtractor
      */
     private function pdfObjects(string $pdfBytes): array
     {
+        $cacheKey = hash('sha256', $pdfBytes) . "\0" . $this->pdfPassword();
+        if ($this->pdfObjectsCacheKey !== null && hash_equals($this->pdfObjectsCacheKey, $cacheKey)) {
+            return $this->pdfObjectsCache;
+        }
+
         $objects = [];
         $objectOffsets = [];
         $rawObjects = $this->rawPdfObjects($pdfBytes);
         $allRawObjects = $rawObjects;
         if ($rawObjects === []) {
+            $this->pdfObjectsCacheKey = $cacheKey;
+            $this->pdfObjectsCache = $objects;
+
             return $objects;
         }
 
@@ -12759,13 +12836,17 @@ final class PdfTextExtractor
             $objectOffsets[$objectKey] = $rawObject['offset'];
         }
 
-        return $this->expandObjectStreams(
+        $objects = $this->expandObjectStreams(
             $objects,
             $objectOffsets,
             $referenceObjectNumbers,
             $xrefEntries,
             array_fill_keys(array_values($promotedReferences), true)
         );
+        $this->pdfObjectsCacheKey = $cacheKey;
+        $this->pdfObjectsCache = $objects;
+
+        return $objects;
     }
 
     /**

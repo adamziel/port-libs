@@ -289,14 +289,16 @@ final class MediaBag
         foreach ($this->itemsForExtraction() as $item) {
             $plan = $plannedPaths[$item['canonicalSource']] ?? ['path' => $item['path'], 'collision' => 'none'];
             $mediaPath = $plan['path'];
+            $portableSource = self::portableProvenanceSource($item, 'source');
+            $portableCanonicalSource = self::portableProvenanceSource($item, 'canonicalSource');
             $entry = [
                 'path' => $destination . '/' . $mediaPath,
                 'mediaPath' => $mediaPath,
                 'mimeType' => $item['mimeType'],
                 'byteLength' => $item['byteLength'],
                 'sha1' => $item['sha1'],
-                'source' => $item['source'],
-                'canonicalSource' => $item['canonicalSource'],
+                'source' => $portableSource,
+                'canonicalSource' => $portableCanonicalSource,
                 'sourcePath' => $item['sourcePath'],
                 'pathRepairSummary' => $item['pathRepairSummary'],
                 'extractionPathRepairSummary' => self::extractionPathRepairSummary($item, $plan),
@@ -408,9 +410,11 @@ final class MediaBag
             }
         }
 
+        $portableSource = self::portableProvenanceSource($item, 'source');
+        $portableCanonicalSource = self::portableProvenanceSource($item, 'canonicalSource');
         $attributes = array_replace($attributes, [
-            'data-pandoc-media-source' => $item['source'],
-            'data-pandoc-media-canonical-source' => $item['canonicalSource'],
+            'data-pandoc-media-source' => $portableSource,
+            'data-pandoc-media-canonical-source' => $portableCanonicalSource,
             'data-pandoc-media-original-path' => $item['path'],
             'data-pandoc-media-path' => $mediaPath,
             'data-pandoc-media-target' => $mappedUrl,
@@ -418,7 +422,9 @@ final class MediaBag
             'data-pandoc-media-bytes' => (string) $item['byteLength'],
             'data-pandoc-media-sha1' => $item['sha1'],
             'data-pandoc-media-source-path' => $item['sourcePath'],
-            'data-pandoc-media-source-sha1' => sha1($item['source']),
+            'data-pandoc-media-source-sha1' => str_starts_with($item['source'], 'data:')
+                ? $item['sha1']
+                : sha1($item['source']),
             'data-pandoc-media-path-repaired' => $mediaPath === $item['path'] ? 'false' : 'true',
             'data-pandoc-media-path-repair' => self::extractionPathRepairSummary($item, $plan),
             'data-pandoc-media-mime-source' => $item['mimeTypeSource'],
@@ -432,6 +438,23 @@ final class MediaBag
         }
 
         return $attributes;
+    }
+
+    /**
+     * A resolved data URI is content, not durable provenance. Retaining the
+     * encoded body in block attributes and extraction manifests can multiply
+     * one browser-rendered image across every PDF segment and can make the
+     * resulting WordPress save larger than its visible document. The media
+     * body is already stored separately and integrity checked by SHA-1, so a
+     * stable digest is the complete portable identity needed after mapping.
+     *
+     * @param array{source:string,sha1:string} $item
+     */
+    private static function portableProvenanceSource(array $item, string $field): string
+    {
+        return str_starts_with($item['source'], 'data:')
+            ? 'data-uri:sha1:' . $item['sha1']
+            : (string) ($item[$field] ?? $item['source']);
     }
 
     /**

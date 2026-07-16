@@ -22,17 +22,20 @@ final class NativePdfFactsProvider implements PdfFactsProvider
         $sourceHash = hash('sha256', $pdfBytes);
         $extractor = new PdfTextExtractor($options);
         $inventory = $extractor->extractPageInventory($pdfBytes);
-        $previewPages = (new MarkerAppPreview())->openPdfSummary($pdfBytes)['pages'];
+        $geometryByPage = [];
+        foreach ($extractor->extractPageGeometry($pdfBytes) as $geometry) {
+            $geometryByPage[(int) ($geometry['page_number'] ?? 0)] = $geometry;
+        }
         $selected = array_fill_keys($inventory['pageNumbers'], true);
         $pageRows = [];
 
         foreach ($inventory['pageNumbers'] as $pageNumber) {
-            $preview = $previewPages[$pageNumber - 1] ?? [];
+            $preview = $geometryByPage[$pageNumber] ?? [];
             $pageRows[$pageNumber] = [
                 'schemaVersion' => PdfPageFacts::SCHEMA_VERSION,
                 'pageNumber' => $pageNumber,
                 'pageObject' => is_int($preview['object_id'] ?? null) ? $preview['object_id'] : null,
-                'label' => is_string($preview['page_label'] ?? null) ? $preview['page_label'] : (string) $pageNumber,
+                'label' => (string) $pageNumber,
                 'geometry' => $preview,
                 'text' => [
                     'lines' => [],

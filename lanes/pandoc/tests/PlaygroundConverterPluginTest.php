@@ -361,10 +361,52 @@ if (!function_exists('wp_insert_post')) {
     function wp_insert_post(array $post, bool $wpError = false): int
     {
         $GLOBALS['plpc_test_posts'] ??= [];
+        if (isset($GLOBALS['plpc_test_wp_insert_content_filter'])
+            && is_callable($GLOBALS['plpc_test_wp_insert_content_filter'])
+        ) {
+            $post['post_content'] = (string) ($GLOBALS['plpc_test_wp_insert_content_filter'])(
+                (string) ($post['post_content'] ?? ''),
+                $post
+            );
+        }
         $id = count($GLOBALS['plpc_test_posts']) + 1;
         $GLOBALS['plpc_test_posts'][$id] = $post;
 
         return $id;
+    }
+}
+
+if (!function_exists('wp_update_post')) {
+    function wp_update_post(array $post, bool $wpError = false): int
+    {
+        $id = max(0, (int) ($post['ID'] ?? 0));
+        if ($id < 1 || !isset($GLOBALS['plpc_test_posts'][$id])) {
+            return 0;
+        }
+        unset($post['ID']);
+        $GLOBALS['plpc_test_posts'][$id] = array_replace($GLOBALS['plpc_test_posts'][$id], $post);
+
+        return $id;
+    }
+}
+
+if (!function_exists('wp_delete_post')) {
+    function wp_delete_post(int $postId, bool $forceDelete = false): object|false
+    {
+        if (!isset($GLOBALS['plpc_test_posts'][$postId])) {
+            return false;
+        }
+        $post = (object) (['ID' => $postId] + $GLOBALS['plpc_test_posts'][$postId]);
+        unset($GLOBALS['plpc_test_posts'][$postId]);
+
+        return $post;
+    }
+}
+
+if (!function_exists('get_post_field')) {
+    function get_post_field(string $field, int $postId, string $context = 'display'): mixed
+    {
+        return $GLOBALS['plpc_test_posts'][$postId][$field] ?? '';
     }
 }
 
@@ -598,6 +640,7 @@ function plpc_test_reset_import_job_state(): void
     $GLOBALS['plpc_test_attachment_metadata'] = [];
     $GLOBALS['plpc_imported_media_by_hash'] = [];
     $GLOBALS['plpc_test_uuid_sequence'] = 0;
+    unset($GLOBALS['plpc_test_wp_insert_content_filter']);
 
     $directory = plpc_test_import_job_upload_dir();
     if (!is_dir($directory)) {
@@ -729,6 +772,87 @@ function plpc_test_assert_import_job_snapshot(TestRunner $t, array $snapshot, st
 require_once dirname(__DIR__, 3) . '/tools/playground-converter-plugin/port-libs-playground-converter.php';
 
 return [
+    'playground converter scopes browser-rendered PDF figures to the active page range' => static function (TestRunner $t): void {
+        $renders = [
+            ['id' => 'first', 'page' => 1, 'contents' => 'one'],
+            ['id' => 'middle', 'page' => 4, 'contents' => 'four'],
+            ['id' => 'last', 'page' => 9, 'contents' => 'nine'],
+            ['id' => 'invalid', 'page' => 0, 'contents' => 'zero'],
+        ];
+
+        $selected = plpc_pdf_form_renders_for_page_range($renders, 3, 5);
+
+        $t->same(['middle'], array_column($selected, 'id'));
+    },
+    'playground converter fingerprints text and image content before publication' => static function (TestRunner $t): void {
+        $blocks = '<!-- wp:paragraph --><p>Hello <strong>stored world</strong>.</p><!-- /wp:paragraph -->'
+            . '<!-- wp:image --><figure><img src="https://playground.test/media/chart.png"/></figure><!-- /wp:image -->';
+        $fingerprint = plpc_import_content_fingerprint($blocks);
+
+        $t->true(($fingerprint['rawBytes'] ?? 0) > 0);
+        $t->same('Hello stored world.', $fingerprint['visibleText'] ?? null);
+        $t->same(1, $fingerprint['imageCount'] ?? null);
+        $t->true(($fingerprint['meaningfulBlockCount'] ?? 0) >= 2);
+    },
+    'playground converter refuses a WordPress insert that silently empties converted blocks' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $GLOBALS['plpc_test_wp_insert_content_filter'] = static fn (string $content): string => '';
+
+        $error = null;
+        try {
+            plpc_insert_verified_page([
+                'post_type' => 'page',
+                'post_title' => 'Must survive',
+                'post_status' => 'draft',
+                'post_content' => '<!-- wp:paragraph --><p>Publication sentinel</p><!-- /wp:paragraph -->',
+            ]);
+        } catch (Throwable $throwable) {
+            $error = $throwable;
+        }
+
+        $t->true($error instanceof PlpcImportFailure, 'Silent WordPress content loss must become a classified import failure.');
+        $t->same('publication_roundtrip_mismatch', $error instanceof PlpcImportFailure ? $error->failureCode : null);
+        $t->same(true, $error instanceof PlpcImportFailure ? $error->recoverable : null);
+        $t->contains('did not preserve', strtolower((string) $error?->getMessage()));
+        $t->same([], $GLOBALS['plpc_test_posts'], 'The invalid draft must be removed while the durable bundle remains retryable.');
+    },
+    'playground converter verifies image-only pages without requiring fabricated text' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $postId = plpc_insert_verified_page([
+            'post_type' => 'page',
+            'post_title' => 'Image only',
+            'post_status' => 'draft',
+            'post_content' => '<!-- wp:image --><figure><img src="https://playground.test/media/scan.png"/></figure><!-- /wp:image -->',
+        ]);
+
+        $t->true($postId > 0);
+        $t->same('draft', $GLOBALS['plpc_test_posts'][$postId]['post_status'] ?? null);
+        $storedFingerprint = $GLOBALS['plpc_test_posts'][$postId]['meta_input']['_plpc_import_content_fingerprint'] ?? [];
+        $t->same(1, $storedFingerprint['imageCount'] ?? null);
+        $t->true(!array_key_exists('visibleText', $storedFingerprint), 'Publication metadata must not duplicate the converted document text.');
+    },
+    'playground pdf extraction scheduler adapts to measured fact time density and memory' => static function (TestRunner $t): void {
+        $t->same(16, plpc_pdf_adaptive_pages_per_request(8, [
+            'pages' => 8,
+            'factsBytes' => 800_000,
+            'durationMs' => 2_000,
+            'peakBytes' => 32_000_000,
+        ], 50));
+        $t->same(4, plpc_pdf_adaptive_pages_per_request(8, [
+            'pages' => 8,
+            'factsBytes' => 12_000_000,
+            'durationMs' => 24_000,
+            'peakBytes' => 32_000_000,
+        ], 50));
+        $t->same(3, plpc_pdf_adaptive_pages_per_request(8, [
+            'pages' => 8,
+            'factsBytes' => 800_000,
+            'durationMs' => 2_000,
+            'peakBytes' => 32_000_000,
+        ], 3));
+        $t->same(134_217_728, plpc_php_ini_bytes('128M'));
+        $t->same(0, plpc_php_ini_bytes('-1'));
+    },
     'playground converter matches a visual PDF anchor across a terminal line-break hyphen' => static function (TestRunner $t): void {
         $blocks = [
             new \PortLibs\Pandoc\AstNode('paragraph', [
@@ -1005,9 +1129,39 @@ return [
         $t->true(is_int($postId) && $postId > 0, 'A completed job should report its created WordPress page.');
         $t->contains('Visible stages', $GLOBALS['plpc_test_posts'][$postId]['post_content'] ?? '');
     },
+    'playground pdf jobs amortize extraction while persisting independently segmentable pages' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'wide-checkpoint.pdf',
+            'title' => 'Wide checkpoint',
+            'imageMode' => 'none',
+            'pdfMode' => 'layout',
+            'bytes' => base64_encode(plpc_test_multipage_pdf([
+                'WIDE PAGE ONE',
+                'WIDE PAGE TWO',
+                'WIDE PAGE THREE',
+            ])),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $job = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+        $chunks = $job['documents'][0]['pdfChunks'] ?? [];
+
+        $t->same('ready_to_convert', $snapshot['status'] ?? null);
+        $t->same(3, count($chunks));
+        $t->same([[1, 1], [2, 2], [3, 3]], array_map(
+            static fn (array $chunk): array => [$chunk['startPage'], $chunk['endPage']],
+            $chunks
+        ));
+        $t->same(1, count($job['documents'][0]['pdfChunkMetrics'] ?? []), 'Three pages should share one measured parse request.');
+        $t->same(3, $snapshot['metrics']['pdfPagesExtracted'] ?? null);
+        $t->same(1, $snapshot['metrics']['pdfExtractionRequests'] ?? null);
+    },
     'playground pdf jobs checkpoint page chunks without publishing partial documents and resume idempotently' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
         add_filter('plpc_pdf_pages_per_request', static fn (mixed $pages): int => 1);
+        add_filter('plpc_pdf_adaptive_pages_per_request', static fn (mixed $pages): int => 1);
         $pdf = plpc_test_multipage_pdf([
             'FIRST PAGE CHECKPOINT SENTINEL',
             'SECOND PAGE CHECKPOINT SENTINEL',
@@ -1083,10 +1237,19 @@ return [
             $t->same(1, substr_count($durableBundle['blocks'], $sentinel), $sentinel . ' should occur exactly once after global semantics.');
         }
 
+        $readyToPublish = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('ready_to_publish', $readyToPublish['status'] ?? null);
+        $t->same(1, count($GLOBALS['plpc_test_posts']), 'Finalization must create exactly one verified private draft.');
+        $draftId = (int) ($readyToPublish['publication']['completed'] ?? -1) === 0
+            ? (int) array_key_first($GLOBALS['plpc_test_posts'])
+            : 0;
+        $t->same('draft', $GLOBALS['plpc_test_posts'][$draftId]['post_status'] ?? null);
+
         $completed = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
         $t->same('complete', $completed['status'] ?? null);
-        $t->same(1, count($GLOBALS['plpc_test_posts']), 'Finalization must publish exactly one page.');
+        $t->same(1, count($GLOBALS['plpc_test_posts']), 'Publication must retain exactly one page.');
         $postId = (int) ($completed['result']['postId'] ?? 0);
+        $t->same('publish', $GLOBALS['plpc_test_posts'][$postId]['post_status'] ?? null);
         $blocks = (string) ($GLOBALS['plpc_test_posts'][$postId]['post_content'] ?? '');
         foreach (['FIRST', 'SECOND', 'THIRD'] as $ordinal) {
             $sentinel = $ordinal . ' PAGE CHECKPOINT SENTINEL';
@@ -1098,7 +1261,10 @@ return [
         // and reuse that page by its durable job/document identity.
         update_option($option, $jobAfterSemantics, false);
         $GLOBALS['plpc_imported_media_by_hash'] = [];
-        $recovered = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $recovered = [];
+        for ($attempt = 0; $attempt < 3 && ($recovered['status'] ?? '') !== 'complete'; $attempt++) {
+            $recovered = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        }
         $t->same('complete', $recovered['status'] ?? null);
         $t->same($postId, $recovered['result']['postId'] ?? null);
         $t->same(1, count($GLOBALS['plpc_test_posts']), 'Final-page retry must not publish a duplicate page.');
@@ -1133,6 +1299,7 @@ return [
     'playground pdf jobs finalize dense saved facts as resumable linked ranges without losing pages' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
         add_filter('plpc_pdf_pages_per_request', static fn (mixed $pages): int => 1);
+        add_filter('plpc_pdf_adaptive_pages_per_request', static fn (mixed $pages): int => 1);
         add_filter('plpc_pdf_segment_max_pages', static fn (mixed $pages): int => 2);
         $sentinels = [
             'SEGMENTED PAGE ONE SENTINEL',
@@ -1154,7 +1321,7 @@ return [
         $snapshot = $created;
         $jobBeforeFinalPublication = null;
 
-        for ($attempt = 0; $attempt < 24 && ($snapshot['status'] ?? '') !== 'complete'; $attempt++) {
+        for ($attempt = 0; $attempt < 32 && ($snapshot['status'] ?? '') !== 'complete'; $attempt++) {
             $response = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
             $t->same(200, $response->get_status());
             $snapshot = $response->get_data();
@@ -1204,7 +1371,10 @@ return [
         // import identities when the saved job resumes.
         $t->true(is_array($jobBeforeFinalPublication), 'The final range should have a durable private bundle before publication.');
         update_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId, $jobBeforeFinalPublication, false);
-        $recovered = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $recovered = [];
+        for ($attempt = 0; $attempt < 6 && ($recovered['status'] ?? '') !== 'complete'; $attempt++) {
+            $recovered = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        }
         $t->same('complete', $recovered['status'] ?? null);
         $t->same($indexId, $recovered['result']['postId'] ?? null);
         $t->same(4, count($GLOBALS['plpc_test_posts']), 'A final retry must not duplicate the last range page or its index.');
@@ -1247,6 +1417,8 @@ return [
         $resumed = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
         $t->same(200, $resumed->get_status());
         $snapshot = $resumed->get_data();
+        $t->same('ready_to_publish', $snapshot['status'] ?? null);
+        $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
         $t->same('complete', $snapshot['status'] ?? null);
         $t->true(is_array($snapshot['result'] ?? null), 'A retried durable document unit should still produce an import result.');
     },
@@ -1273,6 +1445,8 @@ return [
         $t->true(in_array('checkpoint', array_column($snapshot['events'] ?? [], 'stage'), true), 'The saved handoff should be visible in the activity log.');
 
         $GLOBALS['plpc_test_filters'] = [];
+        $readyToPublish = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('ready_to_publish', $readyToPublish['status'] ?? null);
         $completed = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
         $t->same('complete', $completed['status'] ?? null);
         $t->same(1, count($GLOBALS['plpc_test_posts']), 'A fresh request should finish the same durable document unit exactly once.');

@@ -236,7 +236,23 @@ if (root) {
     progressLabel.textContent = String(state.label || 'Importing document…');
     progressBar.max = total;
     progressBar.value = completed;
-    progressDetail.textContent = `${completed} of ${total} import steps complete.`;
+    const details = [`${completed} of ${total} import steps complete`];
+    const metrics = snapshot?.metrics || {};
+    const pdfPagesTotal = Math.max(0, Number(metrics.pdfPagesTotal) || 0);
+    const pdfPagesExtracted = Math.min(pdfPagesTotal, Math.max(0, Number(metrics.pdfPagesExtracted) || 0));
+    if (pdfPagesTotal > 0) {
+      details.push(`${pdfPagesExtracted} of ${pdfPagesTotal} PDF pages safely checkpointed`);
+      const durationMs = Math.max(0, Number(metrics?.lastExtraction?.durationMs) || 0);
+      if (durationMs > 0) {
+        details.push(`last extraction request ${formatElapsed(durationMs)}`);
+      }
+    }
+    const publication = snapshot?.publication || {};
+    const publicationTotal = Math.max(0, Number(publication.total) || 0);
+    if (publicationTotal > 0) {
+      details.push(`${Math.max(0, Number(publication.completed) || 0)} of ${publicationTotal} verified pages published`);
+    }
+    progressDetail.textContent = `${details.join('. ')}.`;
     if (replaceEvents && Array.isArray(snapshot?.events)) {
       events.replaceChildren();
       for (const event of snapshot.events) {

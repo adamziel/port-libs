@@ -1,7 +1,7 @@
 import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';
 import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';
 
-const pluginBuild = 'pdf-memory-safe-finalization-20260715';
+const pluginBuild = 'pdf-verified-performance-20260715';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 // Keep browser-produced PDF rasters within the exact decoded-byte limit that
@@ -159,7 +159,13 @@ async function convertSelectedFile() {
       const completed = Number(state.completed || 0);
       const total = Math.max(1, Number(state.total || 1));
       const label = String(state.label || 'Import is continuing...');
-      setProgressStatus(`${label} (${completed} of ${total})`);
+      const metrics = snapshot?.metrics || {};
+      const pdfTotal = Math.max(0, Number(metrics.pdfPagesTotal || 0));
+      const pdfCompleted = Math.min(pdfTotal, Math.max(0, Number(metrics.pdfPagesExtracted || 0)));
+      const pdfProgress = pdfTotal > 0 && pdfCompleted < pdfTotal
+        ? ` — ${pdfCompleted} of ${pdfTotal} PDF pages safely saved`
+        : '';
+      setProgressStatus(`${label} (${completed} of ${total})${pdfProgress}`);
       setStatus('loading', label);
       const events = Array.isArray(snapshot?.events) ? snapshot.events : [];
       for (const event of events) {
