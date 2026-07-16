@@ -1,0 +1,15 @@
+[ Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "<https://example.org>" ]
+        ( "url" , "" )
+    ]
+, Para
+    [ Link ( "" , [] , [] ) [ Str "[a](url2)" ] ( "url" , "" ) ]
+, Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "https://example.org(" ]
+        ( "url" , "" )
+    ]
+]

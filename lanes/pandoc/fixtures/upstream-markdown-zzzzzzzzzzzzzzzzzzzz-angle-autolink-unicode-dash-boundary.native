@@ -1,0 +1,8 @@
+[ Para
+    [ Link
+        ( "" , [ "uri" ] , [] )
+        [ Str "http://foo.bar" ]
+        ( "http://foo.bar" , "" )
+    , Str "\8212"
+    ]
+]

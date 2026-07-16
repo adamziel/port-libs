@@ -1,0 +1,194 @@
+[
+  {
+    "id": "quickbooks-invoice-template",
+    "label": "QuickBooks invoice template",
+    "kind": "invoice",
+    "url": "https://quickbooks.intuit.com/oidam/intuit/sbseg/en_au/quickbooks-online/web/content/QuickBooks-Invoice-Template-PDF.pdf",
+    "expectedTables": 1,
+    "notes": "Business invoice with line-item amounts and totals."
+  },
+  {
+    "id": "azure-document-intelligence-invoice",
+    "label": "Azure Document Intelligence sample invoice",
+    "kind": "invoice",
+    "url": "https://documentintelligence.ai.azure.com/documents/samples/prebuilt/invoice-english.pdf",
+    "expectedTables": 1,
+    "notes": "Sample invoice used by a document extraction product."
+  },
+  {
+    "id": "chase-sample-statement",
+    "label": "Chase sample statement",
+    "kind": "statement",
+    "url": "https://www.chase.com/content/dam/chase-ux/documents/digital/resources/paperless_statements_chase_sample.pdf",
+    "expectedTables": 1,
+    "notes": "Financial statement with balance and transaction-style table content."
+  },
+  {
+    "id": "irs-publication-15t",
+    "label": "IRS Publication 15-T",
+    "kind": "tax-table",
+    "url": "https://www.irs.gov/pub/irs-pdf/p15t.pdf",
+    "expectedTables": 3,
+    "notes": "Federal income-tax withholding methods with many numeric tables."
+  },
+  {
+    "id": "irs-tax-table-1040",
+    "label": "IRS 1040 tax table",
+    "kind": "tax-table",
+    "url": "https://www.irs.gov/pub/irs-pdf/i1040tt.pdf",
+    "expectedTables": 3,
+    "notes": "Dense tax-table pages with repeated column groups."
+  },
+  {
+    "id": "we-energies-electric-rates",
+    "label": "WE Energies electric rates",
+    "kind": "rate-schedule",
+    "url": "https://www.we-energies.com/olb/26/2026-01-we-electric-rates.pdf",
+    "expectedTables": 2,
+    "notes": "Utility-rate schedule with charges and tariff-style tables."
+  },
+  {
+    "id": "uscis-i9-form",
+    "label": "USCIS Form I-9",
+    "kind": "form",
+    "url": "https://www.uscis.gov/sites/default/files/document/forms/i-9.pdf",
+    "expectedTables": 1,
+    "notes": "Government employment eligibility form with structured field tables."
+  },
+  {
+    "id": "cdc-hand-hygiene-brochure",
+    "label": "CDC hand hygiene brochure",
+    "kind": "leaflet",
+    "url": "https://www.cdc.gov/clean-hands/media/pdfs/cdc-handhygiene-brochure-508.pdf",
+    "expectedTables": 0,
+    "notes": "Leaflet layout that previously exposed word-spacing and column-order failures."
+  },
+  {
+    "id": "tabula-schools",
+    "label": "Tabula schools table",
+    "kind": "education-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/schools.pdf",
+    "expectedTables": 1,
+    "notes": "School-data table fixture from tabula-java."
+  },
+  {
+    "id": "tabula-12s0324",
+    "label": "Tabula scientific article table",
+    "kind": "scientific",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/12s0324.pdf",
+    "expectedTables": 1,
+    "notes": "Public table-extraction regression PDF from tabula-java."
+  },
+  {
+    "id": "tabula-campaign-donors",
+    "label": "Tabula campaign donors",
+    "kind": "finance-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/campaign_donors.pdf",
+    "expectedTables": 1,
+    "notes": "Donation ledger-style rows from tabula-java."
+  },
+  {
+    "id": "tabula-eu-017",
+    "label": "Tabula EU table 017",
+    "kind": "government-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/eu-017.pdf",
+    "expectedTables": 1,
+    "notes": "European government table fixture from tabula-java."
+  },
+  {
+    "id": "tabula-frx-disclosure",
+    "label": "Tabula FRX disclosure",
+    "kind": "finance-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/frx_2012_disclosure.pdf",
+    "expectedTables": 1,
+    "notes": "Financial disclosure table fixture from tabula-java."
+  },
+  {
+    "id": "tabula-award-of-bids",
+    "label": "Tabula award of bids",
+    "kind": "procurement-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/Publication_of_award_of_Bids_for_Transport_Sector__August_2016.pdf",
+    "expectedTables": 1,
+    "notes": "Procurement-award table with multiple row groups."
+  },
+  {
+    "id": "tabula-multicolumn",
+    "label": "Tabula multicolumn sample",
+    "kind": "multicolumn",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/MultiColumn.pdf",
+    "expectedTables": 1,
+    "notes": "Small multicolumn layout fixture that stresses reading order."
+  },
+  {
+    "id": "tabula-spanning-cells",
+    "label": "Tabula spanning cells",
+    "kind": "spanning-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/spanning_cells.pdf",
+    "expectedTables": 1,
+    "notes": "Small table fixture with spanning cells."
+  },
+  {
+    "id": "tabula-us-007",
+    "label": "Tabula US table 007",
+    "kind": "government-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/us-007.pdf",
+    "expectedTables": 1,
+    "notes": "US table extraction fixture from tabula-java."
+  },
+  {
+    "id": "tabula-us-017",
+    "label": "Tabula US table 017",
+    "kind": "government-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/us-017.pdf",
+    "expectedTables": 1,
+    "notes": "US table extraction fixture from tabula-java."
+  },
+  {
+    "id": "tabula-twotables",
+    "label": "Tabula two tables",
+    "kind": "multi-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/twotables.pdf",
+    "expectedTables": 2,
+    "notes": "Two separate table regions on one page from tabula-java."
+  },
+  {
+    "id": "tabula-argentina-voting",
+    "label": "Tabula Argentina voting record",
+    "kind": "government-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/argentina_diputados_voting_record.pdf",
+    "expectedTables": 1,
+    "notes": "Legislative voting-record table with mixed text and image resources."
+  },
+  {
+    "id": "tabula-labor",
+    "label": "Tabula labor table",
+    "kind": "labor-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/labor.pdf",
+    "expectedTables": 1,
+    "notes": "Labor statistics table fixture with many aligned text cells."
+  },
+  {
+    "id": "tabula-spreadsheet-no-frame",
+    "label": "Tabula spreadsheet without frame",
+    "kind": "spreadsheet-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/spreadsheet_no_bounding_frame.pdf",
+    "expectedTables": 1,
+    "notes": "Spreadsheet-style table without a single outer bounding frame."
+  },
+  {
+    "id": "tabula-us-020",
+    "label": "Tabula US table 020",
+    "kind": "government-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/us-020.pdf",
+    "expectedTables": 1,
+    "notes": "Large US government table fixture with several reconstructed table regions."
+  },
+  {
+    "id": "tabula-us-024",
+    "label": "Tabula US table 024",
+    "kind": "government-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/us-024.pdf",
+    "expectedTables": 1,
+    "notes": "US government table fixture with compact numeric columns."
+  }
+]

@@ -1,0 +1,18 @@
+[ Para
+    [ RawInline
+        (Format "html")
+        "<button class=\"wp-action\" data-source=\"classic-editor\">"
+    , Strong [ Str "Publish" ]
+    , RawInline (Format "html") "</button>"
+    , Space
+    , Str "remains"
+    , Space
+    , Str "actionable"
+    , Space
+    , Str "for"
+    , Space
+    , Str "migration"
+    , Space
+    , Str "review."
+    ]
+]

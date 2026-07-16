@@ -1,0 +1,5 @@
+id	payload	note
+1	'alpha	beta'	quoted tab
+2	'two
+lines'	multiline
+3	'embedded ''quote'''	done

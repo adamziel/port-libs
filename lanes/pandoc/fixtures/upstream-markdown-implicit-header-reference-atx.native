@@ -1,0 +1,11 @@
+[ Header 1 ( "header" , [] , [] ) [ Str "Header" ]
+, Para
+    [ Link ( "" , [] , [] ) [ Str "header" ] ( "#header" , "" )
+    ]
+, Para
+    [ Link ( "" , [] , [] ) [ Str "header" ] ( "#header" , "" )
+    ]
+, Para
+    [ Link ( "" , [] , [] ) [ Str "header" ] ( "#header" , "" )
+    ]
+]

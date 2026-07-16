@@ -1,0 +1,96 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\MarkerPDF\ChunkConversionPlanner;
+
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+$planner = new ChunkConversionPlanner();
+$plan = $planner->wrapperRuntimePreflightPlan(
+    [
+        '/var/www/html/wp-content/uploads/pdf imports; touch /tmp/markerpdf-owned',
+        '/var/www/html/wp-content/uploads/marker output',
+    ],
+    '/opt/marker/chunk_convert.sh'
+);
+$optionPathBlocked = $planner->wrapperRuntimePreflightPlan(
+    [
+        '--wp-source',
+        '/var/www/html/wp-content/uploads/marker-output',
+    ],
+    '/opt/marker/chunk_convert.sh'
+);
+$optionPathAllowed = $planner->wrapperRuntimePreflightPlan(
+    [
+        '--',
+        '--wp-source',
+        '/var/www/html/wp-content/uploads/marker-output',
+    ],
+    '/opt/marker/chunk_convert.sh'
+);
+$pluginPath = '/var/www/html/wp content/plugins/markerPDF tools/chunk_convert.sh';
+$scriptPathPlan = $planner->wrapperRuntimePreflightPlan(
+    [
+        '/var/www/html/wp-content/uploads/pdf-import',
+        '/var/www/html/wp-content/uploads/marker-output',
+    ],
+    $pluginPath
+);
+
+if ($plan['executes_subprocess'] !== false || $plan['executes_python_or_models'] !== false) {
+    throw new RuntimeException('Chunk wrapper preflight smoke must not execute subprocesses, Python, or model workers.');
+}
+if ($optionPathBlocked['parse_args']['parse_args_success'] !== false || $optionPathBlocked['resource_script']['blocked'] !== true) {
+    throw new RuntimeException('Expected option-looking WordPress input folder to stop at chunk_convert.py argparse before resource lookup.');
+}
+if ($optionPathAllowed['parse_args']['parse_args_success'] !== true || $optionPathAllowed['arguments']['in_folder'] !== '--wp-source') {
+    throw new RuntimeException('Expected -- separator to allow option-looking WordPress folder names as argparse positionals.');
+}
+if ($plan['shell_boundary']['raw_shell_command_path_hazard'] !== true) {
+    throw new RuntimeException('Expected raw chunk_convert.py shell command hazard to be review metadata.');
+}
+if ($plan['subprocess']['argument_escaping_applied'] !== false || $plan['subprocess']['shell'] !== true) {
+    throw new RuntimeException('Expected chunk_convert.py wrapper to preserve shell=True raw command semantics.');
+}
+if ($scriptPathPlan['shell_boundary']['resource_script_contains_shell_whitespace'] !== true) {
+    throw new RuntimeException('Expected packaged chunk_convert.sh path whitespace to be recorded as shell boundary metadata.');
+}
+if ($scriptPathPlan['shell_boundary']['raw_shell_command_path_hazard'] !== true) {
+    throw new RuntimeException('Expected packaged chunk_convert.sh path to participate in raw shell command hazard review.');
+}
+
+echo json_encode([
+    'scenario' => 'wordpress-chunk-convert-wrapper-preflight-currentbase',
+    'purpose' => 'Review chunk_convert.py wrapper raw shell-command construction for WordPress batch import paths before the shell script validates NUM_DEVICES/NUM_WORKERS, without executing the upstream marker subprocess.',
+    'source' => $plan['source'],
+    'parse_args_success' => $plan['parse_args']['parse_args_success'],
+    'option_like_path_without_separator_blocks' => $optionPathBlocked['resource_script']['blocked'],
+    'option_like_path_without_separator_error' => $optionPathBlocked['parse_args']['error_message'],
+    'option_like_path_without_separator_argument' => $optionPathBlocked['parse_args']['error_argument'],
+    'option_like_path_with_separator_parse_args_success' => $optionPathAllowed['parse_args']['parse_args_success'],
+    'option_like_path_with_separator_command' => $optionPathAllowed['subprocess']['command'],
+    'script_path' => $plan['resource_script']['script_path'],
+    'plugin_script_path' => $scriptPathPlan['resource_script']['script_path'],
+    'plugin_script_path_raw_fragment' => $scriptPathPlan['subprocess']['raw_script_path_fragment'],
+    'plugin_script_path_contains_shell_whitespace' => $scriptPathPlan['shell_boundary']['resource_script_contains_shell_whitespace'],
+    'plugin_script_path_contains_shell_metacharacters' => $scriptPathPlan['shell_boundary']['resource_script_contains_shell_metacharacters'],
+    'plugin_script_path_raw_shell_hazard' => $scriptPathPlan['shell_boundary']['raw_shell_command_path_hazard'],
+    'subprocess_call' => $plan['subprocess']['call'],
+    'raw_command' => $plan['subprocess']['command'],
+    'plugin_script_path_raw_command' => $scriptPathPlan['subprocess']['command'],
+    'shell_true' => $plan['subprocess']['shell'],
+    'check_true' => $plan['subprocess']['check'],
+    'argv_list_used' => $plan['subprocess']['argv_list_used'],
+    'argument_escaping_applied' => $plan['subprocess']['argument_escaping_applied'],
+    'quotes_positionals' => $plan['subprocess']['quotes_positionals'],
+    'env_validation_before_subprocess' => $plan['shell_boundary']['env_validation_before_subprocess'],
+    'chunk_shell_validates_environment_after_subprocess_launch' => $plan['shell_boundary']['chunk_convert_sh_validates_environment_after_subprocess_launch'],
+    'positionals_contain_shell_whitespace' => $plan['shell_boundary']['positionals_contain_shell_whitespace'],
+    'positionals_contain_shell_metacharacters' => $plan['shell_boundary']['positionals_contain_shell_metacharacters'],
+    'raw_shell_command_path_hazard' => $plan['shell_boundary']['raw_shell_command_path_hazard'],
+    'next_stage' => $plan['next_stage'],
+    'executes_subprocess' => $plan['executes_subprocess'],
+    'executes_python_or_models' => $plan['executes_python_or_models'],
+    'executes_external_pdf_tools' => $plan['executes_external_pdf_tools'],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

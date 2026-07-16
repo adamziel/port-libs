@@ -1,0 +1,21 @@
+[ Header
+    1 ( "foo-bar" , [] , [] ) [ Str "Foo" , Space , Str "bar" ]
+, Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "foo" , Space , Str "bar" ]
+        ( "#foo-bar" , "" )
+    ]
+, Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "foo" , Space , Str "bar" ]
+        ( "#foo-bar" , "" )
+    ]
+, Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "foo" , Space , Str "bar" ]
+        ( "#foo-bar" , "" )
+    ]
+]

@@ -1,0 +1,12 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Overflow bullet levels" ]
+, BulletList [ [ Plain [ Str "Max int level" ] ] ]
+, BulletList
+    [ [ Plain [ Str "Min int level" ] ]
+    , [ Plain [ Str "Overflow level fallback" ] ]
+    ]
+, BulletList
+    [ [ Plain [ Str "Negative overflow level fallback" ] ] ]
+, BulletList
+    [ [ Plain [ Str "Explicit zero joins fallback" ] ] ]
+]

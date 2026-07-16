@@ -1,0 +1,5 @@
+[ Header 2 ( "slide-1" , [] , [] ) [ Str "Paragraph deck" ]
+, Para [ Str "First body paragraph" ]
+, Para [ Str "Second body paragraph" ]
+, Para [ Str "Third body paragraph" ]
+]

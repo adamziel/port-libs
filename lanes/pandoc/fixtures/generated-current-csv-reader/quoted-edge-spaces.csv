@@ -1,0 +1,4 @@
+id,note,status
+1," leading",ok
+2,"trailing ",done
+3," both "," spaced status "

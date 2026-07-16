@@ -1,0 +1,22 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Media"
+    , Space
+    , Str "Overlay"
+    , Space
+    , Str "Invalid"
+    , Space
+    , Str "Clips"
+    ]
+, Para
+    [ Str "One" , Space , Str "valid" , Space , Str "phrase." ]
+, Para
+    [ Str "One"
+    , Space
+    , Str "invalid"
+    , Space
+    , Str "phrase."
+    ]
+]

@@ -1,0 +1,24 @@
+# Real upstream corpus WAL checkpoint boundaries dynamic
+
+- Slice: `real-upstream-corpus-wal-checkpoint-boundaries-dynamic-20260601T091922Z-0`
+- Base accepted HEAD: `5d3833db5349181ff1e32c459b4c7ae4edd1837e`
+- Upstream source truth:
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/wal.test` sections `wal-10.12..10.17` and `wal-10.23..10.30`
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/wal3.test` sections `wal3-2.*` and `wal3-6.*`
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/walrestart.test` sections `walrestart-1.0..1.5`
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/walckptnoop.test` sections `walckptnoop-1.1..1.10`
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/e_walckpt.test` sections `e_walckpt-6.4..6.5`
+- Behavior added: `SQLiteWal::checkpointBoundaryResult()` reports SQLite-style checkpoint boundary triples for `pnLog` and `pnCkpt`, including NOOP preserving the prior backfill count, PASSIVE advancing only to a pinned reader boundary, FULL/RESTART/TRUNCATE busy handling around active readers, TRUNCATE returning `{0,0,0}`, and rollback-journal mode returning `{0,-1,-1}`.
+- Focused new coverage: `SQLiteRealUpstreamWalCheckpointBoundariesDynamicTest.php` adds 1,002 new TestRunner PASS cases and 23,968 assertions over dynamically generated WAL images tied to the upstream sections above.
+- Verification:
+  - `php -l lanes/libsqlite/src/SQLiteWal.php`
+  - `php -l lanes/libsqlite/tests/SQLiteRealUpstreamWalCheckpointBoundariesDynamicTest.php`
+  - `php -l lanes/libsqlite/examples/application-wal-checkpoint-boundaries-dynamic.php`
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamWalCheckpointBoundariesDynamicTest.php`
+    - Result: `1 test files, 23968 assertions, 0 failures`
+  - `php lanes/libsqlite/examples/application-wal-checkpoint-boundaries-dynamic.php --self-test`
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamWalCheckpointBoundariesDynamicTest.php lanes/libsqlite/tests/SQLiteRealUpstreamPagerWalNoopCheckpointDynamicTest.php lanes/libsqlite/tests/SQLiteRealUpstreamPagerWalRestartCheckpointDynamicTest.php lanes/libsqlite/tests/SQLiteRealUpstreamPagerWalReadMarkMatrixDynamicTest.php lanes/libsqlite/tests/SQLiteRealUpstreamPagerWalBlockingCheckpointDynamicTest.php lanes/libsqlite/tests/SQLiteNoDomainSpecificApiTest.php`
+    - Result: `6 test files, 82173 assertions, 0 failures`
+- Non-overlap: this does not repeat accepted durable checkpoint bytes, WAL checkpoint transaction planning, VFS file-writer/sync/lock application, WAL byte truncation, read-mark diagnostics, NOOP-only metadata, wal5 blocking checkpoint rows, or the existing walrestart recovery test. The new API is specifically for upstream checkpoint return-boundary accounting.
+- Dependency closure: no new support component is needed; the slice reuses the existing native WAL parser, frame checksum validation, transaction boundary parsing, and focused TestRunner harness.
+- Root harness: not run - isolated micro-slice.

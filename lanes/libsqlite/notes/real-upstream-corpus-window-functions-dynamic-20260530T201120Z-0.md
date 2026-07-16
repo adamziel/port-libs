@@ -1,0 +1,21 @@
+# real-upstream-corpus-window-functions-dynamic-20260530T201120Z-0
+
+- Base accepted HEAD: `c1a0d2c80ea721e0595b20a5cbe43c5043856066`.
+- Upstream source truth:
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/window9.test`
+- Ported sections:
+  - `window9.test` `1.2` through `1.5`: NOCASE collation peer grouping for `dense_rank()` over whole-result and partitioned windows, preserving window rank values after final `ORDER BY color`.
+  - `window9.test` `10.1` through `10.4`: `min()` over `ROWS BETWEEN 2 PRECEDING AND 1 FOLLOWING`, aggregate `FILTER` parity for odd/even source rows, and the upstream rule that `FILTER` applies only to aggregate window functions.
+- New focused PHP file:
+  - `lanes/libsqlite/tests/SQLiteRealUpstreamWindow9CollationFilterDynamicTest.php`
+- Focused coverage:
+  - 1,008 distinct TestRunner PASS cases.
+  - 3,008 behavior assertions.
+- Verification:
+  - `php -l lanes/libsqlite/tests/SQLiteRealUpstreamWindow9CollationFilterDynamicTest.php` -> no syntax errors.
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamWindow9CollationFilterDynamicTest.php` -> `1 test files, 3008 assertions, 0 failures`.
+- Non-overlap:
+  - This owns upstream `window9.test` NOCASE window ranking plus filtered sliding `min()` behavior.
+  - It does not repeat accepted `window1`, `window2`, `window3`, `window4`, `window5`, `window6`, `window7`, `window8`, `windowA`, `windowB`, `windowC`, `windowD`, `windowE`, `windowpushd`, JSON window, SQL text grouped/window, VFS/WAL/B-tree, source-neutral cleanup, or runner metadata coverage.
+- Dependency closure:
+  - No new support component is needed; this reuses existing `SQLiteWindowFunction` aggregate/ranking helpers and focused PHP TestRunner infrastructure.

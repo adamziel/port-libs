@@ -1,0 +1,80 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter.xhtml_start" , [ "section" ] , [] )
+    [ Header
+        1
+        ( "" , [] , [] )
+        [ Str "Ruby" , Space , Str "Table" , Space , Str "Mark" ]
+    , Para
+        [ Str "Ruby"
+        , Space
+        , Str "text"
+        , Space
+        , RawInline (Format "html") "<ruby>"
+        , Str "kanji"
+        , RawInline (Format "html") "<rt>"
+        , Str "reading"
+        , RawInline (Format "html") "</rt>"
+        , RawInline (Format "html") "</ruby>"
+        , Space
+        , Str "and"
+        , Space
+        , Str "marked"
+        , Space
+        , Span ( "" , [ "mark" ] , [] ) [ Str "focus" ]
+        , Str "."
+        ]
+    , Table
+        ( "" , [] , [] )
+        (Caption
+           Nothing [ Plain [ Str "Reader" , Space , Str "cues" ] ])
+        [ ( AlignDefault , ColWidth 0.5 )
+        , ( AlignDefault , ColWidth 0.5 )
+        ]
+        (TableHead
+           ( "" , [] , [] )
+           [ Row
+               ( "" , [] , [] )
+               [ Cell
+                   ( "" , [] , [ ( "scope" , "col" ) ] )
+                   AlignDefault
+                   (RowSpan 1)
+                   (ColSpan 1)
+                   [ Plain [ Str "Term" ] ]
+               , Cell
+                   ( "" , [] , [ ( "scope" , "col" ) ] )
+                   AlignDefault
+                   (RowSpan 1)
+                   (ColSpan 1)
+                   [ Plain [ Str "Note" ] ]
+               ]
+           ])
+        [ TableBody
+            ( "" , [] , [] )
+            (RowHeadColumns 1)
+            []
+            [ Row
+                ( "" , [] , [] )
+                [ Cell
+                    ( "" , [] , [ ( "scope" , "row" ) ] )
+                    AlignDefault
+                    (RowSpan 1)
+                    (ColSpan 1)
+                    [ Plain [ Str "Base" ] ]
+                , Cell
+                    ( "" , [] , [] )
+                    AlignDefault
+                    (RowSpan 1)
+                    (ColSpan 1)
+                    [ Plain [ Str "One" , Space , Str "cell" ] ]
+                ]
+            ]
+        ]
+        (TableFoot ( "" , [] , [] ) [])
+    , DefinitionList
+        [ ( [ Str "Gloss" ]
+          , [ [ Plain [ Str "Short" , Space , Str "definition" ] ] ]
+          )
+        ]
+    ]
+]

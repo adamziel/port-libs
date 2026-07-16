@@ -1,0 +1,5 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Connector skip slide" ]
+, Para [ Str "Before connector" ]
+, Para [ Str "After connector" ]
+]

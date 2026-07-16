@@ -1,0 +1,14 @@
+[ Para
+    [ Cite
+        [ Citation
+            { citationId = "item1"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = AuthorInText
+            , citationNoteNum = 1
+            , citationHash = 0
+            }
+        ]
+        [ Str "@item1" ]
+    ]
+]

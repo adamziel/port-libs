@@ -1,0 +1,374 @@
+{
+    "extractor": "macOS PDFKit",
+    "pageCount": 2,
+    "pages": [
+        {
+            "height": 792,
+            "lines": [
+                {
+                    "height": 12.739,
+                    "text": "Figures Example",
+                    "width": 118.587,
+                    "x": 133.768,
+                    "y": 654.452
+                },
+                {
+                    "height": 8.847,
+                    "text": "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eir-",
+                    "width": 343.712,
+                    "x": 133.768,
+                    "y": 633.481
+                },
+                {
+                    "height": 8.847,
+                    "text": "mod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volup-",
+                    "width": 343.713,
+                    "x": 133.768,
+                    "y": 621.526
+                },
+                {
+                    "height": 8.847,
+                    "text": "tua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd",
+                    "width": 343.708,
+                    "x": 133.768,
+                    "y": 609.571
+                },
+                {
+                    "height": 8.847,
+                    "text": "gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ip-",
+                    "width": 343.707,
+                    "x": 133.768,
+                    "y": 597.616
+                },
+                {
+                    "height": 8.847,
+                    "text": "sum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor",
+                    "width": 343.709,
+                    "x": 133.768,
+                    "y": 585.661
+                },
+                {
+                    "height": 8.847,
+                    "text": "invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero",
+                    "width": 343.713,
+                    "x": 133.768,
+                    "y": 573.706
+                },
+                {
+                    "height": 8.847,
+                    "text": "eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren,",
+                    "width": 343.715,
+                    "x": 133.768,
+                    "y": 561.75
+                },
+                {
+                    "height": 8.847,
+                    "text": "no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor",
+                    "width": 343.71,
+                    "x": 133.768,
+                    "y": 549.795
+                },
+                {
+                    "height": 8.847,
+                    "text": "sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt",
+                    "width": 343.712,
+                    "x": 133.768,
+                    "y": 537.84
+                },
+                {
+                    "height": 8.847,
+                    "text": "ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et",
+                    "width": 343.707,
+                    "x": 133.768,
+                    "y": 525.885
+                },
+                {
+                    "height": 8.847,
+                    "text": "accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea",
+                    "width": 343.708,
+                    "x": 133.768,
+                    "y": 513.93
+                },
+                {
+                    "height": 8.847,
+                    "text": "takimata sanctus est Lorem ipsum dolor sit amet.",
+                    "width": 217.717,
+                    "x": 133.768,
+                    "y": 501.974
+                },
+                {
+                    "height": 8.847,
+                    "text": "Figure 1: This is an example image.",
+                    "width": 157.464,
+                    "x": 226.891,
+                    "y": 254.018
+                },
+                {
+                    "height": 8.847,
+                    "text": "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy",
+                    "width": 328.766,
+                    "x": 148.712,
+                    "y": 230.108
+                },
+                {
+                    "height": 8.847,
+                    "text": "eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam",
+                    "width": 343.711,
+                    "x": 133.768,
+                    "y": 218.153
+                },
+                {
+                    "height": 8.847,
+                    "text": "voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita",
+                    "width": 343.708,
+                    "x": 133.768,
+                    "y": 206.198
+                },
+                {
+                    "height": 8.847,
+                    "text": "kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem",
+                    "width": 343.708,
+                    "x": 133.768,
+                    "y": 194.243
+                },
+                {
+                    "height": 8.847,
+                    "text": "ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod",
+                    "width": 343.714,
+                    "x": 133.768,
+                    "y": 182.287
+                },
+                {
+                    "height": 8.847,
+                    "text": "tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At",
+                    "width": 343.713,
+                    "x": 133.768,
+                    "y": 170.332
+                },
+                {
+                    "height": 8.847,
+                    "text": "vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren,",
+                    "width": 343.714,
+                    "x": 133.768,
+                    "y": 158.377
+                },
+                {
+                    "height": 8.847,
+                    "text": "no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor",
+                    "width": 343.71,
+                    "x": 133.768,
+                    "y": 146.422
+                },
+                {
+                    "height": 8.847,
+                    "text": "sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt",
+                    "width": 343.712,
+                    "x": 133.768,
+                    "y": 134.467
+                },
+                {
+                    "height": 8.847,
+                    "text": "ut labore et dolore magna aliquyam erat, sed diam voluptua.",
+                    "width": 265.81,
+                    "x": 133.768,
+                    "y": 122.512
+                },
+                {
+                    "height": 8.847,
+                    "text": "1",
+                    "width": 4.981,
+                    "x": 303.133,
+                    "y": 87.432
+                }
+            ],
+            "number": 1,
+            "rotation": 0,
+            "text": "Figures Example\nLorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eir-\nmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volup-\ntua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd\ngubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ip-\nsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor\ninvidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero\neos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren,\nno sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor\nsit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt\nut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et\naccusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea\ntakimata sanctus est Lorem ipsum dolor sit amet.\nFigure 1: This is an example image.\nLorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy\neirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam\nvoluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita\nkasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem\nipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod\ntempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At\nvero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren,\nno sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor\nsit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt\nut labore et dolore magna aliquyam erat, sed diam voluptua.\n1",
+            "width": 612
+        },
+        {
+            "height": 792,
+            "lines": [
+                {
+                    "height": 8.847,
+                    "text": "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy",
+                    "width": 328.766,
+                    "x": 148.712,
+                    "y": 655.302
+                },
+                {
+                    "height": 8.847,
+                    "text": "eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam",
+                    "width": 343.711,
+                    "x": 133.768,
+                    "y": 643.347
+                },
+                {
+                    "height": 8.847,
+                    "text": "voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita",
+                    "width": 343.708,
+                    "x": 133.768,
+                    "y": 631.392
+                },
+                {
+                    "height": 8.847,
+                    "text": "kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem",
+                    "width": 343.708,
+                    "x": 133.768,
+                    "y": 619.437
+                },
+                {
+                    "height": 8.847,
+                    "text": "ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod",
+                    "width": 343.714,
+                    "x": 133.768,
+                    "y": 607.482
+                },
+                {
+                    "height": 8.847,
+                    "text": "tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At",
+                    "width": 343.713,
+                    "x": 133.768,
+                    "y": 595.526
+                },
+                {
+                    "height": 8.847,
+                    "text": "vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren,",
+                    "width": 343.714,
+                    "x": 133.768,
+                    "y": 583.571
+                },
+                {
+                    "height": 8.847,
+                    "text": "no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor",
+                    "width": 343.71,
+                    "x": 133.768,
+                    "y": 571.616
+                },
+                {
+                    "height": 8.847,
+                    "text": "sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt",
+                    "width": 343.712,
+                    "x": 133.768,
+                    "y": 559.661
+                },
+                {
+                    "height": 8.847,
+                    "text": "ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et",
+                    "width": 343.707,
+                    "x": 133.768,
+                    "y": 547.706
+                },
+                {
+                    "height": 8.847,
+                    "text": "accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea",
+                    "width": 343.708,
+                    "x": 133.768,
+                    "y": 535.751
+                },
+                {
+                    "height": 8.847,
+                    "text": "takimata sanctus est Lorem ipsum dolor sit amet.",
+                    "width": 217.717,
+                    "x": 133.768,
+                    "y": 523.795
+                },
+                {
+                    "height": 8.847,
+                    "text": "Figure 2: This is an example image.",
+                    "width": 157.464,
+                    "x": 226.891,
+                    "y": 259.942
+                },
+                {
+                    "height": 8.847,
+                    "text": "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy",
+                    "width": 328.766,
+                    "x": 148.712,
+                    "y": 236.871
+                },
+                {
+                    "height": 8.847,
+                    "text": "eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam",
+                    "width": 343.711,
+                    "x": 133.768,
+                    "y": 224.916
+                },
+                {
+                    "height": 8.847,
+                    "text": "voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita",
+                    "width": 343.708,
+                    "x": 133.768,
+                    "y": 212.961
+                },
+                {
+                    "height": 8.847,
+                    "text": "kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem",
+                    "width": 343.708,
+                    "x": 133.768,
+                    "y": 201.006
+                },
+                {
+                    "height": 8.847,
+                    "text": "ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod",
+                    "width": 343.714,
+                    "x": 133.768,
+                    "y": 189.051
+                },
+                {
+                    "height": 8.847,
+                    "text": "tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At",
+                    "width": 343.713,
+                    "x": 133.768,
+                    "y": 177.096
+                },
+                {
+                    "height": 8.847,
+                    "text": "vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren,",
+                    "width": 343.714,
+                    "x": 133.768,
+                    "y": 165.14
+                },
+                {
+                    "height": 8.847,
+                    "text": "no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor",
+                    "width": 343.71,
+                    "x": 133.768,
+                    "y": 153.185
+                },
+                {
+                    "height": 8.847,
+                    "text": "sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt",
+                    "width": 343.712,
+                    "x": 133.768,
+                    "y": 141.23
+                },
+                {
+                    "height": 8.847,
+                    "text": "ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et",
+                    "width": 343.707,
+                    "x": 133.768,
+                    "y": 129.275
+                },
+                {
+                    "height": 8.847,
+                    "text": "accusam et justo duo dolores et ea rebum.",
+                    "width": 184.249,
+                    "x": 133.768,
+                    "y": 117.32
+                },
+                {
+                    "height": 8.847,
+                    "text": "2",
+                    "width": 4.981,
+                    "x": 303.133,
+                    "y": 87.432
+                }
+            ],
+            "number": 2,
+            "rotation": 0,
+            "text": "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy\neirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam\nvoluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita\nkasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem\nipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod\ntempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At\nvero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren,\nno sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor\nsit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt\nut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et\naccusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea\ntakimata sanctus est Lorem ipsum dolor sit amet.\nFigure 2: This is an example image.\nLorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy\neirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam\nvoluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita\nkasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem\nipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod\ntempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At\nvero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren,\nno sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor\nsit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt\nut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et\naccusam et justo duo dolores et ea rebum.\n2",
+            "width": 612
+        }
+    ]
+}

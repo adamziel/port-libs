@@ -1,0 +1,36 @@
+[ BulletList
+    [ [ Plain
+          [ Str "If"
+          , Space
+          , Code ( "" , [] , [] ) "(1) x"
+          , Str ","
+          , Space
+          , Str "then"
+          , Space
+          , Code ( "" , [] , [] ) "2"
+          ]
+      ]
+    , [ Plain [ Code ( "" , [] , [] ) "#. x" ] ]
+    , [ Plain [ Code ( "" , [] , [] ) "- x" ] ]
+    , [ Plain [ Code ( "" , [] , [] ) "x``#. x" ] ]
+    , [ Plain [ Code ( "" , [] , [] ) "x``- x" ] ]
+    ]
+, OrderedList
+    ( 1 , Decimal , Period )
+    [ [ Plain
+          [ Str "If"
+          , Space
+          , Code ( "" , [] , [] ) "(1) x"
+          , Str ","
+          , Space
+          , Str "then"
+          , Space
+          , Code ( "" , [] , [] ) "2"
+          ]
+      ]
+    , [ Plain [ Code ( "" , [] , [] ) "#. x" ] ]
+    , [ Plain [ Code ( "" , [] , [] ) "- x" ] ]
+    , [ Plain [ Code ( "" , [] , [] ) "x``#. x" ] ]
+    , [ Plain [ Code ( "" , [] , [] ) "x``- x" ] ]
+    ]
+]

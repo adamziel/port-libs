@@ -1,0 +1,48 @@
+[ Header 2 ( "slide-1" , [] , [] ) [ Str "Table deck" ]
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault )
+    , ( AlignDefault , ColWidthDefault )
+    ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Animal" ] ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Count" ] ]
+           ]
+       ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Apple" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "3" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]

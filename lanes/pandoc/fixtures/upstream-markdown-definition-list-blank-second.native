@@ -1,0 +1,7 @@
+[ DefinitionList
+    [ ( [ Str "foo1" ] , [ [ Plain [ Str "bar" ] ] ] )
+    , ( [ Str "foo2" ]
+      , [ [ Plain [ Str "bar2" ] ] , [ Plain [ Str "bar3" ] ] ]
+      )
+    ]
+]

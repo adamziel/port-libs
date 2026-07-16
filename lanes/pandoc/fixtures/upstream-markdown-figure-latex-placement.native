@@ -1,0 +1,11 @@
+[ Figure
+    ( "" , [] , [ ( "latex-placement" , "htbp" ) ] )
+    (Caption Nothing [ Plain [ Str "caption" ] ])
+    [ Plain
+        [ Image
+            ( "" , [] , [] )
+            [ Str "alt" , Space , Str "text" ]
+            ( "img.jpg" , "" )
+        ]
+    ]
+]

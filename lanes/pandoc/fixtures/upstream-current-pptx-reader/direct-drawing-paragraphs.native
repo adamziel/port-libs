@@ -1,0 +1,6 @@
+[ Header
+    2
+    ( "slide-1" , [] , [] )
+    [ Str "Direct drawing paragraphs" ]
+, Para [ Str "Direct paragraph text" ]
+]

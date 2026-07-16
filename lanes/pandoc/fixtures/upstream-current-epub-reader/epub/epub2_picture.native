@@ -1,0 +1,15 @@
+[ Para
+    [ Image ( "" , [] , [] ) [] ( "image/image.jpg" , "" ) ]
+, Para [ Span ( "EPUB_Pandoc_Test.xhtml" , [] , [] ) [] ]
+, Div
+    ( "EPUB_Pandoc_Test.xhtml__idContainer000"
+    , [ "Einfacher-Textrahmen" ]
+    , []
+    )
+    [ Para
+        [ Span
+            ( "" , [ "CharOverride-1" ] , [] )
+            [ Str "Pandoc" , Space , Str "EPUB2" , Space , Str "Test" ]
+        ]
+    ]
+]

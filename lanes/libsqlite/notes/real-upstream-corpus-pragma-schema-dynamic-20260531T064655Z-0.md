@@ -1,0 +1,31 @@
+# real-upstream-corpus-pragma-schema-dynamic-20260531T064655Z-0
+
+- Base accepted HEAD: `598504695c988ec41a0063207004e700089f5af7`.
+- Upstream source truth:
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/pragma.test`
+    - `pragma-17.1.*`: `PRAGMA auto_vacuum` numeric and keyword parsing maps `0`, `1`, `2`, `NONE`, `OFF`, `FULL`, and `INCREMENTAL`, while numeric out-of-range values such as `3`, `-1`, `-1234`, and `1234` read back as `0`.
+    - `pragma-18.1.*`: `PRAGMA temp_store` numeric and keyword parsing maps `0`, `1`, `2`, `FILE`, and `MEMORY`, while numeric out-of-range values such as `3`, `-1`, `-1234`, and `1234` read back as `0`.
+    - `pragma-9.15` and `pragma-9.18`: `PRAGMA temp_store` cannot change during an active temp transaction or active temp-table scan.
+- Changed source:
+  - `SQLitePragmaEncodingPageTempStoreState` now normalizes signed numeric `auto_vacuum` and `temp_store` inputs according to the upstream PRAGMA parser instead of rejecting out-of-range integers.
+  - Empty database `auto_vacuum=NONE/OFF/0` changes immediately; non-empty databases still report pending VACUUM state before disabling.
+  - Seeded schema state now infers `database_empty=false` when `page_count > 0` unless the caller explicitly supplies `database_empty`.
+- Focused PHP coverage:
+  - Added `SQLiteRealUpstreamCorpusPragmaSchemaDynamicStoreMode20260531Test.php`.
+  - The file owns `1002` focused TestRunner PASS cases and `6256` assertions over the real upstream PRAGMA store-mode parsing and temp-store guard cluster.
+- Verification:
+  - `php -l lanes/libsqlite/src/SQLitePragmaEncodingPageTempStoreState.php`
+    - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaEncodingPageTempStoreState.php`
+  - `php -l lanes/libsqlite/tests/SQLiteRealUpstreamCorpusPragmaSchemaDynamicStoreMode20260531Test.php`
+    - `No syntax errors detected in lanes/libsqlite/tests/SQLiteRealUpstreamCorpusPragmaSchemaDynamicStoreMode20260531Test.php`
+  - `php -l lanes/libsqlite/tests/SQLitePragmaAutoVacuumPageCountCurrentNext27Test.php`
+    - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaAutoVacuumPageCountCurrentNext27Test.php`
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamCorpusPragmaSchemaDynamicStoreMode20260531Test.php`
+    - `1 test files, 6256 assertions, 0 failures`
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamCorpusPragmaSchemaDynamicStoreMode20260531Test.php lanes/libsqlite/tests/SQLitePragmaAutoVacuumPageCountCurrentNext27Test.php lanes/libsqlite/tests/SQLiteRealUpstreamPragmaSchemaDynamicTempStoreCorpusTest.php lanes/libsqlite/tests/SQLiteRealUpstreamPragmaSchemaDynamicTempStoreTransactionTest.php`
+    - `4 test files, 31064 assertions, 0 failures`
+- Non-overlap:
+  - This avoids accepted schema table-info/index-info/data-version/table-list/schema5/schema6/runtime-list/page-count batches.
+  - It owns only the upstream `pragma.test` store-mode normalization and temp-store active-statement guard behavior.
+- Dependency closure:
+  - No new support component is needed. The slice reuses the lane-local `SQLitePragmaEncodingPageTempStoreState` runtime PRAGMA state model.

@@ -1,0 +1,9 @@
+{
+  "apiVersion": 3,
+  "name": "acme/card",
+  "title": "Modern Card",
+  "viewScriptModule": "file:./view.js",
+  "supports": {
+    "html": true
+  }
+}

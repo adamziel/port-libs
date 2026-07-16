@@ -1,0 +1,70 @@
+{
+    "extractor": "macOS PDFKit",
+    "pageCount": 8,
+    "pages": [
+        {
+            "height": 1800,
+            "lines": [],
+            "number": 1,
+            "rotation": 0,
+            "text": "",
+            "width": 1225.5
+        },
+        {
+            "height": 1800,
+            "lines": [],
+            "number": 2,
+            "rotation": 0,
+            "text": "",
+            "width": 1225.5
+        },
+        {
+            "height": 1800,
+            "lines": [],
+            "number": 3,
+            "rotation": 0,
+            "text": "",
+            "width": 1225.5
+        },
+        {
+            "height": 1800,
+            "lines": [],
+            "number": 4,
+            "rotation": 0,
+            "text": "",
+            "width": 1225.5
+        },
+        {
+            "height": 1800,
+            "lines": [],
+            "number": 5,
+            "rotation": 0,
+            "text": "",
+            "width": 1225.5
+        },
+        {
+            "height": 1800,
+            "lines": [],
+            "number": 6,
+            "rotation": 0,
+            "text": "",
+            "width": 1225.5
+        },
+        {
+            "height": 1800,
+            "lines": [],
+            "number": 7,
+            "rotation": 0,
+            "text": "",
+            "width": 1225.5
+        },
+        {
+            "height": 1800,
+            "lines": [],
+            "number": 8,
+            "rotation": 0,
+            "text": "",
+            "width": 1225.5
+        }
+    ]
+}

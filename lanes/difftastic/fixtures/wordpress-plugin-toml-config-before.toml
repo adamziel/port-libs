@@ -1,0 +1,14 @@
+name = "Acme Card"
+requires_wp = "6.5"
+
+[build]
+targets = [ "editor", "frontend", "legacy" ]
+view_script = "build/view.js"
+
+[playground]
+php = "8.2"
+plugins = [ "gutenberg", "query-monitor" ]
+
+notes = """
+Review legacy card markup
+Keep shortcode fallback"""

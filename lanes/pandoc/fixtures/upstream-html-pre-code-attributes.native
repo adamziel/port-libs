@@ -1,0 +1,18 @@
+[ Para [ Str "Reviewer" , Space , Str "snippet:" ]
+, CodeBlock
+    ( "legacy-snippet"
+    , [ "php" ]
+    , [ ( "source" , "batch-42" ) ]
+    )
+    "wp_update_post($post_id);\nclean_post_cache($post_id);"
+, Para
+    [ Str "Pre"
+    , Space
+    , Str "wrapper"
+    , Space
+    , Str "precedence:"
+    ]
+, CodeBlock
+    ( "pre-wrapper-wins" , [] , [ ( "review" , "keep" ) ] )
+    "console.log('pre attrs win');"
+]

@@ -1,0 +1,44 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Bindings"
+    , Space
+    , Str "Collections"
+    , Space
+    , Str "Sidecars"
+    ]
+, Para
+    [ Str "This"
+    , Space
+    , Str "fixture"
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "the"
+    , Space
+    , Str "reading"
+    , Space
+    , Str "order"
+    , Space
+    , Str "simple"
+    , Space
+    , Str "while"
+    , Space
+    , Str "the"
+    , Space
+    , Str "package"
+    , Space
+    , Str "carries"
+    , Space
+    , Str "bindings,"
+    , Space
+    , Str "collections,"
+    , Space
+    , Str "and"
+    , Space
+    , Str "OCF"
+    , Space
+    , Str "sidecars."
+    ]
+]

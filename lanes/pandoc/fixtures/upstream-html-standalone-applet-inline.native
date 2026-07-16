@@ -1,0 +1,2 @@
+[ Para [ RawInline (Format "html") "<applet code=\"LegacyMap.class\" archive=\"/wp-content/uploads/legacy-map.jar\">" , Str "Legacy" , Space , Str "applet" , Space , Str "fallback" , RawInline (Format "html") "</applet>" , Space , Str "remains" , Space , Str "visible" , Space , Str "for" , Space , Str "review." ]
+]

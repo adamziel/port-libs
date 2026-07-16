@@ -1,0 +1,4 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Document properties" ]
+, Para [ Str "Visible slide text remains unchanged." ]
+]

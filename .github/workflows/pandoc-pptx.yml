@@ -1,0 +1,167 @@
+name: Pandoc PPTX parity
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pandoc-pptx.yml'
+      - 'lanes/pandoc/**'
+      - 'tools/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/pandoc-pptx.yml'
+      - 'lanes/pandoc/**'
+      - 'tools/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PANDOC_PPTX_UPSTREAM_PINNED_COMMIT: 4f5226df4faa0d66dd2c089465b13886360ab3c2
+  PANDOC_EXECUTABLE_VERSION: '3.10'
+  PANDOC_EXECUTABLE_LINUX_AMD64_SHA256: e0f8af62d0f267d22baa5bcefe6d5dda3a097ccc60de794b759fe03159923244
+
+jobs:
+  focused-pptx:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, intl, mbstring, zip
+          coverage: none
+
+      - name: Lint PPTX parity files
+        run: |
+          php -l lanes/pandoc/src/PptxReader.php
+          php -l lanes/pandoc/src/PptxNativeAstComparisonHarness.php
+          php -l lanes/pandoc/src/PptxExecutableNativeAstComparisonHarness.php
+          php -l lanes/pandoc/src/PptxUpstreamReaderEvidence.php
+          php -l lanes/pandoc/src/NativeReader.php
+          php -l lanes/pandoc/src/NativeWriter.php
+          php -l lanes/pandoc/src/OpcRelationship.php
+          php -l lanes/pandoc/src/OpcRelationships.php
+          php -l lanes/pandoc/src/ZipPackage.php
+          php -l lanes/pandoc/src/ZipPackageEntry.php
+          php -l lanes/pandoc/tests/OpenPackagingConventionsTest.php
+          php -l lanes/pandoc/tests/PptxReaderTest.php
+          php -l lanes/pandoc/tests/PptxNativeAstComparisonHarnessTest.php
+          php -l lanes/pandoc/tests/PptxExecutableNativeAstComparisonHarnessTest.php
+          php -l lanes/pandoc/tests/PptxUpstreamReaderEvidenceTest.php
+          php -l tools/pandoc-pptx-native-ast.php
+          php -l tools/pandoc-pptx-executable-native-ast.php
+          php -l tools/pandoc-pptx-reader-evidence.php
+          php -l tools/pandoc-reader-runner-artifact.php
+
+      - name: Restore pinned Pandoc PPTX upstream cache
+        id: pandoc-pptx-upstream-cache
+        uses: actions/cache@v4
+        with:
+          path: .upstream-cache/pandoc-current
+          key: pandoc-pptx-upstream-sparse-v1-${{ runner.os }}-${{ env.PANDOC_PPTX_UPSTREAM_PINNED_COMMIT }}
+
+      - name: Hydrate pinned Pandoc PPTX upstream cache
+        if: steps.pandoc-pptx-upstream-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          target=.upstream-cache/pandoc-current
+          mkdir -p "$(dirname "$target")"
+          git init "$target"
+          git -C "$target" remote add origin https://github.com/jgm/pandoc.git
+          git -C "$target" sparse-checkout init --no-cone
+          git -C "$target" sparse-checkout set \
+            /test/Tests/Readers/Pptx.hs \
+            /test/pptx-reader \
+            /src/Text/Pandoc/Readers/Pptx.hs \
+            /src/Text/Pandoc/Readers/Pptx
+          git -C "$target" fetch --depth=1 --filter=blob:none origin "$PANDOC_PPTX_UPSTREAM_PINNED_COMMIT"
+          git -C "$target" switch --detach FETCH_HEAD
+
+      - name: Verify pinned Pandoc PPTX upstream cache
+        run: |
+          set -euo pipefail
+          target=.upstream-cache/pandoc-current
+          test "$(git -C "$target" rev-parse HEAD)" = "$PANDOC_PPTX_UPSTREAM_PINNED_COMMIT"
+          test -f "$target/test/Tests/Readers/Pptx.hs"
+          test -f "$target/test/pptx-reader/basic.pptx"
+          test -f "$target/test/pptx-reader/basic.native"
+          test -f "$target/src/Text/Pandoc/Readers/Pptx.hs"
+          test -f "$target/src/Text/Pandoc/Readers/Pptx/Parse.hs"
+          test -f "$target/src/Text/Pandoc/Readers/Pptx/Shapes.hs"
+          test -f "$target/src/Text/Pandoc/Readers/Pptx/Slides.hs"
+          test -f "$target/src/Text/Pandoc/Readers/Pptx/SmartArt.hs"
+
+      - name: Require upstream PPTX reader denominator evidence
+        run: |
+          php tools/pandoc-pptx-reader-evidence.php \
+            --upstream-root=.upstream-cache/pandoc-current \
+            --json \
+            --require-test-count=1 \
+            --require-fixture-pair-count=1 \
+            --require-no-validation-issues \
+            --require-static-current-evidence \
+            --require-static-native-mapped-parity \
+            --require-static-executable-native-ast-parity \
+            --require-runner-not-run \
+            --require-runner-plan
+
+      - name: Require upstream PPTX native AST parity fixture smoke
+        run: |
+          php tools/pandoc-pptx-native-ast.php \
+            --upstream-pptx-dir=.upstream-cache/pandoc-current/test/pptx-reader \
+            --json \
+            summary \
+            --require-mapped-parity=1
+
+      - name: Require checked-in PPTX native AST parity corpus
+        run: |
+          php tools/pandoc-pptx-native-ast.php \
+            --checked-in-fixtures \
+            --json \
+            summary \
+            --require-mapped-parity=109
+
+      - name: Install pandoc executable
+        run: |
+          set -euo pipefail
+          archive="/tmp/pandoc-${PANDOC_EXECUTABLE_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL \
+            -o "$archive" \
+            "https://github.com/jgm/pandoc/releases/download/${PANDOC_EXECUTABLE_VERSION}/pandoc-${PANDOC_EXECUTABLE_VERSION}-linux-amd64.tar.gz"
+          echo "${PANDOC_EXECUTABLE_LINUX_AMD64_SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "$archive" -C /tmp
+          sudo install -m 0755 "/tmp/pandoc-${PANDOC_EXECUTABLE_VERSION}/bin/pandoc" /usr/local/bin/pandoc
+          pandoc --version | head -n 1
+
+      - name: Require upstream pandoc executable PPTX comparison smoke
+        run: |
+          php tools/pandoc-pptx-executable-native-ast.php \
+            --pptx-dir=.upstream-cache/pandoc-current/test/pptx-reader \
+            --json \
+            summary \
+            --require-executable-parity=1 \
+            --require-pandoc-version="pandoc ${PANDOC_EXECUTABLE_VERSION}"
+
+      - name: Require checked-in pandoc executable PPTX comparison corpus
+        run: |
+          php tools/pandoc-pptx-executable-native-ast.php \
+            --checked-in-fixtures \
+            --json \
+            summary \
+            --require-executable-parity=109 \
+            --require-pandoc-version="pandoc ${PANDOC_EXECUTABLE_VERSION}"
+
+      - name: Run focused PPTX parity tests
+        run: |
+          php tools/run-tests.php \
+            lanes/pandoc/tests/OpenPackagingConventionsTest.php \
+            lanes/pandoc/tests/PptxNativeAstComparisonHarnessTest.php \
+            lanes/pandoc/tests/PptxExecutableNativeAstComparisonHarnessTest.php \
+            lanes/pandoc/tests/PptxUpstreamReaderEvidenceTest.php \
+            lanes/pandoc/tests/PptxReaderTest.php

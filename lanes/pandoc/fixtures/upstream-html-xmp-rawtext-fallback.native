@@ -1,0 +1,26 @@
+[ Para
+    [ Str "Before"
+    , Space
+    , Str "legacy"
+    , Space
+    , Str "literal."
+    ]
+, Para
+    [ Strong [ Str "Escaped" , Space , Str "source" ]
+    , Space
+    , Str "becomes"
+    , Space
+    , Str "parsed"
+    , Space
+    , Str "fallback."
+    ]
+, BulletList
+    [ [ Plain [ Str "alpha" ] ] , [ Plain [ Str "beta" ] ] ]
+, Para
+    [ Str "After"
+    , Space
+    , Str "legacy"
+    , Space
+    , Str "literal."
+    ]
+]

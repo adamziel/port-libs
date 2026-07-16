@@ -1,0 +1,62 @@
+[ Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault )
+    , ( AlignDefault , ColWidthDefault )
+    ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "group" , LineBreak , Str "label" ] ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "status" ] ]
+           ]
+       ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "A" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "open" ] ]
+            ]
+        , Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "B" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "done" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]

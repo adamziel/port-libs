@@ -1,0 +1,1 @@
+export default 'virtual-card';

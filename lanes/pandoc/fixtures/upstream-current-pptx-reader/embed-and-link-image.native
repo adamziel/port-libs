@@ -1,0 +1,9 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Embed link precedence" ]
+, Para
+    [ Image
+        ( "" , [] , [] )
+        [ Str "Embed wins alt" ]
+        ( "ppt/media/embed-wins.png" , "Embed Wins Picture" )
+    ]
+]

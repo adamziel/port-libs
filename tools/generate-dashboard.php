@@ -121,6 +121,13 @@ $shortCommit = static function (string $value) use ($shorten): string {
 $blockerSummary = static function (string $value) use ($firstSentence, $shorten): string {
     $normalized = strtolower($value);
     if (str_contains($normalized, 'cargo workspace')) {
+        if (str_contains($normalized, 'not fully green') || str_contains($normalized, 'blocked')) {
+            return 'Cargo workspace blocked by sparse target files';
+        }
+        if (str_contains($normalized, 'pass') || str_contains($normalized, 'green')) {
+            return 'No local blocker';
+        }
+
         return 'Cargo workspace not run';
     }
     if (str_contains($normalized, 'rust/node/wasm')) {
@@ -171,7 +178,7 @@ $projectState = static function (string $lane, float $progress, int $phpFail, st
 $queueState = static function (string $lane): string {
     return match ($lane) {
         'libsqlite' => 'Primary',
-        'lightningcss', 'gitoxide' => 'Active',
+        'lightningcss', 'gitoxide', 'markerpdf' => 'Active',
         'dolt' => 'Parked',
         default => 'Backlog',
     };
@@ -223,13 +230,13 @@ foreach ($laneDirs as $dir) {
         'libsqlite' => 1,
         'lightningcss' => 2,
         'gitoxide' => 3,
-        'readability' => 4,
-        'pandoc' => 5,
-        'quadrable' => 6,
-        'syncthing' => 7,
-        'difftastic' => 8,
-        'rclone' => 9,
-        'markerpdf' => 10,
+        'markerpdf' => 4,
+        'readability' => 5,
+        'pandoc' => 6,
+        'quadrable' => 7,
+        'syncthing' => 8,
+        'difftastic' => 9,
+        'rclone' => 10,
         'esbuild' => 11,
         'dolt' => 99,
     ];

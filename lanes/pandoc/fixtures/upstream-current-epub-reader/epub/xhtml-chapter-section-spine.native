@@ -1,0 +1,32 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "XHTML"
+    , Space
+    , Str "Chapter"
+    , Space
+    , Str "Section"
+    , Space
+    , Str "Spine"
+    ]
+, Para
+    [ Str "Chapter"
+    , Space
+    , Str "section"
+    , Space
+    , Str "content"
+    , Space
+    , Str "should"
+    , Space
+    , Str "not"
+    , Space
+    , Str "keep"
+    , Space
+    , Str "a"
+    , Space
+    , Str "wrapper"
+    , Space
+    , Str "div."
+    ]
+]

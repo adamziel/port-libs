@@ -1,0 +1,16 @@
+<div class="wp-block-acme-toggle" data-wp-interactive="acme/card">
+  <button data-wp-on--click="actions.toggle">Show details</button>
+</div>
+<script type="module">
+wp.interactivity.store('acme/card', {
+  state: {
+    label: 'Show details',
+    expanded: false,
+  },
+  actions: {
+    toggle() {
+      state.expanded = ! state.expanded;
+    },
+  },
+});
+</script>

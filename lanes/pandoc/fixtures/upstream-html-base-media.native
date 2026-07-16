@@ -1,0 +1,43 @@
+[ Para
+    [ Image
+        ( "" , [] , [] )
+        [ Str "Release" , Space , Str "frame" ]
+        ( "https://example.test/wp-content/uploads/imports/batch-42/release-frame.jpg"
+        , "Release frame title"
+        )
+    ]
+, Para
+    [ Str "Review"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "source" , Space , Str "packet" ]
+        ( "https://example.test/wp-content/uploads/imports/audit/post.html"
+        , "Audit packet"
+        )
+    , Space
+    , Str "before"
+    , Space
+    , Str "publishing."
+    ]
+, Para
+    [ Str "Root"
+    , Space
+    , Str "media"
+    , Space
+    , Image
+        ( "" , [] , [] )
+        [ Str "thumbnail" ]
+        ( "https://example.test/wp-content/uploads/thumb.jpg" , "" )
+    , Space
+    , Str "stays"
+    , Space
+    , Str "absolute"
+    , Space
+    , Str "to"
+    , Space
+    , Str "the"
+    , Space
+    , Str "site."
+    ]
+]

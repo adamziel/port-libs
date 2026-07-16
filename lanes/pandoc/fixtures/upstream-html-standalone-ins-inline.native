@@ -1,0 +1,14 @@
+[ Plain
+    [ Underline [ Str "Inserted" , Space , Str "review" , Space , Str "note" ]
+    , Space
+    , Str "remains"
+    , Space
+    , Str "visible"
+    , Space
+    , Str "for"
+    , Space
+    , Str "editorial"
+    , Space
+    , Str "audit."
+    ]
+]

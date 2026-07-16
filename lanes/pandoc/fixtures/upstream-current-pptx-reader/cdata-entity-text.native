@@ -1,0 +1,4 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "CDATA & entity slide" ]
+, Para [ Str "Entity & escaped <CDATA & literal> done" ]
+]

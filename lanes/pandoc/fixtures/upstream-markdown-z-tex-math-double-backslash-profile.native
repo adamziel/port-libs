@@ -1,0 +1,13 @@
+[ Para
+    [ Str "Inline"
+    , Space
+    , Math InlineMath "a+1"
+    , Space
+    , Str "and"
+    , Space
+    , Str "display"
+    , Space
+    , Math DisplayMath "b+2"
+    , Str "."
+    ]
+]

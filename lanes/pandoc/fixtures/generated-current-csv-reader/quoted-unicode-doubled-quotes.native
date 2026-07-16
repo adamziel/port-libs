@@ -1,0 +1,104 @@
+[ Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault )
+    , ( AlignDefault , ColWidthDefault )
+    , ( AlignDefault , ColWidthDefault )
+    ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "id" ] ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain
+                   [ Str "city"
+                   , Space
+                   , Str "\"name,"
+                   , Space
+                   , Str "local\""
+                   ]
+               ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "note" ] ]
+           ]
+       ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "1" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain
+                    [ Str "M\252nchen," , Space , Str "\"Altstadt\"" ]
+                ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Caf\233," , Space , Str "cr\232me" ] ]
+            ]
+        , Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "2" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain
+                    [ Str "\26481\20140,"
+                    , Space
+                    , Str "\"\20013\22830\""
+                    ]
+                ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain
+                    [ Str "emoji"
+                    , Space
+                    , Str "\128640,"
+                    , Space
+                    , Str "snowman"
+                    , Space
+                    , Str "\9731"
+                    ]
+                ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]

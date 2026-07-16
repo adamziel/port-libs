@@ -1,0 +1,2 @@
+[ Para [ Str "Source" , Space , Str "title" , Space , RawInline (Format "html") "<cite data-source=\"classic-editor\">" , Str "Import" , Space , Str "Review" , Space , Str "Handbook" , RawInline (Format "html") "</cite>" , Space , Str "keeps" , Space , Str "citation" , Space , Str "markup," , Space , Str "and" , Space , Str "long" , Space , Str "slug" , Space , Str "import-" , RawInline (Format "html") "<wbr data-source=\"slug-break\">" , Str "packet" , Space , Str "remains" , Space , Str "readable." ]
+]

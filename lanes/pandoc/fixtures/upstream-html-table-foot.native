@@ -1,0 +1,82 @@
+[ Table
+    ( "" , [ "audit-grid" ] , [] )
+    (Caption
+       Nothing
+       [ Plain [ Str "Quarterly" , Space , Str "totals" ] ])
+    [ ( AlignDefault , ColWidthDefault )
+    , ( AlignDefault , ColWidthDefault )
+    ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Quarter" ] ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Total" ] ]
+           ]
+       ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Q1" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "12" ] ]
+            ]
+        , Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Q2" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "18" ] ]
+            ]
+        ]
+    ]
+    (TableFoot
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Combined" ] ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "30" ] ]
+           ]
+       ])
+, Para [ Str "After" , Space , Str "table." ]
+]

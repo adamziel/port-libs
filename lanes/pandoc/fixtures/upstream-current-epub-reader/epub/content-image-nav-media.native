@@ -1,0 +1,36 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Content"
+    , Space
+    , Str "Image"
+    , Space
+    , Str "Nav"
+    , Space
+    , Str "Media"
+    ]
+, Para
+    [ Str "The"
+    , Space
+    , Str "linear"
+    , Space
+    , Str "spine"
+    , Space
+    , Str "item"
+    , Space
+    , Str "references"
+    , Space
+    , Str "a"
+    , Space
+    , Str "manifest"
+    , Space
+    , Str "image."
+    ]
+, Para
+    [ Image
+        ( "" , [] , [] )
+        [ Str "Inline" , Space , Str "art" ]
+        ( "images/inline.png" , "Inline image" )
+    ]
+]

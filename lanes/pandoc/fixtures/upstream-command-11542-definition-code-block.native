@@ -1,0 +1,6 @@
+[ DefinitionList
+    [ ( [ Str "Input" ]
+      , [ [ CodeBlock ( "" , [] , [] ) "Term\n\n  : Def" ] ]
+      )
+    ]
+]

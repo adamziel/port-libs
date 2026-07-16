@@ -1,0 +1,14 @@
+[ Para
+    [ Str "Jump"
+    , Space
+    , Str "to"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "section" ]
+        ( "https://example.test/docs/guide/page.html#section"
+        , "Section link"
+        )
+    , Str "."
+    ]
+]

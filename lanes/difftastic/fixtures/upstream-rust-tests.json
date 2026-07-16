@@ -1,0 +1,1021 @@
+{
+  "upstream": {
+    "repository": "https://github.com/Wilfred/difftastic.git",
+    "commit": "7ccfcb315f7e46fd015809416c7d7dffa5be7078",
+    "paths": [
+      "src/**/*.rs",
+      "tests/**/*.rs"
+    ]
+  },
+  "testAttributeCount": 144,
+  "tests": [
+    {
+      "file": "src/conflicts.rs",
+      "line": 122,
+      "attribute": "#[test]",
+      "testName": "test_with_base",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/conflicts.rs",
+      "line": 136,
+      "attribute": "#[test]",
+      "testName": "test_without_base",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/dijkstra.rs",
+      "line": 254,
+      "attribute": "#[test]",
+      "testName": "identical_atoms",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/dijkstra.rs",
+      "line": 277,
+      "attribute": "#[test]",
+      "testName": "extra_atom_lhs",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/dijkstra.rs",
+      "line": 321,
+      "attribute": "#[test]",
+      "testName": "repeated_atoms",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/dijkstra.rs",
+      "line": 364,
+      "attribute": "#[test]",
+      "testName": "atom_after_empty_list",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/dijkstra.rs",
+      "line": 415,
+      "attribute": "#[test]",
+      "testName": "replace_similar_comment",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/dijkstra.rs",
+      "line": 447,
+      "attribute": "#[test]",
+      "testName": "replace_very_different_comment",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/dijkstra.rs",
+      "line": 479,
+      "attribute": "#[test]",
+      "testName": "replace_comment_prefer_most_similar",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/dijkstra.rs",
+      "line": 522,
+      "attribute": "#[test]",
+      "testName": "mark_syntax_equal_atoms",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/dijkstra.rs",
+      "line": 536,
+      "attribute": "#[test]",
+      "testName": "mark_syntax_different_atoms",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/lcs_diff.rs",
+      "line": 197,
+      "attribute": "#[test]",
+      "testName": "test_slice_same_items",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/lcs_diff.rs",
+      "line": 206,
+      "attribute": "#[test]",
+      "testName": "test_slice_different_items",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/lcs_diff.rs",
+      "line": 220,
+      "attribute": "#[test]",
+      "testName": "test_slice_by_hash_same_items",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/lcs_diff.rs",
+      "line": 229,
+      "attribute": "#[test]",
+      "testName": "test_slice_by_hash_different_items",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/lcs_diff.rs",
+      "line": 243,
+      "attribute": "#[test]",
+      "testName": "test_slice_unique_same_items",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/lcs_diff.rs",
+      "line": 252,
+      "attribute": "#[test]",
+      "testName": "test_slice_unique_different_items",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/sliders.rs",
+      "line": 729,
+      "attribute": "#[test]",
+      "testName": "test_slider_at_start",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/sliders.rs",
+      "line": 783,
+      "attribute": "#[test]",
+      "testName": "test_slider_at_end",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/sliders.rs",
+      "line": 836,
+      "attribute": "#[test]",
+      "testName": "test_slider_two_steps",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/sliders.rs",
+      "line": 861,
+      "attribute": "#[test]",
+      "testName": "test_slider_partially_unchanged",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/unchanged.rs",
+      "line": 470,
+      "attribute": "#[test]",
+      "testName": "test_shrink_unchanged_at_start",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/unchanged.rs",
+      "line": 496,
+      "attribute": "#[test]",
+      "testName": "test_shrink_unchanged_at_end",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/unchanged.rs",
+      "line": 522,
+      "attribute": "#[test]",
+      "testName": "test_shrink_unchanged_nested",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/unchanged.rs",
+      "line": 557,
+      "attribute": "#[test]",
+      "testName": "test_split_unchanged_toplevel_at_start",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/unchanged.rs",
+      "line": 596,
+      "attribute": "#[test]",
+      "testName": "test_split_unchanged_toplevel_at_end",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/unchanged.rs",
+      "line": 634,
+      "attribute": "#[test]",
+      "testName": "test_split_preserves_outer_delimiters",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/unchanged.rs",
+      "line": 661,
+      "attribute": "#[test]",
+      "testName": "test_split_unchanged_middle",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/unchanged.rs",
+      "line": 700,
+      "attribute": "#[test]",
+      "testName": "test_split_unchanged_multiple",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/unchanged.rs",
+      "line": 728,
+      "attribute": "#[test]",
+      "testName": "test_split_unchanged_outer_delimiter",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/unchanged.rs",
+      "line": 757,
+      "attribute": "#[test]",
+      "testName": "test_split_mostly_unchanged_toplevel",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/unchanged.rs",
+      "line": 780,
+      "attribute": "#[test]",
+      "testName": "test_count_common_unique",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/unchanged.rs",
+      "line": 807,
+      "attribute": "#[test]",
+      "testName": "test_similar_with_common_grandchildren",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/diff/unchanged.rs",
+      "line": 821,
+      "attribute": "#[test]",
+      "testName": "test_similar_ignore_delimiter",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/context.rs",
+      "line": 739,
+      "attribute": "#[test]",
+      "testName": "test_calculate_before_context",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/context.rs",
+      "line": 759,
+      "attribute": "#[test]",
+      "testName": "test_all_matched_lines",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/context.rs",
+      "line": 801,
+      "attribute": "#[test]",
+      "testName": "test_matched_lines_novel_on_same_line",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/context.rs",
+      "line": 835,
+      "attribute": "#[test]",
+      "testName": "test_all_lines",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/context.rs",
+      "line": 893,
+      "attribute": "#[test]",
+      "testName": "test_merge_in_opposite_lines",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/context.rs",
+      "line": 908,
+      "attribute": "#[test]",
+      "testName": "test_compact_gaps",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/context.rs",
+      "line": 924,
+      "attribute": "#[test]",
+      "testName": "test_compact_gaps_with_larger_gap",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/context.rs",
+      "line": 941,
+      "attribute": "#[test]",
+      "testName": "test_match_preceding_blanks",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/context.rs",
+      "line": 965,
+      "attribute": "#[test]",
+      "testName": "test_match_preceding_blanks_first_pair",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/context.rs",
+      "line": 982,
+      "attribute": "#[test]",
+      "testName": "test_match_blanks_between",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/context.rs",
+      "line": 1002,
+      "attribute": "#[test]",
+      "testName": "test_matched_lines_blank_at_ends",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/context.rs",
+      "line": 1041,
+      "attribute": "#[test]",
+      "testName": "test_pad_after_when_line_exceeds_max",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/hunks.rs",
+      "line": 695,
+      "attribute": "#[test]",
+      "testName": "test_sorted_novel_positions_simple",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/hunks.rs",
+      "line": 739,
+      "attribute": "#[test]",
+      "testName": "test_matched_pos_to_hunks",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/hunks.rs",
+      "line": 802,
+      "attribute": "#[test]",
+      "testName": "test_matched_lines_for_hunk",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/hunks.rs",
+      "line": 829,
+      "attribute": "#[test]",
+      "testName": "test_matched_lines_for_hunk_misaligned",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/side_by_side.rs",
+      "line": 802,
+      "attribute": "#[test]",
+      "testName": "test_width_calculations",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/side_by_side.rs",
+      "line": 818,
+      "attribute": "#[test]",
+      "testName": "test_format_missing_line_num",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/side_by_side.rs",
+      "line": 840,
+      "attribute": "#[test]",
+      "testName": "test_format_missing_line_num_at_end",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/side_by_side.rs",
+      "line": 855,
+      "attribute": "#[test]",
+      "testName": "test_display_single_column",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/side_by_side.rs",
+      "line": 870,
+      "attribute": "#[test]",
+      "testName": "test_display_hunks",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/style.rs",
+      "line": 588,
+      "attribute": "#[test]",
+      "testName": "split_string_simple",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/style.rs",
+      "line": 596,
+      "attribute": "#[test]",
+      "testName": "split_string_unicode",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/style.rs",
+      "line": 604,
+      "attribute": "#[test]",
+      "testName": "test_combining_char",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/style.rs",
+      "line": 612,
+      "attribute": "#[test]",
+      "testName": "split_string_cjk",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/style.rs",
+      "line": 620,
+      "attribute": "#[test]",
+      "testName": "split_string_cjk2",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/style.rs",
+      "line": 628,
+      "attribute": "#[test]",
+      "testName": "test_split_and_apply",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/style.rs",
+      "line": 647,
+      "attribute": "#[test]",
+      "testName": "test_split_and_apply_trailing_text",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/style.rs",
+      "line": 666,
+      "attribute": "#[test]",
+      "testName": "test_split_and_apply_gap_between_styles_on_wrap_boundary",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/display/style.rs",
+      "line": 695,
+      "attribute": "#[test]",
+      "testName": "test_split_and_apply_trailing_text_newline",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/files.rs",
+      "line": 365,
+      "attribute": "#[test]",
+      "testName": "test_plaintext_is_text",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/files.rs",
+      "line": 374,
+      "attribute": "#[test]",
+      "testName": "test_gzip_is_binary",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/files.rs",
+      "line": 388,
+      "attribute": "#[test]",
+      "testName": "test_dex_is_binary",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/files.rs",
+      "line": 400,
+      "attribute": "#[test]",
+      "testName": "test_png_bytes_are_binary",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/gitattributes.rs",
+      "line": 135,
+      "attribute": "#[test]",
+      "testName": "test_parse_output",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/line_parser.rs",
+      "line": 259,
+      "attribute": "#[test]",
+      "testName": "test_split_newlines",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/line_parser.rs",
+      "line": 266,
+      "attribute": "#[test]",
+      "testName": "test_positions_no_changes",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/line_parser.rs",
+      "line": 282,
+      "attribute": "#[test]",
+      "testName": "test_positions_whitespace_is_change",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/line_parser.rs",
+      "line": 292,
+      "attribute": "#[test]",
+      "testName": "test_no_changes_trailing_newlines",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/line_parser.rs",
+      "line": 308,
+      "attribute": "#[test]",
+      "testName": "test_novel_lhs_trailing_newlines",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/line_parser.rs",
+      "line": 316,
+      "attribute": "#[test]",
+      "testName": "test_positions_novel_lhs",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/lines.rs",
+      "line": 60,
+      "attribute": "#[test]",
+      "testName": "str_max_line",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/lines.rs",
+      "line": 66,
+      "attribute": "#[test]",
+      "testName": "empty_str_max_line",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/lines.rs",
+      "line": 72,
+      "attribute": "#[test]",
+      "testName": "str_max_line_trailing_newline",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/lines.rs",
+      "line": 78,
+      "attribute": "#[test]",
+      "testName": "str_max_line_extra_trailing_newline",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/lines.rs",
+      "line": 84,
+      "attribute": "#[test]",
+      "testName": "test_split_line_empty",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/lines.rs",
+      "line": 89,
+      "attribute": "#[test]",
+      "testName": "test_split_line_single",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/lines.rs",
+      "line": 94,
+      "attribute": "#[test]",
+      "testName": "test_split_line_with_newline",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/lines.rs",
+      "line": 102,
+      "attribute": "#[test]",
+      "testName": "test_split_line_with_crlf",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/lines.rs",
+      "line": 110,
+      "attribute": "#[test]",
+      "testName": "test_split_line_with_trailing_newline",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/lines.rs",
+      "line": 118,
+      "attribute": "#[test]",
+      "testName": "test_is_all_whitespace",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/main.rs",
+      "line": 1046,
+      "attribute": "#[test]",
+      "testName": "test_diff_identical_content",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/options.rs",
+      "line": 1073,
+      "attribute": "#[test]",
+      "testName": "test_app",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/options.rs",
+      "line": 1078,
+      "attribute": "#[test]",
+      "testName": "test_detect_display_width",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/guess_language.rs",
+      "line": 644,
+      "attribute": "#[test]",
+      "testName": "test_guess_by_extension",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/guess_language.rs",
+      "line": 650,
+      "attribute": "#[test]",
+      "testName": "test_guess_by_whole_name",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/guess_language.rs",
+      "line": 656,
+      "attribute": "#[test]",
+      "testName": "test_guess_by_shebang",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/guess_language.rs",
+      "line": 662,
+      "attribute": "#[test]",
+      "testName": "test_guess_by_env_shebang",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/guess_language.rs",
+      "line": 668,
+      "attribute": "#[test]",
+      "testName": "test_guess_by_shebang_with_space",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/guess_language.rs",
+      "line": 674,
+      "attribute": "#[test]",
+      "testName": "test_guess_by_emacs_mode",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/guess_language.rs",
+      "line": 683,
+      "attribute": "#[test]",
+      "testName": "test_guess_by_emacs_mode_second_line",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/guess_language.rs",
+      "line": 692,
+      "attribute": "#[test]",
+      "testName": "test_guess_by_emacs_mode_shorthand",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/guess_language.rs",
+      "line": 698,
+      "attribute": "#[test]",
+      "testName": "test_guess_by_emacs_mode_shorthand_no_spaces",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/guess_language.rs",
+      "line": 704,
+      "attribute": "#[test]",
+      "testName": "test_guess_by_xml_header",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/guess_language.rs",
+      "line": 713,
+      "attribute": "#[test]",
+      "testName": "test_guess_unknown",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/guess_language.rs",
+      "line": 719,
+      "attribute": "#[test]",
+      "testName": "test_guess_override",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/syntax.rs",
+      "line": 1092,
+      "attribute": "#[test]",
+      "testName": "test_comment_and_atom_differ",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/syntax.rs",
+      "line": 1109,
+      "attribute": "#[test]",
+      "testName": "test_new_atom_truncates_carriage_return",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/syntax.rs",
+      "line": 1125,
+      "attribute": "#[test]",
+      "testName": "test_new_atom_truncates_trailing_newline",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/syntax.rs",
+      "line": 1165,
+      "attribute": "#[test]",
+      "testName": "test_atom_equality_ignores_highlighting",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/syntax.rs",
+      "line": 1182,
+      "attribute": "#[test]",
+      "testName": "test_flatten_trivial_list",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/syntax.rs",
+      "line": 1198,
+      "attribute": "#[test]",
+      "testName": "test_ignore_empty_atoms",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/syntax.rs",
+      "line": 1219,
+      "attribute": "#[test]",
+      "testName": "test_multiline_comment_ignores_leading_whitespace",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/syntax.rs",
+      "line": 1241,
+      "attribute": "#[test]",
+      "testName": "test_split_atom_words",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/tree_sitter_parser.rs",
+      "line": 1990,
+      "attribute": "#[test]",
+      "testName": "test_parse",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/tree_sitter_parser.rs",
+      "line": 1997,
+      "attribute": "#[test]",
+      "testName": "test_parse_empty_file",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/tree_sitter_parser.rs",
+      "line": 2009,
+      "attribute": "#[test]",
+      "testName": "test_subtrees",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/parse/tree_sitter_parser.rs",
+      "line": 2032,
+      "attribute": "#[test]",
+      "testName": "test_configs_valid",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/words.rs",
+      "line": 89,
+      "attribute": "#[test]",
+      "testName": "test_split_words",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/words.rs",
+      "line": 96,
+      "attribute": "#[test]",
+      "testName": "test_split_words_punctuation",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/words.rs",
+      "line": 103,
+      "attribute": "#[test]",
+      "testName": "test_split_words_numbers",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/words.rs",
+      "line": 110,
+      "attribute": "#[test]",
+      "testName": "test_split_words_treats_newline_separately",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/words.rs",
+      "line": 117,
+      "attribute": "#[test]",
+      "testName": "test_split_words_single_unicode",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/words.rs",
+      "line": 124,
+      "attribute": "#[test]",
+      "testName": "test_split_words_single_unicode_not_alphabetic",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/words.rs",
+      "line": 131,
+      "attribute": "#[test]",
+      "testName": "test_split_words_unicode",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/words.rs",
+      "line": 138,
+      "attribute": "#[test]",
+      "testName": "test_split_words_and_numbers",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "src/words.rs",
+      "line": 145,
+      "attribute": "#[test]",
+      "testName": "test_split_words_and_numbers_spaces",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 34,
+      "attribute": "#[test]",
+      "testName": "no_such_files",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 42,
+      "attribute": "#[test]",
+      "testName": "inline",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 52,
+      "attribute": "#[test]",
+      "testName": "binary_changed",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 64,
+      "attribute": "#[test]",
+      "testName": "binary_override",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 75,
+      "attribute": "#[test]",
+      "testName": "has_changes_default_exit_code",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 84,
+      "attribute": "#[test]",
+      "testName": "has_changes_requested_exit_code",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 94,
+      "attribute": "#[test]",
+      "testName": "ignore_comments",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 106,
+      "attribute": "#[test]",
+      "testName": "check_only",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 118,
+      "attribute": "#[test]",
+      "testName": "check_only_text_file",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 130,
+      "attribute": "#[test]",
+      "testName": "text_changes_at_end_doesnt_crash",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 140,
+      "attribute": "#[test]",
+      "testName": "makefile_text_as_atom",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 151,
+      "attribute": "#[test]",
+      "testName": "yaml_parse_errors",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 162,
+      "attribute": "#[test]",
+      "testName": "list_languages",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 175,
+      "attribute": "#[test]",
+      "testName": "test_mime_type_false_positive",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 186,
+      "attribute": "#[test]",
+      "testName": "slightly_invalid_utf8",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 197,
+      "attribute": "#[test]",
+      "testName": "directory_arguments",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 208,
+      "attribute": "#[test]",
+      "testName": "git_style_arguments_rename",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 225,
+      "attribute": "#[test]",
+      "testName": "git_style_arguments_new_file",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 240,
+      "attribute": "#[test]",
+      "testName": "drop_different_path_starts",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 250,
+      "attribute": "#[test]",
+      "testName": "dump_tree_sitter",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 260,
+      "attribute": "#[test]",
+      "testName": "dump_syntax",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 270,
+      "attribute": "#[test]",
+      "testName": "walk_hidden_items",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    },
+    {
+      "file": "tests/cli.rs",
+      "line": 284,
+      "attribute": "#[test]",
+      "testName": "git_unmerged_files",
+      "phpCoverage": "covered-by-lanes/difftastic/tests/TokenDifferTest.php"
+    }
+  ]
+}

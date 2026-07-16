@@ -1,0 +1,3 @@
+[ Para [ Span ( "span-review" , [ "audit" ] , [ ( "data-kind" , "bracketed span" ) ] ) [ Emph [ Str "source" ] , Space , Link ( "" , [  ] , [  ] ) [ Str "link" ] ( "https://example.test/review" , "" ) ] ]
+, Para [ Str "Caps" , Space , SmallCaps [ Str "term" ] , Space , Str "done." ]
+]

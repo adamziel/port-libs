@@ -1,0 +1,155 @@
+name: Pandoc XLSX parity
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pandoc-xlsx.yml'
+      - 'lanes/pandoc/**'
+      - 'tools/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/pandoc-xlsx.yml'
+      - 'lanes/pandoc/**'
+      - 'tools/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PANDOC_XLSX_UPSTREAM_PINNED_COMMIT: 4f5226df4faa0d66dd2c089465b13886360ab3c2
+  PANDOC_EXECUTABLE_VERSION: '3.10'
+  PANDOC_EXECUTABLE_LINUX_AMD64_SHA256: e0f8af62d0f267d22baa5bcefe6d5dda3a097ccc60de794b759fe03159923244
+
+jobs:
+  focused-xlsx:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, intl, mbstring, zip
+          coverage: none
+
+      - name: Lint XLSX parity files
+        run: |
+          php -l lanes/pandoc/src/XlsxReader.php
+          php -l lanes/pandoc/src/XlsxNativeAstComparisonHarness.php
+          php -l lanes/pandoc/src/XlsxExecutableNativeAstComparisonHarness.php
+          php -l lanes/pandoc/src/XlsxUpstreamReaderEvidence.php
+          php -l lanes/pandoc/src/NativeReader.php
+          php -l lanes/pandoc/src/NativeWriter.php
+          php -l lanes/pandoc/src/OpcContentTypes.php
+          php -l lanes/pandoc/src/OpcRelationshipInventory.php
+          php -l lanes/pandoc/src/OpcMarkupCompatibility.php
+          php -l lanes/pandoc/src/OpcPackagePath.php
+          php -l lanes/pandoc/src/OpcRelationship.php
+          php -l lanes/pandoc/src/OpcRelationships.php
+          php -l lanes/pandoc/src/ZipPackage.php
+          php -l lanes/pandoc/src/ZipPackageEntry.php
+          php -l lanes/pandoc/tests/OpenPackagingConventionsTest.php
+          php -l lanes/pandoc/tests/XlsxReaderTest.php
+          php -l lanes/pandoc/tests/XlsxNativeAstComparisonHarnessTest.php
+          php -l lanes/pandoc/tests/XlsxExecutableNativeAstComparisonHarnessTest.php
+          php -l lanes/pandoc/tests/XlsxUpstreamReaderEvidenceTest.php
+          php -l tools/pandoc-xlsx-native-ast.php
+          php -l tools/pandoc-xlsx-executable-native-ast.php
+          php -l tools/pandoc-xlsx-reader-evidence.php
+
+      - name: Restore pinned Pandoc XLSX upstream cache
+        id: pandoc-xlsx-upstream-cache
+        uses: actions/cache@v4
+        with:
+          path: .upstream-cache/pandoc-current
+          key: pandoc-xlsx-upstream-sparse-v1-${{ runner.os }}-${{ env.PANDOC_XLSX_UPSTREAM_PINNED_COMMIT }}
+
+      - name: Hydrate pinned Pandoc XLSX upstream cache
+        if: steps.pandoc-xlsx-upstream-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          target=.upstream-cache/pandoc-current
+          mkdir -p "$(dirname "$target")"
+          git init "$target"
+          git -C "$target" remote add origin https://github.com/jgm/pandoc.git
+          git -C "$target" sparse-checkout init --no-cone
+          git -C "$target" sparse-checkout set \
+            /test/Tests/Readers/Xlsx.hs \
+            /test/xlsx-reader \
+            /src/Text/Pandoc/Readers/Xlsx.hs \
+            /src/Text/Pandoc/Readers/Xlsx
+          git -C "$target" fetch --depth=1 --filter=blob:none origin "$PANDOC_XLSX_UPSTREAM_PINNED_COMMIT"
+          git -C "$target" switch --detach FETCH_HEAD
+
+      - name: Verify pinned Pandoc XLSX upstream cache
+        run: |
+          set -euo pipefail
+          target=.upstream-cache/pandoc-current
+          test "$(git -C "$target" rev-parse HEAD)" = "$PANDOC_XLSX_UPSTREAM_PINNED_COMMIT"
+          test -f "$target/test/Tests/Readers/Xlsx.hs"
+          test -f "$target/test/xlsx-reader/basic.xlsx"
+          test -f "$target/test/xlsx-reader/basic.native"
+          test -f "$target/src/Text/Pandoc/Readers/Xlsx.hs"
+          test -f "$target/src/Text/Pandoc/Readers/Xlsx/Parse.hs"
+          test -f "$target/src/Text/Pandoc/Readers/Xlsx/Sheets.hs"
+          test -f "$target/src/Text/Pandoc/Readers/Xlsx/Cells.hs"
+
+      - name: Require upstream XLSX reader denominator evidence
+        run: |
+          php tools/pandoc-xlsx-reader-evidence.php \
+            --upstream-root=.upstream-cache/pandoc-current \
+            --json \
+            --require-test-count=1 \
+            --require-fixture-pair-count=1 \
+            --require-no-validation-issues
+
+      - name: Require upstream XLSX native AST parity fixture
+        run: |
+          php tools/pandoc-xlsx-native-ast.php \
+            --upstream-xlsx-dir=.upstream-cache/pandoc-current/test/xlsx-reader \
+            --json \
+            summary \
+            --require-mapped-parity=1
+
+      - name: Require checked-in XLSX native AST parity fixture
+        run: |
+          php tools/pandoc-xlsx-native-ast.php \
+            --checked-in-fixtures \
+            --json \
+            summary \
+            --require-mapped-parity=1
+
+      - name: Install pandoc executable
+        run: |
+          set -euo pipefail
+          archive="/tmp/pandoc-${PANDOC_EXECUTABLE_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL \
+            -o "$archive" \
+            "https://github.com/jgm/pandoc/releases/download/${PANDOC_EXECUTABLE_VERSION}/pandoc-${PANDOC_EXECUTABLE_VERSION}-linux-amd64.tar.gz"
+          echo "${PANDOC_EXECUTABLE_LINUX_AMD64_SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "$archive" -C /tmp
+          sudo install -m 0755 "/tmp/pandoc-${PANDOC_EXECUTABLE_VERSION}/bin/pandoc" /usr/local/bin/pandoc
+          pandoc --version | head -n 1
+
+      - name: Require pandoc executable XLSX comparison
+        run: |
+          php tools/pandoc-xlsx-executable-native-ast.php \
+            --xlsx-dir=.upstream-cache/pandoc-current/test/xlsx-reader \
+            --json \
+            summary \
+            --require-executable-parity=1 \
+            --require-pandoc-version="pandoc ${PANDOC_EXECUTABLE_VERSION}"
+
+      - name: Run focused XLSX parity tests
+        run: |
+          php tools/run-tests.php \
+            lanes/pandoc/tests/OpenPackagingConventionsTest.php \
+            lanes/pandoc/tests/XlsxNativeAstComparisonHarnessTest.php \
+            lanes/pandoc/tests/XlsxExecutableNativeAstComparisonHarnessTest.php \
+            lanes/pandoc/tests/XlsxUpstreamReaderEvidenceTest.php \
+            lanes/pandoc/tests/XlsxReaderTest.php

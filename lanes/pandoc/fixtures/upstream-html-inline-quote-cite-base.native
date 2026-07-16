@@ -1,0 +1,37 @@
+[ Para
+    [ Str "Reviewer"
+    , Space
+    , Str "note"
+    , Space
+    , Quoted
+        DoubleQuote
+        [ Span
+            ( ""
+            , []
+            , [ ( "cite"
+                , "https://source.example.test/import/posts/quotes/source.html#frag"
+                )
+              ]
+            )
+            [ Str "outer"
+            , Space
+            , Quoted
+                SingleQuote
+                [ Span
+                    ( ""
+                    , []
+                    , [ ( "cite"
+                        , "https://source.example.test/import/shared/context.html"
+                        )
+                      ]
+                    )
+                    [ Str "inner" , Space , Str "source" ]
+                ]
+            ]
+        ]
+    , Space
+    , Str "stays"
+    , Space
+    , Str "linked."
+    ]
+]

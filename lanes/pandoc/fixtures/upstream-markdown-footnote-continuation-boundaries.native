@@ -1,0 +1,14 @@
+[ Para
+    [ Note
+        [ Para [ Str "my" , Space , Str "note" ]
+        , Para [ Str "in" , Space , Str "note" ]
+        ]
+    ]
+, Para [ Str "not" , Space , Str "in" , Space , Str "note" ]
+, Para
+    [ Note
+        [ Para [ Str "my" , Space , Str "note" ]
+        , Para [ Str "in" , Space , Str "note" ]
+        ]
+    ]
+]

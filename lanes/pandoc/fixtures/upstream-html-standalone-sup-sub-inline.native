@@ -1,0 +1,8 @@
+[ Plain
+    [ Subscript [ Str "2" ]
+    , Space
+    , Str "and"
+    , Space
+    , Superscript [ Str "review" ]
+    ]
+]

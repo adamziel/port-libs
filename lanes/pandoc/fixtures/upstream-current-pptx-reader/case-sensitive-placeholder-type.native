@@ -1,0 +1,4 @@
+[ Header 2 ( "slide-1" , [] , [] ) [ Str "Slide 1" ]
+, Para [ Str "Wrong case title" ]
+, Para [ Str "Body text" ]
+]

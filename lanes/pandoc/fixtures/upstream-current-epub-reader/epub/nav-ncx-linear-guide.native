@@ -1,0 +1,22 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Nav"
+    , Space
+    , Str "NCX"
+    , Space
+    , Str "Linear"
+    , Space
+    , Str "Guide"
+    ]
+, Para
+    [ Str "Linear"
+    , Space
+    , Str "spine"
+    , Space
+    , Str "content"
+    , Space
+    , Str "only."
+    ]
+]

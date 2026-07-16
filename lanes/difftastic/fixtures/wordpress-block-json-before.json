@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "port-libs/card",
+  "title": "Card",
+  "supports": {
+    "html": false,
+    "align": ["wide"]
+  }
+}

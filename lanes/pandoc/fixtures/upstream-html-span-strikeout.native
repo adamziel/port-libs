@@ -1,0 +1,36 @@
+[ Para
+    [ Str "Migration"
+    , Space
+    , Str "note"
+    , Space
+    , Span
+        ( "" , [ "strikeout" ] , [] )
+        [ Str "remove"
+        , Space
+        , Str "the"
+        , Space
+        , Str "legacy"
+        , Space
+        , Str "shortcode"
+        ]
+    , Space
+    , Str "before"
+    , Space
+    , Str "publish."
+    ]
+, Para
+    [ Str "Explicit"
+    , Space
+    , Str "markup"
+    , Space
+    , Strikeout [ Str "old" , Space , Str "caption" ]
+    , Space
+    , Str "and"
+    , Space
+    , Underline [ Str "new" , Space , Str "caption" ]
+    , Space
+    , Str "remain"
+    , Space
+    , Str "reviewable."
+    ]
+]

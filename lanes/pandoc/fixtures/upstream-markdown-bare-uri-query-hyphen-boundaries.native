@@ -1,0 +1,13 @@
+[ Para
+    [ Link
+        ( "" , [ "uri" ] , [] )
+        [ Str "https://example.org/?anchor=lala-" ]
+        ( "https://example.org/?anchor=lala-" , "" )
+    ]
+, Para
+    [ Link
+        ( "" , [ "uri" ] , [] )
+        [ Str "https://example.org/?anchor=-lala" ]
+        ( "https://example.org/?anchor=-lala" , "" )
+    ]
+]

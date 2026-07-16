@@ -1,0 +1,9 @@
+[ Header
+    2
+    ( "slide-1" , [] , [] )
+    [ Str "Parenthesized level slide" ]
+, BulletList [ [ Plain [ Str "Parenthesized level one" ] ] ]
+, BulletList [ [ Plain [ Str "Zero level separator" ] ] ]
+, BulletList
+    [ [ Plain [ Str "Nested parenthesized level one" ] ] ]
+]

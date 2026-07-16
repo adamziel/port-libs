@@ -1,0 +1,4 @@
+id,note,status
+1,"bang !, delimiter",ok
+2,"quote !" inside",done
+3,"escape !! marker",review

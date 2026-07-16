@@ -1,0 +1,6 @@
+[ Para
+    [ RawInline (Format "tex") "TRUE"
+    , SoftBreak
+    , RawInline (Format "tex") "FALSE"
+    ]
+]

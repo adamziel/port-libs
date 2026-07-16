@@ -1,0 +1,4 @@
+[ Para
+    [ Str "\26481" , Str "\20140" , Space , Str "source" ]
+, Para [ Str "A" , SoftBreak , Str "B" ]
+]

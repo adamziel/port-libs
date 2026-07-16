@@ -1,0 +1,13 @@
+[ Para
+    [ Link ( "" , [] , [] ) [ Str "hi" ] ( "/there)" , "" ) ]
+, Para
+    [ Link ( "" , [] , [] ) [ Str "hi" ] ( "/there" , "a\"a" ) ]
+, Para
+    [ Link
+        ( "" , [] , [] ) [ Str "ref-title" ] ( "/there" , "a)a" )
+    ]
+, Para
+    [ Link
+        ( "" , [] , [] ) [ Str "ref-url" ] ( "/there.0" , "" )
+    ]
+]

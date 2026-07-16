@@ -1,0 +1,33 @@
+[ Para
+    [ Str "Glossary"
+    , Space
+    , SmallCaps
+        [ Str "source"
+        , Space
+        , Link ( "" , [] , [] ) [ Str "term" ] ( "/glossary" , "" )
+        ]
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "Pandoc"
+    , Space
+    , Str "small-caps"
+    , Space
+    , Str "semantics."
+    ]
+, Para
+    [ Str "Styled"
+    , Space
+    , SmallCaps [ Str "review" , Space , Str "token" ]
+    , Space
+    , Str "stays"
+    , Space
+    , Str "on"
+    , Space
+    , Str "the"
+    , Space
+    , Str "same"
+    , Space
+    , Str "branch."
+    ]
+]

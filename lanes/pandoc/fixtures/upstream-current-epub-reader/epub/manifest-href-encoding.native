@@ -1,0 +1,23 @@
+[ Para [ Span ( "chapter%201.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter%201.xhtml_start" , [ "section" ] , [] )
+    [ Header
+        1 ( "" , [] , [] ) [ Str "Encoded" , Space , Str "Chapter" ]
+    , Para
+        [ Str "Package"
+        , Space
+        , Str "href"
+        , Space
+        , Str "decoding"
+        , Space
+        , Str "stays"
+        , Space
+        , Str "visible."
+        ]
+    ]
+, Plain
+    [ Span
+        ( "chapter%201.xhtml_page-1" , [ "pagebreak" ] , [] )
+        [ Str "1" ]
+    ]
+]

@@ -1,5 +1,14 @@
-const pluginBuild = 'pdf-link-muir-safety-20260713';
+import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';
+import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';
+
+const pluginBuild = 'pdf-verified-performance-20260715';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
+const playgroundUploadDirectory = '/tmp/port-libs-converter';
+// Keep browser-produced PDF rasters within the exact decoded-byte limit that
+// the Playground REST plugin accepts. Base64 expands this on the wire, but the
+// server limit is deliberately applied to the decoded media bytes.
+const pdfRasterPayloadByteLimit = 24_000_000;
+const pdfRasterSourceByteLimit = 24 * 1024 * 1024;
 
 const iframe = document.getElementById('wp-playground');
 const playgroundPanel = document.getElementById('playground-panel');
@@ -30,9 +39,13 @@ let playgroundReady = false;
 let playgroundBootPromise = null;
 let startPlaygroundWeb = null;
 let decodePdfJbig2Rasters = null;
+let decodePdfJpxRasters = null;
 let selectedUpload = null;
 let conversionActive = false;
 let dragDepth = 0;
+let progressHeartbeat = null;
+let progressStartedAt = 0;
+let activeProgressLabel = '';
 
 fileInput.addEventListener('change', async () => {
   const files = fileInput.files ? Array.from(fileInput.files) : [];
@@ -119,30 +132,95 @@ async function convertSelectedFile() {
   setBusy(true);
   setQualityPanel(null);
   conversionActive = true;
+  progressStartedAt = Date.now();
+  startProgressHeartbeat();
   setProgressStatus('Preparing document...');
   setStatus('loading', 'Preparing document for import...');
   setPlaygroundState(playgroundReady ? 'ready' : 'idle');
+  let stagedUpload = null;
   try {
     log(`Reading ${selectedUpload.displayName} (${formatBytes(selectedUpload.totalSize)})`);
-    const payload = await payloadFromUpload(selectedUpload, setProgressStatus);
 
     setProgressStatus('Starting WordPress Playground...');
     setPlaygroundState(playgroundReady ? 'ready' : 'loading');
     await bootPlayground();
-    setStatus('loading', 'Converting in WordPress Playground...');
-    setProgressStatus('Converting document in WordPress...');
-    setPlaygroundState('ready');
-    const response = await playgroundClient.request({
-      method: 'POST',
-      url: '/wp-json/port-libs/v1/convert',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const text = typeof response.text === 'function' ? await response.text() : response.text;
-    const data = JSON.parse(text);
-    if (!data.ok) {
-      throw new Error(data.message || 'Conversion failed.');
+    if (!playgroundClient) {
+      throw new Error('WordPress Playground was not ready to receive the selected file.');
     }
+    setProgressStatus('Staging the selected file in WordPress Playground...');
+    stagedUpload = await stageUploadInPlayground(playgroundClient, selectedUpload, setProgressStatus);
+    setStatus('loading', 'Creating an import job in WordPress Playground...');
+    setProgressStatus('Creating an import job in WordPress...');
+    setPlaygroundState('ready');
+    let job = await playgroundPluginRequest('/imports', stagedUpload.payload);
+    const reportedEventKeys = new Set();
+    const reportJob = (snapshot) => {
+      const state = snapshot?.progress || {};
+      const completed = Number(state.completed || 0);
+      const total = Math.max(1, Number(state.total || 1));
+      const label = String(state.label || 'Import is continuing...');
+      const metrics = snapshot?.metrics || {};
+      const pdfTotal = Math.max(0, Number(metrics.pdfPagesTotal || 0));
+      const pdfCompleted = Math.min(pdfTotal, Math.max(0, Number(metrics.pdfPagesExtracted || 0)));
+      const pdfProgress = pdfTotal > 0 && pdfCompleted < pdfTotal
+        ? ` — ${pdfCompleted} of ${pdfTotal} PDF pages safely saved`
+        : '';
+      setProgressStatus(`${label} (${completed} of ${total})${pdfProgress}`);
+      setStatus('loading', label);
+      const events = Array.isArray(snapshot?.events) ? snapshot.events : [];
+      for (const event of events) {
+        const eventKey = `${event?.time || 0}:${event?.stage || ''}:${event?.message || ''}`;
+        if (reportedEventKeys.has(eventKey)) {
+          continue;
+        }
+        reportedEventKeys.add(eventKey);
+        if (event?.message) {
+          log(String(event.message));
+        }
+      }
+      if (reportedEventKeys.size > 160) {
+        const retained = Array.from(reportedEventKeys).slice(-80);
+        reportedEventKeys.clear();
+        retained.forEach((eventKey) => reportedEventKeys.add(eventKey));
+      }
+    };
+    reportJob(job);
+    while (!['complete', 'failed'].includes(String(job.status || ''))) {
+      if (Array.isArray(job.renderRequests) && job.renderRequests.length > 0) {
+        log(`Rendering ${job.renderRequests.length} PDF figure${job.renderRequests.length === 1 ? '' : 's'} locally with PDF.js.`);
+        const rendered = await renderPdfFormRequests({
+          filesByPath: await pdfFilesForImportJob(job, selectedUpload),
+          requests: job.renderRequests,
+          pdfjs: playgroundPdfJsConfig(),
+          onProgress({ completed, total, label }) {
+            setProgressStatus(`${label} (${completed} of ${total})`);
+          },
+        });
+        for (const item of rendered) {
+          if (item.error) {
+            log(`PDF.js could not render one PDF figure: ${item.error}`);
+          }
+          const rendererPayload = item.error
+            ? { requestId: item.requestId, error: item.error }
+            : {
+              requestId: item.requestId,
+              bytes: base64FromBytes(item.bytes),
+              mimeType: item.mimeType,
+              width: item.width,
+              height: item.height,
+            };
+          job = await playgroundPluginRequest(`/imports/${encodeURIComponent(job.jobId)}/rendered-media`, rendererPayload);
+          reportJob(job);
+        }
+        continue;
+      }
+      job = await advanceImportJob(job.jobId, reportJob);
+      reportJob(job);
+    }
+    if (job.status === 'failed' || !job.result) {
+      throw new Error(job.message || 'Conversion failed.');
+    }
+    const data = job.result;
 
     if (data.batch && Array.isArray(data.posts)) {
       log(`Created ${data.posts.length} page${data.posts.length === 1 ? '' : 's'} from ${selectedUpload.displayName}`);
@@ -161,17 +239,148 @@ async function convertSelectedFile() {
     const pagePath = playgroundPath(data.pageUrl);
     setProgressStatus('Opening converted page...');
     await playgroundClient.goTo(pagePath);
-    conversionActive = false;
     setPlaygroundState('ready');
     setStatus('ready', quality ? `Page created and opened. ${qualityMessageForStatus(String(quality.status || 'complete'))}` : 'Page created and opened in Playground.');
   } catch (error) {
-    conversionActive = false;
     setPlaygroundState(playgroundReady ? 'ready' : 'idle');
     setStatus('error', error instanceof Error ? error.message : String(error));
     log(error instanceof Error ? error.stack || error.message : String(error));
   } finally {
+    if (stagedUpload && playgroundClient) {
+      await cleanupStagedUpload(playgroundClient, stagedUpload.paths);
+    }
+    conversionActive = false;
+    stopProgressHeartbeat();
     setBusy(false);
   }
+}
+
+async function advanceImportJob(jobId, reportJob) {
+  let polling = false;
+  const encodedJobId = encodeURIComponent(jobId);
+  // The import worker persists each phase before starting the next one. A
+  // second, read-only request lets the UI surface that work while the advance
+  // request is still running, instead of leaving someone staring at one
+  // spinner for several minutes.
+  const poll = async () => {
+    if (polling || !conversionActive) {
+      return;
+    }
+    polling = true;
+    try {
+      reportJob(await playgroundPluginRequest(`/imports/${encodedJobId}`, undefined, 'GET'));
+    } catch {
+      // The advance request is authoritative. A transient status-poll failure
+      // should never make a document import fail.
+    } finally {
+      polling = false;
+    }
+  };
+  const timer = window.setInterval(() => {
+    void poll();
+  }, 1_250);
+  try {
+    await poll();
+    return await playgroundPluginRequest(`/imports/${encodedJobId}/advance`, {});
+  } finally {
+    window.clearInterval(timer);
+  }
+}
+
+async function playgroundPluginRequest(path, payload = undefined, method = 'POST') {
+  const request = {
+    method,
+    url: `/wp-json/port-libs/v1${path}`,
+    headers: { 'Content-Type': 'application/json' },
+  };
+  if (payload !== undefined) {
+    request.body = JSON.stringify(payload);
+  }
+  const response = await playgroundClient.request(request);
+  const text = typeof response.text === 'function' ? await response.text() : response.text;
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error('WordPress returned an invalid import-job response.');
+  }
+  if (!data.ok) {
+    throw new Error(data.message || 'Conversion failed.');
+  }
+
+  return data;
+}
+
+function pdfFilesForUpload(upload) {
+  const files = new Map();
+  for (const entry of upload?.entries || []) {
+    if (isLikelyPdfFile(entry.file)) {
+      files.set(entry.path, entry.file);
+    }
+  }
+  return files;
+}
+
+async function pdfFilesForImportJob(job, upload) {
+  const files = pdfFilesForUpload(upload);
+  const requests = Array.isArray(job?.renderRequests) ? job.renderRequests : [];
+  const localPdfEntries = (upload?.entries || []).filter((entry) => isLikelyPdfFile(entry?.file));
+  // A direct upload is sanitized before the job persists it. When the
+  // browser holds only one PDF, it remains safe to bind that selected source
+  // to the opaque paths in its own job even if the sanitized filename differs.
+  if (localPdfEntries.length === 1) {
+    for (const request of requests) {
+      const path = String(request?.path || '');
+      if (path) {
+        files.set(path, localPdfEntries[0].file);
+      }
+    }
+  }
+  for (const request of requests) {
+    const path = String(request?.path || '');
+    if (!path || files.has(path)) {
+      continue;
+    }
+    const source = await playgroundPdfRenderSource(job, request);
+    if (source) {
+      files.set(path, source);
+    }
+  }
+
+  return files;
+}
+
+async function playgroundPdfRenderSource(job, request) {
+  const jobId = String(job?.jobId || '');
+  const requestId = String(request?.id || '');
+  if (!jobId || !requestId) {
+    return null;
+  }
+  try {
+    const source = await playgroundPluginRequest(
+      `/imports/${encodeURIComponent(jobId)}/render-source/${encodeURIComponent(requestId)}`,
+      undefined,
+      'GET',
+    );
+    const encoded = String(source.bytes || '');
+    return encoded ? bytesFromBase64(encoded) : null;
+  } catch {
+    // A direct browser-held source is normally enough. If an older plugin
+    // cannot return an expanded ZIP member, PDF.js reports that one figure as
+    // unavailable and the text import still completes with a placeholder.
+    return null;
+  }
+}
+
+function playgroundPdfJsConfig() {
+  const base = new URL('vendor/pdfjs/', window.location.href).href;
+  return {
+    pdfjsModuleUrl: new URL('pdf.min.mjs', base).href,
+    pdfjsWorkerUrl: new URL('pdf.worker.min.mjs', base).href,
+    pdfjsWasmUrl: new URL('wasm/', base).href,
+    pdfjsCMapUrl: new URL('cmaps/', base).href,
+    pdfjsStandardFontDataUrl: new URL('standard_fonts/', base).href,
+  };
 }
 
 async function bootPlayground() {
@@ -297,7 +506,31 @@ function setPlaygroundState(state) {
 }
 
 function setProgressStatus(text) {
+  activeProgressLabel = text;
   conversionProgressText.textContent = text;
+}
+
+function startProgressHeartbeat() {
+  stopProgressHeartbeat();
+  progressHeartbeat = window.setInterval(() => {
+    if (!conversionActive || !activeProgressLabel) {
+      return;
+    }
+    const elapsed = Math.max(0, Math.floor((Date.now() - progressStartedAt) / 1000));
+    conversionProgressText.textContent = `${activeProgressLabel} Still working (${formatElapsedSeconds(elapsed)} elapsed).`;
+  }, 1_000);
+}
+
+function stopProgressHeartbeat() {
+  if (progressHeartbeat !== null) {
+    window.clearInterval(progressHeartbeat);
+    progressHeartbeat = null;
+  }
+  activeProgressLabel = '';
+}
+
+function formatElapsedSeconds(seconds) {
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
 function setPageDragActive(active) {
@@ -416,94 +649,170 @@ function readDirectoryEntries(reader) {
   });
 }
 
-async function payloadFromUpload(upload, reportProgress = () => {}) {
+/**
+ * Put each browser File into Playground's private filesystem before creating
+ * the import job. Sending source bytes as JSON/base64 used several document-
+ * sized browser allocations at once (and made a 90 MB file especially
+ * dangerous on mobile). The REST payload is now only a small, validated path
+ * manifest; PHP moves those files into persistent job storage.
+ */
+async function stageUploadInPlayground(client, upload, reportProgress = () => {}) {
+  const token = typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const root = `${playgroundUploadDirectory}/${token.replace(/[^A-Za-z0-9-]/g, '')}`;
+  const paths = [];
+  const stagedFiles = [];
+  const pdfRasterImages = {};
+  const pdfBrowserFacts = {};
   const imageMode = selectedImageMode();
-  if (upload.kind === 'single') {
-    const entry = upload.entries[0];
-    const prepared = await payloadFileEntry(entry, imageMode, reportProgress);
+
+  try {
+    await client.mkdirTree(root);
+    for (let index = 0; index < upload.entries.length; index += 1) {
+      const entry = upload.entries[index];
+      reportProgress(`Staging document ${index + 1} of ${upload.entries.length} in WordPress Playground...`);
+      let bytes = new Uint8Array(await entry.file.arrayBuffer());
+      const stagedPath = `${root}/source-${String(index).padStart(4, '0')}.upload`;
+      await client.writeFile(stagedPath, bytes);
+      paths.push(stagedPath);
+      stagedFiles.push({ path: entry.path, stagedPath });
+
+      if (isLikelyPdfFile(entry.file)) {
+        if (bytes.length > pdfRasterSourceByteLimit) {
+          reportProgress(`Skipping optional PDF.js facts and image decoding for ${entry.file.name}; it is over the 24 MiB browser safety limit. Native PHP extraction will continue.`);
+        } else {
+          try {
+            const facts = await collectPdfJsFacts({
+              source: bytes,
+              pdfjs: playgroundPdfJsConfig(),
+              onProgress({ label }) { reportProgress(label); },
+            });
+            if (facts.pages.length > 0) {
+              pdfBrowserFacts[entry.path] = facts;
+            }
+          } catch (error) {
+            reportProgress(`Optional PDF.js text and structure facts are unavailable for ${entry.file.name} (${errorMessage(error)}). Native PHP extraction will continue.`);
+          }
+          if (imageMode !== 'none') {
+            const rasters = await browserPdfRasterImages(bytes, imageMode, reportProgress);
+            if (rasters.length > 0) {
+              pdfRasterImages[entry.path] = rasters;
+            }
+          }
+        }
+      }
+      // Do not retain a whole source in the browser while the next file is
+      // staged. The File remains available for any later PDF.js Form crop.
+      bytes = new Uint8Array(0);
+    }
 
     return {
-      filename: entry.file.name,
-      title: upload.title,
-      imageMode,
-      pdfMode: selectedPdfMode(),
-      bytes: prepared.bytes,
-      ...(prepared.pdfRasterImages.length > 0 ? { pdfRasterImages: prepared.pdfRasterImages } : {}),
+      paths,
+      payload: {
+        filename: upload.displayName,
+        title: upload.title,
+        imageMode,
+        pdfMode: selectedPdfMode(),
+        stagedFiles,
+        ...(Object.keys(pdfBrowserFacts).length > 0 ? { pdfBrowserFacts } : {}),
+        ...(Object.keys(pdfRasterImages).length > 0 ? { pdfRasterImages } : {}),
+      },
     };
+  } catch (error) {
+    await cleanupStagedUpload(client, paths);
+    throw error;
   }
-
-  const files = [];
-  const pdfRasterImages = {};
-  for (let index = 0; index < upload.entries.length; index += 1) {
-    const entry = upload.entries[index];
-    reportProgress(`Preparing document ${index + 1} of ${upload.entries.length}...`);
-    const prepared = await payloadFileEntry(entry, imageMode, reportProgress);
-    files.push({
-      path: entry.path,
-      filename: entry.file.name,
-      bytes: prepared.bytes,
-    });
-    if (prepared.pdfRasterImages.length > 0) {
-      pdfRasterImages[entry.path] = prepared.pdfRasterImages;
-    }
-  }
-
-  return {
-    filename: upload.displayName,
-    title: upload.title,
-    imageMode,
-    pdfMode: selectedPdfMode(),
-    files,
-    ...(Object.keys(pdfRasterImages).length > 0 ? { pdfRasterImages } : {}),
-  };
 }
 
-async function payloadFileEntry(entry, imageMode, reportProgress) {
-  if (!isLikelyPdfFile(entry.file)) {
-    return { bytes: await readFileAsBase64(entry.file), pdfRasterImages: [] };
+async function cleanupStagedUpload(client, paths) {
+  for (const path of paths || []) {
+    try {
+      await client.unlink(path);
+    } catch {
+      // A successful job atomically moved its staging file into private job
+      // storage. A failed cleanup must not hide the original import error.
+    }
   }
-
-  const bytes = new Uint8Array(await entry.file.arrayBuffer());
-  const pdfRasterImages = imageMode === 'none'
-    ? []
-    : await browserPdfRasterImages(bytes, imageMode, reportProgress);
-
-  return {
-    bytes: base64FromBytes(bytes),
-    pdfRasterImages,
-  };
 }
 
 async function browserPdfRasterImages(bytes, imageMode, reportProgress) {
-  try {
-    if (!decodePdfJbig2Rasters) {
-      const moduleUrl = new URL('pdf-jbig2-rasterizer.mjs?v=jbig2-raster-20260709', window.location.href).href;
-      ({ decodePdfJbig2Rasters } = await import(moduleUrl));
-    }
-    const result = await decodePdfJbig2Rasters(bytes, {
-      imageMode,
-      onProgress({ completed, total }) {
-        reportProgress(total > 0
-          ? `Preparing PDF images (${completed} of ${total})...`
-          : 'Preparing PDF images...');
+  const decoderEntries = [
+    {
+      label: 'JBIG2',
+      load: async () => {
+        if (!decodePdfJbig2Rasters) {
+          const module = await import(new URL('pdf-jbig2-rasterizer.mjs?v=jbig2-raster-20260709', window.location.href).href);
+          decodePdfJbig2Rasters = module.decodePdfJbig2Rasters;
+        }
+        return decodePdfJbig2Rasters;
       },
-    });
-    if (result.rasters.length > 0) {
-      log(`Prepared ${result.rasters.length} browser-decoded PDF image${result.rasters.length === 1 ? '' : 's'}.`);
+    },
+    {
+      label: 'JPEG 2000',
+      load: async () => {
+        if (!decodePdfJpxRasters) {
+          const module = await import(new URL('pdf-jpx-rasterizer.mjs?v=jpx-raster-20260714', window.location.href).href);
+          decodePdfJpxRasters = module.decodePdfJpxRasters;
+        }
+        return decodePdfJpxRasters;
+      },
+    },
+  ];
+  const loaded = await Promise.allSettled(decoderEntries.map(async (entry) => ({
+    entry,
+    decode: await entry.load(),
+  })));
+  const rasters = [];
+  const objects = new Set();
+  let remainingBytes = pdfRasterPayloadByteLimit;
+  for (const [index, result] of loaded.entries()) {
+    if (result.status !== 'fulfilled') {
+      log(`Browser ${decoderEntries[index]?.label || 'PDF'} image preparation was unavailable: ${errorMessage(result.reason)}`);
+      continue;
     }
-
-    return result.rasters.map((raster) => ({
-      object: raster.object,
-      bytes: base64FromBytes(raster.bytes),
-      mimeType: raster.mimeType,
-      width: raster.width,
-      height: raster.height,
-    }));
-  } catch (error) {
-    log(`Browser PDF image preparation was unavailable: ${error instanceof Error ? error.message : String(error)}`);
-
-    return [];
+    const { entry, decode } = result.value;
+    if (typeof decode !== 'function' || remainingBytes <= 0) {
+      continue;
+    }
+    try {
+      const decoded = await decode(bytes, {
+        imageMode,
+        maxPngBytes: remainingBytes,
+        onProgress({ completed, total }) {
+          reportProgress(total > 0
+            ? `Preparing PDF images (${completed} of ${total})...`
+            : 'Preparing PDF images...');
+        },
+      });
+      for (const raster of decoded.rasters || []) {
+        const object = String(Number(raster.object));
+        if (objects.has(object) || !(raster.bytes instanceof Uint8Array) || raster.bytes.length > remainingBytes) {
+          continue;
+        }
+        objects.add(object);
+        rasters.push(raster);
+        remainingBytes -= raster.bytes.length;
+      }
+    } catch (error) {
+      log(`Browser ${entry.label} image preparation was unavailable: ${errorMessage(error)}`);
+    }
   }
+  if (rasters.length > 0) {
+    log(`Prepared ${rasters.length} browser-decoded PDF image${rasters.length === 1 ? '' : 's'}.`);
+  }
+
+  return rasters.map((raster) => ({
+    object: raster.object,
+    bytes: base64FromBytes(raster.bytes),
+    mimeType: raster.mimeType,
+    width: raster.width,
+    height: raster.height,
+  }));
+}
+
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function selectedImageMode() {
@@ -682,25 +991,6 @@ function updateRetryActions(status, flags) {
   }
 }
 
-function readFileAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener('error', () => {
-      reject(reader.error || new Error('The file could not be read.'));
-    });
-    reader.addEventListener('load', () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      const comma = result.indexOf(',');
-      if (comma === -1) {
-        reject(new Error('The file could not be encoded.'));
-        return;
-      }
-      resolve(result.slice(comma + 1));
-    });
-    reader.readAsDataURL(file);
-  });
-}
-
 function base64FromBytes(bytes) {
   let binary = '';
   const chunkSize = 0x8000;
@@ -709,6 +999,16 @@ function base64FromBytes(bytes) {
   }
 
   return btoa(binary);
+}
+
+function bytesFromBase64(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes;
 }
 
 function isLikelyIOS() {

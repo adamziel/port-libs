@@ -1,0 +1,3 @@
+id	payload	note
+1	"left \"quote\" right"	escaped quote
+2	"tab	inside"	quoted tab

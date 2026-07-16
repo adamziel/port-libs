@@ -1,0 +1,1068 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\MarkerPDF\PdfAttachmentExtractor;
+use PortLibs\MarkerPDF\PdfEmbeddedFileExtractor;
+use PortLibs\MarkerPDF\PdfMetadataExtractor;
+use PortLibs\MarkerPDF\PdfTextExtractor;
+
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+$xmpPacket = static function (string $title, string $description): string {
+    return '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+        . '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about=""'
+        . ' xmlns:dc="http://purl.org/dc/elements/1.1/"'
+        . ' xmlns:xmp="http://ns.adobe.com/xap/1.0/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">' . htmlspecialchars($title, ENT_XML1) . '</rdf:li></rdf:Alt></dc:title>'
+        . '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">' . htmlspecialchars($description, ENT_XML1) . '</rdf:li></rdf:Alt></dc:description>'
+        . '<xmp:CreateDate>2026-06-03T09:30:09Z</xmp:CreateDate>'
+        . '</rdf:Description>'
+        . '</rdf:RDF>'
+        . '</x:xmpmeta>'
+        . '<?xpacket end="w"?>';
+};
+
+$staleContent = 'BT /F1 12 Tf 72 720 Td (Stale Prev chain metadata page) Tj ET';
+$currentContent = 'BT /F1 12 Tf 72 720 Td (Current Prev chain metadata page) Tj T* (Incremental update current base) Tj ET';
+$staleXmp = gzcompress($xmpPacket('Stale Prev Chain XMP Title', 'Stale previous xref metadata must not win'));
+$currentXmp = gzcompress($xmpPacket('Current Prev Chain XMP Title', 'Current incremental xref metadata selected'));
+if (!is_string($staleXmp) || !is_string($currentXmp)) {
+    throw new RuntimeException('Unable to compress xref Prev chain metadata smoke fixture streams.');
+}
+
+$pdf = "%PDF-1.7\n";
+$offsets = [];
+$addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): int {
+    $offset = strlen($pdf);
+    $offsets[$objectNumber . ':' . $generation] = $offset;
+    $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+$xrefTableRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+$xrefStreamRow = static fn (int $type, int $fieldTwo, int $fieldThree): string => chr($type) . pack('N', $fieldTwo) . chr($fieldThree);
+$zeroWidthXrefStreamRow = static fn (int $type, int $generation): string => chr($type) . chr($generation);
+
+$addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Metadata 7 0 R >>');
+$addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$addObject(4, 0, "<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream");
+$addObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$addObject(6, 0, '<< /Title (Stale Prev Chain Info Title) /Author (Stale Prev Author) /Producer (Stale Prev Producer) >>');
+$addObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($staleXmp) . " >>\nstream\n{$staleXmp}\nendstream");
+
+$previousXrefOffset = strlen($pdf);
+$pdf .= "xref\n"
+    . "0 8\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($offsets['1:0'])
+    . $xrefTableRow($offsets['2:0'])
+    . $xrefTableRow($offsets['3:0'])
+    . $xrefTableRow($offsets['4:0'])
+    . $xrefTableRow($offsets['5:0'])
+    . $xrefTableRow($offsets['6:0'])
+    . $xrefTableRow($offsets['7:0'])
+    . "trailer\n<< /Size 8 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+$addObject(1, 1, '<< /Type /Catalog /Pages 2 1 R /Lang (en-US) /Metadata 7 1 R >>');
+$addObject(2, 1, '<< /Type /Pages /Kids [3 1 R] /Count 1 >>');
+$addObject(3, 1, '<< /Type /Page /Parent 2 1 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 1 R >>');
+$addObject(4, 1, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+$addObject(6, 1, '<< /Title (Current Prev Chain Info Title) /Author (Current Prev Author) /Producer (Current Prev Producer) >>');
+$addObject(7, 1, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($currentXmp) . " >>\nstream\n{$currentXmp}\nendstream");
+
+$currentRows = ''
+    . $xrefStreamRow(1, 0, 1)
+    . $xrefStreamRow(1, 0, 1)
+    . $xrefStreamRow(1, 0, 1)
+    . $xrefStreamRow(1, 0, 1)
+    . $xrefStreamRow(1, $offsets['5:0'], 0)
+    . $xrefStreamRow(1, 0, 1)
+    . $xrefStreamRow(1, 0, 1);
+$compressedCurrentRows = gzcompress($currentRows);
+if (!is_string($compressedCurrentRows)) {
+    throw new RuntimeException('Unable to compress current xref-stream Prev chain smoke fixture.');
+}
+
+$currentXrefOffset = strlen($pdf);
+$pdf .= "20 0 obj\n"
+    . '<< /Type /XRef /Size 21 /Root 1 1 R /Info 6 1 R /Prev ' . $previousXrefOffset . ' /Index [1 7] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedCurrentRows) . " >>\n"
+    . "stream\n{$compressedCurrentRows}\nendstream\nendobj\n"
+    . "startxref\n{$currentXrefOffset}\n%%EOF";
+
+$mismatchContent = 'BT /F1 12 Tf 72 720 Td (Current generation mismatch page) Tj T* (Metadata generation boundary) Tj ET';
+$mismatchXmp = gzcompress($xmpPacket('Wrong Generation XMP Title', 'This generation-one XMP stream is not referenced by the catalog'));
+if (!is_string($mismatchXmp)) {
+    throw new RuntimeException('Unable to compress xref Prev chain generation-mismatch smoke fixture stream.');
+}
+
+$mismatchPdf = "%PDF-1.7\n";
+$mismatchOffsets = [];
+$addMismatchObject = static function (int $objectNumber, int $generation, string $body) use (&$mismatchPdf, &$mismatchOffsets): int {
+    $offset = strlen($mismatchPdf);
+    $mismatchOffsets[$objectNumber . ':' . $generation] = $offset;
+    $mismatchPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$addMismatchObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Metadata 7 0 R /Lang (de-DE) >>');
+$addMismatchObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$addMismatchObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$addMismatchObject(4, 0, '<< /Length 0 >>');
+$addMismatchObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$addMismatchObject(6, 0, '<< /Title (Stale Generation Info Title) /Author (Stale Generation Author) >>');
+$addMismatchObject(7, 0, '<< /Type /Metadata /Subtype /XML /Length 0 >>');
+
+$mismatchPreviousXrefOffset = strlen($mismatchPdf);
+$mismatchPdf .= "xref\n"
+    . "0 8\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($mismatchOffsets['1:0'])
+    . $xrefTableRow($mismatchOffsets['2:0'])
+    . $xrefTableRow($mismatchOffsets['3:0'])
+    . $xrefTableRow($mismatchOffsets['4:0'])
+    . $xrefTableRow($mismatchOffsets['5:0'])
+    . $xrefTableRow($mismatchOffsets['6:0'])
+    . $xrefTableRow($mismatchOffsets['7:0'])
+    . "trailer\n<< /Size 8 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$mismatchPreviousXrefOffset}\n%%EOF\n";
+
+$addMismatchObject(1, 1, '<< /Type /Catalog /Pages 2 1 R /Metadata 7 0 R /Lang (en-US) >>');
+$addMismatchObject(2, 1, '<< /Type /Pages /Kids [3 1 R] /Count 1 >>');
+$addMismatchObject(3, 1, '<< /Type /Page /Parent 2 1 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 1 R >>');
+$addMismatchObject(4, 1, "<< /Length " . strlen($mismatchContent) . " >>\nstream\n{$mismatchContent}\nendstream");
+$addMismatchObject(6, 1, '<< /Title (Current Generation Info Title) /Author (Current Generation Author) /Producer (Current Generation Producer) >>');
+$addMismatchObject(7, 1, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($mismatchXmp) . " >>\nstream\n{$mismatchXmp}\nendstream");
+
+$mismatchRows = ''
+    . $xrefStreamRow(1, $mismatchOffsets['1:1'], 1)
+    . $xrefStreamRow(1, $mismatchOffsets['2:1'], 1)
+    . $xrefStreamRow(1, $mismatchOffsets['3:1'], 1)
+    . $xrefStreamRow(1, $mismatchOffsets['4:1'], 1)
+    . $xrefStreamRow(1, $mismatchOffsets['5:0'], 0)
+    . $xrefStreamRow(1, $mismatchOffsets['6:1'], 1)
+    . $xrefStreamRow(1, $mismatchOffsets['7:1'], 1);
+$compressedMismatchRows = gzcompress($mismatchRows);
+if (!is_string($compressedMismatchRows)) {
+    throw new RuntimeException('Unable to compress current generation-mismatch xref-stream smoke fixture.');
+}
+
+$mismatchCurrentXrefOffset = strlen($mismatchPdf);
+$mismatchPdf .= "20 0 obj\n"
+    . '<< /Type /XRef /Size 21 /Root 1 1 R /Info 6 1 R /Prev ' . $mismatchPreviousXrefOffset . ' /Index [1 7] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedMismatchRows) . " >>\n"
+    . "stream\n{$compressedMismatchRows}\nendstream\nendobj\n"
+    . "startxref\n{$mismatchCurrentXrefOffset}\n%%EOF";
+
+$stalePayload = '<wp-export><post id="stale-prev-attachment"/></wp-export>';
+$currentPayload = '<wp-export><post id="current-prev-attachment"/></wp-export>';
+$attachmentPdf = "%PDF-1.7\n";
+$attachmentOffsets = [];
+$addAttachmentObject = static function (int $objectNumber, int $generation, string $body) use (&$attachmentPdf, &$attachmentOffsets): int {
+    $offset = strlen($attachmentPdf);
+    $attachmentOffsets[$objectNumber . ':' . $generation] = $offset;
+    $attachmentPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$addAttachmentObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>');
+$addAttachmentObject(2, 0, '<< /Type /Pages /Kids [] /Count 0 >>');
+$addAttachmentObject(6, 0, '<< /Names [(stale-source.xml) 10 0 R] >>');
+$addAttachmentObject(10, 0, '<< /Type /Filespec /F (stale-source.xml) /Desc (Stale Prev chain attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addAttachmentObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($stalePayload) . " >>\nstream\n{$stalePayload}\nendstream");
+
+$attachmentPreviousXrefOffset = strlen($attachmentPdf);
+$attachmentPdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($attachmentOffsets['1:0'])
+    . $xrefTableRow($attachmentOffsets['2:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($attachmentOffsets['6:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($attachmentOffsets['10:0'])
+    . $xrefTableRow($attachmentOffsets['11:0'])
+    . "trailer\n<< /Size 12 /Root 1 0 R >>\n"
+    . "startxref\n{$attachmentPreviousXrefOffset}\n%%EOF\n";
+
+$addAttachmentObject(1, 1, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 1 R >> >>');
+$addAttachmentObject(6, 1, '<< /Names [(current-source.xml) 10 1 R] >>');
+$addAttachmentObject(10, 1, '<< /Type /Filespec /F (current-source.xml) /Desc (Current Prev chain attachment) /AFRelationship /Source /EF << /F 11 1 R >> >>');
+$addAttachmentObject(11, 1, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size +' . strlen($currentPayload) . ' >> /Length ' . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+$attachmentRows = ''
+    . $xrefStreamRow(1, 0, 1)
+    . $xrefStreamRow(1, 0, 1)
+    . $xrefStreamRow(1, 0, 1)
+    . $xrefStreamRow(1, 0, 1);
+$compressedAttachmentRows = gzcompress($attachmentRows);
+if (!is_string($compressedAttachmentRows)) {
+    throw new RuntimeException('Unable to compress xref Prev chain embedded-file smoke fixture.');
+}
+
+$attachmentCurrentXrefOffset = strlen($attachmentPdf);
+$attachmentPdf .= "20 0 obj\n"
+    . '<< /Type /XRef /Size 21 /Root 1 1 R /Prev +' . $attachmentPreviousXrefOffset . ' /Index [1 1 6 1 10 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedAttachmentRows) . " >>\n"
+    . "stream\n{$compressedAttachmentRows}\nendstream\nendobj\n"
+    . "startxref\n{$attachmentCurrentXrefOffset}\n%%EOF";
+
+$malformedIndexStaleText = 'BT /F1 12 Tf 72 720 Td (Stale malformed index smoke page) Tj ET';
+$malformedIndexCurrentText = 'BT /F1 12 Tf 72 720 Td (Current malformed index smoke page) Tj ET';
+$malformedIndexStalePayload = '<wp-export><post id="stale-malformed-index-smoke"/></wp-export>';
+$malformedIndexCurrentPayload = '<wp-export><post id="current-malformed-index-smoke"/></wp-export>';
+$malformedIndexPdf = "%PDF-1.7\n";
+$addMalformedIndexObject = static function (int $objectNumber, int $generation, string $body) use (&$malformedIndexPdf): int {
+    $offset = strlen($malformedIndexPdf);
+    $malformedIndexPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$malformedIndexStaleCatalogOffset = $addMalformedIndexObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Names << /EmbeddedFiles 8 0 R >> >>');
+$malformedIndexStalePagesOffset = $addMalformedIndexObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$malformedIndexStalePageOffset = $addMalformedIndexObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$malformedIndexStaleContentOffset = $addMalformedIndexObject(4, 0, "<< /Length " . strlen($malformedIndexStaleText) . " >>\nstream\n{$malformedIndexStaleText}\nendstream");
+$malformedIndexFontOffset = $addMalformedIndexObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$malformedIndexStaleInfoOffset = $addMalformedIndexObject(6, 0, '<< /Title (Stale Malformed Index Smoke Title) /Author (Stale Malformed Smoke Author) >>');
+$malformedIndexStaleNameTreeOffset = $addMalformedIndexObject(8, 0, '<< /Names [(stale-malformed-index-smoke.xml) 10 0 R] >>');
+$malformedIndexStaleFileSpecOffset = $addMalformedIndexObject(10, 0, '<< /Type /Filespec /F (stale-malformed-index-smoke.xml) /Desc (Stale malformed index smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$malformedIndexStaleEmbeddedOffset = $addMalformedIndexObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($malformedIndexStalePayload) . " >>\nstream\n{$malformedIndexStalePayload}\nendstream");
+
+$malformedIndexPreviousXrefOffset = strlen($malformedIndexPdf);
+$malformedIndexPdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($malformedIndexStaleCatalogOffset)
+    . $xrefTableRow($malformedIndexStalePagesOffset)
+    . $xrefTableRow($malformedIndexStalePageOffset)
+    . $xrefTableRow($malformedIndexStaleContentOffset)
+    . $xrefTableRow($malformedIndexFontOffset)
+    . $xrefTableRow($malformedIndexStaleInfoOffset)
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($malformedIndexStaleNameTreeOffset)
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($malformedIndexStaleFileSpecOffset)
+    . $xrefTableRow($malformedIndexStaleEmbeddedOffset)
+    . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$malformedIndexPreviousXrefOffset}\n%%EOF\n";
+
+$malformedIndexCurrentCatalogOffset = $addMalformedIndexObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Names << /EmbeddedFiles 8 0 R >> >>');
+$malformedIndexCurrentPagesOffset = $addMalformedIndexObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$malformedIndexCurrentPageOffset = $addMalformedIndexObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$malformedIndexCurrentContentOffset = $addMalformedIndexObject(4, 0, "<< /Length " . strlen($malformedIndexCurrentText) . " >>\nstream\n{$malformedIndexCurrentText}\nendstream");
+$malformedIndexCurrentInfoOffset = $addMalformedIndexObject(6, 0, '<< /Title (Current Malformed Index Smoke Title) /Author (Current Malformed Smoke Author) /Producer (Current Malformed Smoke Producer) >>');
+$malformedIndexCurrentNameTreeOffset = $addMalformedIndexObject(8, 0, '<< /Names [(current-malformed-index-smoke.xml) 10 0 R] >>');
+$malformedIndexCurrentFileSpecOffset = $addMalformedIndexObject(10, 0, '<< /Type /Filespec /F (current-malformed-index-smoke.xml) /Desc (Current malformed index smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$malformedIndexCurrentEmbeddedOffset = $addMalformedIndexObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($malformedIndexCurrentPayload) . " >>\nstream\n{$malformedIndexCurrentPayload}\nendstream");
+
+$malformedIndexRows = ''
+    . $xrefStreamRow(1, $malformedIndexCurrentCatalogOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexCurrentPagesOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexCurrentPageOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexCurrentContentOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexFontOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexCurrentInfoOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexCurrentNameTreeOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexCurrentFileSpecOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexCurrentEmbeddedOffset, 0);
+$compressedMalformedIndexRows = gzcompress($malformedIndexRows);
+if (!is_string($compressedMalformedIndexRows)) {
+    throw new RuntimeException('Unable to compress malformed-index current xref-stream smoke fixture.');
+}
+
+$malformedIndexCurrentXrefOffset = strlen($malformedIndexPdf);
+$malformedIndexPdf .= "20 0 obj\n"
+    . '<< /Type /XRef /Size 40 /Root 1 0 R /Info 6 0 R /Prev ' . $malformedIndexPreviousXrefOffset . ' /Index [30 9] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedMalformedIndexRows) . " >>\n"
+    . "stream\n{$compressedMalformedIndexRows}\nendstream\nendobj\n"
+    . "startxref\n{$malformedIndexCurrentXrefOffset}\n%%EOF";
+
+$staleOffsetStaleText = 'BT /F1 12 Tf 72 720 Td (Stale valid-offset smoke page) Tj ET';
+$staleOffsetCurrentText = 'BT /F1 12 Tf 72 720 Td (Current valid-offset smoke page) Tj ET';
+$staleOffsetStalePayload = '<wp-export><post id="stale-valid-offset-smoke"/></wp-export>';
+$staleOffsetCurrentPayload = '<wp-export><post id="current-valid-offset-smoke"/></wp-export>';
+$staleOffsetPdf = "%PDF-1.7\n";
+$addStaleOffsetObject = static function (int $objectNumber, int $generation, string $body) use (&$staleOffsetPdf): int {
+    $offset = strlen($staleOffsetPdf);
+    $staleOffsetPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$staleOffsetStaleCatalogOffset = $addStaleOffsetObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Names << /EmbeddedFiles 8 0 R >> >>');
+$staleOffsetStalePagesOffset = $addStaleOffsetObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$staleOffsetStalePageOffset = $addStaleOffsetObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$staleOffsetStaleContentOffset = $addStaleOffsetObject(4, 0, "<< /Length " . strlen($staleOffsetStaleText) . " >>\nstream\n{$staleOffsetStaleText}\nendstream");
+$staleOffsetFontOffset = $addStaleOffsetObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$staleOffsetStaleInfoOffset = $addStaleOffsetObject(6, 0, '<< /Title (Stale Valid Offset Smoke Info) /Author (Stale Valid Offset Smoke Author) >>');
+$staleOffsetStaleNameTreeOffset = $addStaleOffsetObject(8, 0, '<< /Names [(stale-valid-offset-smoke.xml) 10 0 R] >>');
+$staleOffsetStaleFileSpecOffset = $addStaleOffsetObject(10, 0, '<< /Type /Filespec /F (stale-valid-offset-smoke.xml) /Desc (Stale valid-offset smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$staleOffsetStaleEmbeddedOffset = $addStaleOffsetObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($staleOffsetStalePayload) . " >>\nstream\n{$staleOffsetStalePayload}\nendstream");
+
+$staleOffsetPreviousXrefOffset = strlen($staleOffsetPdf);
+$staleOffsetPdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($staleOffsetStaleCatalogOffset)
+    . $xrefTableRow($staleOffsetStalePagesOffset)
+    . $xrefTableRow($staleOffsetStalePageOffset)
+    . $xrefTableRow($staleOffsetStaleContentOffset)
+    . $xrefTableRow($staleOffsetFontOffset)
+    . $xrefTableRow($staleOffsetStaleInfoOffset)
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($staleOffsetStaleNameTreeOffset)
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($staleOffsetStaleFileSpecOffset)
+    . $xrefTableRow($staleOffsetStaleEmbeddedOffset)
+    . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$staleOffsetPreviousXrefOffset}\n%%EOF\n";
+
+$addStaleOffsetObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Names << /EmbeddedFiles 8 0 R >> >>');
+$addStaleOffsetObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$addStaleOffsetObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$addStaleOffsetObject(4, 0, "<< /Length " . strlen($staleOffsetCurrentText) . " >>\nstream\n{$staleOffsetCurrentText}\nendstream");
+$addStaleOffsetObject(6, 0, '<< /Title (Current Valid Offset Smoke Info) /Author (Current Valid Offset Smoke Author) /Producer (Current Valid Offset Smoke Producer) >>');
+$addStaleOffsetObject(8, 0, '<< /Names [(current-valid-offset-smoke.xml) 10 0 R] >>');
+$addStaleOffsetObject(10, 0, '<< /Type /Filespec /F (current-valid-offset-smoke.xml) /Desc (Current valid-offset smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addStaleOffsetObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($staleOffsetCurrentPayload) . " >>\nstream\n{$staleOffsetCurrentPayload}\nendstream");
+
+$staleOffsetRows = ''
+    . $xrefStreamRow(1, $staleOffsetStaleCatalogOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetStalePagesOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetStalePageOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetStaleContentOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetFontOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetStaleInfoOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetStaleNameTreeOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetStaleFileSpecOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetStaleEmbeddedOffset, 0);
+$compressedStaleOffsetRows = gzcompress($staleOffsetRows);
+if (!is_string($compressedStaleOffsetRows)) {
+    throw new RuntimeException('Unable to compress stale-offset current xref-stream smoke fixture.');
+}
+
+$staleOffsetCurrentXrefOffset = strlen($staleOffsetPdf);
+$staleOffsetPdf .= "20 0 obj\n"
+    . '<< /Type /XRef /Size 40 /Root 1 0 R /Info 6 0 R /Prev ' . $staleOffsetPreviousXrefOffset . ' /Index [1 6 8 1 10 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedStaleOffsetRows) . " >>\n"
+    . "stream\n{$compressedStaleOffsetRows}\nendstream\nendobj\n"
+    . "startxref\n{$staleOffsetCurrentXrefOffset}\n%%EOF";
+
+$wrongCurrentOffsetStaleText = 'BT /F1 12 Tf 72 720 Td (Stale wrong-current-offset smoke page) Tj ET';
+$wrongCurrentOffsetCurrentText = 'BT /F1 12 Tf 72 720 Td (Current wrong-current-offset smoke page) Tj ET';
+$wrongCurrentOffsetStalePayload = '<wp-export><post id="stale-wrong-current-offset-smoke"/></wp-export>';
+$wrongCurrentOffsetCurrentPayload = '<wp-export><post id="current-wrong-current-offset-smoke"/></wp-export>';
+$wrongCurrentOffsetPdf = "%PDF-1.7\n";
+$addWrongCurrentOffsetObject = static function (int $objectNumber, int $generation, string $body) use (&$wrongCurrentOffsetPdf): int {
+    $offset = strlen($wrongCurrentOffsetPdf);
+    $wrongCurrentOffsetPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$wrongCurrentOffsetStaleCatalogOffset = $addWrongCurrentOffsetObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Names << /EmbeddedFiles 8 0 R >> >>');
+$wrongCurrentOffsetStalePagesOffset = $addWrongCurrentOffsetObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$wrongCurrentOffsetStalePageOffset = $addWrongCurrentOffsetObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$wrongCurrentOffsetStaleContentOffset = $addWrongCurrentOffsetObject(4, 0, "<< /Length " . strlen($wrongCurrentOffsetStaleText) . " >>\nstream\n{$wrongCurrentOffsetStaleText}\nendstream");
+$wrongCurrentOffsetFontOffset = $addWrongCurrentOffsetObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$wrongCurrentOffsetStaleInfoOffset = $addWrongCurrentOffsetObject(6, 0, '<< /Title (Stale Wrong Current Offset Smoke Info) /Author (Stale Wrong Current Smoke Author) >>');
+$wrongCurrentOffsetStaleNameTreeOffset = $addWrongCurrentOffsetObject(8, 0, '<< /Names [(stale-wrong-current-offset-smoke.xml) 10 0 R] >>');
+$wrongCurrentOffsetStaleFileSpecOffset = $addWrongCurrentOffsetObject(10, 0, '<< /Type /Filespec /F (stale-wrong-current-offset-smoke.xml) /Desc (Stale wrong-current-offset smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$wrongCurrentOffsetStaleEmbeddedOffset = $addWrongCurrentOffsetObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($wrongCurrentOffsetStalePayload) . " >>\nstream\n{$wrongCurrentOffsetStalePayload}\nendstream");
+
+$wrongCurrentOffsetPreviousXrefOffset = strlen($wrongCurrentOffsetPdf);
+$wrongCurrentOffsetPdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($wrongCurrentOffsetStaleCatalogOffset)
+    . $xrefTableRow($wrongCurrentOffsetStalePagesOffset)
+    . $xrefTableRow($wrongCurrentOffsetStalePageOffset)
+    . $xrefTableRow($wrongCurrentOffsetStaleContentOffset)
+    . $xrefTableRow($wrongCurrentOffsetFontOffset)
+    . $xrefTableRow($wrongCurrentOffsetStaleInfoOffset)
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($wrongCurrentOffsetStaleNameTreeOffset)
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($wrongCurrentOffsetStaleFileSpecOffset)
+    . $xrefTableRow($wrongCurrentOffsetStaleEmbeddedOffset)
+    . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$wrongCurrentOffsetPreviousXrefOffset}\n%%EOF\n";
+
+$addWrongCurrentOffsetObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Names << /EmbeddedFiles 8 0 R >> >>');
+$wrongCurrentOffsetCurrentPagesOffset = $addWrongCurrentOffsetObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$wrongCurrentOffsetCurrentPageOffset = $addWrongCurrentOffsetObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$wrongCurrentOffsetCurrentContentOffset = $addWrongCurrentOffsetObject(4, 0, "<< /Length " . strlen($wrongCurrentOffsetCurrentText) . " >>\nstream\n{$wrongCurrentOffsetCurrentText}\nendstream");
+$wrongCurrentOffsetCurrentInfoOffset = $addWrongCurrentOffsetObject(6, 0, '<< /Title (Current Wrong Current Offset Smoke Info) /Author (Current Wrong Current Smoke Author) /Producer (Current Wrong Current Smoke Producer) >>');
+$wrongCurrentOffsetCurrentNameTreeOffset = $addWrongCurrentOffsetObject(8, 0, '<< /Names [(current-wrong-current-offset-smoke.xml) 10 0 R] >>');
+$wrongCurrentOffsetCurrentFileSpecOffset = $addWrongCurrentOffsetObject(10, 0, '<< /Type /Filespec /F (current-wrong-current-offset-smoke.xml) /Desc (Current wrong-current-offset smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$wrongCurrentOffsetCurrentEmbeddedOffset = $addWrongCurrentOffsetObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($wrongCurrentOffsetCurrentPayload) . " >>\nstream\n{$wrongCurrentOffsetCurrentPayload}\nendstream");
+
+$wrongCurrentOffsetRows = ''
+    . $xrefStreamRow(1, $wrongCurrentOffsetCurrentPagesOffset, 0)
+    . $xrefStreamRow(1, $wrongCurrentOffsetCurrentPagesOffset, 0)
+    . $xrefStreamRow(1, $wrongCurrentOffsetCurrentPageOffset, 0)
+    . $xrefStreamRow(1, $wrongCurrentOffsetCurrentContentOffset, 0)
+    . $xrefStreamRow(1, $wrongCurrentOffsetFontOffset, 0)
+    . $xrefStreamRow(1, $wrongCurrentOffsetCurrentInfoOffset, 0)
+    . $xrefStreamRow(1, $wrongCurrentOffsetCurrentNameTreeOffset, 0)
+    . $xrefStreamRow(1, $wrongCurrentOffsetCurrentFileSpecOffset, 0)
+    . $xrefStreamRow(1, $wrongCurrentOffsetCurrentEmbeddedOffset, 0);
+$compressedWrongCurrentOffsetRows = gzcompress($wrongCurrentOffsetRows);
+if (!is_string($compressedWrongCurrentOffsetRows)) {
+    throw new RuntimeException('Unable to compress wrong-current-offset smoke xref stream.');
+}
+
+$wrongCurrentOffsetCurrentXrefOffset = strlen($wrongCurrentOffsetPdf);
+$wrongCurrentOffsetPdf .= "20 0 obj\n"
+    . '<< /Type /XRef /Size 40 /Root 1 0 R /Info 6 0 R /Prev ' . $wrongCurrentOffsetPreviousXrefOffset . ' /Index [1 6 8 1 10 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedWrongCurrentOffsetRows) . " >>\n"
+    . "stream\n{$compressedWrongCurrentOffsetRows}\nendstream\nendobj\n"
+    . "startxref\n{$wrongCurrentOffsetCurrentXrefOffset}\n%%EOF";
+
+$classicTableStaleText = 'BT /F1 12 Tf 72 720 Td (Stale classic Prev table smoke page) Tj ET';
+$classicTableCurrentText = 'BT /F1 12 Tf 72 720 Td (Current classic Prev table smoke page) Tj ET';
+$classicTableStalePayload = '<wp-export><post id="stale-classic-prev-smoke"/></wp-export>';
+$classicTableCurrentPayload = '<wp-export><post id="current-classic-prev-smoke"/></wp-export>';
+$classicTableStaleXmp = gzcompress($xmpPacket('Stale Classic Table Smoke Title', 'Stale classic table smoke metadata'));
+$classicTableCurrentXmp = gzcompress($xmpPacket('Current Classic Table Smoke Title', 'Current classic table smoke metadata'));
+if (!is_string($classicTableStaleXmp) || !is_string($classicTableCurrentXmp)) {
+    throw new RuntimeException('Unable to compress classic-table xref Prev chain smoke fixture streams.');
+}
+
+$classicTablePdf = "%PDF-1.7\n";
+$addClassicTableObject = static function (int $objectNumber, int $generation, string $body) use (&$classicTablePdf): int {
+    $offset = strlen($classicTablePdf);
+    $classicTablePdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$classicTableStaleCatalogOffset = $addClassicTableObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$classicTableStalePagesOffset = $addClassicTableObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$classicTableStalePageOffset = $addClassicTableObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$classicTableStaleContentOffset = $addClassicTableObject(4, 0, "<< /Length " . strlen($classicTableStaleText) . " >>\nstream\n{$classicTableStaleText}\nendstream");
+$classicTableFontOffset = $addClassicTableObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$classicTableStaleInfoOffset = $addClassicTableObject(6, 0, '<< /Title (Stale Classic Table Smoke Info) /Author (Stale Classic Smoke Author) >>');
+$classicTableStaleMetadataOffset = $addClassicTableObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($classicTableStaleXmp) . " >>\nstream\n{$classicTableStaleXmp}\nendstream");
+$classicTableStaleNameTreeOffset = $addClassicTableObject(8, 0, '<< /Names [(stale-classic-prev-smoke.xml) 10 0 R] >>');
+$classicTableStaleFileSpecOffset = $addClassicTableObject(10, 0, '<< /Type /Filespec /F (stale-classic-prev-smoke.xml) /Desc (Stale classic table smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$classicTableStaleEmbeddedOffset = $addClassicTableObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($classicTableStalePayload) . " >>\nstream\n{$classicTableStalePayload}\nendstream");
+
+$classicTablePreviousXrefOffset = strlen($classicTablePdf);
+$classicTablePdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($classicTableStaleCatalogOffset)
+    . $xrefTableRow($classicTableStalePagesOffset)
+    . $xrefTableRow($classicTableStalePageOffset)
+    . $xrefTableRow($classicTableStaleContentOffset)
+    . $xrefTableRow($classicTableFontOffset)
+    . $xrefTableRow($classicTableStaleInfoOffset)
+    . $xrefTableRow($classicTableStaleMetadataOffset)
+    . $xrefTableRow($classicTableStaleNameTreeOffset)
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($classicTableStaleFileSpecOffset)
+    . $xrefTableRow($classicTableStaleEmbeddedOffset)
+    . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$classicTablePreviousXrefOffset}\n%%EOF\n";
+
+$addClassicTableObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$addClassicTableObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$addClassicTableObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$addClassicTableObject(4, 0, "<< /Length " . strlen($classicTableCurrentText) . " >>\nstream\n{$classicTableCurrentText}\nendstream");
+$addClassicTableObject(6, 0, '<< /Title (Current Classic Table Smoke Info) /Author (Current Classic Smoke Author) /Producer (Current Classic Smoke Producer) >>');
+$addClassicTableObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($classicTableCurrentXmp) . " >>\nstream\n{$classicTableCurrentXmp}\nendstream");
+$addClassicTableObject(8, 0, '<< /Names [(current-classic-prev-smoke.xml) 10 0 R] >>');
+$addClassicTableObject(10, 0, '<< /Type /Filespec /F (current-classic-prev-smoke.xml) /Desc (Current classic table smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addClassicTableObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($classicTableCurrentPayload) . " >>\nstream\n{$classicTableCurrentPayload}\nendstream");
+
+$classicTableCurrentXrefOffset = strlen($classicTablePdf);
+$classicTablePdf .= "xref\n"
+    . "1 4\n"
+    . $xrefTableRow(0)
+    . $xrefTableRow(0)
+    . $xrefTableRow(0)
+    . $xrefTableRow(0)
+    . "6 3\n"
+    . $xrefTableRow(0)
+    . $xrefTableRow(0)
+    . $xrefTableRow(0)
+    . "10 2\n"
+    . $xrefTableRow(0)
+    . $xrefTableRow(0)
+    . "trailer\n<< /Size 21 /Root 1 0 R /Info 6 0 R /Prev {$classicTablePreviousXrefOffset} >>\n"
+    . "startxref\n{$classicTableCurrentXrefOffset}\n%%EOF";
+
+$damagedPrevClassicTableStaleText = 'BT /F1 12 Tf 72 720 Td (Stale damaged Prev classic table smoke page) Tj ET';
+$damagedPrevClassicTableCurrentText = 'BT /F1 12 Tf 72 720 Td (Current damaged Prev classic table smoke page) Tj T* (Damaged Prev classic rows repaired) Tj ET';
+$damagedPrevClassicTableStalePayload = '<wp-export><post id="stale-damaged-prev-classic-smoke"/></wp-export>';
+$damagedPrevClassicTableCurrentPayload = '<wp-export><post id="current-damaged-prev-classic-smoke"/></wp-export>';
+$damagedPrevClassicTableStaleXmp = $xmpPacket('Stale Damaged Prev Classic Smoke Title', 'Stale damaged Prev classic metadata');
+$damagedPrevClassicTableCurrentXmp = $xmpPacket('Current Damaged Prev Classic Smoke Title', 'Current damaged Prev classic metadata');
+$damagedPrevClassicTablePdf = "%PDF-1.7\n";
+$addDamagedPrevClassicTableObject = static function (int $objectNumber, int $generation, string $body) use (&$damagedPrevClassicTablePdf): int {
+    $offset = strlen($damagedPrevClassicTablePdf);
+    $damagedPrevClassicTablePdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$damagedPrevClassicTableStaleCatalogOffset = $addDamagedPrevClassicTableObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$damagedPrevClassicTableStalePagesOffset = $addDamagedPrevClassicTableObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$damagedPrevClassicTableStalePageOffset = $addDamagedPrevClassicTableObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$damagedPrevClassicTableStaleContentOffset = $addDamagedPrevClassicTableObject(4, 0, "<< /Length " . strlen($damagedPrevClassicTableStaleText) . " >>\nstream\n{$damagedPrevClassicTableStaleText}\nendstream");
+$damagedPrevClassicTableFontOffset = $addDamagedPrevClassicTableObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$damagedPrevClassicTableStaleInfoOffset = $addDamagedPrevClassicTableObject(6, 0, '<< /Title (Stale Damaged Prev Classic Smoke Info) /Author (Stale Damaged Prev Classic Author) >>');
+$damagedPrevClassicTableStaleMetadataOffset = $addDamagedPrevClassicTableObject(7, 0, '<< /Type /Metadata /Subtype /XML /Length ' . strlen($damagedPrevClassicTableStaleXmp) . " >>\nstream\n{$damagedPrevClassicTableStaleXmp}\nendstream");
+$damagedPrevClassicTableStaleNameTreeOffset = $addDamagedPrevClassicTableObject(8, 0, '<< /Names [(stale-damaged-prev-classic-smoke.xml) 10 0 R] >>');
+$damagedPrevClassicTableStaleFileSpecOffset = $addDamagedPrevClassicTableObject(10, 0, '<< /Type /Filespec /F (stale-damaged-prev-classic-smoke.xml) /Desc (Stale damaged Prev classic attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$damagedPrevClassicTableStaleEmbeddedOffset = $addDamagedPrevClassicTableObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($damagedPrevClassicTableStalePayload) . " >>\nstream\n{$damagedPrevClassicTableStalePayload}\nendstream");
+
+$damagedPrevClassicTablePreviousXrefOffset = strlen($damagedPrevClassicTablePdf);
+$damagedPrevClassicTablePdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($damagedPrevClassicTableStaleCatalogOffset)
+    . $xrefTableRow($damagedPrevClassicTableStalePagesOffset)
+    . $xrefTableRow($damagedPrevClassicTableStalePageOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleContentOffset)
+    . $xrefTableRow($damagedPrevClassicTableFontOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleInfoOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleMetadataOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleNameTreeOffset)
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($damagedPrevClassicTableStaleFileSpecOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleEmbeddedOffset)
+    . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$damagedPrevClassicTablePreviousXrefOffset}\n%%EOF\n";
+
+$addDamagedPrevClassicTableObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$addDamagedPrevClassicTableObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$addDamagedPrevClassicTableObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$addDamagedPrevClassicTableObject(4, 0, "<< /Length " . strlen($damagedPrevClassicTableCurrentText) . " >>\nstream\n{$damagedPrevClassicTableCurrentText}\nendstream");
+$addDamagedPrevClassicTableObject(6, 0, '<< /Title (Current Damaged Prev Classic Smoke Info) /Author (Current Damaged Prev Classic Author) /Producer (Current Damaged Prev Classic Producer) >>');
+$addDamagedPrevClassicTableObject(7, 0, '<< /Type /Metadata /Subtype /XML /Length ' . strlen($damagedPrevClassicTableCurrentXmp) . " >>\nstream\n{$damagedPrevClassicTableCurrentXmp}\nendstream");
+$addDamagedPrevClassicTableObject(8, 0, '<< /Names [(current-damaged-prev-classic-smoke.xml) 10 0 R] >>');
+$addDamagedPrevClassicTableObject(10, 0, '<< /Type /Filespec /F (current-damaged-prev-classic-smoke.xml) /Desc (Current damaged Prev classic attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$damagedPrevClassicTableCurrentEmbeddedOffset = $addDamagedPrevClassicTableObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($damagedPrevClassicTableCurrentPayload) . " >>\nstream\n{$damagedPrevClassicTableCurrentPayload}\nendstream");
+
+$damagedPrevClassicTableCurrentXrefOffset = strlen($damagedPrevClassicTablePdf);
+$damagedPrevClassicTableBrokenPrevOffset = $damagedPrevClassicTableCurrentEmbeddedOffset + 5;
+$damagedPrevClassicTablePdf .= "xref\n"
+    . "1 4\n"
+    . $xrefTableRow($damagedPrevClassicTableStaleCatalogOffset)
+    . $xrefTableRow($damagedPrevClassicTableStalePagesOffset)
+    . $xrefTableRow($damagedPrevClassicTableStalePageOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleContentOffset)
+    . "6 3\n"
+    . $xrefTableRow($damagedPrevClassicTableStaleInfoOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleMetadataOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleNameTreeOffset)
+    . "10 2\n"
+    . $xrefTableRow($damagedPrevClassicTableStaleFileSpecOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleEmbeddedOffset)
+    . "trailer\n<< /Size 21 /Root 1 0 R /Info 6 0 R /Prev {$damagedPrevClassicTableBrokenPrevOffset} >>\n"
+    . "startxref\n{$damagedPrevClassicTableCurrentXrefOffset}\n%%EOF";
+
+$sparseInfoStaleText = 'BT /F1 12 Tf 72 720 Td (Stale sparse latest smoke page) Tj ET';
+$sparseInfoCurrentText = 'BT /F1 12 Tf 72 720 Td (Current sparse latest Info smoke page) Tj T* (Latest xref stream omits Info) Tj ET';
+$sparseInfoStalePayload = '<wp-export><post id="stale-sparse-latest-info-smoke"/></wp-export>';
+$sparseInfoCurrentPayload = '<wp-export><post id="current-sparse-latest-info-smoke"/></wp-export>';
+$sparseInfoPdf = "%PDF-1.7\n";
+$sparseInfoOffsets = [];
+$addSparseInfoObject = static function (int $objectNumber, int $generation, string $body) use (&$sparseInfoPdf, &$sparseInfoOffsets): int {
+    $offset = strlen($sparseInfoPdf);
+    $sparseInfoOffsets[$objectNumber . ':' . $generation] = $offset;
+    $sparseInfoPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$addSparseInfoObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Names << /EmbeddedFiles 8 0 R >> >>');
+$addSparseInfoObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$addSparseInfoObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$addSparseInfoObject(4, 0, "<< /Length " . strlen($sparseInfoStaleText) . " >>\nstream\n{$sparseInfoStaleText}\nendstream");
+$addSparseInfoObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$addSparseInfoObject(6, 0, '<< /Title (Stale Sparse Latest Smoke Info) /Author (Stale Sparse Smoke Author) >>');
+$addSparseInfoObject(8, 0, '<< /Names [(stale-sparse-latest-info-smoke.xml) 10 0 R] >>');
+$addSparseInfoObject(10, 0, '<< /Type /Filespec /F (stale-sparse-latest-info-smoke.xml) /Desc (Stale sparse latest Info smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addSparseInfoObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($sparseInfoStalePayload) . " >>\nstream\n{$sparseInfoStalePayload}\nendstream");
+
+$sparseInfoBaseXrefOffset = strlen($sparseInfoPdf);
+$sparseInfoPdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($sparseInfoOffsets['1:0'])
+    . $xrefTableRow($sparseInfoOffsets['2:0'])
+    . $xrefTableRow($sparseInfoOffsets['3:0'])
+    . $xrefTableRow($sparseInfoOffsets['4:0'])
+    . $xrefTableRow($sparseInfoOffsets['5:0'])
+    . $xrefTableRow($sparseInfoOffsets['6:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($sparseInfoOffsets['8:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($sparseInfoOffsets['10:0'])
+    . $xrefTableRow($sparseInfoOffsets['11:0'])
+    . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$sparseInfoBaseXrefOffset}\n%%EOF\n";
+
+$addSparseInfoObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Names << /EmbeddedFiles 8 0 R >> >>');
+$addSparseInfoObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$addSparseInfoObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$addSparseInfoObject(4, 0, "<< /Length " . strlen($sparseInfoCurrentText) . " >>\nstream\n{$sparseInfoCurrentText}\nendstream");
+$addSparseInfoObject(6, 0, '<< /Title (Current Sparse Latest Smoke Info) /Author (Current Sparse Smoke Author) /Producer (Current Sparse Smoke Producer) >>');
+$addSparseInfoObject(8, 0, '<< /Names [(current-sparse-latest-info-smoke.xml) 10 0 R] >>');
+$addSparseInfoObject(10, 0, '<< /Type /Filespec /F (current-sparse-latest-info-smoke.xml) /Desc (Current sparse latest Info smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addSparseInfoObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($sparseInfoCurrentPayload) . " >>\nstream\n{$sparseInfoCurrentPayload}\nendstream");
+
+$sparseInfoRows = ''
+    . $xrefStreamRow(1, $sparseInfoOffsets['1:0'], 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['2:0'], 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['3:0'], 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['4:0'], 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['5:0'], 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['6:0'], 0)
+    . $xrefStreamRow(0, 0, 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['8:0'], 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['10:0'], 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['11:0'], 0);
+$sparseInfoCompressedRows = gzcompress($sparseInfoRows);
+if (!is_string($sparseInfoCompressedRows)) {
+    throw new RuntimeException('Unable to compress sparse latest Info smoke xref rows.');
+}
+
+$sparseInfoMiddleXrefOffset = strlen($sparseInfoPdf);
+$sparseInfoPdf .= "20 0 obj\n"
+    . '<< /Type /XRef /Size 21 /Root 1 0 R /Info 6 0 R /Prev ' . $sparseInfoBaseXrefOffset . ' /Index [1 8 10 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($sparseInfoCompressedRows) . " >>\n"
+    . "stream\n{$sparseInfoCompressedRows}\nendstream\nendobj\n"
+    . "startxref\n{$sparseInfoMiddleXrefOffset}\n%%EOF\n";
+
+$sparseInfoLatestXrefOffset = strlen($sparseInfoPdf);
+$sparseInfoLatestRows = $xrefStreamRow(1, $sparseInfoLatestXrefOffset, 0);
+$sparseInfoCompressedLatestRows = gzcompress($sparseInfoLatestRows);
+if (!is_string($sparseInfoCompressedLatestRows)) {
+    throw new RuntimeException('Unable to compress sparse latest Info smoke trailing xref rows.');
+}
+
+$sparseInfoPdf .= "30 0 obj\n"
+    . '<< /Type /XRef /Size 31 /Prev ' . $sparseInfoMiddleXrefOffset . ' /Index [30 1] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($sparseInfoCompressedLatestRows) . " >>\n"
+    . "stream\n{$sparseInfoCompressedLatestRows}\nendstream\nendobj\n"
+    . "startxref\n{$sparseInfoLatestXrefOffset}\n%%EOF";
+
+$infoNullStaleText = 'BT /F1 12 Tf 72 720 Td (Stale Info null smoke page) Tj ET';
+$infoNullCurrentText = 'BT /F1 12 Tf 72 720 Td (Current Info null smoke page) Tj ET';
+$infoNullPdf = "%PDF-1.7\n";
+$infoNullOffsets = [];
+$addInfoNullObject = static function (int $objectNumber, int $generation, string $body) use (&$infoNullPdf, &$infoNullOffsets): int {
+    $offset = strlen($infoNullPdf);
+    $infoNullOffsets[$objectNumber . ':' . $generation . ':' . count($infoNullOffsets)] = $offset;
+    $infoNullPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$infoNullStaleCatalogOffset = $addInfoNullObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) >>');
+$infoNullStalePagesOffset = $addInfoNullObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$infoNullStalePageOffset = $addInfoNullObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$infoNullStaleContentOffset = $addInfoNullObject(4, 0, "<< /Length " . strlen($infoNullStaleText) . " >>\nstream\n{$infoNullStaleText}\nendstream");
+$infoNullFontOffset = $addInfoNullObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$infoNullStaleInfoOffset = $addInfoNullObject(6, 0, '<< /Title (Stale Info Null Smoke Title) /Author (Stale Info Null Smoke Author) /Producer (Stale Info Null Smoke Producer) >>');
+
+$infoNullPreviousXrefOffset = strlen($infoNullPdf);
+$infoNullPdf .= "xref\n"
+    . "0 7\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($infoNullStaleCatalogOffset)
+    . $xrefTableRow($infoNullStalePagesOffset)
+    . $xrefTableRow($infoNullStalePageOffset)
+    . $xrefTableRow($infoNullStaleContentOffset)
+    . $xrefTableRow($infoNullFontOffset)
+    . $xrefTableRow($infoNullStaleInfoOffset)
+    . "trailer\n<< /Size 7 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$infoNullPreviousXrefOffset}\n%%EOF\n";
+
+$infoNullCurrentCatalogOffset = $addInfoNullObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /ViewerPreferences << /DisplayDocTitle true >> >>');
+$infoNullCurrentPagesOffset = $addInfoNullObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$infoNullCurrentPageOffset = $addInfoNullObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$infoNullCurrentContentOffset = $addInfoNullObject(4, 0, "<< /Length " . strlen($infoNullCurrentText) . " >>\nstream\n{$infoNullCurrentText}\nendstream");
+
+$infoNullRows = ''
+    . $xrefStreamRow(1, $infoNullCurrentCatalogOffset, 0)
+    . $xrefStreamRow(1, $infoNullCurrentPagesOffset, 0)
+    . $xrefStreamRow(1, $infoNullCurrentPageOffset, 0)
+    . $xrefStreamRow(1, $infoNullCurrentContentOffset, 0)
+    . $xrefStreamRow(1, $infoNullFontOffset, 0);
+$infoNullCompressedRows = gzcompress($infoNullRows);
+if (!is_string($infoNullCompressedRows)) {
+    throw new RuntimeException('Unable to compress Info-null smoke xref rows.');
+}
+
+$infoNullCurrentXrefOffset = strlen($infoNullPdf);
+$infoNullPdf .= "20 0 obj\n"
+    . '<< /Type /XRef /Size 21 /Root 1 0 R /Info null /Prev ' . $infoNullPreviousXrefOffset . ' /Index [1 5] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($infoNullCompressedRows) . " >>\n"
+    . "stream\n{$infoNullCompressedRows}\nendstream\nendobj\n"
+    . "startxref\n{$infoNullCurrentXrefOffset}\n%%EOF";
+
+$compressedPrevAttachmentPayload = '<wp-export><post id="current-compressed-prev-smoke"/></wp-export>';
+$compressedPrevAttachmentPdf = "%PDF-1.7\n";
+$compressedPrevAttachmentOffsets = [];
+$addCompressedPrevAttachmentObject = static function (
+    int $objectNumber,
+    int $generation,
+    string $body
+) use (&$compressedPrevAttachmentPdf, &$compressedPrevAttachmentOffsets): int {
+    $offset = strlen($compressedPrevAttachmentPdf);
+    $compressedPrevAttachmentOffsets[$objectNumber . ':' . $generation] = $offset;
+    $compressedPrevAttachmentPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+$compressedPrevObjectStream = static function (array $members): array {
+    $headerPairs = [];
+    $memberIndexes = [];
+    $objectData = '';
+    foreach ($members as $objectNumber => $body) {
+        $headerPairs[] = $objectNumber . ' ' . strlen($objectData);
+        $memberIndexes[$objectNumber] = count($memberIndexes);
+        $objectData .= $body . "\n";
+    }
+
+    $header = implode(' ', $headerPairs);
+    $plain = $header . "\n" . $objectData;
+    $compressed = gzcompress($plain);
+    if (!is_string($compressed)) {
+        throw new RuntimeException('Unable to compress compressed-Prev attachment helper object stream.');
+    }
+
+    return [
+        'first' => strlen($header) + 1,
+        'indexes' => $memberIndexes,
+        'content' => $compressed,
+        'count' => count($members),
+    ];
+};
+
+$addCompressedPrevAttachmentObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$addCompressedPrevAttachmentObject(2, 0, '<< /Type /Pages /Kids [] /Count 0 >>');
+$addCompressedPrevAttachmentObject(8, 0, '<< /Names [(previous-compressed-prev-smoke.xml) 10 0 R] >>');
+$addCompressedPrevAttachmentObject(10, 0, '<< /Type /Filespec /F (previous-compressed-prev-smoke.xml) /Desc (Previous compressed Prev smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addCompressedPrevAttachmentObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length 0 >>' . "\nstream\n\nendstream");
+
+$compressedPrevAttachmentPreviousXrefOffset = strlen($compressedPrevAttachmentPdf);
+$compressedPrevAttachmentPdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($compressedPrevAttachmentOffsets['1:0'])
+    . $xrefTableRow($compressedPrevAttachmentOffsets['2:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($compressedPrevAttachmentOffsets['8:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($compressedPrevAttachmentOffsets['10:0'])
+    . $xrefTableRow($compressedPrevAttachmentOffsets['11:0'])
+    . "trailer\n<< /Size 12 /Root 1 0 R >>\n"
+    . "startxref\n{$compressedPrevAttachmentPreviousXrefOffset}\n%%EOF\n";
+
+$addCompressedPrevAttachmentObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$addCompressedPrevAttachmentObject(8, 0, '<< /Names [(current-compressed-prev-smoke.xml) 10 0 R] >>');
+$addCompressedPrevAttachmentObject(10, 0, '<< /Type /Filespec /F (current-compressed-prev-smoke.xml) /Desc (Current compressed Prev smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addCompressedPrevAttachmentObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($compressedPrevAttachmentPayload) . " >>\nstream\n{$compressedPrevAttachmentPayload}\nendstream");
+
+$compressedPrevHelperStream = $compressedPrevObjectStream([30 => (string) $compressedPrevAttachmentPreviousXrefOffset]);
+$compressedPrevHelperCarrierOffset = $addCompressedPrevAttachmentObject(
+    90,
+    0,
+    '<< /Type /ObjStm /N ' . $compressedPrevHelperStream['count']
+        . ' /First ' . $compressedPrevHelperStream['first']
+        . ' /Filter /FlateDecode /Length ' . strlen($compressedPrevHelperStream['content']) . " >>\n"
+        . "stream\n{$compressedPrevHelperStream['content']}\nendstream"
+);
+
+$compressedPrevAttachmentRows = ''
+    . $xrefStreamRow(1, 0, 0)
+    . $xrefStreamRow(1, 0, 0)
+    . $xrefStreamRow(1, 0, 0)
+    . $xrefStreamRow(1, 0, 0)
+    . $xrefStreamRow(2, 90, $compressedPrevHelperStream['indexes'][30])
+    . $xrefStreamRow(1, $compressedPrevHelperCarrierOffset, 0);
+$compressedPrevAttachmentRowsCompressed = gzcompress($compressedPrevAttachmentRows);
+if (!is_string($compressedPrevAttachmentRowsCompressed)) {
+    throw new RuntimeException('Unable to compress compressed-Prev attachment smoke xref rows.');
+}
+
+$compressedPrevAttachmentCurrentXrefOffset = strlen($compressedPrevAttachmentPdf);
+$compressedPrevAttachmentPdf .= "40 0 obj\n"
+    . '<< /Type /XRef /Size 91 /Root 1 0 R /Prev 30 0 R /Index [1 1 8 1 10 2 30 1 90 1] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedPrevAttachmentRowsCompressed) . " >>\n"
+    . "stream\n{$compressedPrevAttachmentRowsCompressed}\nendstream\nendobj\n"
+    . "startxref\n{$compressedPrevAttachmentCurrentXrefOffset}\n%%EOF";
+
+$zeroWidthOffsetStalePayload = '<wp-export><post id="stale-zero-width-offset-smoke"/></wp-export>';
+$zeroWidthOffsetCurrentPayload = '<wp-export><post id="current-zero-width-offset-smoke"/></wp-export>';
+$zeroWidthOffsetPdf = "%PDF-1.7\n";
+$zeroWidthOffsetOffsets = [];
+$addZeroWidthOffsetObject = static function (int $objectNumber, int $generation, string $body) use (&$zeroWidthOffsetPdf, &$zeroWidthOffsetOffsets): int {
+    $offset = strlen($zeroWidthOffsetPdf);
+    $zeroWidthOffsetOffsets[$objectNumber . ':' . $generation] = $offset;
+    $zeroWidthOffsetPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$addZeroWidthOffsetObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$addZeroWidthOffsetObject(2, 0, '<< /Type /Pages /Kids [] /Count 0 >>');
+$addZeroWidthOffsetObject(8, 0, '<< /Names [(stale-zero-width-offset-smoke.xml) 10 0 R] >>');
+$addZeroWidthOffsetObject(10, 0, '<< /Type /Filespec /F (stale-zero-width-offset-smoke.xml) /Desc (Stale zero-width offset smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addZeroWidthOffsetObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($zeroWidthOffsetStalePayload) . " >>\nstream\n{$zeroWidthOffsetStalePayload}\nendstream");
+
+$zeroWidthOffsetPreviousXrefOffset = strlen($zeroWidthOffsetPdf);
+$zeroWidthOffsetPdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($zeroWidthOffsetOffsets['1:0'])
+    . $xrefTableRow($zeroWidthOffsetOffsets['2:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($zeroWidthOffsetOffsets['8:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($zeroWidthOffsetOffsets['10:0'])
+    . $xrefTableRow($zeroWidthOffsetOffsets['11:0'])
+    . "trailer\n<< /Size 12 /Root 1 0 R >>\n"
+    . "startxref\n{$zeroWidthOffsetPreviousXrefOffset}\n%%EOF\n";
+
+$addZeroWidthOffsetObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$addZeroWidthOffsetObject(8, 0, '<< /Names [(current-zero-width-offset-smoke.xml) 10 0 R] >>');
+$addZeroWidthOffsetObject(10, 0, '<< /Type /Filespec /F (current-zero-width-offset-smoke.xml) /Desc (Current zero-width offset smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addZeroWidthOffsetObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($zeroWidthOffsetCurrentPayload) . " >>\nstream\n{$zeroWidthOffsetCurrentPayload}\nendstream");
+
+$zeroWidthOffsetRows = ''
+    . $zeroWidthXrefStreamRow(1, 0)
+    . $zeroWidthXrefStreamRow(1, 0)
+    . $zeroWidthXrefStreamRow(1, 0)
+    . $zeroWidthXrefStreamRow(1, 0);
+$zeroWidthOffsetRowsCompressed = gzcompress($zeroWidthOffsetRows);
+if (!is_string($zeroWidthOffsetRowsCompressed)) {
+    throw new RuntimeException('Unable to compress zero-width xref-stream offset smoke rows.');
+}
+
+$zeroWidthOffsetCurrentXrefOffset = strlen($zeroWidthOffsetPdf);
+$zeroWidthOffsetPdf .= "40 0 obj\n"
+    . '<< /Type /XRef /Size 41 /Root 1 0 R /Prev ' . $zeroWidthOffsetPreviousXrefOffset . ' /Index [1 1 8 1 10 2] /W [1 0 1] /Filter /FlateDecode /Length ' . strlen($zeroWidthOffsetRowsCompressed) . " >>\n"
+    . "stream\n{$zeroWidthOffsetRowsCompressed}\nendstream\nendobj\n"
+    . "startxref\n{$zeroWidthOffsetCurrentXrefOffset}\n%%EOF";
+
+$metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+$extractor = new PdfTextExtractor();
+$plainText = $extractor->extractPlainText($pdf);
+$encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+$lines = $extractor->extractTextLines($pdf);
+$mismatchMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($mismatchPdf);
+$mismatchEncodedMetadata = json_encode($mismatchMetadata, JSON_UNESCAPED_SLASHES);
+$mismatchPlainText = $extractor->extractPlainText($mismatchPdf);
+$attachmentFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($attachmentPdf);
+$attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($attachmentPdf);
+$attachmentEncoded = json_encode($attachmentFiles, JSON_UNESCAPED_SLASHES);
+$attachmentSummaryEncoded = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES);
+$malformedIndexMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($malformedIndexPdf);
+$malformedIndexPlainText = $extractor->extractPlainText($malformedIndexPdf);
+$malformedIndexFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($malformedIndexPdf);
+$malformedIndexEncoded = json_encode([
+    'metadata' => $malformedIndexMetadata,
+    'text' => $malformedIndexPlainText,
+    'files' => $malformedIndexFiles,
+], JSON_UNESCAPED_SLASHES);
+$staleOffsetMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($staleOffsetPdf);
+$staleOffsetPlainText = $extractor->extractPlainText($staleOffsetPdf);
+$staleOffsetFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($staleOffsetPdf);
+$staleOffsetEncoded = json_encode([
+    'metadata' => $staleOffsetMetadata,
+    'text' => $staleOffsetPlainText,
+    'files' => $staleOffsetFiles,
+], JSON_UNESCAPED_SLASHES);
+$wrongCurrentOffsetMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($wrongCurrentOffsetPdf);
+$wrongCurrentOffsetPlainText = $extractor->extractPlainText($wrongCurrentOffsetPdf);
+$wrongCurrentOffsetFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($wrongCurrentOffsetPdf);
+$wrongCurrentOffsetEncoded = json_encode([
+    'metadata' => $wrongCurrentOffsetMetadata,
+    'text' => $wrongCurrentOffsetPlainText,
+    'files' => $wrongCurrentOffsetFiles,
+], JSON_UNESCAPED_SLASHES);
+$classicTableMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($classicTablePdf);
+$classicTablePlainText = $extractor->extractPlainText($classicTablePdf);
+$classicTableFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($classicTablePdf);
+$classicTableAttachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($classicTablePdf);
+$classicTableEncoded = json_encode([
+    'metadata' => $classicTableMetadata,
+    'text' => $classicTablePlainText,
+    'files' => $classicTableFiles,
+    'attachment_summary' => $classicTableAttachmentSummary,
+], JSON_UNESCAPED_SLASHES);
+$damagedPrevClassicTableMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($damagedPrevClassicTablePdf);
+$damagedPrevClassicTablePlainText = $extractor->extractPlainText($damagedPrevClassicTablePdf);
+$damagedPrevClassicTableFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($damagedPrevClassicTablePdf);
+$damagedPrevClassicTableAttachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($damagedPrevClassicTablePdf);
+$damagedPrevClassicTableEncoded = json_encode([
+    'metadata' => $damagedPrevClassicTableMetadata,
+    'text' => $damagedPrevClassicTablePlainText,
+    'files' => $damagedPrevClassicTableFiles,
+    'attachment_summary' => $damagedPrevClassicTableAttachmentSummary,
+], JSON_UNESCAPED_SLASHES);
+$sparseInfoMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($sparseInfoPdf);
+$sparseInfoPlainText = $extractor->extractPlainText($sparseInfoPdf);
+$sparseInfoFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($sparseInfoPdf);
+$sparseInfoEncoded = json_encode([
+    'metadata' => $sparseInfoMetadata,
+    'text' => $sparseInfoPlainText,
+    'files' => $sparseInfoFiles,
+], JSON_UNESCAPED_SLASHES);
+$infoNullMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($infoNullPdf);
+$infoNullPlainText = $extractor->extractPlainText($infoNullPdf);
+$infoNullOutline = $extractor->extractOutlineMetadata($infoNullPdf);
+$infoNullEncoded = json_encode([
+    'metadata' => $infoNullMetadata,
+    'text' => $infoNullPlainText,
+    'outline' => $infoNullOutline,
+], JSON_UNESCAPED_SLASHES);
+$compressedPrevAttachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($compressedPrevAttachmentPdf);
+$compressedPrevAttachmentSummaryEncoded = json_encode($compressedPrevAttachmentSummary, JSON_UNESCAPED_SLASHES);
+$zeroWidthOffsetFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($zeroWidthOffsetPdf);
+$zeroWidthOffsetAttachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($zeroWidthOffsetPdf);
+$zeroWidthOffsetEncoded = json_encode([
+    'files' => $zeroWidthOffsetFiles,
+    'attachment_summary' => $zeroWidthOffsetAttachmentSummary,
+], JSON_UNESCAPED_SLASHES);
+
+echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialchars(json_encode([
+    'native_boundary' => 'PDF xref /Prev chain current trailer generations repair damaged current in-use offsets before metadata import',
+    'current_xmp_title_selected' => ($metadata['title'] ?? null) === 'Current Prev Chain XMP Title',
+    'current_info_title_selected' => ($metadata['info']['Title'] ?? null) === 'Current Prev Chain Info Title',
+    'current_catalog_language_selected' => ($metadata['language'] ?? null) === 'en-US',
+    'current_page_text_selected' => str_contains($plainText, 'Current Prev chain metadata page'),
+    'stale_prev_metadata_excluded' => is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Prev Chain'),
+    'stale_prev_text_excluded' => !str_contains($plainText, 'Stale Prev chain metadata page'),
+    'generation_mismatch_xmp_excluded' => is_string($mismatchEncodedMetadata)
+        && !str_contains($mismatchEncodedMetadata, 'Wrong Generation XMP Title'),
+    'generation_mismatch_info_fallback_selected' => ($mismatchMetadata['title'] ?? null) === 'Current Generation Info Title',
+    'generation_mismatch_text_selected' => str_contains($mismatchPlainText, 'Metadata generation boundary'),
+    'embedded_file_current_attachment_selected' => ($attachmentFiles[0]['filename'] ?? null) === 'current-source.xml',
+    'embedded_file_current_payload_selected' => ($attachmentFiles[0]['content'] ?? null) === $currentPayload,
+    'embedded_file_plus_signed_declared_size_selected' => ($attachmentFiles[0]['declared_size'] ?? null) === strlen($currentPayload),
+    'attachment_preflight_current_summary_selected' => ($attachmentSummary['filenames'] ?? []) === ['current-source.xml'],
+    'attachment_preflight_current_bytes_selected' => ($attachmentSummary['total_bytes'] ?? null) === strlen($currentPayload),
+    'attachment_preflight_plus_signed_declared_size_selected' => ($attachmentSummary['attachments'][0]['declared_size'] ?? null) === strlen($currentPayload)
+        && ($attachmentSummary['attachments'][0]['declared_size_matches'] ?? null) === true,
+    'plus_signed_xref_prev_operand_used_for_attachment_import' => str_contains($attachmentPdf, '/Prev +'),
+    'attachment_preflight_no_runtime_execution' => ($attachmentSummary['executes_python_or_models'] ?? null) === false
+        && ($attachmentSummary['executes_external_pdf_tools'] ?? null) === false,
+    'embedded_file_stale_prev_attachment_excluded' => is_string($attachmentEncoded)
+        && !str_contains($attachmentEncoded, 'stale-prev-attachment')
+        && !str_contains($attachmentEncoded, 'stale-source.xml'),
+    'attachment_preflight_stale_prev_attachment_excluded' => is_string($attachmentSummaryEncoded)
+        && !str_contains($attachmentSummaryEncoded, 'stale-prev-attachment')
+        && !str_contains($attachmentSummaryEncoded, 'stale-source.xml'),
+    'malformed_index_same_generation_current_info_selected' => ($malformedIndexMetadata['title'] ?? null) === 'Current Malformed Index Smoke Title',
+    'malformed_index_same_generation_current_language_selected' => ($malformedIndexMetadata['language'] ?? null) === 'en-US',
+    'malformed_index_same_generation_current_text_selected' => str_contains($malformedIndexPlainText, 'Current malformed index smoke page'),
+    'malformed_index_same_generation_current_attachment_selected' => ($malformedIndexFiles[0]['filename'] ?? null) === 'current-malformed-index-smoke.xml',
+    'malformed_index_same_generation_stale_prev_excluded' => is_string($malformedIndexEncoded)
+        && !str_contains($malformedIndexEncoded, 'Stale Malformed')
+        && !str_contains($malformedIndexEncoded, 'stale-malformed-index-smoke'),
+    'stale_explicit_offset_current_info_selected' => ($staleOffsetMetadata['title'] ?? null) === 'Current Valid Offset Smoke Info',
+    'stale_explicit_offset_current_language_selected' => ($staleOffsetMetadata['language'] ?? null) === 'en-US',
+    'stale_explicit_offset_current_text_selected' => str_contains($staleOffsetPlainText, 'Current valid-offset smoke page'),
+    'stale_explicit_offset_current_attachment_selected' => ($staleOffsetFiles[0]['filename'] ?? null) === 'current-valid-offset-smoke.xml',
+    'stale_explicit_offset_previous_storage_excluded' => is_string($staleOffsetEncoded)
+        && !str_contains($staleOffsetEncoded, 'Stale Valid Offset')
+        && !str_contains($staleOffsetEncoded, 'stale-valid-offset-smoke'),
+    'wrong_current_offset_row_object_current_info_selected' => ($wrongCurrentOffsetMetadata['title'] ?? null) === 'Current Wrong Current Offset Smoke Info',
+    'wrong_current_offset_row_object_current_language_selected' => ($wrongCurrentOffsetMetadata['language'] ?? null) === 'en-US',
+    'wrong_current_offset_row_object_current_text_selected' => str_contains($wrongCurrentOffsetPlainText, 'Current wrong-current-offset smoke page'),
+    'wrong_current_offset_row_object_current_attachment_selected' => ($wrongCurrentOffsetFiles[0]['filename'] ?? null) === 'current-wrong-current-offset-smoke.xml',
+    'wrong_current_offset_stale_prev_excluded' => is_string($wrongCurrentOffsetEncoded)
+        && !str_contains($wrongCurrentOffsetEncoded, 'Stale Wrong Current Offset')
+        && !str_contains($wrongCurrentOffsetEncoded, 'stale-wrong-current-offset-smoke'),
+    'classic_table_same_generation_current_xmp_selected' => ($classicTableMetadata['title'] ?? null) === 'Current Classic Table Smoke Title',
+    'classic_table_same_generation_current_info_selected' => ($classicTableMetadata['info']['Title'] ?? null) === 'Current Classic Table Smoke Info',
+    'classic_table_same_generation_current_text_selected' => str_contains($classicTablePlainText, 'Current classic Prev table smoke page'),
+    'classic_table_same_generation_current_attachment_selected' => ($classicTableFiles[0]['filename'] ?? null) === 'current-classic-prev-smoke.xml',
+    'classic_table_same_generation_attachment_preflight_selected' => ($classicTableAttachmentSummary['filenames'] ?? []) === ['current-classic-prev-smoke.xml']
+        && ($classicTableAttachmentSummary['total_bytes'] ?? null) === strlen($classicTableCurrentPayload),
+    'classic_table_same_generation_attachment_preflight_no_runtime_execution' => ($classicTableAttachmentSummary['executes_python_or_models'] ?? null) === false
+        && ($classicTableAttachmentSummary['executes_external_pdf_tools'] ?? null) === false,
+    'classic_table_same_generation_stale_prev_excluded' => is_string($classicTableEncoded)
+        && !str_contains($classicTableEncoded, 'Stale Classic')
+        && !str_contains($classicTableEncoded, 'stale-classic-prev-smoke'),
+    'classic_table_damaged_prev_current_xmp_selected' => ($damagedPrevClassicTableMetadata['title'] ?? null) === 'Current Damaged Prev Classic Smoke Title',
+    'classic_table_damaged_prev_current_info_selected' => ($damagedPrevClassicTableMetadata['info']['Title'] ?? null) === 'Current Damaged Prev Classic Smoke Info',
+    'classic_table_damaged_prev_current_language_selected' => ($damagedPrevClassicTableMetadata['language'] ?? null) === 'en-US',
+    'classic_table_damaged_prev_current_text_selected' => str_contains($damagedPrevClassicTablePlainText, 'Damaged Prev classic rows repaired'),
+    'classic_table_damaged_prev_current_attachment_selected' => ($damagedPrevClassicTableFiles[0]['filename'] ?? null) === 'current-damaged-prev-classic-smoke.xml',
+    'classic_table_damaged_prev_attachment_preflight_selected' => ($damagedPrevClassicTableAttachmentSummary['filenames'] ?? []) === ['current-damaged-prev-classic-smoke.xml']
+        && ($damagedPrevClassicTableAttachmentSummary['total_bytes'] ?? null) === strlen($damagedPrevClassicTableCurrentPayload),
+    'classic_table_damaged_prev_attachment_preflight_no_runtime_execution' => ($damagedPrevClassicTableAttachmentSummary['executes_python_or_models'] ?? null) === false
+        && ($damagedPrevClassicTableAttachmentSummary['executes_external_pdf_tools'] ?? null) === false,
+    'classic_table_damaged_prev_stale_prev_excluded' => is_string($damagedPrevClassicTableEncoded)
+        && !str_contains($damagedPrevClassicTableEncoded, 'Stale Damaged Prev Classic')
+        && !str_contains($damagedPrevClassicTableEncoded, 'stale-damaged-prev-classic-smoke'),
+    'sparse_latest_xref_stream_prev_info_selected' => ($sparseInfoMetadata['info']['Title'] ?? null) === 'Current Sparse Latest Smoke Info',
+    'sparse_latest_xref_stream_prev_language_selected' => ($sparseInfoMetadata['language'] ?? null) === 'en-US',
+    'sparse_latest_xref_stream_current_text_selected' => str_contains($sparseInfoPlainText, 'Current sparse latest Info smoke page'),
+    'sparse_latest_xref_stream_current_attachment_selected' => ($sparseInfoFiles[0]['filename'] ?? null) === 'current-sparse-latest-info-smoke.xml',
+    'sparse_latest_xref_stream_stale_prev_excluded' => is_string($sparseInfoEncoded)
+        && !str_contains($sparseInfoEncoded, 'Stale Sparse')
+        && !str_contains($sparseInfoEncoded, 'stale-sparse-latest-info-smoke'),
+    'info_null_latest_xref_stream_stops_prev_info' => ($infoNullMetadata['source'] ?? null) === ['catalog']
+        && ($infoNullMetadata['info'] ?? null) === [],
+    'info_null_latest_xref_stream_current_catalog_selected' => ($infoNullMetadata['language'] ?? null) === 'en-US'
+        && (($infoNullMetadata['viewer_preferences']['display_doc_title'] ?? null) === true),
+    'info_null_latest_xref_stream_current_text_selected' => str_contains($infoNullPlainText, 'Current Info null smoke page'),
+    'info_null_outline_metadata_stops_prev_info' => ($infoNullOutline['document_info'] ?? null) === []
+        && ($infoNullOutline['pages'] ?? null) === 1,
+    'info_null_latest_xref_stream_stale_prev_excluded' => is_string($infoNullEncoded)
+        && !str_contains($infoNullEncoded, 'Stale Info Null')
+        && !str_contains($infoNullEncoded, 'Stale Info null smoke page'),
+    'compressed_object_stream_prev_attachment_summary_selected' => ($compressedPrevAttachmentSummary['filenames'] ?? []) === ['current-compressed-prev-smoke.xml']
+        && ($compressedPrevAttachmentSummary['total_bytes'] ?? null) === strlen($compressedPrevAttachmentPayload),
+    'compressed_object_stream_prev_attachment_description_selected' => ($compressedPrevAttachmentSummary['attachments'][0]['description'] ?? null) === 'Current compressed Prev smoke attachment',
+    'compressed_object_stream_prev_helper_used' => str_contains($compressedPrevAttachmentPdf, '/Prev 30 0 R')
+        && str_contains($compressedPrevAttachmentPdf, '/Type /ObjStm'),
+    'compressed_object_stream_prev_attachment_no_runtime_execution' => ($compressedPrevAttachmentSummary['executes_python_or_models'] ?? null) === false
+        && ($compressedPrevAttachmentSummary['executes_external_pdf_tools'] ?? null) === false,
+    'compressed_object_stream_prev_stale_attachment_excluded' => is_string($compressedPrevAttachmentSummaryEncoded)
+        && !str_contains($compressedPrevAttachmentSummaryEncoded, 'previous-compressed-prev-smoke')
+        && !str_contains($compressedPrevAttachmentSummaryEncoded, 'Previous compressed Prev smoke'),
+    'zero_width_xref_stream_offset_current_attachment_selected' => ($zeroWidthOffsetFiles[0]['filename'] ?? null) === 'current-zero-width-offset-smoke.xml'
+        && ($zeroWidthOffsetFiles[0]['content'] ?? null) === $zeroWidthOffsetCurrentPayload,
+    'zero_width_xref_stream_offset_attachment_preflight_selected' => ($zeroWidthOffsetAttachmentSummary['filenames'] ?? []) === ['current-zero-width-offset-smoke.xml']
+        && ($zeroWidthOffsetAttachmentSummary['total_bytes'] ?? null) === strlen($zeroWidthOffsetCurrentPayload),
+    'zero_width_xref_stream_offset_attachment_description_selected' => ($zeroWidthOffsetAttachmentSummary['attachments'][0]['description'] ?? null) === 'Current zero-width offset smoke attachment',
+    'zero_width_xref_stream_offset_field_omitted' => str_contains($zeroWidthOffsetPdf, '/W [1 0 1]'),
+    'zero_width_xref_stream_offset_stale_prev_excluded' => is_string($zeroWidthOffsetEncoded)
+        && !str_contains($zeroWidthOffsetEncoded, 'stale-zero-width-offset-smoke')
+        && !str_contains($zeroWidthOffsetEncoded, 'Stale zero-width offset smoke'),
+    'zero_width_xref_stream_offset_no_runtime_execution' => ($zeroWidthOffsetAttachmentSummary['executes_python_or_models'] ?? null) === false
+        && ($zeroWidthOffsetAttachmentSummary['executes_external_pdf_tools'] ?? null) === false,
+    'executes_python_or_models' => false,
+    'executes_external_pdf_tools' => false,
+], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
+
+echo "<!-- wp:heading -->\n";
+echo '<h2>' . htmlspecialchars((string) ($metadata['title'] ?? 'PDF metadata review'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</h2>\n";
+echo "<!-- /wp:heading -->\n\n";
+
+foreach ($lines as $line) {
+    echo "<!-- wp:paragraph -->\n";
+    echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
+    echo "<!-- /wp:paragraph -->\n\n";
+}

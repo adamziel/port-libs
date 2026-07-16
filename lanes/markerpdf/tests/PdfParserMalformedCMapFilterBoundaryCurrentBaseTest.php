@@ -1,0 +1,3470 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\MarkerPDF\PdfTextExtractor;
+
+$parserMalformedCMapFilterBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /MalformedFilterBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<00> <FF>\n"
+        . "endcodespacerange\n"
+        . "2 beginbfchar\n"
+        . "<01> <" . $utf16beHex('Decoded CMap Leak') . ">\n"
+        . "<02> <" . $utf16beHex('Dictionary Filter Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused malformed CMap filter fixture.');
+    }
+
+    $safeText = 'Safe Import';
+    $safeHex = '';
+    for ($index = 0, $length = strlen($safeText); $index < $length; $index++) {
+        $safeHex .= sprintf('%04X', ord($safeText[$index]));
+    }
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /MalformedFilterBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /MalformedFilterBoundary-H /Filter [ << /Owner (Filter dictionary is not a decoder) /Fake [ /Nested ] >> /FlateDecode ] /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapDirectExtraFilterNameBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /DirectExtraFilterNameBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<00> <FF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<01> <" . $utf16beHex('Direct Extra Filter Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused direct-extra-filter CMap fixture.');
+    }
+
+    $safeText = 'Direct Extra Safe Import';
+    $safeHex = '';
+    for ($index = 0, $length = strlen($safeText); $index < $length; $index++) {
+        $safeHex .= sprintf('%04X', ord($safeText[$index]));
+    }
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /DirectExtraFilterNameBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /DirectExtraFilterNameBoundary-H /Filter /FlateDecode /ASCIIHexDecode /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapDirectExtraScalarOperandBoundaryCurrentBasePdf = static function (
+    string $extraOperand,
+    string $safeText,
+    string $leakingText,
+    string $baseFont,
+    string $cMapName
+): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeHex = $utf16beHex($safeText);
+    $sourceCode = substr($safeHex, 0, 4);
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /{$cMapName} def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<{$sourceCode}> <" . $utf16beHex($leakingText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused direct extra scalar CMap fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /{$baseFont} /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /{$cMapName} /Filter /FlateDecode {$extraOperand} /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapPostLengthExtraOperandBoundaryCurrentBasePdf = static function (
+    string $extraOperand,
+    string $safeText,
+    string $leakingText,
+    string $baseFont,
+    string $cMapName
+): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeHex = $utf16beHex($safeText);
+    $sourceCode = substr($safeHex, 0, 4);
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /{$cMapName} def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<{$sourceCode}> <" . $utf16beHex($leakingText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused post-Length extra CMap filter fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /{$baseFont} /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /{$cMapName} /Filter /FlateDecode /Length " . strlen($compressedCMap) . " {$extraOperand} >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapLiteralFilterBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /LiteralFilterBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<00> <FF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<01> <" . $utf16beHex('Literal Filter Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused literal-filter CMap fixture.');
+    }
+
+    $safeText = 'Literal Safe Import';
+    $safeHex = '';
+    for ($index = 0, $length = strlen($safeText); $index < $length; $index++) {
+        $safeHex .= sprintf('%04X', ord($safeText[$index]));
+    }
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /LiteralFilterBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /LiteralFilterBoundary-H /Filter [ (literal filter is not a decoder) /FlateDecode ] /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapIndirectLiteralFilterBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /IndirectLiteralFilterBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<00> <FF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<01> <" . $utf16beHex('Indirect Literal Filter Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused indirect-literal-filter CMap fixture.');
+    }
+
+    $safeText = 'Indirect Literal Safe Import';
+    $safeHex = '';
+    for ($index = 0, $length = strlen($safeText); $index < $length; $index++) {
+        $safeHex .= sprintf('%04X', ord($safeText[$index]));
+    }
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    $pdf = "%PDF-1.5\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): void {
+        $offsets[$objectNumber] = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+    };
+    $xrefRow = static fn (?int $offset, int $generation = 0, string $state = 'n'): string => sprintf(
+        "%010d %05d %s \n",
+        $offset ?? 0,
+        $generation,
+        $state
+    );
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>');
+    $addObject(4, 0, '<< /Type /Font /Subtype /Type0 /BaseFont /IndirectLiteralFilterBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>');
+    $addObject(5, 0, "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream");
+    $addObject(6, 0, "<< /Type /CMap /CMapName /IndirectLiteralFilterBoundary-H /Filter [ 7 0 R /FlateDecode ] /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream");
+    $addObject(7, 0, '(indirect literal filter is not a decoder)');
+
+    $xrefOffset = strlen($pdf);
+    $pdf .= "xref\n0 8\n" . $xrefRow(0, 65535, 'f');
+    for ($objectNumber = 1; $objectNumber <= 7; $objectNumber++) {
+        $pdf .= $xrefRow($offsets[$objectNumber] ?? null);
+    }
+    $pdf .= "trailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n{$xrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
+$parserMalformedCMapIndirectArrayDictionaryFilterBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /IndirectArrayDictionaryFilterBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<00> <FF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<01> <" . $utf16beHex('Indirect Array Dictionary Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused indirect-array dictionary CMap fixture.');
+    }
+
+    $safeText = 'Indirect Array Safe Import';
+    $safeHex = '';
+    for ($index = 0, $length = strlen($safeText); $index < $length; $index++) {
+        $safeHex .= sprintf('%04X', ord($safeText[$index]));
+    }
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    $pdf = "%PDF-1.5\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): void {
+        $offsets[$objectNumber] = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+    };
+    $xrefRow = static fn (?int $offset, int $generation = 0, string $state = 'n'): string => sprintf(
+        "%010d %05d %s \n",
+        $offset ?? 0,
+        $generation,
+        $state
+    );
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>');
+    $addObject(4, 0, '<< /Type /Font /Subtype /Type0 /BaseFont /IndirectArrayDictionaryFilterBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>');
+    $addObject(5, 0, "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream");
+    $addObject(6, 0, "<< /Type /CMap /CMapName /IndirectArrayDictionaryFilterBoundary-H /Filter 7 0 R /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream");
+    $addObject(7, 0, '[ << /Owner (indirect array dictionary is not a decoder) /Fake [ /Nested ] >> /FlateDecode ]');
+
+    $xrefOffset = strlen($pdf);
+    $pdf .= "xref\n0 8\n" . $xrefRow(0, 65535, 'f');
+    for ($objectNumber = 1; $objectNumber <= 7; $objectNumber++) {
+        $pdf .= $xrefRow($offsets[$objectNumber] ?? null);
+    }
+    $pdf .= "trailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n{$xrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
+$parserMalformedCMapGenerationFilterBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'Generation Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /GenerationFilterBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<" . substr($safeHex, 0, 4) . "> <" . $utf16beHex('Stale Generation CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused generation-filter CMap fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    $pdf = "%PDF-1.5\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): void {
+        $offsets[$objectNumber . ':' . $generation] = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+    };
+    $xrefRow = static fn (?int $offset, int $generation = 0, string $state = 'n'): string => sprintf(
+        "%010d %05d %s \n",
+        $offset ?? 0,
+        $generation,
+        $state
+    );
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>');
+    $addObject(4, 0, '<< /Type /Font /Subtype /Type0 /BaseFont /GenerationFilterBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>');
+    $addObject(5, 0, "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream");
+    $addObject(6, 0, "<< /Type /CMap /CMapName /GenerationFilterBoundary-H /Filter 7 1 R /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream");
+    $addObject(7, 0, '/FlateDecode');
+    $addObject(7, 1, '<< /Owner (current generation dictionary is not a decoder) /StaleValidFilter 7 0 R >>');
+
+    $selected = [
+        1 => ['generation' => 0, 'offset' => $offsets['1:0']],
+        2 => ['generation' => 0, 'offset' => $offsets['2:0']],
+        3 => ['generation' => 0, 'offset' => $offsets['3:0']],
+        4 => ['generation' => 0, 'offset' => $offsets['4:0']],
+        5 => ['generation' => 0, 'offset' => $offsets['5:0']],
+        6 => ['generation' => 0, 'offset' => $offsets['6:0']],
+        7 => ['generation' => 1, 'offset' => $offsets['7:1']],
+    ];
+
+    $xrefOffset = strlen($pdf);
+    $pdf .= "xref\n0 8\n" . $xrefRow(0, 65535, 'f');
+    for ($objectNumber = 1; $objectNumber <= 7; $objectNumber++) {
+        $row = $selected[$objectNumber] ?? null;
+        $pdf .= $row === null
+            ? $xrefRow(0, 65535, 'f')
+            : $xrefRow($row['offset'], $row['generation']);
+    }
+    $pdf .= "trailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n{$xrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
+$parserMalformedCMapDecodeParmsBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'DecodeParms Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /DecodeParmsBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<" . substr($safeHex, 0, 4) . "> <" . $utf16beHex('DecodeParms CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused DecodeParms CMap fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    $pdf = "%PDF-1.5\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): void {
+        $offsets[$objectNumber . ':' . $generation] = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+    };
+    $xrefRow = static fn (?int $offset, int $generation = 0, string $state = 'n'): string => sprintf(
+        "%010d %05d %s \n",
+        $offset ?? 0,
+        $generation,
+        $state
+    );
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>');
+    $addObject(4, 0, '<< /Type /Font /Subtype /Type0 /BaseFont /DecodeParmsBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>');
+    $addObject(5, 0, "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream");
+    $addObject(6, 0, "<< /Type /CMap /CMapName /DecodeParmsBoundary-H /Filter /FlateDecode /DecodeParms 8 1 R /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream");
+    $addObject(8, 0, '<< /Predictor 1 >>');
+    $addObject(8, 1, '<< /Predictor /Twelve /Columns 1 >>');
+
+    $selected = [
+        1 => ['generation' => 0, 'offset' => $offsets['1:0']],
+        2 => ['generation' => 0, 'offset' => $offsets['2:0']],
+        3 => ['generation' => 0, 'offset' => $offsets['3:0']],
+        4 => ['generation' => 0, 'offset' => $offsets['4:0']],
+        5 => ['generation' => 0, 'offset' => $offsets['5:0']],
+        6 => ['generation' => 0, 'offset' => $offsets['6:0']],
+        8 => ['generation' => 1, 'offset' => $offsets['8:1']],
+    ];
+
+    $xrefOffset = strlen($pdf);
+    $pdf .= "xref\n0 9\n" . $xrefRow(0, 65535, 'f');
+    for ($objectNumber = 1; $objectNumber <= 8; $objectNumber++) {
+        $row = $selected[$objectNumber] ?? null;
+        $pdf .= $row === null
+            ? $xrefRow(0, 65535, 'f')
+            : $xrefRow($row['offset'], $row['generation']);
+    }
+    $pdf .= "trailer\n<< /Size 9 /Root 1 0 R >>\nstartxref\n{$xrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
+$parserMalformedCMapPredictorDecodeErrorBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'Predictor Decode Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /PredictorDecodeBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<" . substr($safeHex, 0, 4) . "> <" . $utf16beHex('Predictor Decode CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused predictor DecodeParms CMap fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /PredictorDecodeBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /PredictorDecodeBoundary-H /Filter /FlateDecode /DecodeParms << /Predictor 12 /Columns 127 /Colors 1 /BitsPerComponent 8 >> /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapTrailingDecodeParmsBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'Trailing DecodeParms Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /TrailingDecodeParmsBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<" . substr($safeHex, 0, 4) . "> <" . $utf16beHex('Trailing DecodeParms CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused trailing DecodeParms CMap fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /TrailingDecodeParmsBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /TrailingDecodeParmsBoundary-H /Filter /FlateDecode /DecodeParms [ null << /Predictor /Twelve /Columns 1 >> ] /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapNullFilterDecodeParmsBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $mappedText = 'Null Slot CMap Import';
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /NullFilterDecodeParmsBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex($mappedText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused null-filter DecodeParms CMap fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NullFilterDecodeParmsBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /NullFilterDecodeParmsBoundary-H /Filter [ null /FlateDecode ] /DecodeParms [ 99 0 R << /Predictor 1 >> ] /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapAllNullFilterDecodeParmsBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $mappedText = 'All Null Filter CMap Import';
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /AllNullFilterDecodeParmsBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex($mappedText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /AllNullFilterDecodeParmsBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /AllNullFilterDecodeParmsBoundary-H /Filter [ null ] /DecodeParms 99 0 R /Length " . strlen($cMap) . " >>\nstream\n{$cMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapIndirectNullFilterDecodeParmsBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $mappedText = 'Indirect Null Slot CMap Import';
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /IndirectNullFilterDecodeParmsBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex($mappedText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused indirect null-filter DecodeParms CMap fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+    $pdf = "%PDF-1.5\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): void {
+        $offsets[$objectNumber] = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+    };
+    $xrefRow = static fn (?int $offset, int $generation = 0, string $state = 'n'): string => sprintf(
+        "%010d %05d %s \n",
+        $offset ?? 0,
+        $generation,
+        $state
+    );
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>');
+    $addObject(4, 0, '<< /Type /Font /Subtype /Type0 /BaseFont /IndirectNullFilterDecodeParmsBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>');
+    $addObject(5, 0, "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream");
+    $addObject(6, 0, "<< /Type /CMap /CMapName /IndirectNullFilterDecodeParmsBoundary-H /Filter [ null /FlateDecode ] /DecodeParms 8 0 R /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream");
+    $addObject(8, 0, '[ 99 0 R << /Predictor 1 >> ]');
+
+    $xrefOffset = strlen($pdf);
+    $pdf .= "xref\n0 9\n" . $xrefRow(0, 65535, 'f');
+    for ($objectNumber = 1; $objectNumber <= 8; $objectNumber++) {
+        $pdf .= $xrefRow($offsets[$objectNumber] ?? null);
+    }
+    $pdf .= "trailer\n<< /Size 9 /Root 1 0 R >>\nstartxref\n{$xrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
+$parserMalformedUseCMapDecodeParmsBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'UseCMap Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $derivedCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /DerivedUseCMapBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <{$safeHex}>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $inheritedCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /InheritedUseCMapMalformedDecodeParms-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0002> <" . $utf16beHex('UseCMap DecodeParms Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedInheritedCMap = gzcompress($inheritedCMap, 0);
+    if (!is_string($compressedInheritedCMap)) {
+        throw new RuntimeException('Unable to compress focused UseCMap DecodeParms fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /UseCMapDecodeParmsBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /UseCMap 7 0 R /Length " . strlen($derivedCMap) . " >>\nstream\n{$derivedCMap}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor /Twelve /Columns 1 >> /Length " . strlen($compressedInheritedCMap) . " >>\nstream\n{$compressedInheritedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapStaleReferenceFilterBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'Stale Reference Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /StaleReferenceFilterBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<" . substr($safeHex, 0, 4) . "> <" . $utf16beHex('Stale Reference CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused stale-reference CMap fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    $pdf = "%PDF-1.5\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): void {
+        $offsets[$objectNumber . ':' . $generation] = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+    };
+    $xrefRow = static fn (?int $offset, int $generation = 0, string $state = 'n'): string => sprintf(
+        "%010d %05d %s \n",
+        $offset ?? 0,
+        $generation,
+        $state
+    );
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>');
+    $addObject(4, 0, '<< /Type /Font /Subtype /Type0 /BaseFont /StaleReferenceFilterBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>');
+    $addObject(5, 0, "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream");
+    $addObject(6, 0, "<< /Type /CMap /CMapName /StaleReferenceFilterBoundary-H /Filter 7 0 R /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream");
+    $addObject(7, 0, '/FlateDecode');
+    $addObject(7, 1, '<< /Owner (xref-selected dictionary is not a decoder) /StaleValidFilter 7 0 R >>');
+
+    $selected = [
+        1 => ['generation' => 0, 'offset' => $offsets['1:0']],
+        2 => ['generation' => 0, 'offset' => $offsets['2:0']],
+        3 => ['generation' => 0, 'offset' => $offsets['3:0']],
+        4 => ['generation' => 0, 'offset' => $offsets['4:0']],
+        5 => ['generation' => 0, 'offset' => $offsets['5:0']],
+        6 => ['generation' => 0, 'offset' => $offsets['6:0']],
+        7 => ['generation' => 1, 'offset' => $offsets['7:1']],
+    ];
+
+    $xrefOffset = strlen($pdf);
+    $pdf .= "xref\n0 8\n" . $xrefRow(0, 65535, 'f');
+    for ($objectNumber = 1; $objectNumber <= 7; $objectNumber++) {
+        $row = $selected[$objectNumber] ?? null;
+        $pdf .= $row === null
+            ? $xrefRow(0, 65535, 'f')
+            : $xrefRow($row['offset'], $row['generation']);
+    }
+    $pdf .= "trailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n{$xrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
+$parserMalformedCMapNestedArrayDictionaryFilterBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'Nested Array Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /NestedArrayFilterBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<" . substr($safeHex, 0, 4) . "> <" . $utf16beHex('Nested Array CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused nested-array CMap fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NestedArrayFilterBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /NestedArrayFilterBoundary-H /Filter [ [ [ << /Owner (nested dictionary is not a decoder) /Fake /Nested >> ] ] /FlateDecode ] /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapPostEndOperatorBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /PostEndCMapBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('PostEnd Safe Import') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('PostEnd CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "/CMapName /PostEndCMapDecoy-H def\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused post-endcmap CMap fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /PostEndCMapBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /PostEndCMapBoundary-H /Filter /FlateDecode /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapSecondProgramBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /SecondProgramBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('SecondProgram Safe Import') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n"
+        . "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /SecondProgramDecoy-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('Second Program CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused second-program CMap fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /SecondProgramBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /SecondProgramBoundary-H /Filter /FlateDecode /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapLiteralOperatorBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /LiteralOperatorBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('Literal Operator Safe Import') . ">\n"
+        . "endbfchar\n"
+        . "(1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('Literal Operator CMap Leak') . ">\n"
+        . "endbfchar)\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused literal-operator CMap fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /LiteralOperatorBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /LiteralOperatorBoundary-H /Filter /FlateDecode /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapOverdeclaredLiteralOperatorBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /OverdeclaredLiteralOperatorBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "2 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('Overdeclared Literal Safe Import') . ">\n"
+        . "(<0001> <" . $utf16beHex('Overdeclared Literal CMap Leak') . ">)\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused overdeclared literal-operator CMap fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /OverdeclaredLiteralOperatorBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /OverdeclaredLiteralOperatorBoundary-H /Filter /FlateDecode /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapNestedTargetArrayBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'Nested Target Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $sourceCode = substr($safeHex, 0, 4);
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /NestedTargetArrayBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfrange\n"
+        . "<{$sourceCode}> <{$sourceCode}> [ [<" . $utf16beHex('Nested Target CMap Leak') . ">] ]\n"
+        . "endbfrange\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused nested-target-array CMap fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NestedTargetArrayBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /NestedTargetArrayBoundary-H /Filter /FlateDecode /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapNestedBfrangeRowArrayBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'Nested Bfrange Row Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $sourceCode = substr($safeHex, 0, 4);
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /NestedBfrangeRowArrayBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfrange\n"
+        . "[ <{$sourceCode}> <{$sourceCode}> <" . $utf16beHex('Nested Bfrange Row CMap Leak') . "> ]\n"
+        . "endbfrange\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused nested-bfrange-row CMap fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NestedBfrangeRowArrayBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /NestedBfrangeRowArrayBoundary-H /Filter /FlateDecode /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapNestedBfcharArrayBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $sourceCode = '0001';
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /NestedBfcharArrayBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "2 beginbfchar\n"
+        . "<{$sourceCode}> <" . $utf16beHex('Nested Bfchar Safe Import') . ">\n"
+        . "[<{$sourceCode}> <" . $utf16beHex('Nested Bfchar CMap Leak') . ">]\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused nested-bfchar-array CMap fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$sourceCode}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NestedBfcharArrayBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /NestedBfcharArrayBoundary-H /Filter /FlateDecode /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapLiteralNameUseCMapBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $baseCMap = "(/CMapName /FakeBase-H def)\n"
+        . "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /RealBase-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('Literal Name Safe Import') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedBaseCMap = gzcompress($baseCMap, 0);
+    if (!is_string($compressedBaseCMap)) {
+        throw new RuntimeException('Unable to compress focused literal-name CMap fixture.');
+    }
+
+    $derivedCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /DerivedLiteralName-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /DerivedLiteralName /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /UseCMap /RealBase-H /Length " . strlen($derivedCMap) . " >>\nstream\n{$derivedCMap}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /CMap /Filter /FlateDecode /Length " . strlen($compressedBaseCMap) . " >>\nstream\n{$compressedBaseCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapLiteralUseCMapOperatorBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $realBaseCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /LiteralUseCMapRealBase-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('Literal UseCMap Safe Import') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedRealBaseCMap = gzcompress($realBaseCMap, 0);
+    if (!is_string($compressedRealBaseCMap)) {
+        throw new RuntimeException('Unable to compress focused real base literal-usecmap CMap fixture.');
+    }
+
+    $decoyBaseCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /LiteralUseCMapDecoyBase-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('Literal UseCMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedDecoyBaseCMap = gzcompress($decoyBaseCMap, 0);
+    if (!is_string($compressedDecoyBaseCMap)) {
+        throw new RuntimeException('Unable to compress focused decoy base literal-usecmap CMap fixture.');
+    }
+
+    $derivedCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /LiteralUseCMapDerived-H def\n"
+        . "/LiteralUseCMapRealBase-H usecmap\n"
+        . "(/LiteralUseCMapDecoyBase-H usecmap)\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedDerivedCMap = gzcompress($derivedCMap, 0);
+    if (!is_string($compressedDerivedCMap)) {
+        throw new RuntimeException('Unable to compress focused derived literal-usecmap CMap fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /LiteralUseCMapDerived /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /LiteralUseCMapDerived-H /Filter /FlateDecode /Length " . strlen($compressedDerivedCMap) . " >>\nstream\n{$compressedDerivedCMap}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /CMap /CMapName /LiteralUseCMapRealBase-H /Filter /FlateDecode /Length " . strlen($compressedRealBaseCMap) . " >>\nstream\n{$compressedRealBaseCMap}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Type /CMap /CMapName /LiteralUseCMapDecoyBase-H /Filter /FlateDecode /Length " . strlen($compressedDecoyBaseCMap) . " >>\nstream\n{$compressedDecoyBaseCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapObjectUseCMapNameBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'Object UseCMap Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $sourceCode = substr($safeHex, 0, 4);
+    $forgedBaseName = 'ForgedObjectBase-H';
+    $leakingText = 'Forged Object UseCMap Leak';
+
+    $derivedCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /ObjectUseCMapDerived-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedDerivedCMap = gzcompress($derivedCMap, 0);
+    if (!is_string($compressedDerivedCMap)) {
+        throw new RuntimeException('Unable to compress focused object UseCMap derived fixture.');
+    }
+
+    $baseCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /{$forgedBaseName} def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<{$sourceCode}> <" . $utf16beHex($leakingText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedBaseCMap = gzcompress($baseCMap, 0);
+    if (!is_string($compressedBaseCMap)) {
+        throw new RuntimeException('Unable to compress focused object UseCMap base fixture.');
+    }
+
+    $malformedBaseStream = strtoupper(bin2hex($baseCMap));
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /ObjectUseCMapBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /ObjectUseCMapDerived-H /UseCMap 7 0 R /Filter /FlateDecode /Length " . strlen($compressedDerivedCMap) . " >>\nstream\n{$compressedDerivedCMap}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /CMap /CMapName /{$forgedBaseName} /Filter /ASCIIHexDecode /Length " . strlen($malformedBaseStream) . " >>\nstream\n{$malformedBaseStream}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Type /CMap /CMapName /{$forgedBaseName} /Filter /FlateDecode /Length " . strlen($compressedBaseCMap) . " >>\nstream\n{$compressedBaseCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapUnsupportedFilterBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /UnsupportedFilterBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('Unsupported Filter CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $contentText = 'Unsupported Filter Safe Import';
+    $content = "BT /Fcid 12 Tf 72 720 Td <" . $utf16beHex($contentText) . "> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /UnsupportedFilterBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /UnsupportedFilterBoundary-H /Filter /DCTDecode /Length " . strlen($cMap) . " >>\nstream\n{$cMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapCryptIdentityFilterBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $mappedText = 'Identity Crypt CMap Import';
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /CryptIdentityBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex($mappedText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CryptIdentityBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /CryptIdentityBoundary-H /Filter /Crypt /DecodeParms << /Name /Identity >> /Length " . strlen($cMap) . " >>\nstream\n{$cMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapCryptPrivateFilterBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'Private Crypt Safe Import';
+    $leakingText = 'Private Crypt CMap Leak';
+    $safeHex = $utf16beHex($safeText);
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /CryptPrivateBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<" . substr($safeHex, 0, 4) . "> <" . $utf16beHex($leakingText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CryptPrivateBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /CryptPrivateBoundary-H /Filter /Crypt /DecodeParms << /Name /PrivateCF >> /Length " . strlen($cMap) . " >>\nstream\n{$cMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserEscapedCMapFilterNameBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $mappedText = 'Escaped Filter CMap Import';
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /EscapedFilterNameBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex($mappedText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused escaped-filter-name CMap fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /EscapedFilterNameBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /EscapedFilterNameBoundary-H /Filter [/Fl#61teDecode] /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserEscapedUnsupportedCMapFilterNameBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'Escaped Unsupported Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /EscapedUnsupportedFilterBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<" . substr($safeHex, 0, 4) . "> <" . $utf16beHex('Escaped Unsupported CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /EscapedUnsupportedFilterBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /EscapedUnsupportedFilterBoundary-H /Filter /DCT#44ecode /Length " . strlen($cMap) . " >>\nstream\n{$cMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapUnboundedExplicitFilterBoundaryAscii85 = static function (string $bytes, bool $includeTerminator = true): string {
+    $encoded = '';
+    $length = strlen($bytes);
+    for ($offset = 0; $offset < $length; $offset += 4) {
+        $chunk = substr($bytes, $offset, 4);
+        $chunkLength = strlen($chunk);
+        if ($chunkLength < 4) {
+            $chunk = str_pad($chunk, 4, "\0");
+        }
+
+        $value = unpack('N', $chunk)[1];
+        if ($chunkLength === 4 && $value === 0) {
+            $encoded .= 'z';
+            continue;
+        }
+
+        $digits = '';
+        for ($index = 0; $index < 5; $index++) {
+            $digits = chr(($value % 85) + 33) . $digits;
+            $value = intdiv($value, 85);
+        }
+
+        $encoded .= substr($digits, 0, $chunkLength + 1);
+    }
+
+    return $encoded . ($includeTerminator ? '~>' : '');
+};
+
+$parserMalformedCMapUnboundedExplicitFilterBoundaryCurrentBasePdf = static function (
+    bool $stackedInnerAscii85
+) use ($parserMalformedCMapUnboundedExplicitFilterBoundaryAscii85): array {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = $stackedInnerAscii85 ? 'Inner Bounded Safe Import' : 'Bounded EOD Safe Import';
+    $leakingText = $stackedInnerAscii85 ? 'Inner Unbounded CMap Leak' : 'Unbounded EOD CMap Leak';
+    $safeHex = $utf16beHex($safeText);
+    $sourceCode = substr($safeHex, 0, 4);
+    $cMapName = $stackedInnerAscii85 ? 'InnerUnboundedEodBoundary-H' : 'UnboundedEodBoundary-H';
+    $baseFont = $stackedInnerAscii85 ? 'InnerUnboundedEodBoundary' : 'UnboundedEodBoundary';
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /{$cMapName} def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<{$sourceCode}> <" . $utf16beHex($leakingText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $trailingDecoy = "\n/CMapName /{$cMapName}TrailingDecoy def\n1 beginbfchar\n<{$sourceCode}> <" . $utf16beHex('Trailing Filter CMap Leak') . ">\nendbfchar\n";
+    if ($stackedInnerAscii85) {
+        $encodedCMap = $parserMalformedCMapUnboundedExplicitFilterBoundaryAscii85($cMap, true) . $trailingDecoy;
+        $stream = gzcompress($encodedCMap, 0);
+        if (!is_string($stream)) {
+            throw new RuntimeException('Unable to compress focused inner ASCII85 unbounded CMap fixture.');
+        }
+        $filter = '[/FlateDecode /ASCII85Decode]';
+    } else {
+        $stream = strtoupper(bin2hex($cMap)) . '>' . $trailingDecoy;
+        $filter = '/ASCIIHexDecode';
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+    $pdf = "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /{$baseFont} /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /{$cMapName} /Filter {$filter} /Length " . strlen($stream) . " >>\nstream\n{$stream}\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, $safeText, $leakingText, $cMapName, $stackedInnerAscii85 ? 'ASCII85Decode' : 'ASCIIHexDecode', $stackedInnerAscii85 ? 1 : 0];
+};
+
+return [
+    'rejects scalar CMap Filter followed by an extra filter-name token before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapDirectExtraFilterNameBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapDirectExtraFilterNameBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperands = $entry['filter_operands'] ?? [];
+
+        $t->same(['Direct Extra Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Direct Extra Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Direct Extra Safe Import', $text);
+        $t->same("Direct Extra Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Direct Extra Filter Leak'));
+        $t->true(!str_contains($text, 'DirectExtraFilterNameBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(0, $review['decoded_cmap_count']);
+        $t->same(1, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['dictionary_filter_operand_count']);
+        $t->same(1, $review['malformed_filter_operand_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same(0, $entry['generation'] ?? null);
+        $t->same('DirectExtraFilterNameBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same([], $entry['filters'] ?? null);
+        $t->same(true, $entry['filter_resolution_failed'] ?? null);
+        $t->same(false, $entry['decodeparms_resolution_failed'] ?? null);
+        $t->same(1, $entry['invalid_filter_operand_count'] ?? null);
+        $t->same(0, $entry['dictionary_filter_operand_count'] ?? null);
+        $t->same(1, $entry['malformed_filter_operand_count'] ?? null);
+        $t->same('reject_malformed_filter_operands', $entry['filter_operand_policy'] ?? null);
+        $t->same('filter_resolution_failed', $entry['filter_end_marker_policy'] ?? null);
+        $t->same('filter_resolution_failed', $entry['filter_decode_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->same(null, $entry['decoded_cmap_length'] ?? null);
+        $t->same(null, $entry['decoded_cmap_sha256'] ?? null);
+        $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+        $t->same('direct_operands', $entry['owner_policy'] ?? null);
+        $t->same('to_unicode', $entry['reference_usages'][0]['usage'] ?? null);
+        $t->same('direct', $filterOperands[0]['kind'] ?? null);
+        $t->same('name', $filterOperands[0]['token_type'] ?? null);
+        $t->same('FlateDecode', $filterOperands[0]['value'] ?? null);
+        $t->same(false, $filterOperands[0]['valid_filter_operand'] ?? null);
+        $t->same(true, $filterOperands[0]['extra_filter_name_operand'] ?? null);
+        $t->same('ASCIIHexDecode', $filterOperands[0]['extra_filter_name'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'rejects scalar CMap Filter followed by extra non-name operands before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapDirectExtraScalarOperandBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $cases = [
+            ['null', 'null', 'Direct Null Safe Import', 'Direct Null CMap Leak', 'DirectExtraNullFilterBoundary', 'DirectExtraNullFilterBoundary-H', 'null'],
+            ['[ /ASCIIHexDecode ]', 'array', 'Direct Array Safe Import', 'Direct Array CMap Leak', 'DirectExtraArrayFilterBoundary', 'DirectExtraArrayFilterBoundary-H', '[ /ASCIIHexDecode ]'],
+            ['(literal extra filter operand)', 'literal', 'Direct Literal Safe Import', 'Direct Literal CMap Leak', 'DirectExtraLiteralFilterBoundary', 'DirectExtraLiteralFilterBoundary-H', '(literal extra filter operand)'],
+        ];
+
+        foreach ($cases as [$extraOperand, $extraOperandType, $safeText, $leakingText, $baseFont, $cMapName, $extraPreview]) {
+            $pdf = $parserMalformedCMapDirectExtraScalarOperandBoundaryCurrentBasePdf(
+                $extraOperand,
+                $safeText,
+                $leakingText,
+                $baseFont,
+                $cMapName
+            );
+            $text = $extractor->extractPlainText($pdf);
+            $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+            $entry = $review['entries'][0] ?? [];
+            $filterOperands = $entry['filter_operands'] ?? [];
+
+            $t->same([$safeText], $extractor->extractTextLines($pdf));
+            $t->same([$safeText], $extractor->extractTextRuns($pdf));
+            $t->same($safeText, $text);
+            $t->same($safeText . "\n", $extractor->naiveGetText($pdf));
+            $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+            $t->same(['1'], $extractor->extractPageLabels($pdf));
+            $t->true(!str_contains($text, $leakingText));
+            $t->true(!str_contains($text, $cMapName));
+            $t->true(!str_contains($text, "\0"));
+
+            $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+            $t->true($review['review_only']);
+            $t->same(false, $review['encrypted']);
+            $t->same(1, $review['cmap_stream_count']);
+            $t->same(1, $review['to_unicode_cmap_stream_count']);
+            $t->same(0, $review['encoding_cmap_stream_count']);
+            $t->same(0, $review['decoded_cmap_count']);
+            $t->same(1, $review['invalid_filter_operand_count']);
+            $t->same(0, $review['dictionary_filter_operand_count']);
+            $t->same(1, $review['malformed_filter_operand_count']);
+            $t->same(6, $entry['object_number'] ?? null);
+            $t->same(0, $entry['generation'] ?? null);
+            $t->same($cMapName, $entry['cmap_name'] ?? null);
+            $t->same([], $entry['filters'] ?? null);
+            $t->same(true, $entry['filter_resolution_failed'] ?? null);
+            $t->same(false, $entry['decodeparms_resolution_failed'] ?? null);
+            $t->same(1, $entry['invalid_filter_operand_count'] ?? null);
+            $t->same(0, $entry['dictionary_filter_operand_count'] ?? null);
+            $t->same(1, $entry['malformed_filter_operand_count'] ?? null);
+            $t->same('reject_malformed_filter_operands', $entry['filter_operand_policy'] ?? null);
+            $t->same('filter_resolution_failed', $entry['filter_end_marker_policy'] ?? null);
+            $t->same('filter_resolution_failed', $entry['filter_decode_policy'] ?? null);
+            $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+            $t->same(null, $entry['decoded_cmap_length'] ?? null);
+            $t->same(null, $entry['decoded_cmap_sha256'] ?? null);
+            $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+            $t->same('direct_operands', $entry['owner_policy'] ?? null);
+            $t->same('to_unicode', $entry['reference_usages'][0]['usage'] ?? null);
+            $t->same('direct', $filterOperands[0]['kind'] ?? null);
+            $t->same('name', $filterOperands[0]['token_type'] ?? null);
+            $t->same('FlateDecode', $filterOperands[0]['value'] ?? null);
+            $t->same(false, $filterOperands[0]['valid_filter_operand'] ?? null);
+            $t->same(true, $filterOperands[0]['extra_filter_operand'] ?? null);
+            $t->same($extraOperandType, $filterOperands[0]['extra_filter_operand_type'] ?? null);
+            $t->same($extraPreview, $filterOperands[0]['extra_filter_operand_preview'] ?? null);
+        }
+    },
+    'rejects scalar CMap Filter followed by post-Length extra operands before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapPostLengthExtraOperandBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $cases = [
+            ['/ASCIIHexDecode', 'name', 'Post Length Name Safe Import', 'Post Length Name CMap Leak', 'PostLengthNameFilterBoundary', 'PostLengthNameFilterBoundary-H', '/ASCIIHexDecode', 'ASCIIHexDecode'],
+            ['<< /Owner (post Length dictionary is not a decoder) >>', 'dictionary', 'Post Length Dictionary Safe Import', 'Post Length Dictionary CMap Leak', 'PostLengthDictionaryFilterBoundary', 'PostLengthDictionaryFilterBoundary-H', '<< /Owner (post Length dictionary is not a decoder) >>', null],
+            ['(post Length literal extra filter operand)', 'literal', 'Post Length Literal Safe Import', 'Post Length Literal CMap Leak', 'PostLengthLiteralFilterBoundary', 'PostLengthLiteralFilterBoundary-H', '(post Length literal extra filter operand)', null],
+        ];
+
+        foreach ($cases as [$extraOperand, $extraOperandType, $safeText, $leakingText, $baseFont, $cMapName, $extraPreview, $extraName]) {
+            $pdf = $parserMalformedCMapPostLengthExtraOperandBoundaryCurrentBasePdf(
+                $extraOperand,
+                $safeText,
+                $leakingText,
+                $baseFont,
+                $cMapName
+            );
+            $text = $extractor->extractPlainText($pdf);
+            $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+            $entry = $review['entries'][0] ?? [];
+            $filterOperands = $entry['filter_operands'] ?? [];
+
+            $t->same([$safeText], $extractor->extractTextLines($pdf));
+            $t->same([$safeText], $extractor->extractTextRuns($pdf));
+            $t->same($safeText, $text);
+            $t->same($safeText . "\n", $extractor->naiveGetText($pdf));
+            $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+            $t->same(['1'], $extractor->extractPageLabels($pdf));
+            $t->true(!str_contains($text, $leakingText));
+            $t->true(!str_contains($text, $cMapName));
+            $t->true(!str_contains($text, "\0"));
+
+            $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+            $t->true($review['review_only']);
+            $t->same(false, $review['encrypted']);
+            $t->same(1, $review['cmap_stream_count']);
+            $t->same(1, $review['to_unicode_cmap_stream_count']);
+            $t->same(0, $review['encoding_cmap_stream_count']);
+            $t->same(0, $review['decoded_cmap_count']);
+            $t->same(1, $review['invalid_filter_operand_count']);
+            $t->same(0, $review['dictionary_filter_operand_count']);
+            $t->same(1, $review['malformed_filter_operand_count']);
+            $t->same(6, $entry['object_number'] ?? null);
+            $t->same(0, $entry['generation'] ?? null);
+            $t->same($cMapName, $entry['cmap_name'] ?? null);
+            $t->same([], $entry['filters'] ?? null);
+            $t->same(true, $entry['filter_resolution_failed'] ?? null);
+            $t->same(false, $entry['decodeparms_resolution_failed'] ?? null);
+            $t->same(1, $entry['invalid_filter_operand_count'] ?? null);
+            $t->same(0, $entry['dictionary_filter_operand_count'] ?? null);
+            $t->same(1, $entry['malformed_filter_operand_count'] ?? null);
+            $t->same('reject_malformed_filter_operands', $entry['filter_operand_policy'] ?? null);
+            $t->same('filter_resolution_failed', $entry['filter_end_marker_policy'] ?? null);
+            $t->same('filter_resolution_failed', $entry['filter_decode_policy'] ?? null);
+            $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+            $t->same(null, $entry['decoded_cmap_length'] ?? null);
+            $t->same(null, $entry['decoded_cmap_sha256'] ?? null);
+            $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+            $t->same('direct_operands', $entry['owner_policy'] ?? null);
+            $t->same('to_unicode', $entry['reference_usages'][0]['usage'] ?? null);
+            $t->same('direct', $filterOperands[0]['kind'] ?? null);
+            $t->same('name', $filterOperands[0]['token_type'] ?? null);
+            $t->same('FlateDecode', $filterOperands[0]['value'] ?? null);
+            $t->same(false, $filterOperands[0]['valid_filter_operand'] ?? null);
+            $t->same(true, $filterOperands[0]['extra_filter_operand'] ?? null);
+            $t->same($extraOperandType, $filterOperands[0]['extra_filter_operand_type'] ?? null);
+            $t->same($extraPreview, $filterOperands[0]['extra_filter_operand_preview'] ?? null);
+            if ($extraName !== null) {
+                $t->same(true, $filterOperands[0]['extra_filter_name_operand'] ?? null);
+                $t->same($extraName, $filterOperands[0]['extra_filter_name'] ?? null);
+            }
+        }
+    },
+    'fails closed on malformed CMap Filter array operands before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapFilterBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapFilterBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperands = $entry['filter_operands'] ?? [];
+
+        $t->same(['Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Safe Import', $text);
+        $t->same("Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Decoded CMap Leak'));
+        $t->true(!str_contains($text, 'Dictionary Filter Leak'));
+        $t->true(!str_contains($text, 'Filter dictionary is not a decoder'));
+        $t->true(!str_contains($text, 'MalformedFilterBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(0, $review['decoded_cmap_count']);
+        $t->same(1, $review['invalid_filter_operand_count']);
+        $t->same(1, $review['dictionary_filter_operand_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same(0, $entry['generation'] ?? null);
+        $t->same('MalformedFilterBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same([], $entry['filters'] ?? null);
+        $t->same(true, $entry['filter_resolution_failed'] ?? null);
+        $t->same(false, $entry['decodeparms_resolution_failed'] ?? null);
+        $t->same(1, $entry['invalid_filter_operand_count'] ?? null);
+        $t->same(1, $entry['dictionary_filter_operand_count'] ?? null);
+        $t->same('reject_dictionary_filter_operands', $entry['filter_operand_policy'] ?? null);
+        $t->same(null, $entry['decoded_cmap_length'] ?? null);
+        $t->same(null, $entry['decoded_cmap_sha256'] ?? null);
+        $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+        $t->same('direct_operands', $entry['owner_policy'] ?? null);
+        $t->same('to_unicode', $entry['reference_usages'][0]['usage'] ?? null);
+        $t->same('direct', $filterOperands[0]['kind'] ?? null);
+        $t->same('<< /Owner (Filter dictionary is not a decoder) /Fake [ /Nested ] >>', $filterOperands[0]['value'] ?? null);
+        $t->same('direct', $filterOperands[1]['kind'] ?? null);
+        $t->same('FlateDecode', $filterOperands[1]['value'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'classifies literal CMap Filter operands as malformed before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapLiteralFilterBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapLiteralFilterBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperands = $entry['filter_operands'] ?? [];
+
+        $t->same(['Literal Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Literal Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Literal Safe Import', $text);
+        $t->same("Literal Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Literal Filter Leak'));
+        $t->true(!str_contains($text, 'literal filter is not a decoder'));
+        $t->true(!str_contains($text, 'LiteralFilterBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(0, $review['decoded_cmap_count']);
+        $t->same(1, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['dictionary_filter_operand_count']);
+        $t->same(1, $review['malformed_filter_operand_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('LiteralFilterBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same([], $entry['filters'] ?? null);
+        $t->same(true, $entry['filter_resolution_failed'] ?? null);
+        $t->same(1, $entry['invalid_filter_operand_count'] ?? null);
+        $t->same(0, $entry['dictionary_filter_operand_count'] ?? null);
+        $t->same(1, $entry['malformed_filter_operand_count'] ?? null);
+        $t->same('reject_malformed_filter_operands', $entry['filter_operand_policy'] ?? null);
+        $t->same(null, $entry['decoded_cmap_length'] ?? null);
+        $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+        $t->same('direct_operands', $entry['owner_policy'] ?? null);
+        $t->same('direct', $filterOperands[0]['kind'] ?? null);
+        $t->same('literal', $filterOperands[0]['token_type'] ?? null);
+        $t->same('(literal filter is not a decoder)', $filterOperands[0]['value'] ?? null);
+        $t->same(false, $filterOperands[0]['valid_filter_operand'] ?? null);
+        $t->same('direct', $filterOperands[1]['kind'] ?? null);
+        $t->same('name', $filterOperands[1]['token_type'] ?? null);
+        $t->same('FlateDecode', $filterOperands[1]['value'] ?? null);
+        $t->same(true, $filterOperands[1]['valid_filter_operand'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'classifies selected indirect literal CMap Filter operands as malformed before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapIndirectLiteralFilterBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapIndirectLiteralFilterBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperands = $entry['filter_operands'] ?? [];
+
+        $t->same(['Indirect Literal Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Indirect Literal Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Indirect Literal Safe Import', $text);
+        $t->same("Indirect Literal Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Indirect Literal Filter Leak'));
+        $t->true(!str_contains($text, 'indirect literal filter is not a decoder'));
+        $t->true(!str_contains($text, 'IndirectLiteralFilterBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(1, $review['indirect_filter_count']);
+        $t->same(1, $review['xref_selected_operand_count']);
+        $t->same(0, $review['unresolved_operand_count']);
+        $t->same(0, $review['decoded_cmap_count']);
+        $t->same(1, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['dictionary_filter_operand_count']);
+        $t->same(1, $review['malformed_filter_operand_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('IndirectLiteralFilterBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same([], $entry['filters'] ?? null);
+        $t->same(true, $entry['filter_resolution_failed'] ?? null);
+        $t->same(1, $entry['indirect_filter_count'] ?? null);
+        $t->same(1, $entry['xref_selected_operand_count'] ?? null);
+        $t->same(0, $entry['unresolved_operand_count'] ?? null);
+        $t->same(1, $entry['invalid_filter_operand_count'] ?? null);
+        $t->same(0, $entry['dictionary_filter_operand_count'] ?? null);
+        $t->same(1, $entry['malformed_filter_operand_count'] ?? null);
+        $t->same('reject_malformed_filter_operands', $entry['filter_operand_policy'] ?? null);
+        $t->same(null, $entry['decoded_cmap_length'] ?? null);
+        $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+        $t->same('xref_selected_indirect_operands', $entry['owner_policy'] ?? null);
+        $t->same('indirect', $filterOperands[0]['kind'] ?? null);
+        $t->same(7, $filterOperands[0]['object_number'] ?? null);
+        $t->same(0, $filterOperands[0]['generation'] ?? null);
+        $t->same(true, $filterOperands[0]['resolved'] ?? null);
+        $t->same(true, $filterOperands[0]['xref_selected'] ?? null);
+        $t->same('xref_selected_direct_object', $filterOperands[0]['owner_policy'] ?? null);
+        $t->same('literal', $filterOperands[0]['token_type'] ?? null);
+        $t->same(false, $filterOperands[0]['valid_filter_operand'] ?? null);
+        $t->same('(indirect literal filter is not a decoder)', $filterOperands[0]['value_preview'] ?? null);
+        $t->same('direct', $filterOperands[1]['kind'] ?? null);
+        $t->same('name', $filterOperands[1]['token_type'] ?? null);
+        $t->same('FlateDecode', $filterOperands[1]['value'] ?? null);
+        $t->same(true, $filterOperands[1]['valid_filter_operand'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'classifies selected indirect CMap Filter arrays with dictionary operands before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapIndirectArrayDictionaryFilterBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapIndirectArrayDictionaryFilterBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperands = $entry['filter_operands'] ?? [];
+
+        $t->same(['Indirect Array Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Indirect Array Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Indirect Array Safe Import', $text);
+        $t->same("Indirect Array Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Indirect Array Dictionary Leak'));
+        $t->true(!str_contains($text, 'indirect array dictionary is not a decoder'));
+        $t->true(!str_contains($text, 'IndirectArrayDictionaryFilterBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(1, $review['indirect_filter_count']);
+        $t->same(1, $review['xref_selected_operand_count']);
+        $t->same(0, $review['unresolved_operand_count']);
+        $t->same(0, $review['decoded_cmap_count']);
+        $t->same(1, $review['invalid_filter_operand_count']);
+        $t->same(1, $review['dictionary_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('IndirectArrayDictionaryFilterBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same([], $entry['filters'] ?? null);
+        $t->same(true, $entry['filter_resolution_failed'] ?? null);
+        $t->same(1, $entry['indirect_filter_count'] ?? null);
+        $t->same(1, $entry['xref_selected_operand_count'] ?? null);
+        $t->same(0, $entry['unresolved_operand_count'] ?? null);
+        $t->same(1, $entry['invalid_filter_operand_count'] ?? null);
+        $t->same(1, $entry['dictionary_filter_operand_count'] ?? null);
+        $t->same(0, $entry['malformed_filter_operand_count'] ?? null);
+        $t->same('reject_dictionary_filter_operands', $entry['filter_operand_policy'] ?? null);
+        $t->same(null, $entry['decoded_cmap_length'] ?? null);
+        $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+        $t->same('xref_selected_indirect_operands', $entry['owner_policy'] ?? null);
+        $t->same('indirect', $filterOperands[0]['kind'] ?? null);
+        $t->same(7, $filterOperands[0]['object_number'] ?? null);
+        $t->same(0, $filterOperands[0]['generation'] ?? null);
+        $t->same(true, $filterOperands[0]['resolved'] ?? null);
+        $t->same(true, $filterOperands[0]['xref_selected'] ?? null);
+        $t->same('xref_selected_direct_object', $filterOperands[0]['owner_policy'] ?? null);
+        $t->same('array', $filterOperands[0]['token_type'] ?? null);
+        $t->same(true, $filterOperands[0]['dictionary_filter_operand'] ?? null);
+        $t->same(false, $filterOperands[0]['valid_filter_operand'] ?? null);
+        $t->same('[ << /Owner (indirect array dictionary is not a decoder) /Fake [ /Nested ] >>...', $filterOperands[0]['value_preview'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'rejects current-generation indirect CMap Filter dictionaries instead of stale valid filters' => static function (TestRunner $t) use ($parserMalformedCMapGenerationFilterBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapGenerationFilterBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperand = $entry['filter_operands'][0] ?? [];
+
+        $t->same(['Generation Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Generation Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Generation Safe Import', $text);
+        $t->same("Generation Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Stale Generation CMap Leak'));
+        $t->true(!str_contains($text, 'current generation dictionary is not a decoder'));
+        $t->true(!str_contains($text, 'GenerationFilterBoundary-H'));
+        $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(1, $review['indirect_filter_count']);
+        $t->same(1, $review['xref_selected_operand_count']);
+        $t->same(0, $review['unresolved_operand_count']);
+        $t->same(0, $review['decoded_cmap_count']);
+        $t->same(1, $review['invalid_filter_operand_count']);
+        $t->same(1, $review['dictionary_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same(0, $entry['generation'] ?? null);
+        $t->same('GenerationFilterBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same([], $entry['filters'] ?? null);
+        $t->same(true, $entry['filter_resolution_failed'] ?? null);
+        $t->same(1, $entry['indirect_filter_count'] ?? null);
+        $t->same(1, $entry['xref_selected_operand_count'] ?? null);
+        $t->same(0, $entry['unresolved_operand_count'] ?? null);
+        $t->same(1, $entry['invalid_filter_operand_count'] ?? null);
+        $t->same(1, $entry['dictionary_filter_operand_count'] ?? null);
+        $t->same(0, $entry['malformed_filter_operand_count'] ?? null);
+        $t->same('reject_dictionary_filter_operands', $entry['filter_operand_policy'] ?? null);
+        $t->same(null, $entry['decoded_cmap_length'] ?? null);
+        $t->same(null, $entry['decoded_cmap_sha256'] ?? null);
+        $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+        $t->same('xref_selected_indirect_operands', $entry['owner_policy'] ?? null);
+        $t->same('indirect', $filterOperand['kind'] ?? null);
+        $t->same(7, $filterOperand['object_number'] ?? null);
+        $t->same(1, $filterOperand['generation'] ?? null);
+        $t->same(true, $filterOperand['resolved'] ?? null);
+        $t->same(true, $filterOperand['xref_selected'] ?? null);
+        $t->same(1, $filterOperand['xref_entry_type'] ?? null);
+        $t->same($filterOperand['definition_offset'] ?? null, $filterOperand['selected_offset'] ?? null);
+        $t->same('xref_selected_direct_object', $filterOperand['owner_policy'] ?? null);
+        $t->same('dictionary', $filterOperand['token_type'] ?? null);
+        $t->same(true, $filterOperand['dictionary_filter_operand'] ?? null);
+        $t->same(false, $filterOperand['valid_filter_operand'] ?? null);
+        $t->true(str_starts_with((string) ($filterOperand['value_preview'] ?? ''), '<< /Owner (current generation dictionary is not a decoder)'));
+        $t->true(str_ends_with((string) ($filterOperand['value_preview'] ?? ''), '...'));
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'rejects current-generation malformed CMap DecodeParms parameters before ToUnicode decoding' => static function (TestRunner $t) use ($parserMalformedCMapDecodeParmsBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapDecodeParmsBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $decodeParmsOperand = $entry['decodeparms_operands'][0] ?? [];
+
+        $t->same(['DecodeParms Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['DecodeParms Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('DecodeParms Safe Import', $text);
+        $t->same("DecodeParms Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'DecodeParms CMap Leak'));
+        $t->true(!str_contains($text, 'Twelve'));
+        $t->true(!str_contains($text, 'DecodeParmsBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(0, $review['indirect_filter_count']);
+        $t->same(1, $review['xref_selected_operand_count']);
+        $t->same(0, $review['unresolved_operand_count']);
+        $t->same(0, $review['decoded_cmap_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['dictionary_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(0, $review['invalid_decodeparms_operand_count']);
+        $t->same(0, $review['malformed_decodeparms_operand_count']);
+        $t->same(1, $review['invalid_decodeparms_parameter_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same(0, $entry['generation'] ?? null);
+        $t->same('DecodeParmsBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same(false, $entry['decodeparms_resolution_failed'] ?? null);
+        $t->same(0, $entry['invalid_filter_operand_count'] ?? null);
+        $t->same(0, $entry['invalid_decodeparms_operand_count'] ?? null);
+        $t->same(0, $entry['malformed_decodeparms_operand_count'] ?? null);
+        $t->same(1, $entry['invalid_decodeparms_parameter_count'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('reject_malformed_decodeparms_parameters', $entry['decodeparms_operand_policy'] ?? null);
+        $t->same(null, $entry['decoded_cmap_length'] ?? null);
+        $t->same(null, $entry['decoded_cmap_sha256'] ?? null);
+        $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+        $t->same('xref_selected_indirect_operands', $entry['owner_policy'] ?? null);
+        $t->same('indirect', $decodeParmsOperand['kind'] ?? null);
+        $t->same(8, $decodeParmsOperand['object_number'] ?? null);
+        $t->same(1, $decodeParmsOperand['generation'] ?? null);
+        $t->same(true, $decodeParmsOperand['resolved'] ?? null);
+        $t->same(true, $decodeParmsOperand['xref_selected'] ?? null);
+        $t->same(1, $decodeParmsOperand['xref_entry_type'] ?? null);
+        $t->same($decodeParmsOperand['definition_offset'] ?? null, $decodeParmsOperand['selected_offset'] ?? null);
+        $t->same('xref_selected_direct_object', $decodeParmsOperand['owner_policy'] ?? null);
+        $t->same('dictionary', $decodeParmsOperand['token_type'] ?? null);
+        $t->same(true, $decodeParmsOperand['valid_decodeparms_operand'] ?? null);
+        $t->same('<< /Predictor /Twelve /Columns 1 >>', $decodeParmsOperand['value_preview'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'reports predictor CMap filter decode errors after resolved filter boundaries' => static function (TestRunner $t) use ($parserMalformedCMapPredictorDecodeErrorBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapPredictorDecodeErrorBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $decodeErrors = $entry['filter_decode_errors'] ?? [];
+        $decodeError = $decodeErrors[0] ?? [];
+
+        $t->same(['Predictor Decode Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Predictor Decode Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Predictor Decode Safe Import', $text);
+        $t->same("Predictor Decode Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Predictor Decode CMap Leak'));
+        $t->true(!str_contains($text, 'PredictorDecodeBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(0, $review['decoded_cmap_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(0, $review['invalid_decodeparms_operand_count']);
+        $t->same(0, $review['malformed_decodeparms_operand_count']);
+        $t->same(0, $review['invalid_decodeparms_parameter_count']);
+        $t->same(0, $review['filter_end_marker_problem_count']);
+        $t->same(1, $review['filter_decode_error_count'] ?? null);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('PredictorDecodeBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same(false, $entry['decodeparms_resolution_failed'] ?? null);
+        $t->same(0, $entry['invalid_filter_operand_count'] ?? null);
+        $t->same(0, $entry['invalid_decodeparms_operand_count'] ?? null);
+        $t->same(0, $entry['malformed_decodeparms_operand_count'] ?? null);
+        $t->same(0, $entry['invalid_decodeparms_parameter_count'] ?? null);
+        $t->same(0, $entry['filter_end_marker_problem_count'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->same('filter_end_markers_resolved', $entry['filter_end_marker_policy'] ?? null);
+        $t->same(1, $entry['filter_decode_error_count'] ?? null);
+        $t->same('reject_filter_decode_errors', $entry['filter_decode_policy'] ?? null);
+        $t->same(1, count($decodeErrors));
+        $t->same(0, $decodeError['filter_index'] ?? null);
+        $t->same('FlateDecode', $decodeError['filter'] ?? null);
+        $t->same('decode_failed_after_resolved_boundary', $decodeError['problem'] ?? null);
+        $t->same(false, $decodeError['requires_explicit_end_marker'] ?? null);
+        $t->same(true, $decodeError['decodeparms_present'] ?? null);
+        $t->same(null, $entry['decoded_cmap_length'] ?? null);
+        $t->same(null, $entry['decoded_cmap_sha256'] ?? null);
+        $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'rejects trailing malformed CMap DecodeParms array entries before ToUnicode decoding' => static function (TestRunner $t) use ($parserMalformedCMapTrailingDecodeParmsBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapTrailingDecodeParmsBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $decodeParmsOperands = $entry['decodeparms_operands'] ?? [];
+
+        $t->same(['Trailing DecodeParms Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Trailing DecodeParms Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Trailing DecodeParms Safe Import', $text);
+        $t->same("Trailing DecodeParms Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Trailing DecodeParms CMap Leak'));
+        $t->true(!str_contains($text, 'Twelve'));
+        $t->true(!str_contains($text, 'TrailingDecodeParmsBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(0, $review['indirect_filter_count']);
+        $t->same(0, $review['xref_selected_operand_count']);
+        $t->same(0, $review['unresolved_operand_count']);
+        $t->same(0, $review['decoded_cmap_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['dictionary_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(0, $review['invalid_decodeparms_operand_count']);
+        $t->same(0, $review['malformed_decodeparms_operand_count']);
+        $t->same(1, $review['invalid_decodeparms_parameter_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('TrailingDecodeParmsBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same(false, $entry['decodeparms_resolution_failed'] ?? null);
+        $t->same(1, $entry['invalid_decodeparms_parameter_count'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('reject_malformed_decodeparms_parameters', $entry['decodeparms_operand_policy'] ?? null);
+        $t->same(null, $entry['decoded_cmap_length'] ?? null);
+        $t->same(null, $entry['decoded_cmap_sha256'] ?? null);
+        $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+        $t->same('direct_operands', $entry['owner_policy'] ?? null);
+        $t->same('direct', $decodeParmsOperands[0]['kind'] ?? null);
+        $t->same('null', $decodeParmsOperands[0]['token_type'] ?? null);
+        $t->same(true, $decodeParmsOperands[0]['valid_decodeparms_operand'] ?? null);
+        $t->same('direct', $decodeParmsOperands[1]['kind'] ?? null);
+        $t->same('dictionary', $decodeParmsOperands[1]['token_type'] ?? null);
+        $t->same('<< /Predictor /Twelve /Columns 1 >>', $decodeParmsOperands[1]['value'] ?? null);
+        $t->same(true, $decodeParmsOperands[1]['valid_decodeparms_operand'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores malformed DecodeParms operands aligned to null CMap filters before ToUnicode decoding' => static function (TestRunner $t) use ($parserMalformedCMapNullFilterDecodeParmsBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapNullFilterDecodeParmsBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperands = $entry['filter_operands'] ?? [];
+        $decodeParmsOperands = $entry['decodeparms_operands'] ?? [];
+
+        $t->same(['Null Slot CMap Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Null Slot CMap Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Null Slot CMap Import', $text);
+        $t->same("Null Slot CMap Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, '99 0 R'));
+        $t->true(!str_contains($text, 'Predictor'));
+        $t->true(!str_contains($text, 'NullFilterDecodeParmsBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['dictionary_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(0, $review['unsupported_filter_count']);
+        $t->same(0, $review['invalid_decodeparms_operand_count']);
+        $t->same(0, $review['malformed_decodeparms_operand_count']);
+        $t->same(0, $review['invalid_decodeparms_parameter_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same(0, $entry['generation'] ?? null);
+        $t->same('NullFilterDecodeParmsBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same([null, 'FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same(false, $entry['decodeparms_resolution_failed'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->same(true, $entry['decoded_with_current_operands'] ?? null);
+        $t->true(($entry['decoded_cmap_length'] ?? 0) > 0);
+        $t->true(is_string($entry['decoded_cmap_sha256'] ?? null));
+        $t->same('direct_operands', $entry['owner_policy'] ?? null);
+        $t->same('direct', $filterOperands[0]['kind'] ?? null);
+        $t->same('null', $filterOperands[0]['token_type'] ?? null);
+        $t->same(true, $filterOperands[0]['valid_filter_operand'] ?? null);
+        $t->same('direct', $filterOperands[1]['kind'] ?? null);
+        $t->same('name', $filterOperands[1]['token_type'] ?? null);
+        $t->same('FlateDecode', $filterOperands[1]['value'] ?? null);
+        $t->same(true, $filterOperands[1]['valid_filter_operand'] ?? null);
+        $t->same('indirect', $decodeParmsOperands[0]['kind'] ?? null);
+        $t->same(99, $decodeParmsOperands[0]['object_number'] ?? null);
+        $t->same(false, $decodeParmsOperands[0]['resolved'] ?? null);
+        $t->same(false, $decodeParmsOperands[0]['xref_selected'] ?? null);
+        $t->same('missing_object', $decodeParmsOperands[0]['owner_policy'] ?? null);
+        $t->same('direct', $decodeParmsOperands[1]['kind'] ?? null);
+        $t->same('dictionary', $decodeParmsOperands[1]['token_type'] ?? null);
+        $t->same('<< /Predictor 1 >>', $decodeParmsOperands[1]['value'] ?? null);
+        $t->same(true, $decodeParmsOperands[1]['valid_decodeparms_operand'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores unresolved DecodeParms operands when all CMap filters are null' => static function (TestRunner $t) use ($parserMalformedCMapAllNullFilterDecodeParmsBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapAllNullFilterDecodeParmsBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperands = $entry['filter_operands'] ?? [];
+        $decodeParmsOperand = $entry['decodeparms_operands'][0] ?? [];
+
+        $t->same(['All Null Filter CMap Import'], $extractor->extractTextLines($pdf));
+        $t->same(['All Null Filter CMap Import'], $extractor->extractTextRuns($pdf));
+        $t->same('All Null Filter CMap Import', $text);
+        $t->same("All Null Filter CMap Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, '99 0 R'));
+        $t->true(!str_contains($text, 'Predictor'));
+        $t->true(!str_contains($text, 'AllNullFilterDecodeParmsBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(0, $review['unresolved_operand_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['dictionary_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(0, $review['unsupported_filter_count']);
+        $t->same(0, $review['invalid_decodeparms_operand_count']);
+        $t->same(0, $review['malformed_decodeparms_operand_count']);
+        $t->same(0, $review['invalid_decodeparms_parameter_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same(0, $entry['generation'] ?? null);
+        $t->same('AllNullFilterDecodeParmsBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same([], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same(false, $entry['decodeparms_resolution_failed'] ?? null);
+        $t->same(0, $entry['unresolved_operand_count'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->same(true, $entry['decoded_with_current_operands'] ?? null);
+        $t->true(($entry['decoded_cmap_length'] ?? 0) > 0);
+        $t->true(is_string($entry['decoded_cmap_sha256'] ?? null));
+        $t->same('direct_operands', $entry['owner_policy'] ?? null);
+        $t->same('direct', $filterOperands[0]['kind'] ?? null);
+        $t->same('null', $filterOperands[0]['token_type'] ?? null);
+        $t->same(null, $filterOperands[0]['value'] ?? null);
+        $t->same(true, $filterOperands[0]['valid_filter_operand'] ?? null);
+        $t->same('indirect', $decodeParmsOperand['kind'] ?? null);
+        $t->same(99, $decodeParmsOperand['object_number'] ?? null);
+        $t->same(0, $decodeParmsOperand['generation'] ?? null);
+        $t->same(false, $decodeParmsOperand['resolved'] ?? null);
+        $t->same(false, $decodeParmsOperand['xref_selected'] ?? null);
+        $t->same('missing_object', $decodeParmsOperand['owner_policy'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores malformed operands inside indirect DecodeParms arrays aligned to null CMap filters' => static function (TestRunner $t) use ($parserMalformedCMapIndirectNullFilterDecodeParmsBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapIndirectNullFilterDecodeParmsBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperands = $entry['filter_operands'] ?? [];
+        $decodeParmsOperand = $entry['decodeparms_operands'][0] ?? [];
+
+        $t->same(['Indirect Null Slot CMap Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Indirect Null Slot CMap Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Indirect Null Slot CMap Import', $text);
+        $t->same("Indirect Null Slot CMap Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, '99 0 R'));
+        $t->true(!str_contains($text, 'Predictor'));
+        $t->true(!str_contains($text, 'IndirectNullFilterDecodeParmsBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['dictionary_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(0, $review['unsupported_filter_count']);
+        $t->same(0, $review['invalid_decodeparms_operand_count']);
+        $t->same(0, $review['malformed_decodeparms_operand_count']);
+        $t->same(0, $review['invalid_decodeparms_parameter_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same(0, $entry['generation'] ?? null);
+        $t->same('IndirectNullFilterDecodeParmsBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same([null, 'FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same(false, $entry['decodeparms_resolution_failed'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->same(true, $entry['decoded_with_current_operands'] ?? null);
+        $t->true(($entry['decoded_cmap_length'] ?? 0) > 0);
+        $t->true(is_string($entry['decoded_cmap_sha256'] ?? null));
+        $t->same('xref_selected_indirect_operands', $entry['owner_policy'] ?? null);
+        $t->same('direct', $filterOperands[0]['kind'] ?? null);
+        $t->same('null', $filterOperands[0]['token_type'] ?? null);
+        $t->same(true, $filterOperands[0]['valid_filter_operand'] ?? null);
+        $t->same('direct', $filterOperands[1]['kind'] ?? null);
+        $t->same('name', $filterOperands[1]['token_type'] ?? null);
+        $t->same('FlateDecode', $filterOperands[1]['value'] ?? null);
+        $t->same(true, $filterOperands[1]['valid_filter_operand'] ?? null);
+        $t->same('indirect', $decodeParmsOperand['kind'] ?? null);
+        $t->same(8, $decodeParmsOperand['object_number'] ?? null);
+        $t->same(0, $decodeParmsOperand['generation'] ?? null);
+        $t->same(true, $decodeParmsOperand['resolved'] ?? null);
+        $t->same(true, $decodeParmsOperand['xref_selected'] ?? null);
+        $t->same('xref_selected_direct_object', $decodeParmsOperand['owner_policy'] ?? null);
+        $t->same('array', $decodeParmsOperand['token_type'] ?? null);
+        $t->same('[ 99 0 R << /Predictor 1 >> ]', $decodeParmsOperand['value_preview'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'reviews malformed inherited UseCMap DecodeParms before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedUseCMapDecodeParmsBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedUseCMapDecodeParmsBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $derivedEntry = null;
+        $inheritedEntry = null;
+        foreach ($review['entries'] as $entry) {
+            if (($entry['object_number'] ?? null) === 6) {
+                $derivedEntry = $entry;
+            } elseif (($entry['object_number'] ?? null) === 7) {
+                $inheritedEntry = $entry;
+            }
+        }
+        $inheritedUsage = $inheritedEntry['reference_usages'][0] ?? [];
+
+        $t->same(['UseCMap Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['UseCMap Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('UseCMap Safe Import', $text);
+        $t->same("UseCMap Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'UseCMap DecodeParms Leak'));
+        $t->true(!str_contains($text, 'Twelve'));
+        $t->true(!str_contains($text, 'InheritedUseCMapMalformedDecodeParms-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(2, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(1, $review['use_cmap_stream_count']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['dictionary_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(1, $review['invalid_decodeparms_parameter_count']);
+        $t->true(is_array($derivedEntry));
+        $t->true(is_array($inheritedEntry));
+        $t->same(6, $derivedEntry['object_number'] ?? null);
+        $t->same('DerivedUseCMapBoundary-H', $derivedEntry['cmap_name'] ?? null);
+        $t->same('to_unicode', $derivedEntry['reference_usages'][0]['usage'] ?? null);
+        $t->same(7, $inheritedEntry['object_number'] ?? null);
+        $t->same(null, $inheritedEntry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $inheritedEntry['filters'] ?? null);
+        $t->same(false, $inheritedEntry['filter_resolution_failed'] ?? null);
+        $t->same(false, $inheritedEntry['decodeparms_resolution_failed'] ?? null);
+        $t->same(1, $inheritedEntry['invalid_decodeparms_parameter_count'] ?? null);
+        $t->same('filters_resolved', $inheritedEntry['filter_operand_policy'] ?? null);
+        $t->same('reject_malformed_decodeparms_parameters', $inheritedEntry['decodeparms_operand_policy'] ?? null);
+        $t->same(null, $inheritedEntry['decoded_cmap_length'] ?? null);
+        $t->same(null, $inheritedEntry['decoded_cmap_sha256'] ?? null);
+        $t->same(false, $inheritedEntry['decoded_with_current_operands'] ?? null);
+        $t->same('use_cmap', $inheritedUsage['usage'] ?? null);
+        $t->same(6, $inheritedUsage['source_object'] ?? null);
+        $t->same('7 0 R', $inheritedUsage['reference'] ?? null);
+        $t->same('<< /Predictor /Twelve /Columns 1 >>', $inheritedEntry['decodeparms_operands'][0]['value'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'classifies stale-generation CMap Filter references by the current xref-selected malformed owner' => static function (TestRunner $t) use ($parserMalformedCMapStaleReferenceFilterBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapStaleReferenceFilterBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperand = $entry['filter_operands'][0] ?? [];
+
+        $t->same(['Stale Reference Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Stale Reference Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Stale Reference Safe Import', $text);
+        $t->same("Stale Reference Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Stale Reference CMap Leak'));
+        $t->true(!str_contains($text, 'xref-selected dictionary is not a decoder'));
+        $t->true(!str_contains($text, 'StaleReferenceFilterBoundary-H'));
+        $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(1, $review['indirect_filter_count']);
+        $t->same(0, $review['xref_selected_operand_count']);
+        $t->same(1, $review['unresolved_operand_count']);
+        $t->same(0, $review['decoded_cmap_count']);
+        $t->same(1, $review['invalid_filter_operand_count']);
+        $t->same(1, $review['dictionary_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same(0, $entry['generation'] ?? null);
+        $t->same('StaleReferenceFilterBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same([], $entry['filters'] ?? null);
+        $t->same(true, $entry['filter_resolution_failed'] ?? null);
+        $t->same(1, $entry['indirect_filter_count'] ?? null);
+        $t->same(0, $entry['xref_selected_operand_count'] ?? null);
+        $t->same(1, $entry['unresolved_operand_count'] ?? null);
+        $t->same(1, $entry['invalid_filter_operand_count'] ?? null);
+        $t->same(1, $entry['dictionary_filter_operand_count'] ?? null);
+        $t->same(0, $entry['malformed_filter_operand_count'] ?? null);
+        $t->same('reject_dictionary_filter_operands', $entry['filter_operand_policy'] ?? null);
+        $t->same(null, $entry['decoded_cmap_length'] ?? null);
+        $t->same(null, $entry['decoded_cmap_sha256'] ?? null);
+        $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+        $t->same('unresolved_or_unselected_indirect_operands', $entry['owner_policy'] ?? null);
+        $t->same('indirect', $filterOperand['kind'] ?? null);
+        $t->same(7, $filterOperand['object_number'] ?? null);
+        $t->same(0, $filterOperand['generation'] ?? null);
+        $t->same(true, $filterOperand['resolved'] ?? null);
+        $t->same(false, $filterOperand['xref_selected'] ?? null);
+        $t->same(1, $filterOperand['xref_entry_type'] ?? null);
+        $t->same(1, $filterOperand['selected_generation'] ?? null);
+        $t->true(($filterOperand['definition_offset'] ?? null) !== ($filterOperand['selected_offset'] ?? null));
+        $t->same('xref_entry_points_elsewhere', $filterOperand['owner_policy'] ?? null);
+        $t->same('dictionary', $filterOperand['token_type'] ?? null);
+        $t->same(true, $filterOperand['dictionary_filter_operand'] ?? null);
+        $t->same(false, $filterOperand['valid_filter_operand'] ?? null);
+        $t->same(
+            '<< /Owner (xref-selected dictionary is not a decoder) /StaleValidFilter 7 0 R >>',
+            $filterOperand['value_preview'] ?? null
+        );
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'classifies nested-array CMap Filter dictionaries before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapNestedArrayDictionaryFilterBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapNestedArrayDictionaryFilterBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperands = $entry['filter_operands'] ?? [];
+
+        $t->same(['Nested Array Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Nested Array Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Nested Array Safe Import', $text);
+        $t->same("Nested Array Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Nested Array CMap Leak'));
+        $t->true(!str_contains($text, 'nested dictionary is not a decoder'));
+        $t->true(!str_contains($text, 'NestedArrayFilterBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(0, $review['decoded_cmap_count']);
+        $t->same(1, $review['invalid_filter_operand_count']);
+        $t->same(1, $review['dictionary_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same(0, $entry['generation'] ?? null);
+        $t->same('NestedArrayFilterBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same([], $entry['filters'] ?? null);
+        $t->same(true, $entry['filter_resolution_failed'] ?? null);
+        $t->same(1, $entry['invalid_filter_operand_count'] ?? null);
+        $t->same(1, $entry['dictionary_filter_operand_count'] ?? null);
+        $t->same(0, $entry['malformed_filter_operand_count'] ?? null);
+        $t->same('reject_dictionary_filter_operands', $entry['filter_operand_policy'] ?? null);
+        $t->same(null, $entry['decoded_cmap_length'] ?? null);
+        $t->same(null, $entry['decoded_cmap_sha256'] ?? null);
+        $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+        $t->same('direct_operands', $entry['owner_policy'] ?? null);
+        $t->same('direct', $filterOperands[0]['kind'] ?? null);
+        $t->same('array', $filterOperands[0]['token_type'] ?? null);
+        $t->same('[ [ << /Owner (nested dictionary is not a decoder) /Fake /Nested >> ] ]', $filterOperands[0]['value'] ?? null);
+        $t->same(true, $filterOperands[0]['dictionary_filter_operand'] ?? null);
+        $t->same(false, $filterOperands[0]['valid_filter_operand'] ?? null);
+        $t->same('direct', $filterOperands[1]['kind'] ?? null);
+        $t->same('name', $filterOperands[1]['token_type'] ?? null);
+        $t->same('FlateDecode', $filterOperands[1]['value'] ?? null);
+        $t->same(true, $filterOperands[1]['valid_filter_operand'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores decoded CMap operators after endcmap before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapPostEndOperatorBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapPostEndOperatorBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+
+        $t->same(['PostEnd Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['PostEnd Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('PostEnd Safe Import', $text);
+        $t->same("PostEnd Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'PostEnd CMap Leak'));
+        $t->true(!str_contains($text, 'PostEndCMapDecoy-H'));
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('PostEndCMapBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->true(($entry['post_endcmap_bytes_excluded'] ?? false) === true);
+        $t->true(($entry['post_endcmap_byte_count'] ?? 0) > 0);
+        $t->true(($entry['bounded_cmap_length'] ?? 0) < ($entry['decoded_cmap_length'] ?? 0));
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores complete decoded CMap programs after the first stream endcmap before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapSecondProgramBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapSecondProgramBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+
+        $t->same(['SecondProgram Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['SecondProgram Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('SecondProgram Safe Import', $text);
+        $t->same("SecondProgram Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Second Program CMap Leak'));
+        $t->true(!str_contains($text, 'SecondProgramDecoy-H'));
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('SecondProgramBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->true(($entry['post_endcmap_bytes_excluded'] ?? false) === true);
+        $t->true(($entry['post_endcmap_byte_count'] ?? 0) > 0);
+        $t->true(($entry['parser_bounded_cmap_bytes_excluded'] ?? false) === true);
+        $t->true(($entry['parser_excluded_cmap_byte_count'] ?? 0) > ($entry['post_endcmap_byte_count'] ?? 0));
+        $t->true(($entry['parser_bounded_cmap_length'] ?? 0) < ($entry['bounded_cmap_length'] ?? 0));
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores CMap block operators inside decoded literal strings before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapLiteralOperatorBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapLiteralOperatorBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+
+        $t->same(['Literal Operator Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Literal Operator Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Literal Operator Safe Import', $text);
+        $t->same("Literal Operator Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Literal Operator CMap Leak'));
+        $t->true(!str_contains($text, 'beginbfchar'));
+        $t->true(!str_contains($text, "\0"));
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('LiteralOperatorBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->same(true, $entry['decoded_with_current_operands'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores overdeclared CMap rows inside decoded literal strings before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapOverdeclaredLiteralOperatorBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapOverdeclaredLiteralOperatorBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+
+        $t->same(['Overdeclared Literal Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Overdeclared Literal Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Overdeclared Literal Safe Import', $text);
+        $t->same("Overdeclared Literal Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Overdeclared Literal CMap Leak'));
+        $t->true(!str_contains($text, 'beginbfchar'));
+        $t->true(!str_contains($text, '<0001>'));
+        $t->true(!str_contains($text, "\0"));
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('OverdeclaredLiteralOperatorBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->same(true, $entry['decoded_with_current_operands'] ?? null);
+        $t->true(($entry['decoded_cmap_length'] ?? 0) > 0);
+        $t->true(is_string($entry['decoded_cmap_sha256'] ?? null));
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores nested bfrange target arrays in filtered CMaps before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapNestedTargetArrayBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapNestedTargetArrayBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+
+        $t->same(['Nested Target Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Nested Target Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Nested Target Safe Import', $text);
+        $t->same("Nested Target Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Nested Target CMap Leak'));
+        $t->true(!str_contains($text, 'NestedTargetArrayBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(0, $review['unsupported_filter_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('NestedTargetArrayBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same(false, $entry['decodeparms_resolution_failed'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('filter_end_markers_resolved', $entry['filter_end_marker_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->true(($entry['decoded_cmap_length'] ?? 0) > 0);
+        $t->true(($entry['parser_bounded_cmap_length'] ?? 0) > 0);
+        $t->same(true, $entry['decoded_with_current_operands'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores nested full bfrange rows in filtered CMaps before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapNestedBfrangeRowArrayBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapNestedBfrangeRowArrayBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+
+        $t->same(['Nested Bfrange Row Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Nested Bfrange Row Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Nested Bfrange Row Safe Import', $text);
+        $t->same("Nested Bfrange Row Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Nested Bfrange Row CMap Leak'));
+        $t->true(!str_contains($text, 'NestedBfrangeRowArrayBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(0, $review['unsupported_filter_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('NestedBfrangeRowArrayBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same(false, $entry['decodeparms_resolution_failed'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('filter_end_markers_resolved', $entry['filter_end_marker_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->true(($entry['decoded_cmap_length'] ?? 0) > 0);
+        $t->true(($entry['parser_bounded_cmap_length'] ?? 0) > 0);
+        $t->same(true, $entry['decoded_with_current_operands'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores nested bfchar arrays in filtered CMaps before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapNestedBfcharArrayBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapNestedBfcharArrayBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+
+        $t->same(['Nested Bfchar Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Nested Bfchar Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Nested Bfchar Safe Import', $text);
+        $t->same("Nested Bfchar Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Nested Bfchar CMap Leak'));
+        $t->true(!str_contains($text, 'NestedBfcharArrayBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(0, $review['unsupported_filter_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('NestedBfcharArrayBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same(false, $entry['decodeparms_resolution_failed'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('filter_end_markers_resolved', $entry['filter_end_marker_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->true(($entry['decoded_cmap_length'] ?? 0) > 0);
+        $t->true(($entry['parser_bounded_cmap_length'] ?? 0) > 0);
+        $t->same(true, $entry['decoded_with_current_operands'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores decoded CMapName declarations inside literal strings before UseCMap inheritance' => static function (TestRunner $t) use ($parserMalformedCMapLiteralNameUseCMapBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapLiteralNameUseCMapBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $derivedEntry = null;
+        $baseEntry = null;
+        foreach ($review['entries'] as $entry) {
+            if (($entry['object_number'] ?? null) === 6) {
+                $derivedEntry = $entry;
+            } elseif (($entry['object_number'] ?? null) === 7) {
+                $baseEntry = $entry;
+            }
+        }
+
+        $t->same(['Literal Name Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Literal Name Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Literal Name Safe Import', $text);
+        $t->same("Literal Name Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'FakeBase-H'));
+        $t->true(!str_contains($text, 'CMapName'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(2, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(2, $review['decoded_cmap_count']);
+        $t->true(is_array($derivedEntry));
+        $t->true(is_array($baseEntry));
+        $t->same(6, $derivedEntry['object_number'] ?? null);
+        $t->same('DerivedLiteralName-H', $derivedEntry['cmap_name'] ?? null);
+        $t->same(['to_unicode'], array_column($derivedEntry['reference_usages'] ?? [], 'usage'));
+        $t->same('direct_operands', $derivedEntry['owner_policy'] ?? null);
+        $t->same(7, $baseEntry['object_number'] ?? null);
+        $t->same('RealBase-H', $baseEntry['cmap_name'] ?? null);
+        $t->same([], $baseEntry['reference_usages'] ?? null);
+        $t->same(['FlateDecode'], $baseEntry['filters'] ?? null);
+        $t->same(false, $baseEntry['filter_resolution_failed'] ?? null);
+        $t->same('filters_resolved', $baseEntry['filter_operand_policy'] ?? null);
+        $t->same(true, $baseEntry['decoded_with_current_operands'] ?? null);
+        $t->true(($baseEntry['decoded_cmap_length'] ?? 0) > 0);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores decoded usecmap operators inside literal strings before inherited CMap parsing' => static function (TestRunner $t) use ($parserMalformedCMapLiteralUseCMapOperatorBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapLiteralUseCMapOperatorBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $derivedEntry = null;
+        $realBaseEntry = null;
+        $decoyBaseEntry = null;
+        foreach ($review['entries'] as $entry) {
+            if (($entry['object_number'] ?? null) === 6) {
+                $derivedEntry = $entry;
+            } elseif (($entry['object_number'] ?? null) === 7) {
+                $realBaseEntry = $entry;
+            } elseif (($entry['object_number'] ?? null) === 8) {
+                $decoyBaseEntry = $entry;
+            }
+        }
+        $realBaseUsage = $realBaseEntry['reference_usages'][0] ?? [];
+
+        $t->same(['Literal UseCMap Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Literal UseCMap Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Literal UseCMap Safe Import', $text);
+        $t->same("Literal UseCMap Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Literal UseCMap Leak'));
+        $t->true(!str_contains($text, 'LiteralUseCMapDecoyBase-H'));
+        $t->true(!str_contains($text, 'usecmap'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(3, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(1, $review['use_cmap_stream_count']);
+        $t->same(3, $review['decoded_cmap_count']);
+        $t->true(is_array($derivedEntry));
+        $t->true(is_array($realBaseEntry));
+        $t->true(is_array($decoyBaseEntry));
+        $t->same(6, $derivedEntry['object_number'] ?? null);
+        $t->same('LiteralUseCMapDerived-H', $derivedEntry['cmap_name'] ?? null);
+        $t->same(['to_unicode'], array_column($derivedEntry['reference_usages'] ?? [], 'usage'));
+        $t->same(['FlateDecode'], $derivedEntry['filters'] ?? null);
+        $t->same('filters_resolved', $derivedEntry['filter_operand_policy'] ?? null);
+        $t->same(true, $derivedEntry['decoded_with_current_operands'] ?? null);
+        $t->same(7, $realBaseEntry['object_number'] ?? null);
+        $t->same('LiteralUseCMapRealBase-H', $realBaseEntry['cmap_name'] ?? null);
+        $t->same('use_cmap', $realBaseUsage['usage'] ?? null);
+        $t->same(6, $realBaseUsage['source_object'] ?? null);
+        $t->same('LiteralUseCMapRealBase-H', $realBaseUsage['name'] ?? null);
+        $t->same('LiteralUseCMapRealBase-H', $realBaseUsage['reference'] ?? null);
+        $t->same('named_usecmap', $realBaseUsage['reference_kind'] ?? null);
+        $t->same(['FlateDecode'], $realBaseEntry['filters'] ?? null);
+        $t->same(true, $realBaseEntry['decoded_with_current_operands'] ?? null);
+        $t->same(8, $decoyBaseEntry['object_number'] ?? null);
+        $t->same('LiteralUseCMapDecoyBase-H', $decoyBaseEntry['cmap_name'] ?? null);
+        $t->same([], $decoyBaseEntry['reference_usages'] ?? null);
+        $t->same(['FlateDecode'], $decoyBaseEntry['filters'] ?? null);
+        $t->same(true, $decoyBaseEntry['decoded_with_current_operands'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'does not trust dictionary CMapName from malformed object-valued UseCMap streams before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapObjectUseCMapNameBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapObjectUseCMapNameBoundaryCurrentBasePdf();
+
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $text = $extractor->extractPlainText($pdf);
+        $derivedEntry = null;
+        $malformedBaseEntry = null;
+        $validBaseEntry = null;
+        foreach ($review['entries'] as $entry) {
+            if (($entry['object_number'] ?? null) === 6) {
+                $derivedEntry = $entry;
+            } elseif (($entry['object_number'] ?? null) === 7) {
+                $malformedBaseEntry = $entry;
+            } elseif (($entry['object_number'] ?? null) === 8) {
+                $validBaseEntry = $entry;
+            }
+        }
+
+        $t->same(['Object UseCMap Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Object UseCMap Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Object UseCMap Safe Import', $text);
+        $t->same("Object UseCMap Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Forged Object UseCMap Leak'));
+        $t->true(!str_contains($text, 'ForgedObjectBase-H'));
+        $t->true(!str_contains($text, 'ASCIIHexDecode'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same(3, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(1, $review['use_cmap_stream_count']);
+        $t->same(2, $review['decoded_cmap_count']);
+        $t->same(1, $review['filter_end_marker_problem_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(0, $review['unsupported_filter_count']);
+        $t->same(0, $review['filter_decode_error_count']);
+
+        $t->true(is_array($derivedEntry));
+        $t->true(is_array($malformedBaseEntry));
+        $t->true(is_array($validBaseEntry));
+        $t->same('ObjectUseCMapDerived-H', $derivedEntry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $derivedEntry['filters'] ?? null);
+        $t->same('filters_resolved', $derivedEntry['filter_operand_policy'] ?? null);
+        $t->same('filter_end_markers_resolved', $derivedEntry['filter_end_marker_policy'] ?? null);
+        $t->same('filter_decoders_resolved', $derivedEntry['filter_decode_policy'] ?? null);
+
+        $t->same('ForgedObjectBase-H', $malformedBaseEntry['cmap_name'] ?? null);
+        $t->same(['ASCIIHexDecode'], $malformedBaseEntry['filters'] ?? null);
+        $t->same('filters_resolved', $malformedBaseEntry['filter_operand_policy'] ?? null);
+        $t->same('reject_malformed_filter_end_markers', $malformedBaseEntry['filter_end_marker_policy'] ?? null);
+        $t->same('filter_decode_not_reached', $malformedBaseEntry['filter_decode_policy'] ?? null);
+        $t->same(false, $malformedBaseEntry['decoded_with_current_operands'] ?? null);
+        $t->same(1, $malformedBaseEntry['filter_end_marker_problem_count'] ?? null);
+        $t->same('ASCIIHexDecode', $malformedBaseEntry['filter_end_marker_problems'][0]['filter'] ?? null);
+        $t->same('missing_explicit_end_marker', $malformedBaseEntry['filter_end_marker_problems'][0]['problem'] ?? null);
+        $t->same(true, $malformedBaseEntry['filter_end_marker_problems'][0]['requires_explicit_end_marker'] ?? null);
+
+        $t->same('ForgedObjectBase-H', $validBaseEntry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $validBaseEntry['filters'] ?? null);
+        $t->same('filters_resolved', $validBaseEntry['filter_operand_policy'] ?? null);
+        $t->same('filter_end_markers_resolved', $validBaseEntry['filter_end_marker_policy'] ?? null);
+        $t->same('filter_decoders_resolved', $validBaseEntry['filter_decode_policy'] ?? null);
+        $t->same(true, $validBaseEntry['decoded_with_current_operands'] ?? null);
+    },
+    'treats identity Crypt CMap filters as pass-through while rejecting named crypt filters' => static function (TestRunner $t) use (
+        $parserMalformedCMapCryptIdentityFilterBoundaryCurrentBasePdf,
+        $parserMalformedCMapCryptPrivateFilterBoundaryCurrentBasePdf
+    ): void {
+        $extractor = new PdfTextExtractor();
+        $identityPdf = $parserMalformedCMapCryptIdentityFilterBoundaryCurrentBasePdf();
+        $privatePdf = $parserMalformedCMapCryptPrivateFilterBoundaryCurrentBasePdf();
+        $identityText = $extractor->extractPlainText($identityPdf);
+        $privateText = $extractor->extractPlainText($privatePdf);
+        $identityReview = $extractor->extractCMapStreamFilterLengthOwnerReview($identityPdf);
+        $privateReview = $extractor->extractCMapStreamFilterLengthOwnerReview($privatePdf);
+        $identityEntry = $identityReview['entries'][0] ?? [];
+        $privateEntry = $privateReview['entries'][0] ?? [];
+
+        $t->same(['Identity Crypt CMap Import'], $extractor->extractTextLines($identityPdf));
+        $t->same(['Identity Crypt CMap Import'], $extractor->extractTextRuns($identityPdf));
+        $t->same('Identity Crypt CMap Import', $identityText);
+        $t->same("Identity Crypt CMap Import\n", $extractor->naiveGetText($identityPdf));
+        $t->same(1, $extractor->extractOutlineMetadata($identityPdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($identityPdf));
+        $t->true(!str_contains($identityText, 'CryptIdentityBoundary-H'));
+        $t->true(!str_contains($identityText, '/Name'));
+        $t->true(!str_contains($identityText, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $identityReview['source']);
+        $t->true($identityReview['review_only']);
+        $t->same(false, $identityReview['encrypted']);
+        $t->same(1, $identityReview['cmap_stream_count']);
+        $t->same(1, $identityReview['to_unicode_cmap_stream_count']);
+        $t->same(1, $identityReview['decoded_cmap_count']);
+        $t->same(0, $identityReview['invalid_filter_operand_count']);
+        $t->same(0, $identityReview['malformed_filter_operand_count']);
+        $t->same(0, $identityReview['unsupported_filter_count']);
+        $t->same(0, $identityReview['invalid_decodeparms_parameter_count']);
+        $t->same(6, $identityEntry['object_number'] ?? null);
+        $t->same('CryptIdentityBoundary-H', $identityEntry['cmap_name'] ?? null);
+        $t->same(['Crypt'], $identityEntry['filters'] ?? null);
+        $t->same(false, $identityEntry['filter_resolution_failed'] ?? null);
+        $t->same(false, $identityEntry['decodeparms_resolution_failed'] ?? null);
+        $t->same(0, $identityEntry['unsupported_filter_count'] ?? null);
+        $t->same('filters_resolved', $identityEntry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $identityEntry['decodeparms_operand_policy'] ?? null);
+        $t->same(true, $identityEntry['decoded_with_current_operands'] ?? null);
+        $t->true(($identityEntry['decoded_cmap_length'] ?? 0) > 0);
+        $t->true(is_string($identityEntry['decoded_cmap_sha256'] ?? null));
+        $t->same('direct_operands', $identityEntry['owner_policy'] ?? null);
+        $t->same('Crypt', $identityEntry['filter_operands'][0]['value'] ?? null);
+        $t->same('<< /Name /Identity >>', $identityEntry['decodeparms_operands'][0]['value'] ?? null);
+
+        $t->same(['Private Crypt Safe Import'], $extractor->extractTextLines($privatePdf));
+        $t->same(['Private Crypt Safe Import'], $extractor->extractTextRuns($privatePdf));
+        $t->same('Private Crypt Safe Import', $privateText);
+        $t->same("Private Crypt Safe Import\n", $extractor->naiveGetText($privatePdf));
+        $t->same(1, $extractor->extractOutlineMetadata($privatePdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($privatePdf));
+        $t->true(!str_contains($privateText, 'Private Crypt CMap Leak'));
+        $t->true(!str_contains($privateText, 'CryptPrivateBoundary-H'));
+        $t->true(!str_contains($privateText, 'PrivateCF'));
+        $t->true(!str_contains($privateText, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $privateReview['source']);
+        $t->true($privateReview['review_only']);
+        $t->same(false, $privateReview['encrypted']);
+        $t->same(1, $privateReview['cmap_stream_count']);
+        $t->same(1, $privateReview['to_unicode_cmap_stream_count']);
+        $t->same(0, $privateReview['decoded_cmap_count']);
+        $t->same(0, $privateReview['invalid_filter_operand_count']);
+        $t->same(0, $privateReview['malformed_filter_operand_count']);
+        $t->same(1, $privateReview['unsupported_filter_count']);
+        $t->same(0, $privateReview['invalid_decodeparms_parameter_count']);
+        $t->same(6, $privateEntry['object_number'] ?? null);
+        $t->same('CryptPrivateBoundary-H', $privateEntry['cmap_name'] ?? null);
+        $t->same(['Crypt'], $privateEntry['filters'] ?? null);
+        $t->same(false, $privateEntry['filter_resolution_failed'] ?? null);
+        $t->same(false, $privateEntry['decodeparms_resolution_failed'] ?? null);
+        $t->same(1, $privateEntry['unsupported_filter_count'] ?? null);
+        $t->same('reject_unsupported_filter_names', $privateEntry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $privateEntry['decodeparms_operand_policy'] ?? null);
+        $t->same(null, $privateEntry['decoded_cmap_length'] ?? null);
+        $t->same(null, $privateEntry['decoded_cmap_sha256'] ?? null);
+        $t->same(false, $privateEntry['decoded_with_current_operands'] ?? null);
+        $t->same('direct_operands', $privateEntry['owner_policy'] ?? null);
+        $t->same('Crypt', $privateEntry['filter_operands'][0]['value'] ?? null);
+        $t->same('<< /Name /PrivateCF >>', $privateEntry['decodeparms_operands'][0]['value'] ?? null);
+        $t->same(false, $identityReview['executes_python_or_models']);
+        $t->same(false, $identityReview['executes_external_pdf_tools']);
+        $t->same(false, $privateReview['executes_python_or_models']);
+        $t->same(false, $privateReview['executes_external_pdf_tools']);
+    },
+    'decodes escaped valid CMap Filter names before current-base text extraction' => static function (TestRunner $t) use ($parserEscapedCMapFilterNameBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserEscapedCMapFilterNameBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperand = $entry['filter_operands'][0] ?? [];
+
+        $t->same(['Escaped Filter CMap Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Escaped Filter CMap Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Escaped Filter CMap Import', $text);
+        $t->same("Escaped Filter CMap Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'EscapedFilterNameBoundary-H'));
+        $t->true(!str_contains($text, '/Fl#61teDecode'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(1, $review['escaped_filter_name_operand_count']);
+        $t->same(0, $review['unsupported_filter_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('EscapedFilterNameBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same(1, $entry['escaped_filter_name_operand_count'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->same(true, $entry['decoded_with_current_operands'] ?? null);
+        $t->same('direct_operands', $entry['owner_policy'] ?? null);
+        $t->same('direct', $filterOperand['kind'] ?? null);
+        $t->same('name', $filterOperand['token_type'] ?? null);
+        $t->same('FlateDecode', $filterOperand['value'] ?? null);
+        $t->same(true, $filterOperand['valid_filter_operand'] ?? null);
+        $t->same(true, $filterOperand['escaped_name_operand'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'classifies escaped unsupported CMap Filter names as fail-closed before current-base text extraction' => static function (TestRunner $t) use ($parserEscapedUnsupportedCMapFilterNameBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserEscapedUnsupportedCMapFilterNameBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperand = $entry['filter_operands'][0] ?? [];
+
+        $t->same(['Escaped Unsupported Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Escaped Unsupported Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Escaped Unsupported Safe Import', $text);
+        $t->same("Escaped Unsupported Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Escaped Unsupported CMap Leak'));
+        $t->true(!str_contains($text, 'EscapedUnsupportedFilterBoundary-H'));
+        $t->true(!str_contains($text, 'DCTDecode'));
+        $t->true(!str_contains($text, '/DCT#44ecode'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['decoded_cmap_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(1, $review['escaped_filter_name_operand_count']);
+        $t->same(1, $review['unsupported_filter_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('EscapedUnsupportedFilterBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['DCTDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same(1, $entry['escaped_filter_name_operand_count'] ?? null);
+        $t->same(1, $entry['unsupported_filter_count'] ?? null);
+        $t->same('reject_unsupported_filter_names', $entry['filter_operand_policy'] ?? null);
+        $t->same(null, $entry['decoded_cmap_length'] ?? null);
+        $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+        $t->same('direct_operands', $entry['owner_policy'] ?? null);
+        $t->same('direct', $filterOperand['kind'] ?? null);
+        $t->same('name', $filterOperand['token_type'] ?? null);
+        $t->same('DCTDecode', $filterOperand['value'] ?? null);
+        $t->same(true, $filterOperand['valid_filter_operand'] ?? null);
+        $t->same(true, $filterOperand['escaped_name_operand'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'classifies unsupported CMap Filter names as fail-closed before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapUnsupportedFilterBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapUnsupportedFilterBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperand = $entry['filter_operands'][0] ?? [];
+
+        $t->same(['Unsupported Filter Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Unsupported Filter Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Unsupported Filter Safe Import', $text);
+        $t->same("Unsupported Filter Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Unsupported Filter CMap Leak'));
+        $t->true(!str_contains($text, 'UnsupportedFilterBoundary-H'));
+        $t->true(!str_contains($text, 'DCTDecode'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(0, $review['decoded_cmap_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['dictionary_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(1, $review['unsupported_filter_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same(0, $entry['generation'] ?? null);
+        $t->same('UnsupportedFilterBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['DCTDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same('reject_unsupported_filter_names', $entry['filter_operand_policy'] ?? null);
+        $t->same(1, $entry['unsupported_filter_count'] ?? null);
+        $t->same(null, $entry['decoded_cmap_length'] ?? null);
+        $t->same(null, $entry['decoded_cmap_sha256'] ?? null);
+        $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+        $t->same('direct_operands', $entry['owner_policy'] ?? null);
+        $t->same('direct', $filterOperand['kind'] ?? null);
+        $t->same('name', $filterOperand['token_type'] ?? null);
+        $t->same('DCTDecode', $filterOperand['value'] ?? null);
+        $t->same(true, $filterOperand['valid_filter_operand'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'fails closed when explicit CMap filter terminators are followed by non-whitespace stream bytes' => static function (TestRunner $t) use ($parserMalformedCMapUnboundedExplicitFilterBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+
+        foreach ([false, true] as $stackedInnerAscii85) {
+            [$pdf, $safeText, $leakingText, $cMapName, $problemFilter, $problemFilterIndex] = $parserMalformedCMapUnboundedExplicitFilterBoundaryCurrentBasePdf($stackedInnerAscii85);
+            $plainText = $extractor->extractPlainText($pdf);
+            $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+            $entry = $review['entries'][0] ?? [];
+            $problem = $entry['filter_end_marker_problems'][0] ?? [];
+
+            $t->same([$safeText], $extractor->extractTextLines($pdf));
+            $t->same([$safeText], $extractor->extractTextRuns($pdf));
+            $t->same($safeText, $plainText);
+            $t->same($safeText . "\n", $extractor->naiveGetText($pdf));
+            $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+            $t->same(['1'], $extractor->extractPageLabels($pdf));
+            $t->true(!str_contains($plainText, $leakingText));
+            $t->true(!str_contains($plainText, 'Trailing Filter CMap Leak'));
+            $t->true(!str_contains($plainText, $cMapName));
+            $t->true(!str_contains($plainText, 'beginbfchar'));
+            $t->true(!str_contains($plainText, "\0"));
+
+            $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+            $t->true($review['review_only']);
+            $t->same(false, $review['encrypted']);
+            $t->same(1, $review['cmap_stream_count']);
+            $t->same(1, $review['to_unicode_cmap_stream_count']);
+            $t->same(0, $review['encoding_cmap_stream_count']);
+            $t->same(0, $review['decoded_cmap_count']);
+            $t->same(0, $review['invalid_filter_operand_count']);
+            $t->same(0, $review['malformed_filter_operand_count']);
+            $t->same(0, $review['unsupported_filter_count']);
+            $t->same(1, $review['filter_end_marker_problem_count']);
+
+            $t->same(6, $entry['object_number'] ?? null);
+            $t->same(0, $entry['generation'] ?? null);
+            $t->same($cMapName, $entry['cmap_name'] ?? null);
+            $t->same($stackedInnerAscii85 ? ['FlateDecode', 'ASCII85Decode'] : ['ASCIIHexDecode'], $entry['filters'] ?? null);
+            $t->same(false, $entry['filter_resolution_failed'] ?? null);
+            $t->same(false, $entry['decodeparms_resolution_failed'] ?? null);
+            $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+            $t->same('reject_malformed_filter_end_markers', $entry['filter_end_marker_policy'] ?? null);
+            $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+            $t->same(1, $entry['filter_end_marker_problem_count'] ?? null);
+            $t->same('unbounded_explicit_end_marker', $problem['problem'] ?? null);
+            $t->same($problemFilterIndex, $problem['filter_index'] ?? null);
+            $t->same($problemFilter, $problem['filter'] ?? null);
+            $t->same(true, $problem['requires_explicit_end_marker'] ?? null);
+            $t->same(null, $entry['decoded_cmap_length'] ?? null);
+            $t->same(null, $entry['decoded_cmap_sha256'] ?? null);
+            $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+            $t->same('direct_operands', $entry['owner_policy'] ?? null);
+            $t->same(false, $review['executes_python_or_models']);
+            $t->same(false, $review['executes_external_pdf_tools']);
+        }
+    },
+];

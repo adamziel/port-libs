@@ -10,17 +10,32 @@ final class HashTree
 
     public function keyHash(string $key): string
     {
-        return hash('sha256', $key);
+        return Blake2s::hashHex($key);
     }
 
     public function valueHash(string $value): string
     {
-        return hash('sha256', $value);
+        return Blake2s::hashHex($value);
     }
 
     public function leafHash(string $key, string $value): string
     {
-        return hash('sha256', hex2bin($this->keyHash($key)) . hex2bin($this->valueHash($value)) . "\0");
+        return $this->leafHashForKeyHash($this->keyHash($key), $value);
+    }
+
+    public function leafHashForKeyHash(string $keyHashHex, string $value): string
+    {
+        $this->assertHash($keyHashHex);
+
+        return $this->leafHashForKeyHashAndValueHash($keyHashHex, $this->valueHash($value));
+    }
+
+    public function leafHashForKeyHashAndValueHash(string $keyHashHex, string $valueHashHex): string
+    {
+        $this->assertHash($keyHashHex);
+        $this->assertHash($valueHashHex);
+
+        return Blake2s::hashHex(hex2bin($keyHashHex) . hex2bin($valueHashHex) . "\0");
     }
 
     public function branchHash(string $leftHex, string $rightHex): string
@@ -31,7 +46,7 @@ final class HashTree
             return self::EMPTY_HASH;
         }
 
-        return hash('sha256', hex2bin($leftHex) . hex2bin($rightHex));
+        return Blake2s::hashHex(hex2bin($leftHex) . hex2bin($rightHex));
     }
 
     public function bitAt(string $hashHex, int $depth): int
@@ -51,4 +66,3 @@ final class HashTree
         }
     }
 }
-

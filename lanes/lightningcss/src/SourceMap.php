@@ -1,0 +1,1875 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\LightningCSS;
+
+use InvalidArgumentException;
+use OutOfBoundsException;
+
+final class SourceMap
+{
+    private const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    private const MAX_UNSIGNED_32 = 4294967295;
+
+    private string $projectRoot;
+
+    /** @var list<string> */
+    private array $sources = [];
+
+    /** @var array<string, int> */
+    private array $sourceIndexes = [];
+
+    /** @var array<int, string> */
+    private array $sourcesContent = [];
+
+    /** @var array<int, true> */
+    private array $sourceContentIndexes = [];
+
+    /** @var list<string> */
+    private array $names = [];
+
+    /** @var array<string, int> */
+    private array $nameIndexes = [];
+
+    /**
+     * @var list<array{
+     *     generatedLine:int,
+     *     generatedColumn:int,
+     *     sourceIndex:int|null,
+     *     originalLine:int|null,
+     *     originalColumn:int|null,
+     *     nameIndex:int|null,
+     *     order:int
+     * }>
+     */
+    private array $mappings = [];
+
+    private int $generatedLineCount = 0;
+
+    public function __construct(string $projectRoot = '/')
+    {
+        $this->projectRoot = $projectRoot;
+    }
+
+    public function addSource(string $source): int
+    {
+        $source = self::makeRelativePath($this->projectRoot, $source);
+        if (isset($this->sourceIndexes[$source])) {
+            return $this->sourceIndexes[$source];
+        }
+
+        $index = count($this->sources);
+        $this->sources[] = $source;
+        $this->sourceIndexes[$source] = $index;
+
+        return $index;
+    }
+
+    /**
+     * @param list<string> $sources
+     * @return list<int>
+     */
+    public function addSources(array $sources): array
+    {
+        $indexes = [];
+        foreach ($sources as $source) {
+            if (!is_string($source)) {
+                throw new InvalidArgumentException('Source map sources must be strings.');
+            }
+
+            $indexes[] = $this->addSource($source);
+        }
+
+        return $indexes;
+    }
+
+    public function getSourceIndex(string $source): ?int
+    {
+        $source = self::makeRelativePath($this->projectRoot, $source);
+
+        return $this->sourceIndexes[$source] ?? null;
+    }
+
+    public function getSource(int $sourceIndex): string
+    {
+        if (!array_key_exists($sourceIndex, $this->sources)) {
+            throw new OutOfBoundsException('Unknown source index: ' . $sourceIndex);
+        }
+
+        return $this->sources[$sourceIndex];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getSources(): array
+    {
+        return $this->sources;
+    }
+
+    public function setSourceContent(int $sourceIndex, string $content): void
+    {
+        $this->setSourceContentValue($sourceIndex, $content, true);
+    }
+
+    private function setSourceContentValue(
+        int $sourceIndex,
+        string $content,
+        bool $explicit,
+        bool $allowImplicitOverride = false
+    ): void
+    {
+        $this->assertSourceIndex($sourceIndex);
+        if (!$explicit && isset($this->sourceContentIndexes[$sourceIndex]) && !$allowImplicitOverride) {
+            return;
+        }
+
+        for ($i = count($this->sourcesContent); $i < $sourceIndex; $i++) {
+            $this->sourcesContent[$i] = '';
+        }
+
+        $this->sourcesContent[$sourceIndex] = $content;
+        if ($explicit) {
+            $this->sourceContentIndexes[$sourceIndex] = true;
+        } else {
+            unset($this->sourceContentIndexes[$sourceIndex]);
+        }
+    }
+
+    public function getSourceContent(int $sourceIndex): string
+    {
+        if (!array_key_exists($sourceIndex, $this->sourcesContent)) {
+            throw new OutOfBoundsException('Unknown source content index: ' . $sourceIndex);
+        }
+
+        return $this->sourcesContent[$sourceIndex];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getSourcesContent(): array
+    {
+        return $this->sourceContentsForJson();
+    }
+
+    public function addName(string $name): int
+    {
+        if (isset($this->nameIndexes[$name])) {
+            return $this->nameIndexes[$name];
+        }
+
+        $index = count($this->names);
+        $this->names[] = $name;
+        $this->nameIndexes[$name] = $index;
+
+        return $index;
+    }
+
+    /**
+     * @param list<string> $names
+     * @return list<int>
+     */
+    public function addNames(array $names): array
+    {
+        $indexes = [];
+        foreach ($names as $name) {
+            if (!is_string($name)) {
+                throw new InvalidArgumentException('Source map names must be strings.');
+            }
+
+            $indexes[] = $this->addName($name);
+        }
+
+        return $indexes;
+    }
+
+    public function getNameIndex(string $name): ?int
+    {
+        return $this->nameIndexes[$name] ?? null;
+    }
+
+    public function getName(int $nameIndex): string
+    {
+        if (!array_key_exists($nameIndex, $this->names)) {
+            throw new OutOfBoundsException('Unknown name index: ' . $nameIndex);
+        }
+
+        return $this->names[$nameIndex];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getNames(): array
+    {
+        return $this->names;
+    }
+
+    public function addMapping(
+        int $generatedLine,
+        int $generatedColumn,
+        int $sourceIndex,
+        int $originalLine,
+        int $originalColumn,
+        ?string $name = null
+    ): void {
+        $this->addRawMapping($generatedLine, $generatedColumn, $sourceIndex, $originalLine, $originalColumn, $name);
+    }
+
+    public function addGeneratedMapping(int $generatedLine, int $generatedColumn): void
+    {
+        $this->addRawMapping($generatedLine, $generatedColumn, null, null, null, null);
+    }
+
+    public function addMappingWithOffset(
+        int $generatedLine,
+        int $generatedColumn,
+        int $sourceIndex,
+        int $originalLine,
+        int $originalColumn,
+        int $lineOffset,
+        int $columnOffset,
+        ?string $name = null
+    ): void {
+        $this->assertNonNegative($generatedLine, 'generated line');
+        $this->assertNonNegative($generatedColumn, 'generated column');
+
+        $offsetLine = $this->offsetNonNegative($generatedLine, $lineOffset, 'generated line + line offset');
+        $offsetColumn = $this->offsetNonNegative($generatedColumn, $columnOffset, 'generated column + column offset');
+
+        $this->addMapping($offsetLine, $offsetColumn, $sourceIndex, $originalLine, $originalColumn, $name);
+    }
+
+    public function addGeneratedMappingWithOffset(
+        int $generatedLine,
+        int $generatedColumn,
+        int $lineOffset,
+        int $columnOffset
+    ): void {
+        $this->assertNonNegative($generatedLine, 'generated line');
+        $this->assertNonNegative($generatedColumn, 'generated column');
+
+        $offsetLine = $this->offsetNonNegative($generatedLine, $lineOffset, 'generated line + line offset');
+        $offsetColumn = $this->offsetNonNegative($generatedColumn, $columnOffset, 'generated column + column offset');
+
+        $this->addGeneratedMapping($offsetLine, $offsetColumn);
+    }
+
+    /**
+     * @param array{
+     *     generatedLine:int,
+     *     generatedColumn:int,
+     *     sourceIndex?:int|null,
+     *     originalLine?:int|null,
+     *     originalColumn?:int|null,
+     *     nameIndex?:int|null
+     * } $mapping
+     */
+    public function addMappingRecordWithOffset(array $mapping, int $lineOffset, int $columnOffset): void
+    {
+        $mapping = self::listOfMappingArrays([$mapping])[0];
+        $offsetLine = $this->offsetNonNegative($mapping['generatedLine'], $lineOffset, 'mapping.generated_line + line_offset');
+        $offsetColumn = $this->offsetNonNegative($mapping['generatedColumn'], $columnOffset, 'mapping.generated_column + column_offset');
+
+        $name = null;
+        if ($mapping['nameIndex'] !== null) {
+            $name = $this->getName($mapping['nameIndex']);
+        }
+
+        $this->addRawMapping(
+            $offsetLine,
+            $offsetColumn,
+            $mapping['sourceIndex'],
+            $mapping['originalLine'],
+            $mapping['originalColumn'],
+            $name
+        );
+    }
+
+    public function addPrinterMapping(
+        int $generatedLine,
+        int $generatedColumn,
+        int $sourceIndex,
+        int $sourceLine,
+        int $sourceColumnOneBased,
+        ?string $name = null
+    ): void {
+        if ($sourceColumnOneBased < 1) {
+            throw new InvalidArgumentException('Source column must be one-based.');
+        }
+
+        $this->addMapping($generatedLine, $generatedColumn, $sourceIndex, $sourceLine, $sourceColumnOneBased - 1, $name);
+    }
+
+    public function addSourceMap(SourceMap $sourceMap, int $lineOffset = 0, bool $preserveUnusedTables = true): void
+    {
+        try {
+            $sourceIndexes = [];
+            $nameIndexes = [];
+
+            if ($preserveUnusedTables) {
+                foreach ($sourceMap->sources as $index => $source) {
+                    $mappedIndex = $this->addSource($source);
+                    $sourceIndexes[$index] = $mappedIndex;
+                    if (array_key_exists($index, $sourceMap->sourcesContent)) {
+                        $this->setSourceContent($mappedIndex, $sourceMap->sourcesContent[$index]);
+                    }
+                }
+
+                foreach ($sourceMap->names as $index => $name) {
+                    $nameIndexes[$index] = $this->addName($name);
+                }
+            }
+
+            $childMaxLine = null;
+            foreach ($sourceMap->mappings as $mapping) {
+                $childMaxLine = $childMaxLine === null
+                    ? $mapping['generatedLine']
+                    : max($childMaxLine, $mapping['generatedLine']);
+            }
+
+            $childLineCount = max(
+                $sourceMap->generatedLineCount,
+                $childMaxLine === null ? 0 : $childMaxLine + 1
+            );
+
+            if ($childLineCount === 0) {
+                return;
+            }
+
+            $mappingsByChildLine = [];
+            foreach ($sourceMap->mappings as $mapping) {
+                $mappingsByChildLine[$mapping['generatedLine']][] = $mapping;
+            }
+
+            for ($line = 0; $line < $childLineCount; $line++) {
+                $generatedLine = $line + $lineOffset;
+                if ($generatedLine < 0) {
+                    continue;
+                }
+
+                $lineMappings = [];
+                foreach ($mappingsByChildLine[$line] ?? [] as $mapping) {
+                    $sourceIndex = null;
+                    if ($mapping['sourceIndex'] !== null) {
+                        if (!array_key_exists($mapping['sourceIndex'], $sourceMap->sources)) {
+                            throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $mapping['sourceIndex']);
+                        }
+
+                        $sourceIndex = $sourceIndexes[$mapping['sourceIndex']] ??= $this->addSource($sourceMap->sources[$mapping['sourceIndex']]);
+
+                        if (!$preserveUnusedTables && array_key_exists($mapping['sourceIndex'], $sourceMap->sourcesContent)) {
+                            $this->setSourceContent($sourceIndex, $sourceMap->sourcesContent[$mapping['sourceIndex']]);
+                        }
+                    }
+
+                    $nameIndex = null;
+                    if ($mapping['nameIndex'] !== null) {
+                        if (!array_key_exists($mapping['nameIndex'], $sourceMap->names)) {
+                            throw new InvalidArgumentException('Source map mapping references unknown name index: ' . $mapping['nameIndex']);
+                        }
+
+                        $nameIndex = $nameIndexes[$mapping['nameIndex']] ??= $this->addName($sourceMap->names[$mapping['nameIndex']]);
+                    }
+
+                    $lineMappings[] = [
+                        'generatedLine' => $generatedLine,
+                        'generatedColumn' => $mapping['generatedColumn'],
+                        'sourceIndex' => $sourceIndex,
+                        'originalLine' => $mapping['originalLine'],
+                        'originalColumn' => $mapping['originalColumn'],
+                        'nameIndex' => $nameIndex,
+                        'order' => 0,
+                    ];
+                }
+
+                $this->replaceGeneratedLineMappings($generatedLine, $lineMappings);
+                $this->generatedLineCount = max($this->generatedLineCount, $generatedLine + 1);
+            }
+        } finally {
+            $this->drainSourceMap($sourceMap);
+        }
+    }
+
+    public function appendSourceMapWithGeneratedOffset(
+        SourceMap $sourceMap,
+        int $lineOffset = 0,
+        int $columnOffset = 0,
+        bool $preserveUnusedTables = true
+    ): void {
+        if ($columnOffset < 0) {
+            throw new InvalidArgumentException('generated column offset must be non-negative.');
+        }
+
+        try {
+            $sourceIndexes = [];
+            $sourceIndexIsNew = [];
+            $nameIndexes = [];
+
+            if ($preserveUnusedTables) {
+                foreach ($sourceMap->sources as $index => $source) {
+                    $mappedIndex = $this->addSource($source);
+                    $sourceIndexes[$index] = $mappedIndex;
+                    if (array_key_exists($index, $sourceMap->sourcesContent)) {
+                        $this->setSourceContent($mappedIndex, $sourceMap->sourcesContent[$index]);
+                    }
+                }
+
+                foreach ($sourceMap->names as $index => $name) {
+                    $nameIndexes[$index] = $this->addName($name);
+                }
+            }
+
+            $childMaxLine = null;
+            $mappingsByChildLine = [];
+            foreach ($sourceMap->mappings as $mapping) {
+                $childMaxLine = $childMaxLine === null
+                    ? $mapping['generatedLine']
+                    : max($childMaxLine, $mapping['generatedLine']);
+                $mappingsByChildLine[$mapping['generatedLine']][] = $mapping;
+            }
+
+            $childLineCount = max(
+                $sourceMap->generatedLineCount,
+                $childMaxLine === null ? 0 : $childMaxLine + 1
+            );
+
+            for ($line = 0; $line < $childLineCount; $line++) {
+                $generatedLine = $line + $lineOffset;
+                if ($generatedLine < 0) {
+                    continue;
+                }
+
+                $lineMappings = [];
+                foreach ($mappingsByChildLine[$line] ?? [] as $mapping) {
+                    if (!$preserveUnusedTables && $mapping['sourceIndex'] === null) {
+                        continue;
+                    }
+
+                    $sourceIndex = null;
+                    if ($mapping['sourceIndex'] !== null) {
+                        if (!array_key_exists($mapping['sourceIndex'], $sourceMap->sources)) {
+                            throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $mapping['sourceIndex']);
+                        }
+
+                        if (!array_key_exists($mapping['sourceIndex'], $sourceIndexes)) {
+                            $knownSourceIndex = $this->getSourceIndex($sourceMap->sources[$mapping['sourceIndex']]);
+                            $sourceIndexIsNew[$mapping['sourceIndex']] = $knownSourceIndex === null;
+                            $sourceIndexes[$mapping['sourceIndex']] = $knownSourceIndex ?? $this->addSource($sourceMap->sources[$mapping['sourceIndex']]);
+                        }
+
+                        $sourceIndex = $sourceIndexes[$mapping['sourceIndex']];
+
+                        if (
+                            !$preserveUnusedTables
+                            && array_key_exists($mapping['sourceIndex'], $sourceMap->sourcesContent)
+                            && (
+                                ($sourceIndexIsNew[$mapping['sourceIndex']] ?? false)
+                                || !isset($this->sourceContentIndexes[$sourceIndex])
+                            )
+                        ) {
+                            $this->setSourceContent($sourceIndex, $sourceMap->sourcesContent[$mapping['sourceIndex']]);
+                        }
+                    }
+
+                    $name = null;
+                    if ($mapping['nameIndex'] !== null) {
+                        if (!array_key_exists($mapping['nameIndex'], $sourceMap->names)) {
+                            throw new InvalidArgumentException('Source map mapping references unknown name index: ' . $mapping['nameIndex']);
+                        }
+
+                        $name = $sourceMap->names[$mapping['nameIndex']];
+                        $nameIndexes[$mapping['nameIndex']] ??= $this->addName($name);
+                    }
+
+                    $lineMappings[] = [
+                        'generatedLine' => $generatedLine,
+                        'generatedColumn' => self::offsetUnsigned32(
+                            $mapping['generatedColumn'],
+                            $mapping['generatedLine'] === 0 ? $columnOffset : 0,
+                            'generated column + column offset'
+                        ),
+                        'sourceIndex' => $sourceIndex,
+                        'originalLine' => $mapping['originalLine'],
+                        'originalColumn' => $mapping['originalColumn'],
+                        'name' => $name,
+                    ];
+                }
+
+                foreach ($lineMappings as $lineMapping) {
+                    $this->addRawMapping(
+                        $lineMapping['generatedLine'],
+                        $lineMapping['generatedColumn'],
+                        $lineMapping['sourceIndex'],
+                        $lineMapping['originalLine'],
+                        $lineMapping['originalColumn'],
+                        $lineMapping['name']
+                    );
+                }
+
+                if ($preserveUnusedTables || $lineMappings !== []) {
+                    $this->generatedLineCount = max($this->generatedLineCount, $generatedLine + 1);
+                }
+            }
+        } finally {
+            $this->drainSourceMap($sourceMap);
+        }
+    }
+
+    private function drainSourceMap(SourceMap $sourceMap): void
+    {
+        $sourceMap->sources = [];
+        $sourceMap->sourceIndexes = [];
+        $sourceMap->sourcesContent = [];
+        $sourceMap->sourceContentIndexes = [];
+        $sourceMap->names = [];
+        $sourceMap->nameIndexes = [];
+        $sourceMap->mappings = [];
+        $sourceMap->generatedLineCount = 0;
+    }
+
+    public function extendWithSourceMap(SourceMap $originalSourceMap): void
+    {
+        $sourceIndexes = [];
+        foreach ($originalSourceMap->sources as $index => $source) {
+            $mappedIndex = $this->addSource($source);
+            $sourceIndexes[$index] = $mappedIndex;
+            if (array_key_exists($index, $originalSourceMap->sourcesContent)) {
+                $this->setSourceContent($mappedIndex, $originalSourceMap->sourcesContent[$index]);
+            }
+        }
+
+        $nameIndexes = [];
+        foreach ($originalSourceMap->names as $index => $name) {
+            $nameIndexes[$index] = $this->addName($name);
+        }
+
+        foreach ($this->mappings as $index => $mapping) {
+            if ($mapping['sourceIndex'] === null) {
+                continue;
+            }
+
+            $closest = $originalSourceMap->findClosestMapping($mapping['originalLine'], $mapping['originalColumn']);
+            if ($closest === null || $closest['sourceIndex'] === null) {
+                $this->mappings[$index]['sourceIndex'] = null;
+                $this->mappings[$index]['originalLine'] = null;
+                $this->mappings[$index]['originalColumn'] = null;
+                $this->mappings[$index]['nameIndex'] = null;
+                continue;
+            }
+
+            if (!array_key_exists($closest['sourceIndex'], $sourceIndexes)) {
+                throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $closest['sourceIndex']);
+            }
+
+            $mappedSourceIndex = $sourceIndexes[$closest['sourceIndex']];
+            $mappedNameIndex = null;
+            if ($closest['nameIndex'] !== null) {
+                if (!array_key_exists($closest['nameIndex'], $nameIndexes)) {
+                    throw new InvalidArgumentException('Source map mapping references unknown name index: ' . $closest['nameIndex']);
+                }
+
+                $mappedNameIndex = $nameIndexes[$closest['nameIndex']];
+            }
+
+            $this->mappings[$index]['sourceIndex'] = $mappedSourceIndex;
+            $this->mappings[$index]['originalLine'] = $closest['originalLine'];
+            $this->mappings[$index]['originalColumn'] = $closest['originalColumn'];
+            $this->mappings[$index]['nameIndex'] = $mappedNameIndex;
+        }
+    }
+
+    public function offsetColumns(int $generatedLine, int $generatedColumn, int $generatedColumnOffset): void
+    {
+        $this->assertNonNegative($generatedLine, 'generated line');
+        $this->assertNonNegative($generatedColumn, 'generated column');
+
+        if ($generatedColumnOffset === 0) {
+            $this->sortGeneratedLineMappingsInPlace($generatedLine);
+
+            return;
+        }
+
+        $lineHasMappings = false;
+        foreach ($this->mappings as $mapping) {
+            if ($mapping['generatedLine'] === $generatedLine) {
+                $lineHasMappings = true;
+                break;
+            }
+        }
+
+        $startColumn = null;
+        if ($generatedColumnOffset > 0 && $generatedLine < $this->generatedLineCount) {
+            $startColumn = $this->offsetNonNegative($generatedColumn, $generatedColumnOffset, 'column + column offset');
+        } elseif ($generatedColumnOffset < 0 && $lineHasMappings) {
+            $startColumn = $this->offsetNonNegative($generatedColumn, $generatedColumnOffset, 'column + column offset');
+        }
+
+        $this->sortGeneratedLineMappingsInPlace($generatedLine);
+        $lineMappings = $this->sortedLineMappingIndexes($generatedLine);
+        if ($lineMappings === []) {
+            return;
+        }
+
+        if ($startColumn === null) {
+            $startColumn = $this->offsetNonNegative($generatedColumn, $generatedColumnOffset, 'column + column offset');
+        }
+
+        $shiftStart = $this->rustBinarySearchGeneratedColumn($lineMappings, $generatedColumn);
+        $shiftIndexes = [];
+        for ($i = $shiftStart; $i < count($lineMappings); $i++) {
+            $shiftIndexes[$lineMappings[$i]['index']] = true;
+        }
+
+        $removeIndexes = [];
+        if ($generatedColumnOffset < 0) {
+            $removeStart = $this->rustBinarySearchGeneratedColumn($lineMappings, $startColumn);
+            for ($i = $removeStart; $i < $shiftStart; $i++) {
+                $removeIndexes[$lineMappings[$i]['index']] = true;
+            }
+        }
+
+        if ($generatedColumnOffset > 0) {
+            foreach (array_keys($shiftIndexes) as $index) {
+                self::offsetUnsigned32(
+                    $this->mappings[$index]['generatedColumn'],
+                    $generatedColumnOffset,
+                    'generated column + column offset'
+                );
+            }
+        }
+
+        $updated = [];
+        foreach ($this->mappings as $index => $mapping) {
+            if (isset($removeIndexes[$index])) {
+                continue;
+            }
+
+            if (isset($shiftIndexes[$index])) {
+                $mapping['generatedColumn'] += $generatedColumnOffset;
+            }
+
+            $updated[] = $mapping;
+        }
+
+        $this->mappings = $this->renumberMappings($updated);
+    }
+
+    public function offsetLines(int $generatedLine, int $generatedLineOffset): void
+    {
+        $this->assertNonNegative($generatedLine, 'generated line');
+
+        if ($generatedLineOffset === 0 || $this->generatedLineCount === 0) {
+            return;
+        }
+
+        $startLine = $this->offsetNonNegative($generatedLine, $generatedLineOffset, 'line + line offset');
+        $removeStart = null;
+        $removeEnd = null;
+        if ($generatedLineOffset < 0) {
+            if ($generatedLine > $this->generatedLineCount) {
+                throw new InvalidArgumentException('Generated line must not exceed generated line count for negative line offsets.');
+            }
+
+            $removeStart = $startLine;
+            $removeEnd = $generatedLine;
+        }
+
+        $updated = [];
+        foreach ($this->mappings as $mapping) {
+            if ($removeStart !== null && $mapping['generatedLine'] >= $removeStart && $mapping['generatedLine'] < $removeEnd) {
+                continue;
+            }
+
+            if ($mapping['generatedLine'] >= $generatedLine) {
+                $mapping['generatedLine'] += $generatedLineOffset;
+            }
+
+            $updated[] = $mapping;
+        }
+
+        $this->mappings = $this->renumberMappings($updated);
+        $absoluteOffset = abs($generatedLineOffset);
+        if ($generatedLineOffset > 0) {
+            $this->generatedLineCount = $generatedLine > $this->generatedLineCount
+                ? $generatedLine + $absoluteOffset + 1
+                : $this->generatedLineCount + $absoluteOffset;
+
+            return;
+        }
+
+        if ($startLine < $this->generatedLineCount) {
+            $removeEnd = min($generatedLine, $this->generatedLineCount);
+            $this->generatedLineCount -= max(0, $removeEnd - $startLine);
+        }
+    }
+
+    public function addEmptyMap(string $source, string $sourceContent, int $lineOffset = 0): void
+    {
+        $sourceIndex = $this->addSource($source);
+        $this->setSourceContent($sourceIndex, $sourceContent);
+
+        foreach ($this->sourceLines($sourceContent) as $lineNumber => $_line) {
+            $generatedLine = $lineNumber + $lineOffset;
+            if ($generatedLine < 0) {
+                continue;
+            }
+
+            $this->addMapping($generatedLine, 0, $sourceIndex, $lineNumber, 0);
+        }
+    }
+
+    /**
+     * @param list<string> $sources
+     * @param list<string> $sourcesContent
+     * @param list<string> $names
+     * @param array<int, true>|null $explicitSourceContentIndexes
+     */
+    public function addVlqMap(
+        string $mappings,
+        array $sources,
+        array $sourcesContent = [],
+        array $names = [],
+        int $lineOffset = 0,
+        int $columnOffset = 0,
+        ?array $explicitSourceContentIndexes = null,
+        bool $implicitSourceContentOverrides = false
+    ): void {
+        self::assertListArray($sources, 'sources');
+        self::assertListArray($sourcesContent, 'sourcesContent');
+        self::assertListArray($names, 'names');
+
+        $sourceIndexes = [];
+        foreach ($sources as $source) {
+            if (!is_string($source)) {
+                throw new InvalidArgumentException('Source map sources must be strings.');
+            }
+
+            $sourceIndexes[] = $this->addSource($source);
+        }
+
+        foreach ($sourcesContent as $index => $content) {
+            if (!is_string($content)) {
+                throw new InvalidArgumentException('Source map sourcesContent entries must be strings.');
+            }
+
+            if (!array_key_exists($index, $sourceIndexes)) {
+                continue;
+            }
+
+            $this->setSourceContentValue(
+                $sourceIndexes[$index],
+                $content,
+                $explicitSourceContentIndexes === null || isset($explicitSourceContentIndexes[$index]),
+                $implicitSourceContentOverrides
+            );
+        }
+
+        $nameIndexes = [];
+        foreach ($names as $name) {
+            if (!is_string($name)) {
+                throw new InvalidArgumentException('Source map names must be strings.');
+            }
+
+            $nameIndexes[] = $this->addName($name);
+        }
+
+        $generatedLine = $lineOffset;
+        $generatedColumn = $columnOffset;
+        $source = 0;
+        $originalLine = 0;
+        $originalColumn = 0;
+        $name = 0;
+        $length = strlen($mappings);
+
+        for ($i = 0; $i < $length;) {
+            $char = $mappings[$i];
+            if ($char === ';') {
+                $generatedLine++;
+                $generatedColumn = $columnOffset;
+                $i++;
+                continue;
+            }
+
+            if ($char === ',') {
+                $i++;
+                continue;
+            }
+
+            $generatedColumn = $this->offsetNonNegative(
+                $generatedColumn,
+                self::readVlqValue($mappings, $i),
+                'generated column + column offset'
+            );
+
+            $sourceIndex = null;
+            $mappedOriginalLine = null;
+            $mappedOriginalColumn = null;
+            $mappedName = null;
+
+            if ($i < $length && !self::isMappingSeparator($mappings[$i])) {
+                $source = $this->offsetNonNegative($source, self::readVlqValue($mappings, $i), 'source index');
+                $originalLine = $this->offsetNonNegative($originalLine, self::readVlqValue($mappings, $i), 'original line');
+                $originalColumn = $this->offsetNonNegative($originalColumn, self::readVlqValue($mappings, $i), 'original column');
+                if (!array_key_exists($source, $sourceIndexes)) {
+                    throw new OutOfBoundsException('Source map segment references unknown source index: ' . $source);
+                }
+
+                $sourceIndex = $sourceIndexes[$source];
+                $mappedOriginalLine = $originalLine;
+                $mappedOriginalColumn = $originalColumn;
+
+                if ($i < $length && !self::isMappingSeparator($mappings[$i])) {
+                    $name = $this->offsetNonNegative($name, self::readVlqValue($mappings, $i), 'name index');
+                    if (!array_key_exists($name, $nameIndexes)) {
+                        throw new OutOfBoundsException('Source map segment references unknown name index: ' . $name);
+                    }
+
+                    $mappedName = $names[$name];
+                }
+            }
+
+            if ($generatedLine >= 0) {
+                $this->addRawMapping($generatedLine, $generatedColumn, $sourceIndex, $mappedOriginalLine, $mappedOriginalColumn, $mappedName);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function fromArray(array $data, string $projectRoot = '/'): self
+    {
+        if (!isset($data['mappings']) || !is_string($data['mappings'])) {
+            throw new InvalidArgumentException('Source map mappings must be a string.');
+        }
+
+        $sources = self::listOfStrings($data['sources'] ?? null, 'sources');
+        $rawSourcesContent = self::listOfNullableStrings(
+            array_key_exists('sourcesContent', $data) ? $data['sourcesContent'] : [],
+            'sourcesContent'
+        );
+        $sourcesContent = [];
+        $explicitSourceContentIndexes = [];
+        foreach ($sources as $index => $_source) {
+            $sourcesContent[] = $rawSourcesContent[$index] ?? '';
+            if (array_key_exists($index, $rawSourcesContent) && $rawSourcesContent[$index] !== null) {
+                $explicitSourceContentIndexes[$index] = true;
+            }
+
+            if ($sourcesContent[$index] === null) {
+                $sourcesContent[$index] = '';
+            }
+        }
+
+        $names = self::listOfStrings($data['names'] ?? null, 'names');
+
+        $map = new self($projectRoot);
+        $map->addVlqMap($data['mappings'], $sources, $sourcesContent, $names, 0, 0, $explicitSourceContentIndexes, true);
+
+        return $map;
+    }
+
+    public static function fromJson(string $json, string $projectRoot = '/'): self
+    {
+        $data = json_decode($json, false, 512, JSON_THROW_ON_ERROR);
+        if (!$data instanceof \stdClass) {
+            throw new InvalidArgumentException('Source map JSON must decode to an object.');
+        }
+
+        $mappings = $data->mappings ?? null;
+        if (!is_string($mappings)) {
+            throw new InvalidArgumentException('Source map mappings must be a string.');
+        }
+
+        $sources = self::listOfStrings($data->sources ?? null, 'sources');
+        $rawSourcesContent = self::listOfNullableStrings(
+            property_exists($data, 'sourcesContent') ? $data->sourcesContent : [],
+            'sourcesContent'
+        );
+        $sourcesContent = [];
+        $explicitSourceContentIndexes = [];
+        foreach ($sources as $index => $_source) {
+            $sourcesContent[] = $rawSourcesContent[$index] ?? '';
+            if (array_key_exists($index, $rawSourcesContent) && $rawSourcesContent[$index] !== null) {
+                $explicitSourceContentIndexes[$index] = true;
+            }
+
+            if ($sourcesContent[$index] === null) {
+                $sourcesContent[$index] = '';
+            }
+        }
+
+        $names = self::listOfStrings($data->names ?? null, 'names');
+
+        $map = new self($projectRoot);
+        $map->addVlqMap($mappings, $sources, $sourcesContent, $names, 0, 0, $explicitSourceContentIndexes, true);
+
+        return $map;
+    }
+
+    public static function fromDataUrl(string $dataUrl, string $projectRoot = '/'): self
+    {
+        [$mimeType, $payload, $isBase64] = self::parseDataUrl($dataUrl);
+        if (strtolower($mimeType) !== 'application/json') {
+            throw new InvalidArgumentException('Source map data URL MIME type must be application/json.');
+        }
+
+        $payload = self::decodeDataUrlPayload($payload);
+        if ($isBase64) {
+            $json = base64_decode(self::normalizeBase64Payload($payload), true);
+            if ($json === false) {
+                throw new InvalidArgumentException('Source map data URL payload must be valid base64.');
+            }
+
+            return self::fromJson($json, $projectRoot);
+        }
+
+        return self::fromJson($payload, $projectRoot);
+    }
+
+    /**
+     * @return array{generatedLine:int,generatedColumn:int,sourceIndex:int|null,originalLine:int|null,originalColumn:int|null,nameIndex:int|null}|null
+     */
+    public function findClosestMapping(int $generatedLine, int $generatedColumn): ?array
+    {
+        $this->assertNonNegative($generatedLine, 'generated line');
+        $this->assertNonNegative($generatedColumn, 'generated column');
+
+        $this->sortGeneratedLineMappingsInPlace($generatedLine);
+        $lineMappings = $this->sortedLineMappingIndexes($generatedLine);
+        if ($lineMappings === []) {
+            return null;
+        }
+
+        $index = $this->rustBinarySearchGeneratedColumn($lineMappings, $generatedColumn);
+        if (isset($lineMappings[$index]) && $lineMappings[$index]['column'] === $generatedColumn) {
+            return $this->mappingForRead($this->mappings[$lineMappings[$index]['index']]);
+        }
+
+        if ($index === 0 || $index === count($lineMappings)) {
+            return $this->mappingForRead($this->mappings[$lineMappings[0]['index']], 0);
+        }
+
+        return $this->mappingForRead($this->mappings[$lineMappings[$index - 1]['index']]);
+    }
+
+    /**
+     * @return list<array{generatedLine:int,generatedColumn:int,sourceIndex:int|null,originalLine:int|null,originalColumn:int|null,nameIndex:int|null}>
+     */
+    public function getMappings(): array
+    {
+        $mappings = $this->mappings;
+        usort(
+            $mappings,
+            static fn (array $a, array $b): int => [$a['generatedLine'], $a['order']]
+                <=> [$b['generatedLine'], $b['order']]
+        );
+
+        return array_map(fn (array $mapping): array => $this->mappingForRead($mapping), $mappings);
+    }
+
+    public function writeVlq(): string
+    {
+        if ($this->mappings === [] && $this->generatedLineCount === 0) {
+            return '';
+        }
+
+        $this->sortAllGeneratedLineMappingsInPlace();
+        $mappings = $this->mappings;
+        usort(
+            $mappings,
+            static fn (array $a, array $b): int => [$a['generatedLine'], $a['order']]
+                <=> [$b['generatedLine'], $b['order']]
+        );
+
+        $byLine = [];
+        $maxLine = max(0, $this->generatedLineCount - 1);
+        foreach ($mappings as $mapping) {
+            $byLine[$mapping['generatedLine']][] = $mapping;
+            $maxLine = max($maxLine, $mapping['generatedLine']);
+        }
+
+        $output = '';
+        $previousSource = 0;
+        $previousOriginalLine = 0;
+        $previousOriginalColumn = 0;
+        $previousName = 0;
+
+        for ($line = 0; $line <= $maxLine; $line++) {
+            if ($line > 0) {
+                $output .= ';';
+            }
+
+            $previousGeneratedColumn = 0;
+            $segments = $byLine[$line] ?? [];
+            foreach ($segments as $index => $mapping) {
+                if ($index > 0) {
+                    $output .= ',';
+                }
+
+                $output .= self::encodeVlq($mapping['generatedColumn'] - $previousGeneratedColumn);
+                $previousGeneratedColumn = $mapping['generatedColumn'];
+
+                if ($mapping['sourceIndex'] === null) {
+                    continue;
+                }
+
+                $output .= self::encodeVlq($mapping['sourceIndex'] - $previousSource);
+                $previousSource = $mapping['sourceIndex'];
+
+                $output .= self::encodeVlq($mapping['originalLine'] - $previousOriginalLine);
+                $previousOriginalLine = $mapping['originalLine'];
+
+                $output .= self::encodeVlq($mapping['originalColumn'] - $previousOriginalColumn);
+                $previousOriginalColumn = $mapping['originalColumn'];
+
+                if ($mapping['nameIndex'] !== null) {
+                    $output .= self::encodeVlq($mapping['nameIndex'] - $previousName);
+                    $previousName = $mapping['nameIndex'];
+                }
+            }
+        }
+
+        return $output;
+    }
+
+    /**
+     * @return array{version:int,sourceRoot?:string|null,mappings:string,sources:list<string>,sourcesContent:list<string|null>,names:list<string>}
+     */
+    public function toArray(?string $sourceRoot = null, bool $includeSourceRoot = true): array
+    {
+        $data = [
+            'version' => 3,
+            'mappings' => $this->writeVlq(),
+            'sources' => $this->sources,
+            'sourcesContent' => $this->sourceContentsForJson(),
+            'names' => $this->names,
+        ];
+
+        if ($includeSourceRoot) {
+            $data = ['version' => 3, 'sourceRoot' => $sourceRoot] + array_slice($data, 1, null, true);
+        }
+
+        return $data;
+    }
+
+    public function toJson(?string $sourceRoot = null, bool $includeSourceRoot = true): string
+    {
+        return json_encode($this->toArray($sourceRoot, $includeSourceRoot), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    }
+
+    public function toDataUrl(?string $sourceRoot = null): string
+    {
+        return 'data:application/json;charset=utf-8;base64,' . base64_encode($this->toJson($sourceRoot));
+    }
+
+    public function toBuffer(): string
+    {
+        return json_encode(
+            [
+                'format' => 'port-libs-lightningcss-sourcemap-buffer-v1',
+                'sources' => $this->sources,
+                'sourcesContent' => $this->sourceContentsForJson(),
+                'names' => $this->names,
+                'mappings' => $this->getMappings(),
+                'generatedLineCount' => $this->generatedLineCount,
+            ],
+            JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+        );
+    }
+
+    public static function fromBuffer(string $projectRoot, string $buffer): self
+    {
+        $data = json_decode($buffer, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($data)) {
+            throw new InvalidArgumentException('Source map buffer must decode to an object.');
+        }
+
+        if (($data['format'] ?? null) !== 'port-libs-lightningcss-sourcemap-buffer-v1') {
+            throw new InvalidArgumentException('Unsupported source map buffer format.');
+        }
+
+        $sources = self::listOfStrings($data['sources'] ?? [], 'buffer sources');
+        $sourcesContent = self::listOfStrings($data['sourcesContent'] ?? [], 'buffer sourcesContent');
+        $names = self::listOfStrings($data['names'] ?? [], 'buffer names');
+        $mappings = self::listOfMappingArrays($data['mappings'] ?? []);
+        $generatedLineCount = $data['generatedLineCount'] ?? 0;
+        if (!is_int($generatedLineCount)) {
+            throw new InvalidArgumentException('Source map buffer generatedLineCount must be an integer.');
+        }
+        self::assertUnsigned32Value($generatedLineCount, 'buffer generated line count');
+
+        $map = new self($projectRoot);
+        $map->sources = $sources;
+        foreach ($sources as $index => $source) {
+            $map->sourceIndexes[$source] = $index;
+        }
+
+        foreach ($sourcesContent as $index => $content) {
+            if (!array_key_exists($index, $sources)) {
+                break;
+            }
+
+            $map->sourcesContent[$index] = $content;
+            $map->sourceContentIndexes[$index] = true;
+        }
+
+        $map->names = $names;
+        foreach ($names as $index => $name) {
+            $map->nameIndexes[$name] = $index;
+        }
+
+        $maxGeneratedLine = -1;
+        foreach ($mappings as $order => $mapping) {
+            $sourceIndex = $mapping['sourceIndex'];
+            $nameIndex = $mapping['nameIndex'];
+            if ($sourceIndex !== null && !array_key_exists($sourceIndex, $sources)) {
+                throw new OutOfBoundsException('Source map buffer mapping references unknown source index: ' . $sourceIndex);
+            }
+
+            if ($nameIndex !== null && !array_key_exists($nameIndex, $names)) {
+                throw new OutOfBoundsException('Source map buffer mapping references unknown name index: ' . $nameIndex);
+            }
+
+            $map->mappings[] = [
+                'generatedLine' => $mapping['generatedLine'],
+                'generatedColumn' => $mapping['generatedColumn'],
+                'sourceIndex' => $sourceIndex,
+                'originalLine' => $mapping['originalLine'],
+                'originalColumn' => $mapping['originalColumn'],
+                'nameIndex' => $nameIndex,
+                'order' => $order,
+            ];
+            $maxGeneratedLine = max($maxGeneratedLine, $mapping['generatedLine']);
+        }
+
+        $map->generatedLineCount = max($generatedLineCount, $maxGeneratedLine + 1, 0);
+
+        return $map;
+    }
+
+    /**
+     * @return list<array{generatedLine:int,generatedColumn:int,sourceIndex:int|null,originalLine:int|null,originalColumn:int|null,nameIndex:int|null}>
+     */
+    public static function decodeVlq(string $mappings): array
+    {
+        $decoded = [];
+        $previousSource = 0;
+        $previousOriginalLine = 0;
+        $previousOriginalColumn = 0;
+        $previousName = 0;
+
+        $generatedLine = 0;
+        $generatedColumn = 0;
+        $length = strlen($mappings);
+
+        for ($i = 0; $i < $length;) {
+            $char = $mappings[$i];
+            if ($char === ';') {
+                $generatedLine++;
+                $generatedColumn = 0;
+                $i++;
+                continue;
+            }
+
+            if ($char === ',') {
+                $i++;
+                continue;
+            }
+
+            $generatedColumn = self::offsetUnsigned32($generatedColumn, self::readVlqValue($mappings, $i), 'generated column');
+            $entry = [
+                'generatedLine' => $generatedLine,
+                'generatedColumn' => $generatedColumn,
+                'sourceIndex' => null,
+                'originalLine' => null,
+                'originalColumn' => null,
+                'nameIndex' => null,
+            ];
+
+            if ($i < $length && !self::isMappingSeparator($mappings[$i])) {
+                $previousSource = self::offsetUnsigned32($previousSource, self::readVlqValue($mappings, $i), 'source index');
+                $previousOriginalLine = self::offsetUnsigned32($previousOriginalLine, self::readVlqValue($mappings, $i), 'original line');
+                $previousOriginalColumn = self::offsetUnsigned32($previousOriginalColumn, self::readVlqValue($mappings, $i), 'original column');
+                $entry['sourceIndex'] = $previousSource;
+                $entry['originalLine'] = $previousOriginalLine;
+                $entry['originalColumn'] = $previousOriginalColumn;
+
+                if ($i < $length && !self::isMappingSeparator($mappings[$i])) {
+                    $previousName = self::offsetUnsigned32($previousName, self::readVlqValue($mappings, $i), 'name index');
+                    $entry['nameIndex'] = $previousName;
+                }
+            }
+
+            $decoded[] = $entry;
+        }
+
+        return $decoded;
+    }
+
+    private static function encodeVlq(int $value): string
+    {
+        $vlq = $value < 0 ? ((-$value) << 1) + 1 : $value << 1;
+        $encoded = '';
+
+        do {
+            $digit = $vlq & 31;
+            $vlq >>= 5;
+            if ($vlq > 0) {
+                $digit |= 32;
+            }
+            $encoded .= self::BASE64[$digit];
+        } while ($vlq > 0);
+
+        return $encoded;
+    }
+
+    private static function readVlqValue(string $mappings, int &$offset): int
+    {
+        $value = 0;
+        $shift = 0;
+        $length = strlen($mappings);
+
+        while ($offset < $length) {
+            $char = $mappings[$offset];
+            $digit = strpos(self::BASE64, $char);
+            if ($digit === false) {
+                throw new InvalidArgumentException('Invalid base64 VLQ character: ' . $char);
+            }
+
+            $offset++;
+            $continuation = ($digit & 32) !== 0;
+            $digit &= 31;
+            if ($shift >= 64) {
+                throw new InvalidArgumentException('Base64 VLQ value overflowed.');
+            }
+
+            $shiftedUnit = 1 << $shift;
+            if ($digit > intdiv(PHP_INT_MAX, $shiftedUnit)) {
+                throw new InvalidArgumentException('Base64 VLQ value overflowed.');
+            }
+
+            $digitValue = $digit * $shiftedUnit;
+            if ($digitValue > PHP_INT_MAX - $value) {
+                throw new InvalidArgumentException('Base64 VLQ value overflowed.');
+            }
+
+            $value += $digitValue;
+
+            if ($continuation) {
+                $shift += 5;
+                continue;
+            }
+
+            $negative = ($value & 1) === 1;
+            $decoded = $value >> 1;
+            return $negative ? -$decoded : $decoded;
+        }
+
+        throw new InvalidArgumentException('Unterminated base64 VLQ segment.');
+    }
+
+    private static function isMappingSeparator(string $char): bool
+    {
+        return $char === ';' || $char === ',';
+    }
+
+    private function assertSourceIndex(int $sourceIndex): void
+    {
+        if (!array_key_exists($sourceIndex, $this->sources)) {
+            throw new OutOfBoundsException('Unknown source index: ' . $sourceIndex);
+        }
+    }
+
+    private function addRawMapping(
+        int $generatedLine,
+        int $generatedColumn,
+        ?int $sourceIndex,
+        ?int $originalLine,
+        ?int $originalColumn,
+        ?string $name
+    ): void {
+        $this->assertNonNegative($generatedLine, 'generated line');
+        $this->assertNonNegative($generatedColumn, 'generated column');
+
+        $nameIndex = null;
+        if ($sourceIndex !== null) {
+            if ($originalLine === null || $originalColumn === null) {
+                throw new InvalidArgumentException('Original line and column are required for source-backed mappings.');
+            }
+
+            $this->assertNonNegative($originalLine, 'original line');
+            $this->assertNonNegative($originalColumn, 'original column');
+            $nameIndex = $name === null ? null : $this->addName($name);
+        } elseif ($originalLine !== null || $originalColumn !== null || $name !== null) {
+            throw new InvalidArgumentException('Generated-only mappings cannot include original positions or names.');
+        }
+
+        $this->mappings[] = [
+            'generatedLine' => $generatedLine,
+            'generatedColumn' => $generatedColumn,
+            'sourceIndex' => $sourceIndex,
+            'originalLine' => $originalLine,
+            'originalColumn' => $originalColumn,
+            'nameIndex' => $nameIndex,
+            'order' => count($this->mappings),
+        ];
+        $this->generatedLineCount = max($this->generatedLineCount, $generatedLine + 1);
+    }
+
+    private function assertNonNegative(int $value, string $label): void
+    {
+        if ($value < 0) {
+            throw new InvalidArgumentException(ucfirst($label) . ' must be non-negative.');
+        }
+
+        if ($value > self::MAX_UNSIGNED_32) {
+            throw new InvalidArgumentException(ucfirst($label) . ' must fit in unsigned 32-bit range.');
+        }
+    }
+
+    private function offsetNonNegative(int $value, int $offset, string $label): int
+    {
+        return self::offsetUnsigned32($value, $offset, $label);
+    }
+
+    private static function offsetUnsigned32(int $value, int $offset, string $label): int
+    {
+        $offsetValue = $value + $offset;
+        if ($offsetValue < 0) {
+            throw new InvalidArgumentException(ucfirst($label) . ' must be non-negative.');
+        }
+
+        if ($offsetValue > self::MAX_UNSIGNED_32) {
+            throw new InvalidArgumentException(ucfirst($label) . ' must fit in unsigned 32-bit range.');
+        }
+
+        return $offsetValue;
+    }
+
+    private static function makeRelativePath(string $base, string $target): string
+    {
+        if (str_starts_with(strtolower($target), 'file://')) {
+            $target = substr($target, 7);
+        }
+
+        if (!self::isAbsolutePath($target)) {
+            if (str_contains($target, ':')) {
+                return $target;
+            }
+
+            return implode('/', self::chunkPath($target));
+        }
+
+        $baseParts = self::chunkPath($base);
+        $targetParts = self::chunkPath($target);
+        $common = 0;
+        $limit = min(count($baseParts), count($targetParts));
+        while ($common < $limit && $baseParts[$common] === $targetParts[$common]) {
+            $common++;
+        }
+
+        return implode(
+            '/',
+            array_merge(
+                array_fill(0, count($baseParts) - $common, '..'),
+                array_slice($targetParts, $common)
+            )
+        );
+    }
+
+    private static function isAbsolutePath(string $path): bool
+    {
+        if (str_starts_with($path, '/') || str_starts_with($path, '\\')) {
+            return true;
+        }
+
+        return strlen($path) > 3
+            && $path[1] === ':'
+            && ($path[2] === '/' || $path[2] === '\\')
+            && ctype_alpha($path[0]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function chunkPath(string $path): array
+    {
+        $parts = preg_split('/[\/\\\\]+/', $path);
+        if ($parts === false) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $parts,
+            static fn (string $part): bool => $part !== '' && $part !== '.'
+        ));
+    }
+
+    private function sortGeneratedLineMappingsInPlace(int $generatedLine): void
+    {
+        $lineMappings = [];
+        foreach ($this->mappings as $index => $mapping) {
+            if ($mapping['generatedLine'] !== $generatedLine) {
+                continue;
+            }
+
+            $lineMappings[] = [
+                'index' => $index,
+                'position' => count($lineMappings),
+                'mapping' => $mapping,
+            ];
+        }
+
+        if (count($lineMappings) < 2) {
+            return;
+        }
+
+        $sorted = $lineMappings;
+        usort(
+            $sorted,
+            static fn (array $a, array $b): int => [$a['mapping']['generatedColumn'], $a['position']]
+                <=> [$b['mapping']['generatedColumn'], $b['position']]
+        );
+
+        $changed = false;
+        foreach ($lineMappings as $offset => $lineMapping) {
+            if ($lineMapping['index'] !== $sorted[$offset]['index']) {
+                $changed = true;
+                break;
+            }
+        }
+
+        if (!$changed) {
+            return;
+        }
+
+        $cursor = 0;
+        $updated = [];
+        foreach ($this->mappings as $mapping) {
+            if ($mapping['generatedLine'] === $generatedLine) {
+                $updated[] = $sorted[$cursor]['mapping'];
+                $cursor++;
+                continue;
+            }
+
+            $updated[] = $mapping;
+        }
+
+        $this->mappings = $this->renumberMappings($updated);
+    }
+
+    private function sortAllGeneratedLineMappingsInPlace(): void
+    {
+        $lines = [];
+        foreach ($this->mappings as $mapping) {
+            $lines[$mapping['generatedLine']] = true;
+        }
+
+        ksort($lines);
+        foreach (array_keys($lines) as $generatedLine) {
+            $this->sortGeneratedLineMappingsInPlace($generatedLine);
+        }
+    }
+
+    /**
+     * @param list<array{
+     *     generatedLine:int,
+     *     generatedColumn:int,
+     *     sourceIndex:int|null,
+     *     originalLine:int|null,
+     *     originalColumn:int|null,
+     *     nameIndex:int|null,
+     *     order:int
+     * }> $lineMappings
+     */
+    private function replaceGeneratedLineMappings(int $generatedLine, array $lineMappings): void
+    {
+        $updated = [];
+        foreach ($this->mappings as $mapping) {
+            if ($mapping['generatedLine'] !== $generatedLine) {
+                $updated[] = $mapping;
+            }
+        }
+
+        foreach ($lineMappings as $mapping) {
+            $updated[] = $mapping;
+        }
+
+        $this->mappings = $this->renumberMappings($updated);
+    }
+
+    /**
+     * @return list<array{index:int,column:int,order:int}>
+     */
+    private function sortedLineMappingIndexes(int $generatedLine): array
+    {
+        $lineMappings = [];
+        foreach ($this->mappings as $index => $mapping) {
+            if ($mapping['generatedLine'] === $generatedLine) {
+                $lineMappings[] = [
+                    'index' => $index,
+                    'column' => $mapping['generatedColumn'],
+                    'order' => $mapping['order'],
+                ];
+            }
+        }
+
+        usort(
+            $lineMappings,
+            static fn (array $a, array $b): int => [$a['column'], $a['order']]
+                <=> [$b['column'], $b['order']]
+        );
+
+        return $lineMappings;
+    }
+
+    /**
+     * @param list<array{index:int,column:int,order:int}> $lineMappings
+     */
+    private function rustBinarySearchGeneratedColumn(array $lineMappings, int $generatedColumn): int
+    {
+        $size = count($lineMappings);
+        if ($size === 0) {
+            return 0;
+        }
+
+        $base = 0;
+        while ($size > 1) {
+            $half = intdiv($size, 2);
+            $middle = $base + $half;
+            $comparison = $lineMappings[$middle]['column'] <=> $generatedColumn;
+            if ($comparison <= 0) {
+                $base = $middle;
+            }
+            $size -= $half;
+        }
+
+        $comparison = $lineMappings[$base]['column'] <=> $generatedColumn;
+        if ($comparison === 0) {
+            return $base;
+        }
+
+        return $base + ($comparison < 0 ? 1 : 0);
+    }
+
+    /**
+     * @param list<array{
+     *     generatedLine:int,
+     *     generatedColumn:int,
+     *     sourceIndex:int|null,
+     *     originalLine:int|null,
+     *     originalColumn:int|null,
+     *     nameIndex:int|null,
+     *     order:int
+     * }> $mappings
+     * @return list<array{
+     *     generatedLine:int,
+     *     generatedColumn:int,
+     *     sourceIndex:int|null,
+     *     originalLine:int|null,
+     *     originalColumn:int|null,
+     *     nameIndex:int|null,
+     *     order:int
+     * }>
+     */
+    private function renumberMappings(array $mappings): array
+    {
+        foreach ($mappings as $order => &$mapping) {
+            $mapping['order'] = $order;
+        }
+        unset($mapping);
+
+        return array_values($mappings);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function sourceLines(string $sourceContent): array
+    {
+        if ($sourceContent === '') {
+            return [];
+        }
+
+        // Rust str::lines() splits LF/CRLF line endings, but preserves lone CR bytes.
+        $lines = preg_split('/\r\n|\n/', $sourceContent);
+        if ($lines === false) {
+            return [];
+        }
+
+        if (preg_match('/(?:\r\n|\n)$/', $sourceContent) === 1) {
+            array_pop($lines);
+        }
+
+        return array_values($lines);
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<string>
+     */
+    private static function listOfStrings(mixed $value, string $label): array
+    {
+        if (!is_array($value)) {
+            throw new InvalidArgumentException('Source map ' . $label . ' must be a list.');
+        }
+        self::assertListArray($value, $label);
+
+        $strings = [];
+        foreach (array_values($value) as $entry) {
+            if (!is_string($entry)) {
+                throw new InvalidArgumentException('Source map ' . $label . ' entries must be strings.');
+            }
+
+            $strings[] = $entry;
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<string|null>
+     */
+    private static function listOfNullableStrings(mixed $value, string $label): array
+    {
+        if (!is_array($value)) {
+            throw new InvalidArgumentException('Source map ' . $label . ' must be a list.');
+        }
+        self::assertListArray($value, $label);
+
+        $strings = [];
+        foreach (array_values($value) as $entry) {
+            if ($entry !== null && !is_string($entry)) {
+                throw new InvalidArgumentException('Source map ' . $label . ' entries must be strings or null.');
+            }
+
+            $strings[] = $entry;
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<array{generatedLine:int,generatedColumn:int,sourceIndex:int|null,originalLine:int|null,originalColumn:int|null,nameIndex:int|null}>
+     */
+    private static function listOfMappingArrays(mixed $value): array
+    {
+        if (!is_array($value)) {
+            throw new InvalidArgumentException('Source map buffer mappings must be a list.');
+        }
+        self::assertListArray($value, 'buffer mappings');
+
+        $mappings = [];
+        foreach (array_values($value) as $entry) {
+            if (!is_array($entry)) {
+                throw new InvalidArgumentException('Source map buffer mapping entries must be objects.');
+            }
+
+            foreach (['generatedLine', 'generatedColumn'] as $required) {
+                if (!array_key_exists($required, $entry) || !is_int($entry[$required])) {
+                    throw new InvalidArgumentException('Source map buffer mapping ' . $required . ' must be an integer.');
+                }
+            }
+
+            $sourceIndex = $entry['sourceIndex'] ?? null;
+            $originalLine = $entry['originalLine'] ?? null;
+            $originalColumn = $entry['originalColumn'] ?? null;
+            $nameIndex = $entry['nameIndex'] ?? null;
+            foreach (['sourceIndex' => $sourceIndex, 'originalLine' => $originalLine, 'originalColumn' => $originalColumn, 'nameIndex' => $nameIndex] as $label => $item) {
+                if ($item !== null && !is_int($item)) {
+                    throw new InvalidArgumentException('Source map buffer mapping ' . $label . ' must be an integer or null.');
+                }
+            }
+
+            $hasSource = $sourceIndex !== null;
+            if ($hasSource !== ($originalLine !== null) || $hasSource !== ($originalColumn !== null)) {
+                throw new InvalidArgumentException('Source map buffer source-backed mappings require original line and column.');
+            }
+            if ($sourceIndex === null && $nameIndex !== null) {
+                throw new InvalidArgumentException('Source map buffer generated-only mappings cannot include names.');
+            }
+
+            self::assertUnsigned32Value($entry['generatedLine'], 'buffer generated line');
+            self::assertUnsigned32Value($entry['generatedColumn'], 'buffer generated column');
+            if ($originalLine !== null) {
+                self::assertUnsigned32Value($originalLine, 'buffer original line');
+            }
+
+            if ($originalColumn !== null) {
+                self::assertUnsigned32Value($originalColumn, 'buffer original column');
+            }
+
+            $mappings[] = [
+                'generatedLine' => $entry['generatedLine'],
+                'generatedColumn' => $entry['generatedColumn'],
+                'sourceIndex' => $sourceIndex,
+                'originalLine' => $originalLine,
+                'originalColumn' => $originalColumn,
+                'nameIndex' => $nameIndex,
+            ];
+        }
+
+        return $mappings;
+    }
+
+    private static function assertListArray(array $value, string $label): void
+    {
+        if (!array_is_list($value)) {
+            throw new InvalidArgumentException('Source map ' . $label . ' must be a list.');
+        }
+    }
+
+    private static function assertUnsigned32Value(int $value, string $label): void
+    {
+        if ($value < 0) {
+            throw new InvalidArgumentException(ucfirst($label) . ' must be non-negative.');
+        }
+
+        if ($value > self::MAX_UNSIGNED_32) {
+            throw new InvalidArgumentException(ucfirst($label) . ' must fit in unsigned 32-bit range.');
+        }
+    }
+
+    /**
+     * @return array{0:string,1:string,2:bool}
+     */
+    private static function parseDataUrl(string $dataUrl): array
+    {
+        $dataUrl = self::trimC0AndSpace($dataUrl);
+        $length = strlen($dataUrl);
+        $offset = 0;
+        foreach (['d', 'a', 't', 'a', ':'] as $expected) {
+            while ($offset < $length && self::isUrlIgnoredAscii($dataUrl[$offset])) {
+                $offset++;
+            }
+
+            if ($offset >= $length) {
+                throw new InvalidArgumentException('Source map data URL must use the data: scheme.');
+            }
+
+            $char = $dataUrl[$offset];
+            if ($expected === ':') {
+                if ($char !== ':') {
+                    throw new InvalidArgumentException('Source map data URL must use the data: scheme.');
+                }
+            } elseif (strtolower($char) !== $expected) {
+                throw new InvalidArgumentException('Source map data URL must use the data: scheme.');
+            }
+
+            $offset++;
+        }
+
+        $afterColon = self::trimC0AndSpace(substr($dataUrl, $offset));
+        $comma = null;
+        for ($i = 0, $afterColonLength = strlen($afterColon); $i < $afterColonLength; $i++) {
+            if ($afterColon[$i] === ',') {
+                $comma = $i;
+                break;
+            }
+
+            if ($afterColon[$i] === '#') {
+                break;
+            }
+        }
+
+        if ($comma === null) {
+            throw new InvalidArgumentException('Source map data URL is missing a payload separator.');
+        }
+
+        $metadata = substr($afterColon, 0, $comma);
+        $payload = substr($afterColon, $comma + 1);
+        [$mimeType, $isBase64] = self::parseDataUrlMetadata($metadata);
+
+        return [$mimeType, $payload, $isBase64];
+    }
+
+    /**
+     * @return array{0:string,1:bool}
+     */
+    private static function parseDataUrlMetadata(string $metadata): array
+    {
+        $metadata = trim($metadata, " \t\n\r");
+        $metadata = str_replace(["\t", "\n", "\r"], '', $metadata);
+        $isBase64 = preg_match('/; *base64 *$/i', $metadata) === 1;
+        if ($isBase64) {
+            $metadata = preg_replace('/; *base64 *$/i', '', $metadata) ?? $metadata;
+        }
+
+        if (str_starts_with($metadata, ';')) {
+            $metadata = 'text/plain' . $metadata;
+        }
+
+        $mimeType = explode(';', $metadata, 2)[0] ?? 'text/plain';
+        $mimeType = trim($mimeType);
+        if ($mimeType === '') {
+            $mimeType = 'text/plain';
+        }
+
+        return [$mimeType, $isBase64];
+    }
+
+    private static function trimC0AndSpace(string $value): string
+    {
+        return preg_replace('/^[\x00-\x20]+|[\x00-\x20]+$/', '', $value) ?? $value;
+    }
+
+    private static function isUrlIgnoredAscii(string $char): bool
+    {
+        return $char === "\t" || $char === "\n" || $char === "\r";
+    }
+
+    private static function decodeDataUrlPayload(string $payload): string
+    {
+        $fragment = strpos($payload, '#');
+        if ($fragment !== false) {
+            $payload = substr($payload, 0, $fragment);
+        }
+
+        $payload = str_replace(["\t", "\n", "\r"], '', $payload);
+
+        return rawurldecode($payload);
+    }
+
+    private static function normalizeBase64Payload(string $payload): string
+    {
+        return str_replace([" ", "\t", "\n", "\r", "\f"], '', $payload);
+    }
+
+    /**
+     * @param array{
+     *     generatedLine:int,
+     *     generatedColumn:int,
+     *     sourceIndex:int|null,
+     *     originalLine:int|null,
+     *     originalColumn:int|null,
+     *     nameIndex:int|null,
+     *     order:int
+     * } $mapping
+     * @return array{generatedLine:int,generatedColumn:int,sourceIndex:int|null,originalLine:int|null,originalColumn:int|null,nameIndex:int|null}
+     */
+    private function mappingForRead(array $mapping, ?int $generatedColumn = null): array
+    {
+        return [
+            'generatedLine' => $mapping['generatedLine'],
+            'generatedColumn' => $generatedColumn ?? $mapping['generatedColumn'],
+            'sourceIndex' => $mapping['sourceIndex'],
+            'originalLine' => $mapping['originalLine'],
+            'originalColumn' => $mapping['originalColumn'],
+            'nameIndex' => $mapping['nameIndex'],
+        ];
+    }
+
+    /**
+     * @return list<string|null>
+     */
+    private function sourceContentsForJson(): array
+    {
+        return array_values($this->sourcesContent);
+    }
+}

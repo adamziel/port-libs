@@ -1,0 +1,23 @@
+Real upstream corpus JSON1/JSONB dynamic batch, 2026-05-30
+
+- Base accepted HEAD: 72e7cdb1ae891bd4c5cdf5658524a5a35974f525.
+- Micro-slice: real-upstream-corpus-json1-jsonb-dynamic-20260530T162236Z-0.
+- Upstream source truth:
+  - /home/claude/port-libs/.upstream-cache/libsqlite/test/json101.test
+  - /home/claude/port-libs/.upstream-cache/libsqlite/test/json102.test
+  - /home/claude/port-libs/.upstream-cache/libsqlite/test/json106.test
+  - /home/claude/port-libs/.upstream-cache/libsqlite/test/json501.test
+  - /home/claude/port-libs/.upstream-cache/libsqlite/test/json502.test
+  - /home/claude/port-libs/.upstream-cache/libsqlite/test/jsonb01.test
+- Ported scenario ranges:
+  - json102 extraction, jsonb_extract parity, array length, constructors, JSON subtype, and JSONB constructor cases.
+  - json101 NULL propagation, mutation append, insert/set/replace behavior, and path no-op behavior.
+  - jsonb01 json_remove/jsonb_remove parity over object, nested object, array, reverse index, and missing path removals.
+  - json106 merge-patch and remove/insert restore behavior.
+  - json501 JSON5 relaxed object labels, trailing commas, single-quoted strings, hexadecimal numbers, fractional numbers, Infinity, and NaN.
+  - json502 escaped labels, quoted path labels, malformed object error position, and JSON5 invalidity.
+- Focused evidence: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamJsonDynamicCorpusTest.php` passed with 1 file / 745 assertions / 0 failures.
+- Focused PASS-line growth: 10 new PHP TestRunner PASS cases in one real upstream behavior file.
+- Focused assertion growth: 745 distinct assertions from real upstream JSON behavior.
+- Non-overlap: this does not claim JSON table hidden/visible constraint pushdown, JSON table cursor/source wiring, JSON aggregate/window behavior, accepted malformed JSONB planner diagnostics, or suite metadata rows. It directly exercises JSON1/JSONB scalar, constructor, mutation, remove, patch, JSON5, path, and error-position behavior through existing native PHP helpers.
+- Dependency closure: no new support component is needed; the batch reuses the existing native JSON5 parser, JSONB encoder/decoder, JSON path, JSON mutation, JSON patch/remove, constructor, validity, error-position, and inspection helpers.

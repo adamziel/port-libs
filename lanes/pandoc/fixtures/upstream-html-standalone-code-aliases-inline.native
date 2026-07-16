@@ -1,0 +1,7 @@
+[ Plain
+    [ Code ( "" , [] , [] ) "Answer is 42"
+    , Code ( "" , [] , [] ) "Answer is 43"
+    , Code ( "" , [ "sample" ] , [] ) "Missing alt text"
+    , Code ( "" , [ "variable" ] , [] ) "result"
+    ]
+]

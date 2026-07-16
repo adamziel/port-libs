@@ -1,0 +1,4 @@
+id	payload	note
+1	 "alpha"	leading space before quote
+2	"beta"  	spaces before delimiter
+3	 "gamma"  	both sides literal

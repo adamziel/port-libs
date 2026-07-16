@@ -1,0 +1,9 @@
+[ Header
+    2
+    ( "slide-1" , [] , [] )
+    [ Str "First run property symbol slide" ]
+, Para [ Str "Later run properties stay plain" ]
+, Para [ Str "Later symbol stays plain" ]
+, BulletList
+    [ [ Plain [ Str "First symbol becomes bullet" ] ] ]
+]

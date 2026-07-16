@@ -1,0 +1,13 @@
+[ Para [ Str "Before" , Space , Str "stanza." ]
+, LineBlock
+    [ [ Str "Reviewer" , Space , Str "stanza" ]
+    , []
+    , [ Str "\160\160keep" , Space , Str "indentation" ]
+    , [ Link
+          ( "" , [] , [] )
+          [ Str "edit" , Space , Str "source" ]
+          ( "/wp-admin/post.php?post=42&action=edit" , "" )
+      ]
+    ]
+, Para [ Str "After" , Space , Str "stanza." ]
+]

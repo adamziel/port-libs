@@ -1,0 +1,26 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Text"
+    , Space
+    , Str "Track"
+    , Space
+    , Str "Captions"
+    ]
+, Para
+    [ Str "Caption"
+    , Space
+    , Str "track"
+    , Space
+    , Str "resource."
+    ]
+, RawBlock
+    (Format "html")
+    "<video controls=\"controls\" src=\"video/demo.mp4\">"
+, RawBlock
+    (Format "html")
+    "<track kind=\"captions\" src=\"video/captions.vtt\" srclang=\"en\" label=\"English captions\">"
+, RawBlock (Format "html") "</track>"
+, RawBlock (Format "html") "</video>"
+]

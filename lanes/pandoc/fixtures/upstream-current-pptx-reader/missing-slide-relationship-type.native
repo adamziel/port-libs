@@ -1,0 +1,7 @@
+[ Header
+    2
+    ( "slide-1" , [] , [] )
+    [ Str "Missing slide relationship type" ]
+, Para
+    [ Str "Target is followed without a Type attribute." ]
+]

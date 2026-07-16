@@ -1,0 +1,22 @@
+[ Para
+    [ Str "Reviewer"
+    , Space
+    , Str "raw"
+    , Space
+    , Str "icon"
+    , Space
+    , RawInline
+        (Format "html")
+        "<svg id=\"migration-icon\" class=\"source-icon\" data-source=\"batch-42\" viewbox=\"0 0 10 10\"><title>Migration icon</title><path d=\"M0 0h10v10H0z\"></path></svg>"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "raw"
+    , Space
+    , Str "for"
+    , Space
+    , Str "source"
+    , Space
+    , Str "review."
+    ]
+]

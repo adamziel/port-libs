@@ -1,0 +1,8 @@
+PDF.js OpenJPEG decoder assets
+
+Source: mozilla/pdf.js commit accfa9a162c66988d2a3a3744e9806e674886655
+
+The generated `openjpeg.mjs` adapter and `openjpeg.wasm` binary are copied
+from `external/openjpeg/` in that source tree. See `LICENSE_OPENJPEG` and
+`LICENSE_PDFJS_OPENJPEG` for the redistributed OpenJPEG decoder and PDF.js
+adapter licenses.

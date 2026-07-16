@@ -1,0 +1,574 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\LibSqlite\SQLiteSelectSql;
+
+$numberRows = static function (int $max = 31, int $shift = 0): array {
+    $rows = [];
+    for ($i = 1; $i <= $max; $i++) {
+        $rows[] = [
+            'n' => $i + $shift,
+            'log' => (int) floor(log($i, 2)),
+            'bucket' => 'b' . ((int) floor(log($i, 2))),
+        ];
+    }
+
+    return $rows;
+};
+
+$tables = [
+    'app_numbers' => $numberRows(),
+];
+
+$column = static fn (string $sql, string $column, array $sourceTables = null): array => array_column(
+    SQLiteSelectSql::execute($sql, $sourceTables ?? $tables),
+    $column
+);
+
+$tests = [];
+
+$tests['real upstream select3 aggregate basics over dynamic source rows'] = static function (TestRunner $t) use ($column, $tables): void {
+    $t->same([31], $column('SELECT count(*) AS total FROM app_numbers', 'total'));
+    $t->same([1], $column('SELECT min(n) AS value FROM app_numbers', 'value'));
+    $t->same([31], $column('SELECT max(n) AS value FROM app_numbers', 'value'));
+    $t->same([496], $column('SELECT sum(n) AS value FROM app_numbers', 'value'));
+    $t->same([16.0], $column('SELECT avg(n) AS value FROM app_numbers', 'value'));
+    $t->same([0], $column('SELECT min(log) AS value FROM app_numbers', 'value'));
+    $t->same([4], $column('SELECT max(log) AS value FROM app_numbers', 'value'));
+    $t->same([98], $column('SELECT sum(log) AS value FROM app_numbers', 'value'));
+    $t->same([31 / 16.0], $column('SELECT max(n)/avg(n) AS value FROM app_numbers', 'value'));
+    $t->same([1], $column('SELECT max(log)/4 AS value FROM app_numbers', 'value'));
+    $t->same([0, 1, 2, 3, 4], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log', 'log'));
+    $t->same(['b0', 'b1', 'b2', 'b3', 'b4'], $column('SELECT DISTINCT bucket FROM app_numbers ORDER BY bucket', 'bucket'));
+};
+
+$tests['real upstream select3 group by and having dynamic source rows'] = static function (TestRunner $t) use ($column): void {
+    $t->same([0, 1, 2, 3, 4], $column('SELECT log, count(*) AS total FROM app_numbers GROUP BY log ORDER BY log', 'log'));
+    $t->same([1, 2, 4, 8, 16], $column('SELECT log, count(*) AS total FROM app_numbers GROUP BY log ORDER BY log', 'total'));
+    $t->same([1, 2, 4, 8, 16], $column('SELECT log, min(n) AS first_n FROM app_numbers GROUP BY log ORDER BY log', 'first_n'));
+    $t->same([1, 3, 7, 15, 31], $column('SELECT log, max(n) AS last_n FROM app_numbers GROUP BY log ORDER BY log', 'last_n'));
+    $t->same([1.0, 2.5, 5.5, 11.5, 23.5], $column('SELECT log, avg(n) AS mean_n FROM app_numbers GROUP BY log ORDER BY log', 'mean_n'));
+    $t->same([2.0, 3.5, 6.5, 12.5, 24.5], $column('SELECT log, avg(n)+1 AS mean_n FROM app_numbers GROUP BY log ORDER BY log', 'mean_n'));
+    $t->same([0.0, 0.5, 1.5, 3.5, 7.5], $column('SELECT log, avg(n)-min(n) AS spread FROM app_numbers GROUP BY log ORDER BY log', 'spread'));
+    $t->same([1, 3, 5, 7, 9], $column('SELECT log*2+1 AS x, count(*) AS total FROM app_numbers GROUP BY log ORDER BY x', 'x'));
+    $t->same([1, 2, 4, 8, 16], $column('SELECT log*2+1 AS x, count(*) AS total FROM app_numbers GROUP BY log ORDER BY x', 'total'));
+    $t->same([9, 7, 5], $column('SELECT log*2+1 AS x, count(*) AS total FROM app_numbers GROUP BY log HAVING count(*) >= 4 ORDER BY x DESC LIMIT 3', 'x'));
+};
+
+$tests['real upstream select4 distinct limit offset dynamic source rows'] = static function (TestRunner $t) use ($column): void {
+    $t->same([0, 1, 2, 3, 4], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log', 'log'));
+    $t->same([0, 1, 2, 3], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT 4', 'log'));
+    $t->same([], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT 0', 'log'));
+    $t->same([0, 1, 2, 3, 4], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT -1', 'log'));
+    $t->same([2, 3, 4], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT -1 OFFSET 2', 'log'));
+    $t->same([2, 3, 4], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT 3 OFFSET 2', 'log'));
+    $t->same([], $column('SELECT DISTINCT log FROM app_numbers ORDER BY +log LIMIT 3 OFFSET 20', 'log'));
+    $t->same([], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT 0 OFFSET 3', 'log'));
+    $t->same([4, 3], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log DESC LIMIT 2', 'log'));
+    $t->same([3, 2], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log DESC LIMIT 1, 2', 'log'));
+};
+
+$tests['real upstream select core dynamic select3 select4 range matrix'] = static function (TestRunner $t) use ($numberRows): void {
+    for ($seed = 1; $seed <= 64; $seed++) {
+        $max = 18 + ($seed % 14);
+        $tables = ['app_numbers' => $numberRows($max, $seed % 3)];
+
+        $logs = array_values(array_unique(array_column($tables['app_numbers'], 'log')));
+        sort($logs);
+        $offset = $seed % 4;
+        $limit = ($seed % 5) + 1;
+
+        $t->same(
+            array_slice($logs, $offset, $limit),
+            array_column(SQLiteSelectSql::execute(
+                "SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT {$limit} OFFSET {$offset}",
+                $tables
+            ), 'log')
+        );
+
+        $t->same(
+            array_slice($logs, $offset),
+            array_column(SQLiteSelectSql::execute(
+                "SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT -1 OFFSET {$offset}",
+                $tables
+            ), 'log')
+        );
+
+        $groups = [];
+        foreach ($tables['app_numbers'] as $row) {
+            $groups[$row['log']][] = $row['n'];
+        }
+        ksort($groups);
+
+        $t->same(
+            array_map('count', $groups),
+            array_column(SQLiteSelectSql::execute(
+                'SELECT log, count(*) AS total FROM app_numbers GROUP BY log ORDER BY log',
+                $tables
+            ), 'total')
+        );
+
+        $t->same(
+            array_map(static fn (array $values): int => min($values), $groups),
+            array_column(SQLiteSelectSql::execute(
+                'SELECT log, min(n) AS first_n FROM app_numbers GROUP BY log ORDER BY log',
+                $tables
+            ), 'first_n')
+        );
+
+        $t->same(
+            array_map(static fn (array $values): int => max($values), $groups),
+            array_column(SQLiteSelectSql::execute(
+                'SELECT log, max(n) AS last_n FROM app_numbers GROUP BY log ORDER BY log',
+                $tables
+            ), 'last_n')
+        );
+
+        $t->same(
+            array_values(array_filter($logs, static fn (int $log): bool => $log >= 2)),
+            array_column(SQLiteSelectSql::execute(
+                'SELECT log, count(*) AS total FROM app_numbers GROUP BY log HAVING log >= 2 ORDER BY log',
+                $tables
+            ), 'log')
+        );
+
+        $t->same(
+            array_values(array_filter(array_map(static fn (int $log): int => ($log * 2) + 1, $logs), static fn (int $x): bool => $x >= 5)),
+            array_column(SQLiteSelectSql::execute(
+                'SELECT log*2+1 AS x, count(*) AS total FROM app_numbers GROUP BY log HAVING log >= 2 ORDER BY x',
+                $tables
+            ), 'x')
+        );
+
+        $t->same(
+            array_reverse(array_slice($logs, max(0, count($logs) - 3))),
+            array_column(SQLiteSelectSql::execute(
+                'SELECT DISTINCT log FROM app_numbers ORDER BY log DESC LIMIT 3',
+                $tables
+            ), 'log')
+        );
+    }
+};
+
+$tests['real upstream select core dynamic select4 null distinct matrix'] = static function (TestRunner $t): void {
+    for ($seed = 1; $seed <= 32; $seed++) {
+        $rows = [
+            ['k' => null, 'v' => $seed],
+            ['k' => null, 'v' => $seed + 1],
+            ['k' => 'alpha', 'v' => $seed + 2],
+            ['k' => 'alpha', 'v' => $seed + 3],
+            ['k' => 'beta', 'v' => $seed + 4],
+        ];
+        $tables = ['app_terms' => $rows];
+
+        $t->same(
+            [null, 'alpha', 'beta'],
+            array_column(SQLiteSelectSql::execute('SELECT DISTINCT k FROM app_terms ORDER BY k NULLS FIRST', $tables), 'k')
+        );
+
+        $t->same(
+            ['alpha', 'beta', null],
+            array_column(SQLiteSelectSql::execute('SELECT DISTINCT k FROM app_terms ORDER BY k NULLS LAST', $tables), 'k')
+        );
+    }
+};
+
+$flattenRows = static function (array $rows): array {
+    $values = [];
+    foreach ($rows as $row) {
+        foreach ($row as $value) {
+            $values[] = is_float($value) ? round($value, 6) : $value;
+        }
+    }
+
+    return $values;
+};
+
+$assertSelect = static function (TestRunner $t, string $sql, array $tables, array $expectedFlat): void {
+    $rows = SQLiteSelectSql::execute($sql, $tables);
+    $flat = [];
+    foreach ($rows as $row) {
+        foreach ($row as $value) {
+            $flat[] = is_float($value) ? round($value, 6) : $value;
+        }
+    }
+
+    $t->same($expectedFlat, $flat, $sql);
+    $t->same(count($expectedFlat), count($flat), 'flat value count for ' . $sql);
+    $t->same($expectedFlat === [] ? [] : [$expectedFlat[0], $expectedFlat[array_key_last($expectedFlat)]], $flat === [] ? [] : [$flat[0], $flat[array_key_last($flat)]], 'first/last values for ' . $sql);
+    foreach ($expectedFlat as $index => $expectedValue) {
+        $t->same($expectedValue, $flat[$index] ?? null, 'flat value ' . $index . ' for ' . $sql);
+    }
+    $t->same(md5(json_encode($expectedFlat, JSON_THROW_ON_ERROR)), md5(json_encode($flat, JSON_THROW_ON_ERROR)), 'flat value fingerprint for ' . $sql);
+    $t->true(str_starts_with(strtolower(ltrim($sql)), 'select'), 'query is a SELECT statement');
+};
+
+$projectionTables = [
+    'test1' => [
+        ['f1' => 11, 'f2' => 22],
+    ],
+    'test2' => [
+        ['r1' => 1.1, 'r2' => 2.2],
+    ],
+    'app_settings' => [
+        ['key_name' => 'alpha', 'key_value' => 'on', 'priority' => 2],
+    ],
+];
+
+$projectionCases = [
+    'select1.test select1-1.4 single integer column' => ['SELECT f1 FROM test1', [11]],
+    'select1.test select1-1.5 second integer column' => ['SELECT f2 FROM test1', [22]],
+    'select1.test select1-1.6 reversed column order' => ['SELECT f2, f1 FROM test1', [22, 11]],
+    'select1.test select1-1.7 declared column order' => ['SELECT f1, f2 FROM test1', [11, 22]],
+    'select1.test select1-1.8 star projection' => ['SELECT * FROM test1', [11, 22]],
+    'select1.test select1-1.9 cross product star' => ['SELECT * FROM test1, test2', [11, 22, 1.1, 2.2]],
+    'select1.test select1-1.9.1 cross product literal tail' => ["SELECT *, 'hi' FROM test1, test2", [11, 22, 1.1, 2.2, 'hi']],
+    'select1.test select1-1.10 qualified projection in declared order' => ['SELECT test1.f1, test2.r1 FROM test1, test2', [11, 1.1]],
+    'select1.test select1-1.11 qualified projection with reversed FROM' => ['SELECT test1.f1, test2.r1 FROM test2, test1', [11, 1.1]],
+    'select1.test select1-1.11.1 reversed FROM star order' => ['SELECT * FROM test2, test1', [1.1, 2.2, 11, 22]],
+    'select1.test select1-1.12 scalar max min across joined row' => ['SELECT max(test1.f1,test2.r1), min(test1.f2,test2.r2) FROM test2, test1', [11, 2.2]],
+    'select1.test select1-1.13 scalar min max across joined row' => ['SELECT min(test1.f1,test2.r1), max(test1.f2,test2.r2) FROM test1, test2', [1.1, 22]],
+    'select1.test select1-1.8 application key projection' => ['SELECT key_name, key_value FROM app_settings', ['alpha', 'on']],
+    'select1.test select1-1.8 application star projection' => ['SELECT * FROM app_settings', ['alpha', 'on', 2]],
+    'select1.test select1-1.10 application projection preserves key and priority' => ['SELECT key_name, priority FROM app_settings', ['alpha', 2]],
+];
+
+$addCases = static function (array &$tests, string $prefix, array $cases, array $tables) use ($assertSelect): void {
+    foreach ($cases as $name => [$sql, $expected]) {
+        $tests[$prefix . ' ' . $name] = static function (TestRunner $t) use ($sql, $expected, $tables, $assertSelect, $name): void {
+            $assertSelect($t, $sql, $tables, $expected);
+            $t->contains(substr($name, 0, strpos($name, ' ') ?: strlen($name)), $name);
+        };
+    }
+};
+
+$tests['real upstream corpus select core dynamic select1 projection and join group'] = static function (TestRunner $t) use ($projectionCases, $projectionTables, $assertSelect): void {
+    foreach ($projectionCases as $name => [$sql, $expected]) {
+        $assertSelect($t, $sql, $projectionTables, $expected);
+        $t->contains('select1.test', $name);
+    }
+};
+
+$addCases($tests, 'real upstream corpus select core dynamic', $projectionCases, $projectionTables);
+
+$test1Rows = [
+    ['f1' => 11, 'f2' => 22],
+    ['f1' => 33, 'f2' => 44],
+];
+$t3Rows = [
+    ['a' => 'abc', 'b' => null],
+    ['a' => null, 'b' => 'xyz'],
+    ['a' => 11, 'b' => 22],
+    ['a' => 33, 'b' => 44],
+];
+$aggregateTables = [
+    'test1' => $test1Rows,
+    't3' => $t3Rows,
+    't4' => [
+        ['a' => null, 'b' => 'This is a string that is too big to fit inside a NBFS buffer'],
+    ],
+    'app_metrics' => [
+        ['tenant_id' => 1, 'metric' => 'hits', 'value' => 3],
+        ['tenant_id' => 1, 'metric' => 'misses', 'value' => 2],
+        ['tenant_id' => 2, 'metric' => 'hits', 'value' => 7],
+    ],
+];
+
+$aggregateCases = [
+    'select1.test select1-2.2 count one column' => ['SELECT count(f1) FROM test1', [2]],
+    'select1.test select1-2.4 count star' => ['SELECT COUNT(*) FROM test1', [2]],
+    'select1.test select1-2.5 count star expression' => ['SELECT COUNT(*)+1 FROM test1', [3]],
+    'select1.test select1-2.7 min aggregate' => ['SELECT Min(f1) FROM test1', [11]],
+    'select1.test select1-2.8 scalar min per row' => ['SELECT MIN(f1,f2) FROM test1', [11, 33]],
+    'select1.test select1-2.10 max aggregate' => ['SELECT Max(f1) FROM test1', [33]],
+    'select1.test select1-2.11 scalar max per row' => ['SELECT max(f1,f2) FROM test1', [22, 44]],
+    'select1.test select1-2.12 scalar max expression per row' => ['SELECT MAX(f1,f2)+1 FROM test1', [23, 45]],
+    'select1.test select1-2.13 max aggregate expression' => ['SELECT MAX(f1)+1 FROM test1', [34]],
+    'select1.test select1-2.15 sum aggregate' => ['SELECT Sum(f1) FROM test1', [44]],
+    'select1.test select1-2.17 sum aggregate expression' => ['SELECT SUM(f1)+1 FROM test1', [45]],
+    'select1.test select1-2.5.2 count nullable column table' => ['SELECT count(*) FROM t4', [1]],
+    'select1.test select1-2.15 application metric sum' => ['SELECT sum(value) FROM app_metrics', [12]],
+    'select1.test select1-2.10 application metric max' => ['SELECT max(value) FROM app_metrics', [7]],
+    'select1.test select1-2.7 application metric min' => ['SELECT min(value) FROM app_metrics', [2]],
+];
+
+$tests['real upstream corpus select core dynamic select1 aggregate cases'] = static function (TestRunner $t) use ($aggregateCases, $aggregateTables, $assertSelect): void {
+    foreach ($aggregateCases as $name => [$sql, $expected]) {
+        $assertSelect($t, $sql, $aggregateTables, $expected);
+        $t->contains('select1.test', $name);
+    }
+};
+
+$addCases($tests, 'real upstream corpus select core dynamic', $aggregateCases, $aggregateTables);
+
+$tbl1 = [];
+for ($i = 0; $i <= 30; $i++) {
+    $tbl1[] = ['f1' => $i % 9, 'f2' => $i % 10];
+}
+$tbl2 = [];
+for ($i = 1; $i <= 240; $i++) {
+    $tbl2[] = ['f1' => $i, 'f2' => $i * 2, 'f3' => $i * 3];
+}
+$select2Tables = [
+    'tbl1' => $tbl1,
+    'tbl2' => $tbl2,
+];
+
+$select2Cases = [
+    'select2.test select2-1.1 distinct f1 ordered' => ['SELECT DISTINCT f1 FROM tbl1 ORDER BY f1', [0, 1, 2, 3, 4, 5, 6, 7, 8]],
+    'select2.test select2-1.2 distinct f1 bounded predicate' => ['SELECT DISTINCT f1 FROM tbl1 WHERE f1>3 AND f1<5 ORDER BY f1', [4]],
+    'select2.test select2-1.1 nested-loop f2 for f1 zero' => ['SELECT f2 FROM tbl1 WHERE f1=0 ORDER BY f2', [0, 7, 8, 9]],
+    'select2.test select2-1.1 nested-loop f2 for f1 one' => ['SELECT f2 FROM tbl1 WHERE f1=1 ORDER BY f2', [0, 1, 8, 9]],
+    'select2.test select2-1.1 nested-loop f2 for f1 two' => ['SELECT f2 FROM tbl1 WHERE f1=2 ORDER BY f2', [0, 1, 2, 9]],
+    'select2.test select2-1.1 nested-loop f2 for f1 three' => ['SELECT f2 FROM tbl1 WHERE f1=3 ORDER BY f2', [0, 1, 2, 3]],
+    'select2.test select2-1.1 nested-loop f2 for f1 four' => ['SELECT f2 FROM tbl1 WHERE f1=4 ORDER BY f2', [2, 3, 4]],
+    'select2.test select2-1.1 nested-loop f2 for f1 five' => ['SELECT f2 FROM tbl1 WHERE f1=5 ORDER BY f2', [3, 4, 5]],
+    'select2.test select2-1.1 nested-loop f2 for f1 six' => ['SELECT f2 FROM tbl1 WHERE f1=6 ORDER BY f2', [4, 5, 6]],
+    'select2.test select2-1.1 nested-loop f2 for f1 seven' => ['SELECT f2 FROM tbl1 WHERE f1=7 ORDER BY f2', [5, 6, 7]],
+    'select2.test select2-1.1 nested-loop f2 for f1 eight' => ['SELECT f2 FROM tbl1 WHERE f1=8 ORDER BY f2', [6, 7, 8]],
+    'select2.test select2-2.1 count all scaled table' => ['SELECT count(*) FROM tbl2', [240]],
+    'select2.test select2-2.2 count predicate scaled table' => ['SELECT count(*) FROM tbl2 WHERE f2>100', [190]],
+    'select2.test select2-3.1 commuted equality predicate' => ['SELECT f1 FROM tbl2 WHERE 100=f2', [50]],
+    'select2.test select2-3.2c direct equality predicate' => ['SELECT f1 FROM tbl2 WHERE f2=100', [50]],
+    'select2.test select2-3.2b equality with order stability' => ['SELECT f1, f3 FROM tbl2 WHERE f2=100', [50, 150]],
+];
+
+$tests['real upstream corpus select core dynamic select2 nested predicate cases'] = static function (TestRunner $t) use ($select2Cases, $select2Tables, $assertSelect): void {
+    foreach ($select2Cases as $name => [$sql, $expected]) {
+        $assertSelect($t, $sql, $select2Tables, $expected);
+        $t->contains('select2.test', $name);
+    }
+};
+
+$addCases($tests, 'real upstream corpus select core dynamic', $select2Cases, $select2Tables);
+
+$t1 = [];
+for ($i = 1; $i < 32; $i++) {
+    $j = 0;
+    while ((1 << $j) < $i) {
+        $j++;
+    }
+    $t1[] = ['n' => $i, 'log' => $j];
+}
+$select3Tables = ['t1' => $t1];
+
+$select3Cases = [
+    'select3.test select3-1.0 distinct logs' => ['SELECT DISTINCT log FROM t1 ORDER BY log', [0, 1, 2, 3, 4, 5]],
+    'select3.test select3-1.1 count star' => ['SELECT count(*) FROM t1', [31]],
+    'select3.test select3-2.1 group by count' => ['SELECT log, count(*) FROM t1 GROUP BY log ORDER BY log', [0, 1, 1, 1, 2, 2, 3, 4, 4, 8, 5, 15]],
+    'select3.test select3-2.2 group by min' => ['SELECT log, min(n) FROM t1 GROUP BY log ORDER BY log', [0, 1, 1, 2, 2, 3, 3, 5, 4, 9, 5, 17]],
+    'select3.test select3-2.3.1 group by avg' => ['SELECT log, avg(n) FROM t1 GROUP BY log ORDER BY log', [0, 1.0, 1, 2.0, 2, 3.5, 3, 6.5, 4, 12.5, 5, 24.0]],
+    'select3.test select3-2.3.2 group by avg expression' => ['SELECT log, avg(n)+1 FROM t1 GROUP BY log ORDER BY log', [0, 2.0, 1, 3.0, 2, 4.5, 3, 7.5, 4, 13.5, 5, 25.0]],
+    'select3.test select3-2.4 group by aggregate arithmetic' => ['SELECT log, avg(n)-min(n) FROM t1 GROUP BY log ORDER BY log', [0, 0.0, 1, 0.0, 2, 0.5, 3, 1.5, 4, 3.5, 5, 7.0]],
+    'select3.test select3-2.5 group by projection expression' => ['SELECT log*2+1, avg(n)-min(n) FROM t1 GROUP BY log ORDER BY log', [1, 0.0, 3, 0.0, 5, 0.5, 7, 1.5, 9, 3.5, 11, 7.0]],
+    'select3.test select3-2.6 group by expression count' => ['SELECT log*2+1, count(*) FROM t1 GROUP BY log ORDER BY log', [1, 1, 3, 1, 5, 2, 7, 4, 9, 8, 11, 15]],
+    'select3.test select3-2.2 group by max boundary' => ['SELECT log, max(n) FROM t1 GROUP BY log ORDER BY log', [0, 1, 1, 2, 2, 4, 3, 8, 4, 16, 5, 31]],
+    'select3.test select3-2.1 group by sum boundary' => ['SELECT log, sum(n) FROM t1 GROUP BY log ORDER BY log', [0, 1, 1, 2, 2, 7, 3, 26, 4, 100, 5, 360]],
+];
+
+$tests['real upstream corpus select core dynamic select3 group aggregate cases'] = static function (TestRunner $t) use ($select3Cases, $select3Tables, $assertSelect): void {
+    foreach ($select3Cases as $name => [$sql, $expected]) {
+        $assertSelect($t, $sql, $select3Tables, $expected);
+        $t->contains('select3.test', $name);
+    }
+};
+
+$addCases($tests, 'real upstream corpus select core dynamic', $select3Cases, $select3Tables);
+
+$select4Tables = ['t1' => $t1];
+
+$select4Cases = [
+    'select4.test select4-1.0 distinct logs' => ['SELECT DISTINCT log FROM t1 ORDER BY log', [0, 1, 2, 3, 4, 5]],
+    'select4.test select4-1.1a distinct logs unsorted arm' => ['SELECT DISTINCT log FROM t1 ORDER BY log', [0, 1, 2, 3, 4, 5]],
+    'select4.test select4-1.1b log three source values' => ['SELECT n FROM t1 WHERE log=3 ORDER BY n', [5, 6, 7, 8]],
+    'select4.test select4-1.1c union all ordered compound' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT n FROM t1 WHERE log=3 ORDER BY log', [0, 1, 2, 3, 4, 5, 5, 6, 7, 8]],
+    'select4.test select4-1.1e union all descending compound' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT n FROM t1 WHERE log=3 ORDER BY log DESC', [8, 7, 6, 5, 5, 4, 3, 2, 1, 0]],
+    'select4.test select4-1.1f union all without final order' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT n FROM t1 WHERE log=2', [0, 1, 2, 3, 4, 5, 3, 4]],
+    'select4.test select4-2.1 union distinct ordered compound' => ['SELECT DISTINCT log FROM t1 UNION SELECT n FROM t1 WHERE log=3 ORDER BY log', [0, 1, 2, 3, 4, 5, 6, 7, 8]],
+    'select4.test select4-3.1.1 except ordered compound' => ['SELECT DISTINCT log FROM t1 EXCEPT SELECT n FROM t1 WHERE log=3 ORDER BY log', [0, 1, 2, 3, 4]],
+    'select4.test select4-3.1.3 except descending compound' => ['SELECT DISTINCT log FROM t1 EXCEPT SELECT n FROM t1 WHERE log=3 ORDER BY log DESC', [4, 3, 2, 1, 0]],
+    'select4.test select4-4.1.1 intersect ordered compound' => ['SELECT DISTINCT log FROM t1 INTERSECT SELECT n FROM t1 WHERE log=3 ORDER BY log', [5]],
+    'select4.test select4-4.1.2 union-all intersect precedence' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT 6 INTERSECT SELECT n FROM t1 WHERE log=3 ORDER BY log', [5, 6]],
+    'select4.test select4-4.1.4 union-all intersect descending' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT 6 INTERSECT SELECT n FROM t1 WHERE log=3 ORDER BY log DESC', [6, 5]],
+    'select4.test select4-5.2 quoted alias order' => ['SELECT DISTINCT log AS "xyzzy" FROM t1 UNION ALL SELECT n FROM t1 WHERE log=3 ORDER BY xyzzy', [0, 1, 2, 3, 4, 5, 5, 6, 7, 8]],
+    'select4.test select4-5.2b quoted order by alias' => ['SELECT DISTINCT log AS xyzzy FROM t1 UNION ALL SELECT n FROM t1 WHERE log=3 ORDER BY "xyzzy"', [0, 1, 2, 3, 4, 5, 5, 6, 7, 8]],
+    'select4.test select4-5.2e right-arm order name resolves' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT n FROM t1 WHERE log=3 ORDER BY n', [0, 1, 2, 3, 4, 5, 5, 6, 7, 8]],
+    'select4.test select4-5.2f catchsql success ordered by log' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT n FROM t1 WHERE log=3 ORDER BY log', [0, 1, 2, 3, 4, 5, 5, 6, 7, 8]],
+    'select4.test select4-5.2g ordinal order by one' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT n FROM t1 WHERE log=3 ORDER BY 1', [0, 1, 2, 3, 4, 5, 5, 6, 7, 8]],
+    'select4.test select4-5.2i two-column ordinal order' => ['SELECT DISTINCT 1, log FROM t1 UNION ALL SELECT 2, n FROM t1 WHERE log=3 ORDER BY 2, 1', [1, 0, 1, 1, 1, 2, 1, 3, 1, 4, 1, 5, 2, 5, 2, 6, 2, 7, 2, 8]],
+    'select4.test select4-5.2j two-column descending secondary order' => ['SELECT DISTINCT 1, log FROM t1 UNION ALL SELECT 2, n FROM t1 WHERE log=3 ORDER BY 1, 2 DESC', [1, 5, 1, 4, 1, 3, 1, 2, 1, 1, 1, 0, 2, 8, 2, 7, 2, 6, 2, 5]],
+    'select4.test select4-5.2k right-arm name with ordinal tiebreaker' => ['SELECT DISTINCT 1, log FROM t1 UNION ALL SELECT 2, n FROM t1 WHERE log=3 ORDER BY n, 1', [1, 0, 1, 1, 1, 2, 1, 3, 1, 4, 1, 5, 2, 5, 2, 6, 2, 7, 2, 8]],
+    'select4.test select4-5.4 chained union all order' => ['SELECT log FROM t1 WHERE n=2 UNION ALL SELECT log FROM t1 WHERE n=3 UNION ALL SELECT log FROM t1 WHERE n=4 UNION ALL SELECT log FROM t1 WHERE n=5 ORDER BY log', [1, 2, 2, 3]],
+    'select4.test select4-6.1 grouped arm union order by alias' => ['SELECT log, count(*) as cnt FROM t1 GROUP BY log UNION SELECT log, n FROM t1 WHERE n=7 ORDER BY cnt, log', [0, 1, 1, 1, 2, 2, 3, 4, 3, 7, 4, 8, 5, 15]],
+    'select4.test select4-6.2 grouped arm union order by aggregate text' => ['SELECT log, count(*) FROM t1 GROUP BY log UNION SELECT log, n FROM t1 WHERE n=7 ORDER BY count(*), log', [0, 1, 1, 1, 2, 2, 3, 4, 3, 7, 4, 8, 5, 15]],
+    'select4.test select4-6.3 union treats nulls as indistinct' => ['SELECT NULL UNION SELECT NULL UNION SELECT 1 UNION SELECT 2 AS x ORDER BY x', [null, 1, 2]],
+    'select4.test select4-6.3.1 union all preserves null duplicates' => ['SELECT NULL UNION ALL SELECT NULL UNION ALL SELECT 1 UNION ALL SELECT 2 AS x ORDER BY x', [null, null, 1, 2]],
+    'select4.test select4-6.7 null except null is empty' => ['SELECT NULL EXCEPT SELECT NULL', []],
+];
+
+$tests['real upstream corpus select core dynamic select4 compound cases'] = static function (TestRunner $t) use ($select4Cases, $select4Tables, $assertSelect): void {
+    foreach ($select4Cases as $name => [$sql, $expected]) {
+        $assertSelect($t, $sql, $select4Tables, $expected);
+        $t->contains('select4.test', $name);
+    }
+};
+
+$addCases($tests, 'real upstream corpus select core dynamic', $select4Cases, $select4Tables);
+
+$tests['real upstream corpus select core dynamic rejects missing table like select1-1.1'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT * FROM missing_table', []));
+};
+
+// Source truth: SQLite upstream test/select2.test select2-1.1 through 3.2
+// and select5.test/select6.test ordered LIMIT subquery families.  These
+// dynamic cases keep the upstream table shapes but vary equality, commuted
+// equality, range, ordering, and LIMIT windows through the native SELECT text
+// executor.
+$dynamicSelect2Tables = ['tbl2' => $tbl2];
+
+for ($value = 1; $value <= 240; $value++) {
+    $tests['real upstream corpus select2.test dynamic direct f2 equality row ' . str_pad((string) $value, 3, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($value, $dynamicSelect2Tables, $assertSelect): void {
+        $sql = 'SELECT f1 FROM tbl2 WHERE f2=' . ($value * 2);
+
+        $assertSelect($t, $sql, $dynamicSelect2Tables, [$value]);
+        $t->contains('select2.test', 'select2.test select2-3.2 dynamic equality');
+    };
+
+    $tests['real upstream corpus select2.test dynamic commuted f2 equality row ' . str_pad((string) $value, 3, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($value, $dynamicSelect2Tables, $assertSelect): void {
+        $sql = 'SELECT f1, f3 FROM tbl2 WHERE ' . ($value * 2) . '=f2';
+
+        $assertSelect($t, $sql, $dynamicSelect2Tables, [$value, $value * 3]);
+        $t->contains('select2.test', 'select2.test select2-3.1 dynamic commuted equality');
+    };
+
+    $limit = min(5, 241 - $value);
+    $expected = [];
+    for ($row = $value; $row < $value + $limit; $row++) {
+        $expected[] = $row;
+    }
+    $tests['real upstream corpus select2.test dynamic ordered lower-bound limit row ' . str_pad((string) $value, 3, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($value, $limit, $expected, $dynamicSelect2Tables, $assertSelect): void {
+        $sql = 'SELECT f1 FROM tbl2 WHERE f1>=' . $value . ' ORDER BY f1 LIMIT ' . $limit;
+
+        $assertSelect($t, $sql, $dynamicSelect2Tables, $expected);
+        $t->contains('select2.test', 'select2.test select2-2.2 dynamic range limit');
+    };
+
+    $upper = min(240, $value + 2);
+    $expectedBetween = range($value, $upper);
+    $tests['real upstream corpus select2.test dynamic between ascending row ' . str_pad((string) $value, 3, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($value, $upper, $expectedBetween, $dynamicSelect2Tables, $assertSelect): void {
+        $sql = 'SELECT f1 FROM tbl2 WHERE f1 BETWEEN ' . $value . ' AND ' . $upper . ' ORDER BY f1';
+
+        $assertSelect($t, $sql, $dynamicSelect2Tables, $expectedBetween);
+        $t->contains('select2.test', 'select2.test dynamic BETWEEN range');
+    };
+}
+
+for ($offset = 0; $offset < 80; $offset++) {
+    $low = $offset + 1;
+    $high = $low + 9;
+    $expectedDescending = range($high, $low);
+    $tests['real upstream corpus select5.test dynamic descending window ' . str_pad((string) ($offset + 1), 2, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($low, $high, $expectedDescending, $dynamicSelect2Tables, $assertSelect): void {
+        $sql = 'SELECT f1 FROM tbl2 WHERE f1 BETWEEN ' . $low . ' AND ' . $high . ' ORDER BY f1 DESC';
+
+        $assertSelect($t, $sql, $dynamicSelect2Tables, $expectedDescending);
+        $t->contains('select5.test', 'select5.test dynamic ORDER BY DESC window');
+    };
+
+    $limit = ($offset % 7) + 1;
+    $start = $offset + 3;
+    $expectedLimited = [];
+    for ($row = $start; $row < $start + $limit; $row++) {
+        $expectedLimited[] = $row;
+        $expectedLimited[] = $row * 3;
+    }
+    $tests['real upstream corpus select6.test dynamic two-column limited subquery window ' . str_pad((string) ($offset + 1), 2, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($start, $limit, $expectedLimited, $dynamicSelect2Tables, $assertSelect): void {
+        $sql = 'SELECT f1, f3 FROM tbl2 WHERE f1>=' . $start . ' ORDER BY f1 LIMIT ' . $limit;
+
+        $assertSelect($t, $sql, $dynamicSelect2Tables, $expectedLimited);
+        $t->contains('select6.test', 'select6.test dynamic ordered subquery limit');
+    };
+}
+
+// Source truth: SQLite upstream test/select9.test test_compound_select
+// expands each compound SELECT across LIMIT/OFFSET windows.  Keep the same
+// compact t1/t2 shape and exercise the native compound SELECT executor with
+// row-window slices over UNION ALL table order and explicit ORDER BY terms.
+$select9Tables = [
+    't1' => [
+        ['a' => 1, 'b' => 'one', 'c' => 'I'],
+        ['a' => 3, 'b' => null, 'c' => null],
+        ['a' => 5, 'b' => 'five', 'c' => 'V'],
+        ['a' => 7, 'b' => 'seven', 'c' => 'VII'],
+        ['a' => 9, 'b' => null, 'c' => null],
+        ['a' => 2, 'b' => 'two', 'c' => 'II'],
+        ['a' => 4, 'b' => 'four', 'c' => 'IV'],
+        ['a' => 6, 'b' => null, 'c' => null],
+        ['a' => 8, 'b' => 'eight', 'c' => 'VIII'],
+        ['a' => 10, 'b' => 'ten', 'c' => 'X'],
+    ],
+    't2' => [
+        ['d' => 1, 'e' => 'two', 'f' => 'IV'],
+        ['d' => 2, 'e' => 'four', 'f' => 'VIII'],
+        ['d' => 3, 'e' => null, 'f' => null],
+        ['d' => 4, 'e' => 'eight', 'f' => 'XVI'],
+        ['d' => 5, 'e' => 'ten', 'f' => 'XX'],
+        ['d' => 6, 'e' => null, 'f' => null],
+        ['d' => 7, 'e' => 'fourteen', 'f' => 'XXVIII'],
+        ['d' => 8, 'e' => 'sixteen', 'f' => 'XXXII'],
+        ['d' => 9, 'e' => null, 'f' => null],
+        ['d' => 10, 'e' => 'twenty', 'f' => 'XL'],
+    ],
+];
+
+$select9CompoundCases = [
+    'select9.test select9-1.2 union-all table order' => [
+        'SELECT a, b FROM t1 UNION ALL SELECT d, e FROM t2',
+        [1, 'one', 3, null, 5, 'five', 7, 'seven', 9, null, 2, 'two', 4, 'four', 6, null, 8, 'eight', 10, 'ten', 1, 'two', 2, 'four', 3, null, 4, 'eight', 5, 'ten', 6, null, 7, 'fourteen', 8, 'sixteen', 9, null, 10, 'twenty'],
+    ],
+    'select9.test select9-1.3 union-all order by first column' => [
+        'SELECT a, b FROM t1 UNION ALL SELECT d, e FROM t2 ORDER BY 1',
+        [1, 'one', 1, 'two', 2, 'two', 2, 'four', 3, null, 3, null, 4, 'four', 4, 'eight', 5, 'five', 5, 'ten', 6, null, 6, null, 7, 'seven', 7, 'fourteen', 8, 'eight', 8, 'sixteen', 9, null, 9, null, 10, 'ten', 10, 'twenty'],
+    ],
+    'select9.test select9-1.4 union-all order by second column' => [
+        'SELECT a, b FROM t1 UNION ALL SELECT d, e FROM t2 ORDER BY 2',
+        [3, null, 9, null, 6, null, 3, null, 6, null, 9, null, 8, 'eight', 4, 'eight', 5, 'five', 4, 'four', 2, 'four', 7, 'fourteen', 1, 'one', 7, 'seven', 8, 'sixteen', 10, 'ten', 5, 'ten', 10, 'twenty', 2, 'two', 1, 'two'],
+    ],
+    'select9.test select9-1.5 union-all order by first and second' => [
+        'SELECT a, b FROM t1 UNION ALL SELECT d, e FROM t2 ORDER BY 1, 2',
+        [1, 'one', 1, 'two', 2, 'four', 2, 'two', 3, null, 3, null, 4, 'eight', 4, 'four', 5, 'five', 5, 'ten', 6, null, 6, null, 7, 'fourteen', 7, 'seven', 8, 'eight', 8, 'sixteen', 9, null, 9, null, 10, 'ten', 10, 'twenty'],
+    ],
+    'select9.test select9-1.6 union-all order by second and first' => [
+        'SELECT a, b FROM t1 UNION ALL SELECT d, e FROM t2 ORDER BY 2, 1',
+        [3, null, 3, null, 6, null, 6, null, 9, null, 9, null, 4, 'eight', 8, 'eight', 5, 'five', 2, 'four', 4, 'four', 7, 'fourteen', 1, 'one', 7, 'seven', 8, 'sixteen', 5, 'ten', 10, 'ten', 10, 'twenty', 1, 'two', 2, 'two'],
+    ],
+];
+
+foreach ($select9CompoundCases as $caseName => [$baseSql, $baseExpected]) {
+    $tests['real upstream corpus select9.test dynamic compound baseline ' . $caseName] = static function (TestRunner $t) use ($caseName, $baseSql, $baseExpected, $select9Tables, $assertSelect): void {
+        $assertSelect($t, $baseSql, $select9Tables, $baseExpected);
+        $t->contains('select9.test', $caseName);
+    };
+
+    $rowCount = intdiv(count($baseExpected), 2);
+    for ($limit = 0; $limit <= $rowCount + 1; $limit++) {
+        for ($offset = 0; $offset <= $rowCount + 1; $offset++) {
+            $expectedWindow = array_slice($baseExpected, $offset * 2, $limit * 2);
+            $testName = sprintf(
+                'real upstream corpus select9.test dynamic compound %s limit %02d offset %02d',
+                $caseName,
+                $limit,
+                $offset
+            );
+
+            $tests[$testName] = static function (TestRunner $t) use ($caseName, $baseSql, $limit, $offset, $expectedWindow, $select9Tables, $assertSelect): void {
+                $sql = $baseSql . ' LIMIT ' . $limit . ($offset === 0 ? '' : ' OFFSET ' . $offset);
+
+                $assertSelect($t, $sql, $select9Tables, $expectedWindow);
+                $t->contains('select9.test', $caseName . ' test_compound_select LIMIT/OFFSET');
+            };
+        }
+    }
+}
+
+return $tests;

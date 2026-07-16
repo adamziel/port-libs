@@ -1,0 +1,6 @@
+[ Header
+    2
+    ( "slide-1" , [] , [] )
+    [ Str "Background image skip deck" ]
+, Para [ Str "Visible foreground text" ]
+]

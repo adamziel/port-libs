@@ -1,0 +1,4 @@
+Post ID,Status,Notes
+42,imported,Created block markup from classic content
+43,skipped,Existing reusable block already present
+44,queued,Needs media sideload retry

@@ -1,0 +1,21 @@
+Real upstream corpus UPSERT RETURNING dynamic slice
+
+- Base accepted HEAD: 7ae2bafb13ace2a8edf7ffe53e4f4d55f2e4902f.
+- Micro-slice: real-upstream-corpus-upsert-returning-dynamic-20260530T171830Z-0.
+- Upstream source truth:
+  - /home/claude/port-libs/.upstream-cache/libsqlite/test/upsert5.test, multi-arm ON CONFLICT order cases.
+  - /home/claude/port-libs/.upstream-cache/libsqlite/test/upsert4.test, NULL conflict behavior and OR REPLACE ordering before UPSERT handling.
+  - /home/claude/port-libs/.upstream-cache/libsqlite/test/upsert3.test, unmatched ON CONFLICT target diagnostic.
+  - /home/claude/port-libs/.upstream-cache/libsqlite/test/returning1.test, RETURNING projection/dequoted names, wildcard rejection, missing-column rejection, and FK-before-RETURNING ordering.
+- Added focused PHP coverage:
+  - SQLiteRealUpstreamUpsertReturningDynamicArmsCorpusTest.php.
+  - 50 selected PASS cases.
+  - 569 focused assertions.
+- Expected dashboard movement:
+  - phpPass +50, from 207759 to 207809.
+  - mapped coverage unchanged at 958 / 1589; this slice ports behavior but does not claim new denominator rows.
+- Non-overlap:
+  - Does not touch prior window, SELECT, JSON, WAL, B-tree, VFS, source-neutral, or numbered consolidation surfaces.
+  - Stays in the assigned UPSERT/RETURNING dynamic behavior cluster.
+- Dependency closure:
+  - No new support component is needed. The slice reuses existing bounded UPSERT/RETURNING row-array helpers and adds real upstream corpus coverage around their conflict arm and projection semantics.

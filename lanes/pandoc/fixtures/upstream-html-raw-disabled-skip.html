@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+<head>
+<title>HTML Raw Disabled Import</title>
+</head>
+<body>
+<p>Inline <style>.legacy-inline { color: red; }</style>style and <script>window.skipInline = true;</script>script text remains.</p>
+<style id="legacy-theme-css" data-source="batch-42">
+.legacy-card { border: 1px solid #ddd; }
+</style>
+<script id="legacy-widget-js" type="text/javascript" data-source="batch-42">
+window.LegacyWidgetQueue.push({ shortcode: "[legacy_widget id=42]" });
+</script>
+<script type="math/tex; mode=display">\alpha + \omega</script>
+<textarea id="legacy-packet" data-source="batch-42">Legacy shortcode [gallery ids="10,11"]</textarea>
+<p>After raw payloads.</p>
+</body>
+</html>

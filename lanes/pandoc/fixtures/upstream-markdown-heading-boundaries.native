@@ -1,0 +1,9 @@
+[ Header 1 ( "header" , [] , [] ) [ Str "Header" ]
+, Header 1 ( "hi" , [] , [] ) [ Str "[hi]" ]
+, Header
+    1 ( "foo-bar" , [] , [] ) [ Str "Foo" , Space , Str "bar" ]
+, Header
+    1
+    ( "foo-bar-2" , [] , [] )
+    [ Str "Foo" , Space , Str "bar" , Space , Str "2" ]
+]

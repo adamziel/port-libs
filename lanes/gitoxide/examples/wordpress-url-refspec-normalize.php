@@ -1,0 +1,474 @@
+<?php
+
+declare(strict_types=1);
+
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+use PortLibs\Gitoxide\GitUrl;
+use PortLibs\Gitoxide\RefSpec;
+
+$fixture = require __DIR__ . '/../fixtures/wordpress-url-refspec-normalize.php';
+
+$remote = GitUrl::parse($fixture['remoteUrl']);
+$remoteAlternative = $remote->withAlternativeForm(true);
+$unsafeRemote = GitUrl::parse($fixture['unsafeRemoteUrl']);
+$rootRemote = GitUrl::parse($fixture['rootRemoteUrl']);
+$emptyPortRemote = GitUrl::parse($fixture['emptyPortRemoteUrl']);
+$legacySshRemote = GitUrl::parse($fixture['legacySshRemoteUrl']);
+$localMirror = GitUrl::parse($fixture['localMirrorUrl']);
+$canonicalFileMirror = GitUrl::parse($fixture['canonicalFileMirrorUrl']);
+$canonicalFileMirrorAlternative = $canonicalFileMirror->withAlternativeForm(true);
+$homeMirror = GitUrl::parse($fixture['homeMirrorUrl']);
+$homeMirrorHome = GitUrl::parseHomePath($homeMirror->path());
+$homeMirrorShellPath = GitUrl::forShellPath($homeMirror->path());
+$homeMirrorExpandedPath = GitUrl::expandHomePath(
+    $homeMirror->path(),
+    static fn (?string $user): ?string => $user === null
+        ? $fixture['currentHomeDirectory']
+        : ($fixture['homeDirectories'][$user] ?? null)
+);
+$relativeMirror = GitUrl::parse($fixture['relativeMirrorUrl']);
+$relativeMirrorCanonical = $relativeMirror->canonicalized($fixture['relativeMirrorCurrentDirectory']);
+$colonAliasRemote = GitUrl::parse($fixture['colonAliasRemoteUrl']);
+$explicitLocalColonMirror = GitUrl::parse($fixture['explicitLocalColonMirrorUrl']);
+$customHelperRemote = GitUrl::parse($fixture['customHelperRemoteUrl']);
+$unicodeRemote = GitUrl::parse($fixture['unicodeRemoteUrl']);
+$credentialRemote = GitUrl::parse($fixture['credentialRemoteUrl'])
+    ->withUser($fixture['credentialRemoteUser'])
+    ->withPassword($fixture['credentialRemotePassword']);
+$credentialRemoteRoundtrip = GitUrl::parse($credentialRemote->toBytes());
+$passwordOnlyRemote = GitUrl::parse($fixture['passwordOnlyRemoteUrl']);
+$passwordOnlyRemoteRoundtrip = GitUrl::parse($passwordOnlyRemote->toBytes());
+$byteRoundtripRemote = GitUrl::fromBytes($fixture['byteRoundtripRemoteUrl']);
+$byteRoundtripRemoteFromParse = GitUrl::parse($byteRoundtripRemote->toBytes());
+$partsRemote = GitUrl::fromParts(
+    $fixture['partsRemoteScheme'],
+    $fixture['partsRemoteUser'],
+    $fixture['partsRemotePassword'],
+    $fixture['partsRemoteHost'],
+    $fixture['partsRemotePort'],
+    $fixture['partsRemotePath']
+);
+$partsSshAlternate = GitUrl::fromParts(
+    $fixture['partsSshAlternateScheme'],
+    $fixture['partsSshAlternateUser'],
+    null,
+    $fixture['partsSshAlternateHost'],
+    null,
+    $fixture['partsSshAlternatePath'],
+    true
+);
+$partsSshPassword = GitUrl::fromParts(
+    $fixture['partsSshPasswordScheme'],
+    $fixture['partsSshPasswordUser'],
+    $fixture['partsSshPassword'],
+    $fixture['partsSshPasswordHost'],
+    null,
+    $fixture['partsSshPasswordPath'],
+    true
+);
+$fetch = array_map(
+    static fn (string $spec): array => RefSpec::parseFetch($spec)->toArray(),
+    $fixture['fetchRefspecs']
+);
+$push = array_map(
+    static fn (string $spec): array => RefSpec::parsePush($spec)->toArray(),
+    $fixture['pushRefspecs']
+);
+$pushInstructionIdentitySpecs = array_map(
+    static fn (string $spec): RefSpec => RefSpec::parsePush($spec),
+    $fixture['pushInstructionIdentityRefspecs']
+);
+$pushInstructionIdentityKeys = array_map(
+    static fn (RefSpec $spec): string => $spec->instructionKey(),
+    $pushInstructionIdentitySpecs
+);
+$fetchInstructionIdentitySpecs = array_map(
+    static fn (string $spec): RefSpec => RefSpec::parseFetch($spec),
+    $fixture['fetchInstructionIdentityRefspecs']
+);
+$matchedFetchRefs = RefSpec::matchFetchRemoteRefs(
+    $fixture['matchFetchRefspecs'],
+    $fixture['remoteAdvertisedRefs']
+);
+$slashLiteralMatchedFetchRefs = RefSpec::matchFetchRemoteRefs(
+    $fixture['slashLiteralFetchRefspecs'],
+    $fixture['slashLiteralRemoteAdvertisedRefs']
+);
+$validatedFetchRefs = RefSpec::validatedFetchRemoteRefs(
+    $fixture['validatedFetchRefspecs'],
+    $fixture['validatedRemoteAdvertisedRefs']
+);
+$conflictingFetchRefs = RefSpec::validatedFetchRemoteRefs(
+    $fixture['conflictingFetchRefspecs'],
+    $fixture['validatedRemoteAdvertisedRefs']
+);
+$reverseMatchedFetchRefs = RefSpec::matchFetchLocalRefs(
+    $fixture['reverseFetchRefspecs'],
+    $fixture['localTrackingRefs']
+);
+$matchedPushRefs = RefSpec::matchPushLocalRefs(
+    $fixture['pushMatchRefspecs'],
+    $fixture['localPushRefs']
+);
+$oversizedRemoteRejected = false;
+try {
+    GitUrl::parse($fixture['oversizedRemoteUrl']);
+} catch (InvalidArgumentException) {
+    $oversizedRemoteRejected = true;
+}
+$malformedBracketedRemoteRejected = false;
+try {
+    GitUrl::parse($fixture['malformedBracketedRemoteUrl']);
+} catch (InvalidArgumentException) {
+    $malformedBracketedRemoteRejected = true;
+}
+$invalidUtf8RemoteRejected = false;
+try {
+    GitUrl::parse($fixture['invalidUtf8RemoteUrl']);
+} catch (InvalidArgumentException) {
+    $invalidUtf8RemoteRejected = true;
+}
+$hostlessFtpRemoteRejected = false;
+try {
+    GitUrl::parse($fixture['hostlessFtpRemoteUrl']);
+} catch (InvalidArgumentException) {
+    $hostlessFtpRemoteRejected = true;
+}
+
+$summary = [
+    'remote' => $remote->toArray(),
+    'remoteAlternativeUrl' => $remoteAlternative->toBytes(),
+    'remoteArgumentSafety' => [
+        'user' => $remote->userArgumentSafety(),
+        'host' => $remote->hostArgumentSafety(),
+        'path' => $remote->pathArgumentSafety(),
+    ],
+    'unsafeRemoteArgumentSafety' => [
+        'user' => $unsafeRemote->userArgumentSafety(),
+        'host' => $unsafeRemote->hostArgumentSafety(),
+        'path' => $unsafeRemote->pathArgumentSafety(),
+    ],
+    'rootRemotePathIsRoot' => $rootRemote->pathIsRoot(),
+    'rootRemotePathArgumentSafety' => $rootRemote->pathArgumentSafety(),
+    'emptyPortRemote' => $emptyPortRemote->toArray(),
+    'legacySshRemote' => $legacySshRemote->toArray(),
+    'localMirror' => $localMirror->toArray(),
+    'canonicalFileMirror' => $canonicalFileMirror->toArray(),
+    'canonicalFileMirrorAlternativeUrl' => $canonicalFileMirrorAlternative->toBytes(),
+    'homeMirror' => $homeMirror->toArray(),
+    'homeMirrorHome' => $homeMirrorHome,
+    'homeMirrorShellPath' => $homeMirrorShellPath,
+    'homeMirrorExpandedPath' => $homeMirrorExpandedPath,
+    'relativeMirrorCanonical' => $relativeMirrorCanonical->toArray(),
+    'colonAliasRemote' => $colonAliasRemote->toArray(),
+    'explicitLocalColonMirror' => $explicitLocalColonMirror->toArray(),
+    'customHelperRemote' => $customHelperRemote->toArray(),
+    'customHelperRemotePathArgumentSafe' => $customHelperRemote->pathArgumentSafe(),
+    'unicodeRemote' => $unicodeRemote->toArray(),
+    'credentialRemote' => $credentialRemote->toArray(),
+    'credentialRemoteDisplay' => $credentialRemote->display(),
+    'credentialRemoteRoundtrip' => $credentialRemoteRoundtrip->toArray(),
+    'passwordOnlyRemote' => $passwordOnlyRemote->toArray(),
+    'passwordOnlyRemoteDisplay' => $passwordOnlyRemote->display(),
+    'passwordOnlyRemoteRoundtrip' => $passwordOnlyRemoteRoundtrip->toArray(),
+    'byteRoundtripRemote' => $byteRoundtripRemote->toArray(),
+    'byteRoundtripRemoteFromParse' => $byteRoundtripRemoteFromParse->toArray(),
+    'partsRemote' => $partsRemote->toArray(),
+    'partsRemoteDisplay' => $partsRemote->display(),
+    'partsSshAlternate' => $partsSshAlternate->toArray(),
+    'partsSshPassword' => $partsSshPassword->toArray(),
+    'fetch' => $fetch,
+    'push' => $push,
+    'matchedFetchRefs' => $matchedFetchRefs,
+    'slashLiteralMatchedFetchRefs' => $slashLiteralMatchedFetchRefs,
+    'validatedFetchRefs' => $validatedFetchRefs,
+    'conflictingFetchRefs' => $conflictingFetchRefs,
+    'reverseMatchedFetchRefs' => $reverseMatchedFetchRefs,
+    'matchedPushRefs' => $matchedPushRefs,
+    'pushInstructionIdentityUniqueCount' => count(array_unique($pushInstructionIdentityKeys)),
+    'sameNamedPushEquivalent' => $pushInstructionIdentitySpecs[0]->equivalentTo($pushInstructionIdentitySpecs[1]),
+    'deleteForceEquivalent' => $pushInstructionIdentitySpecs[2]->equivalentTo($pushInstructionIdentitySpecs[3]),
+    'allMatchingForceEquivalent' => $pushInstructionIdentitySpecs[4]->equivalentTo($pushInstructionIdentitySpecs[5]),
+    'fetchOnlyForceEquivalent' => $fetchInstructionIdentitySpecs[0]->equivalentTo($fetchInstructionIdentitySpecs[1]),
+    'oversizedRemoteRejected' => $oversizedRemoteRejected,
+    'malformedBracketedRemoteRejected' => $malformedBracketedRemoteRejected,
+    'invalidUtf8RemoteRejected' => $invalidUtf8RemoteRejected,
+    'hostlessFtpRemoteRejected' => $hostlessFtpRemoteRejected,
+    'deploymentRemoteSafe' => $remote->userArgumentSafe() === $fixture['expectedRemoteUser']
+        && $remote->hostArgumentSafe() === $fixture['expectedRemoteHost']
+        && $remote->pathArgumentSafe() === $fixture['expectedRemotePath'],
+];
+
+$argv = $_SERVER['argv'] ?? [];
+if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
+    if ($summary['remote']['normalized'] !== $fixture['expectedRemoteUrl']) {
+        throw new RuntimeException('Unexpected normalized remote URL');
+    }
+    if ($summary['remoteAlternativeUrl'] !== $fixture['expectedRemoteAlternativeUrl']) {
+        throw new RuntimeException('Unexpected remote alternate URL');
+    }
+    if ($summary['remoteArgumentSafety'] !== $fixture['expectedRemoteArgumentSafety']) {
+        throw new RuntimeException('Unexpected deployment remote argument safety');
+    }
+    if ($summary['unsafeRemoteArgumentSafety'] !== $fixture['expectedUnsafeRemoteArgumentSafety']) {
+        throw new RuntimeException('Unexpected unsafe remote argument safety');
+    }
+    if ($summary['rootRemotePathIsRoot'] !== $fixture['expectedRootRemotePathIsRoot']) {
+        throw new RuntimeException('Unexpected root remote path root classification');
+    }
+    if ($summary['rootRemotePathArgumentSafety'] !== $fixture['expectedRootRemotePathArgumentSafety']) {
+        throw new RuntimeException('Unexpected root remote path argument safety');
+    }
+    if ($summary['emptyPortRemote']['normalized'] !== $fixture['expectedEmptyPortRemoteUrl']) {
+        throw new RuntimeException('Unexpected normalized empty-port remote URL');
+    }
+    if ($summary['emptyPortRemote']['host'] !== $fixture['expectedEmptyPortRemoteHost']) {
+        throw new RuntimeException('Unexpected empty-port remote host');
+    }
+    if ($summary['emptyPortRemote']['path'] !== $fixture['expectedEmptyPortRemotePath']) {
+        throw new RuntimeException('Unexpected empty-port remote path');
+    }
+    if ($summary['legacySshRemote']['scheme'] !== $fixture['expectedLegacySshRemoteScheme']) {
+        throw new RuntimeException('Unexpected legacy SSH remote scheme');
+    }
+    if ($summary['legacySshRemote']['user'] !== $fixture['expectedLegacySshRemoteUser']) {
+        throw new RuntimeException('Unexpected legacy SSH remote user');
+    }
+    if ($summary['legacySshRemote']['host'] !== $fixture['expectedLegacySshRemoteHost']) {
+        throw new RuntimeException('Unexpected legacy SSH remote host');
+    }
+    if ($summary['legacySshRemote']['port'] !== $fixture['expectedLegacySshRemotePort']) {
+        throw new RuntimeException('Unexpected legacy SSH remote port');
+    }
+    if ($summary['legacySshRemote']['path'] !== $fixture['expectedLegacySshRemotePath']) {
+        throw new RuntimeException('Unexpected legacy SSH remote path');
+    }
+    if ($summary['legacySshRemote']['normalized'] !== $fixture['expectedLegacySshRemoteUrl']) {
+        throw new RuntimeException('Unexpected legacy SSH remote normalized URL');
+    }
+    if ($summary['localMirror']['normalized'] !== $fixture['expectedLocalMirrorUrl']) {
+        throw new RuntimeException('Unexpected normalized local mirror URL');
+    }
+    if ($summary['canonicalFileMirror']['normalized'] !== $fixture['expectedCanonicalFileMirrorUrl']) {
+        throw new RuntimeException('Unexpected canonical file mirror URL');
+    }
+    if ($summary['canonicalFileMirrorAlternativeUrl'] !== $fixture['expectedCanonicalFileMirrorAlternativeUrl']) {
+        throw new RuntimeException('Unexpected canonical file mirror alternate URL');
+    }
+    if ($summary['homeMirror']['normalized'] !== $fixture['expectedHomeMirrorUrl']) {
+        throw new RuntimeException('Unexpected normalized home mirror URL');
+    }
+    if ($summary['homeMirrorHome']['user'] !== $fixture['expectedHomeMirrorUser']) {
+        throw new RuntimeException('Unexpected home mirror user');
+    }
+    if ($summary['homeMirrorHome']['path'] !== $fixture['expectedHomeMirrorTail']) {
+        throw new RuntimeException('Unexpected home mirror tail path');
+    }
+    if ($summary['homeMirrorShellPath'] !== $fixture['expectedHomeMirrorShellPath']) {
+        throw new RuntimeException('Unexpected shell home path');
+    }
+    if ($summary['homeMirrorExpandedPath'] !== $fixture['expectedHomeMirrorExpandedPath']) {
+        throw new RuntimeException('Unexpected expanded home path');
+    }
+    if ($summary['relativeMirrorCanonical']['path'] !== $fixture['expectedRelativeMirrorCanonicalPath']) {
+        throw new RuntimeException('Unexpected relative mirror canonical path');
+    }
+    if ($summary['relativeMirrorCanonical']['normalized'] !== $fixture['expectedRelativeMirrorCanonicalUrl']) {
+        throw new RuntimeException('Unexpected relative mirror canonical URL');
+    }
+    if ($summary['colonAliasRemote']['scheme'] !== $fixture['expectedColonAliasRemoteScheme']) {
+        throw new RuntimeException('Unexpected colon-alias remote scheme');
+    }
+    if ($summary['colonAliasRemote']['host'] !== $fixture['expectedColonAliasRemoteHost']) {
+        throw new RuntimeException('Unexpected colon-alias remote host');
+    }
+    if ($summary['colonAliasRemote']['path'] !== $fixture['expectedColonAliasRemotePath']) {
+        throw new RuntimeException('Unexpected colon-alias remote path');
+    }
+    if ($summary['colonAliasRemote']['normalized'] !== $fixture['expectedColonAliasRemoteUrl']) {
+        throw new RuntimeException('Unexpected colon-alias remote URL');
+    }
+    if ($summary['explicitLocalColonMirror']['scheme'] !== $fixture['expectedExplicitLocalColonMirrorScheme']) {
+        throw new RuntimeException('Unexpected explicit local colon mirror scheme');
+    }
+    if ($summary['explicitLocalColonMirror']['host'] !== $fixture['expectedExplicitLocalColonMirrorHost']) {
+        throw new RuntimeException('Unexpected explicit local colon mirror host');
+    }
+    if ($summary['explicitLocalColonMirror']['path'] !== $fixture['expectedExplicitLocalColonMirrorPath']) {
+        throw new RuntimeException('Unexpected explicit local colon mirror path');
+    }
+    if ($summary['explicitLocalColonMirror']['normalized'] !== $fixture['expectedExplicitLocalColonMirrorUrl']) {
+        throw new RuntimeException('Unexpected explicit local colon mirror URL');
+    }
+    if ($summary['customHelperRemote']['normalized'] !== $fixture['expectedCustomHelperRemoteUrl']) {
+        throw new RuntimeException('Unexpected normalized custom helper remote URL');
+    }
+    if ($summary['customHelperRemote']['path'] !== $fixture['expectedCustomHelperRemotePath']) {
+        throw new RuntimeException('Unexpected custom helper remote path');
+    }
+    if ($summary['customHelperRemotePathArgumentSafe'] !== $fixture['expectedCustomHelperRemotePathArgumentSafe']) {
+        throw new RuntimeException('Unexpected custom helper remote path safety');
+    }
+    if ($summary['unicodeRemote']['user'] !== $fixture['expectedUnicodeRemoteUser']) {
+        throw new RuntimeException('Unexpected Unicode deployment remote user');
+    }
+    if ($summary['unicodeRemote']['path'] !== $fixture['expectedUnicodeRemotePath']) {
+        throw new RuntimeException('Unexpected Unicode deployment remote path');
+    }
+    if ($summary['unicodeRemote']['normalized'] !== $fixture['expectedUnicodeRemoteUrl']) {
+        throw new RuntimeException('Unexpected Unicode deployment remote normalized URL');
+    }
+    if ($summary['credentialRemote']['normalized'] !== $fixture['expectedCredentialRemoteUrl']) {
+        throw new RuntimeException('Unexpected credential remote normalized URL');
+    }
+    if ($summary['credentialRemoteDisplay'] !== $fixture['expectedCredentialRemoteDisplay']) {
+        throw new RuntimeException('Unexpected credential remote display URL');
+    }
+    if ($summary['credentialRemoteRoundtrip']['normalized'] !== $fixture['expectedCredentialRemoteUrl']) {
+        throw new RuntimeException('Unexpected credential remote roundtrip URL');
+    }
+    if ($summary['credentialRemoteRoundtrip']['user'] !== $fixture['credentialRemoteUser']) {
+        throw new RuntimeException('Unexpected credential remote roundtrip user');
+    }
+    if ($summary['credentialRemoteRoundtrip']['password'] !== $fixture['credentialRemotePassword']) {
+        throw new RuntimeException('Unexpected credential remote roundtrip password');
+    }
+    if ($summary['passwordOnlyRemote']['user'] !== $fixture['expectedPasswordOnlyRemoteUser']) {
+        throw new RuntimeException('Unexpected password-only remote user');
+    }
+    if ($summary['passwordOnlyRemote']['password'] !== $fixture['expectedPasswordOnlyRemotePassword']) {
+        throw new RuntimeException('Unexpected password-only remote password');
+    }
+    if ($summary['passwordOnlyRemote']['path'] !== $fixture['expectedPasswordOnlyRemotePath']) {
+        throw new RuntimeException('Unexpected password-only remote path');
+    }
+    if ($summary['passwordOnlyRemote']['normalized'] !== $fixture['expectedPasswordOnlyRemoteUrl']) {
+        throw new RuntimeException('Unexpected password-only remote normalized URL');
+    }
+    if ($summary['passwordOnlyRemoteDisplay'] !== $fixture['expectedPasswordOnlyRemoteDisplay']) {
+        throw new RuntimeException('Unexpected password-only remote display URL');
+    }
+    if ($summary['passwordOnlyRemoteRoundtrip']['normalized'] !== $fixture['expectedPasswordOnlyRemoteUrl']) {
+        throw new RuntimeException('Unexpected password-only remote roundtrip URL');
+    }
+    if ($summary['passwordOnlyRemoteRoundtrip']['user'] !== $fixture['expectedPasswordOnlyRemoteUser']) {
+        throw new RuntimeException('Unexpected password-only remote roundtrip user');
+    }
+    if ($summary['passwordOnlyRemoteRoundtrip']['password'] !== $fixture['expectedPasswordOnlyRemotePassword']) {
+        throw new RuntimeException('Unexpected password-only remote roundtrip password');
+    }
+    if ($summary['byteRoundtripRemote']['normalized'] !== $fixture['expectedByteRoundtripRemoteUrl']) {
+        throw new RuntimeException('Unexpected byte-roundtrip remote URL');
+    }
+    if ($summary['byteRoundtripRemoteFromParse']['normalized'] !== $summary['byteRoundtripRemote']['normalized']) {
+        throw new RuntimeException('Unexpected byte-roundtrip remote parse equivalence');
+    }
+    if ($summary['partsRemote']['normalized'] !== $fixture['expectedPartsRemoteUrl']) {
+        throw new RuntimeException('Unexpected parts-built remote URL');
+    }
+    if ($summary['partsRemoteDisplay'] !== $fixture['expectedPartsRemoteDisplay']) {
+        throw new RuntimeException('Unexpected parts-built remote display URL');
+    }
+    if ($summary['partsSshAlternate']['normalized'] !== $fixture['expectedPartsSshAlternateUrl']) {
+        throw new RuntimeException('Unexpected parts-built SSH alternate URL');
+    }
+    if ($summary['partsSshAlternate']['alternativeForm'] !== true) {
+        throw new RuntimeException('Unexpected parts-built SSH alternate form flag');
+    }
+    if ($summary['partsSshPassword']['normalized'] !== $fixture['expectedPartsSshPasswordUrl']) {
+        throw new RuntimeException('Unexpected parts-built SSH password URL');
+    }
+    if ($summary['partsSshPassword']['alternativeForm'] !== false) {
+        throw new RuntimeException('Unexpected parts-built SSH password canonical fallback');
+    }
+    if (array_column($summary['fetch'], 'instruction') !== $fixture['expectedFetchInstructions']) {
+        throw new RuntimeException('Unexpected fetch refspec instructions');
+    }
+    if (array_column($summary['fetch'], 'normalized') !== $fixture['expectedFetchNormalized']) {
+        throw new RuntimeException('Unexpected normalized fetch refspecs');
+    }
+    if (array_column($summary['fetch'], 'expandedPrefixes') !== $fixture['expectedFetchExpandedPrefixes']) {
+        throw new RuntimeException('Unexpected expanded fetch refspec prefixes');
+    }
+    if (array_column($summary['matchedFetchRefs'], 'remote') !== $fixture['expectedMatchedFetchRemotes']) {
+        throw new RuntimeException('Unexpected matched fetch remote refs');
+    }
+    if (array_column($summary['matchedFetchRefs'], 'local') !== $fixture['expectedMatchedFetchLocals']) {
+        throw new RuntimeException('Unexpected matched fetch local refs');
+    }
+    if (array_column($summary['slashLiteralMatchedFetchRefs'], 'remote') !== $fixture['expectedSlashLiteralMatchedFetchRemotes']) {
+        throw new RuntimeException('Unexpected slash-literal fetch remote refs');
+    }
+    if ($summary['validatedFetchRefs']['ok'] !== $fixture['expectedValidatedFetchOk']) {
+        throw new RuntimeException('Unexpected validated fetch status');
+    }
+    if (array_column($summary['validatedFetchRefs']['mappings'], 'remote') !== $fixture['expectedValidatedFetchRemotes']) {
+        throw new RuntimeException('Unexpected validated fetch remote refs');
+    }
+    if (array_column($summary['validatedFetchRefs']['mappings'], 'local') !== $fixture['expectedValidatedFetchLocals']) {
+        throw new RuntimeException('Unexpected validated fetch local refs');
+    }
+    if (array_column($summary['validatedFetchRefs']['fixes'], 'name') !== $fixture['expectedValidatedFetchFixNames']) {
+        throw new RuntimeException('Unexpected validated fetch fixes');
+    }
+    if ($summary['conflictingFetchRefs']['ok'] !== $fixture['expectedConflictingFetchOk']) {
+        throw new RuntimeException('Unexpected conflicting fetch status');
+    }
+    if (($summary['conflictingFetchRefs']['issues'][0]['destination'] ?? null) !== $fixture['expectedConflictingFetchIssueDestination']) {
+        throw new RuntimeException('Unexpected conflicting fetch destination');
+    }
+    if (($summary['conflictingFetchRefs']['issues'][0]['sources'] ?? null) !== $fixture['expectedConflictingFetchIssueSources']) {
+        throw new RuntimeException('Unexpected conflicting fetch sources');
+    }
+    if (array_column($summary['reverseMatchedFetchRefs'], 'remote') !== $fixture['expectedReverseMatchedFetchRemotes']) {
+        throw new RuntimeException('Unexpected reverse-matched fetch remote refs');
+    }
+    if (array_column($summary['reverseMatchedFetchRefs'], 'local') !== $fixture['expectedReverseMatchedFetchLocals']) {
+        throw new RuntimeException('Unexpected reverse-matched fetch local refs');
+    }
+    if (array_column($summary['matchedPushRefs'], 'local') !== $fixture['expectedMatchedPushLocals']) {
+        throw new RuntimeException('Unexpected matched push local refs');
+    }
+    if (array_column($summary['matchedPushRefs'], 'remote') !== $fixture['expectedMatchedPushRemotes']) {
+        throw new RuntimeException('Unexpected matched push remote refs');
+    }
+    if (array_column($summary['matchedPushRefs'], 'allowNonFastForward') !== $fixture['expectedMatchedPushForce']) {
+        throw new RuntimeException('Unexpected matched push force flags');
+    }
+    if (array_column($summary['push'], 'instruction') !== $fixture['expectedPushInstructions']) {
+        throw new RuntimeException('Unexpected push refspec instructions');
+    }
+    if (array_column($summary['push'], 'normalized') !== $fixture['expectedPushNormalized']) {
+        throw new RuntimeException('Unexpected normalized push refspecs');
+    }
+    if ($summary['pushInstructionIdentityUniqueCount'] !== $fixture['expectedPushInstructionIdentityUniqueCount']) {
+        throw new RuntimeException('Unexpected push instruction identity unique count');
+    }
+    if ($summary['sameNamedPushEquivalent'] !== $fixture['expectedSameNamedPushEquivalent']) {
+        throw new RuntimeException('Unexpected same-name push instruction equivalence');
+    }
+    if ($summary['deleteForceEquivalent'] !== $fixture['expectedDeleteForceEquivalent']) {
+        throw new RuntimeException('Unexpected delete force instruction equivalence');
+    }
+    if ($summary['allMatchingForceEquivalent'] !== $fixture['expectedAllMatchingForceEquivalent']) {
+        throw new RuntimeException('Unexpected all-matching force instruction equivalence');
+    }
+    if ($summary['fetchOnlyForceEquivalent'] !== $fixture['expectedFetchOnlyForceEquivalent']) {
+        throw new RuntimeException('Unexpected fetch-only force instruction equivalence');
+    }
+    if ($summary['oversizedRemoteRejected'] !== $fixture['expectedOversizedRemoteRejected']) {
+        throw new RuntimeException('Unexpected oversized remote URL preflight result');
+    }
+    if ($summary['malformedBracketedRemoteRejected'] !== $fixture['expectedMalformedBracketedRemoteRejected']) {
+        throw new RuntimeException('Unexpected malformed bracketed remote URL preflight result');
+    }
+    if ($summary['invalidUtf8RemoteRejected'] !== $fixture['expectedInvalidUtf8RemoteRejected']) {
+        throw new RuntimeException('Unexpected invalid UTF-8 remote URL preflight result');
+    }
+    if ($summary['hostlessFtpRemoteRejected'] !== $fixture['expectedHostlessFtpRemoteRejected']) {
+        throw new RuntimeException('Unexpected hostless FTP remote URL preflight result');
+    }
+}
+
+return $summary;

@@ -1,0 +1,5 @@
+[ Table ( "" , [  ] , [  ] ) (Caption Nothing []) [ ( AlignDefault , ColWidthDefault ) , ( AlignDefault , ColWidthDefault ) ] (TableHead ( "" , [  ] , [  ] ) [ Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "id" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "note" ]
+  ] ] ]) [ TableBody ( "" , [  ] , [  ] ) (RowHeadColumns 0) [  ] [ Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "only" , Space , Str "quoted" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [] ] ] ] (TableFoot ( "" , [  ] , [  ] ) [  ])
+]

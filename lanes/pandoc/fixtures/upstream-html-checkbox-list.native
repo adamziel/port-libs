@@ -1,0 +1,61 @@
+[ Para
+    [ Str "Before"
+    , Space
+    , Str "reviewer"
+    , Space
+    , Str "checklist."
+    ]
+, BulletList
+    [ [ Plain
+          [ Str "\9744"
+          , Space
+          , Str "Review"
+          , Space
+          , Str "imported"
+          , Space
+          , Str "media"
+          ]
+      ]
+    , [ Plain
+          [ Str "\9746"
+          , Space
+          , Str "Confirm"
+          , Space
+          , Str "source"
+          , Space
+          , Str "links"
+          ]
+      ]
+    , [ Plain
+          [ Str "Non-task"
+          , Space
+          , Str "control"
+          , Space
+          , Str "text"
+          ]
+      ]
+    , [ Plain
+          [ Str "\9746"
+          , Space
+          , Str "Mark"
+          , Space
+          , Str "ready"
+          , Space
+          , Str "to"
+          , Space
+          , Str "publish"
+          ]
+      ]
+    ]
+, Para
+    [ Str "Outside"
+    , Space
+    , Str "list"
+    , Space
+    , Str "controls"
+    , Space
+    , Str "are"
+    , Space
+    , Str "ignored."
+    ]
+]

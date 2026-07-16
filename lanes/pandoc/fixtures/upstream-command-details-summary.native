@@ -1,0 +1,6 @@
+[ RawBlock (Format "html") "<details class=\"migration-review\" data-source=\"classic\">"
+, RawBlock (Format "html") "<summary>Show imported source notes</summary>"
+, Para [ Str "details" , Space , Str "para" , Space , Str "1" , Space , Str "with" , Space , Emph [ Str "emphasis" ] , Str "." ]
+, Para [ Str "details" , Space , Str "para" , Space , Str "2" , Space , Str "with" , Space , Strong [ Str "strong" ] , Space , Str "context." ]
+, RawBlock (Format "html") "</details>"
+]

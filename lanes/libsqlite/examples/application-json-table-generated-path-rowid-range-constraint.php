@@ -1,0 +1,85 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\LibSqlite\SQLiteJsonTablePlan;
+
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+$current = [
+    'option_id' => 209,
+    'option_name' => 'wp_plugin_generated_path_rowid_range_constraint',
+    'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4},{"slug":"security","priority":9}]}',
+    'generated_path' => '$.rules',
+    'scan_root' => '$.rules',
+    'source_generation' => 'current-range-constraint-a',
+];
+$next = [
+    'option_id' => 209,
+    'option_name' => 'wp_plugin_generated_path_rowid_range_constraint',
+    'option_value' => '{"rules":[{"slug":"seo","priority":3}]}',
+    'generated_path' => '$.rules[0]',
+    'scan_root' => '$.rules',
+    'source_generation' => 'next-range-constraint-b',
+];
+
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidRangeConstraint(
+    'json_tree',
+    $current,
+    $next,
+    'option_value',
+    'generated_path',
+    [
+        ['column' => 'path', 'operator' => 'LIKE', 'value' => '$.rules%'],
+        ['column' => 'rowid', 'operator' => 'IN', 'value' => [5, 6, 7, 8, 9]],
+        ['column' => '_rowid_', 'operator' => 'BETWEEN', 'value' => [7, 8]],
+    ],
+    'scan_root',
+    [['column' => 'rowid', 'direction' => 'ASC']],
+    5,
+    null,
+    3,
+    ['rowid', '_rowid_', 'oid', 'value', 'type', 'fullkey'],
+);
+
+$payload = [
+    'scenario' => 'application-json-table-generated-path-rowid-range-constraint',
+    'applicationUse' => 'Copied wp_options JSON diagnostics can combine generated-path json_tree scans with rowid alias range constraints, reducing current-source seek cost before a source change forces reprepare.',
+    'currentReaderPolicy' => $plan['currentReaderPolicy'],
+    'nextReaderPolicy' => $plan['nextReaderPolicy'],
+    'currentOpcode' => $plan['currentGeneratedPathRowidRangeConstraint209']['rangeOpcode'],
+    'currentAcceptedRangeRowids' => $plan['currentGeneratedPathRowidRangeConstraint209']['acceptedRangeRowids'],
+    'currentRejectedRangeRowids' => $plan['currentGeneratedPathRowidRangeConstraint209']['rejectedRangeRowids'],
+    'currentEstimatedCost' => $plan['currentGeneratedPathRowidRangeConstraint209']['estimatedCost'],
+    'nextOpcode' => $plan['nextGeneratedPathRowidRangeConstraint209']['rangeOpcode'],
+    'replanReasons' => $plan['next209ReplanReasons'],
+    'dependencyClosure' => 'no new support component needed; reuses native JSON table generated-path, rowid alias order, and range constraint planner metadata',
+];
+
+if (($argv[1] ?? '') === '--self-test') {
+    if ($payload['currentOpcode'] !== 'OP_JsonTableRowidRangeSeekNext209') {
+        fwrite(STDERR, "unexpected range constraint current opcode\n");
+        exit(1);
+    }
+    if ($payload['currentAcceptedRangeRowids'] !== [7, 8]) {
+        fwrite(STDERR, "unexpected range constraint accepted range rowids\n");
+        exit(1);
+    }
+    if ($payload['currentEstimatedCost'] !== 3) {
+        fwrite(STDERR, "unexpected range constraint current cost\n");
+        exit(1);
+    }
+    if ($payload['nextOpcode'] !== 'OP_JsonTableRowidRangeReprepareNext209') {
+        fwrite(STDERR, "unexpected range constraint next opcode\n");
+        exit(1);
+    }
+    if (!in_array('json-table-generated-path-rowid-range-source-changed-next209', $payload['replanReasons'], true)) {
+        fwrite(STDERR, "missing range constraint source replan reason\n");
+        exit(1);
+    }
+
+    echo "application-json-table-generated-path-rowid-range-constraint self-test passed\n";
+    return;
+}
+
+echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

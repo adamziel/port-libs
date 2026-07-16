@@ -1,0 +1,16 @@
+[ DefinitionList
+    [ ( [ Str "Term" ]
+      , [ [ Plain
+              [ Str "Definition"
+              , Space
+              , Str "in"
+              , Space
+              , Str "GFM"
+              , Space
+              , Str "profile"
+              ]
+          ]
+        ]
+      )
+    ]
+]

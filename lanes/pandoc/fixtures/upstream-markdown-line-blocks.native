@@ -1,0 +1,10 @@
+[ LineBlock
+    [ [ Str "Alpha"
+      , Space
+      , Str "wrapped"
+      , Space
+      , Str "continuation"
+      ]
+    , [ Str "Beta" ]
+    ]
+]

@@ -1,0 +1,11 @@
+[ Header
+    2
+    ( "slide-1" , [] , [] )
+    [ Str "Media relative image target" ]
+, Para
+    [ Image
+        ( "" , [] , [] )
+        [ Str "Media relative alt" ]
+        ( "ppt/media/image1.png" , "Media Relative Picture" )
+    ]
+]

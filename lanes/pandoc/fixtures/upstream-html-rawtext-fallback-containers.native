@@ -1,0 +1,13 @@
+[ Para
+    [ Str "Before"
+    , Space
+    , Str "raw"
+    , Space
+    , Str "fallback."
+    ]
+, Para [ Str "Noembed" , Space , Strong [ Str "fallback" ] ]
+, Para [ Str "Noframes" , Space , Emph [ Str "fallback" ] ]
+, Para
+    [ Str "Plain" , Space , Code ( "" , [] , [] ) "fallback" ]
+, Para [ Str "After" , Space , Str "plaintext." ]
+]

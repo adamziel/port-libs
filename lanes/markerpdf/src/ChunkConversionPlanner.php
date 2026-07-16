@@ -1,0 +1,637 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\MarkerPDF;
+
+use InvalidArgumentException;
+
+final class ChunkConversionPlanner
+{
+    private const LAUNCH_DELAY_SECONDS = 5;
+
+    /**
+     * Native no-execution boundary for top-level chunk_convert.py.
+     *
+     * Upstream argparse accepts only input/output folders, resolves the packaged
+     * chunk_convert.sh path, then builds one raw shell command string and calls
+     * subprocess.run(..., shell=True, check=True). Environment validation is in
+     * the shell script, not in the Python wrapper.
+     *
+     * @param list<string|int|float|bool> $argv Arguments after the script name.
+     * @return array<string, mixed>
+     */
+    public function wrapperRuntimePreflightPlan(array $argv, ?string $scriptPath = null): array
+    {
+        $tokens = $this->normalizeWrapperArgv($argv);
+        $parser = $this->wrapperRuntimeParserPlan();
+        $argparse = $this->wrapperRuntimeArgparsePositionals($tokens);
+        $positionals = $argparse['positionals'];
+
+        if (count($positionals) < 2) {
+            $missing = [];
+            if (!array_key_exists(0, $positionals)) {
+                $missing[] = 'in_folder';
+            }
+            if (!array_key_exists(1, $positionals)) {
+                $missing[] = 'out_folder';
+            }
+
+            return $this->wrapperRuntimeErrorPlan(
+                $tokens,
+                'the following arguments are required: ' . implode(', ', $missing),
+                $argparse['unknown_options'][0] ?? null,
+                $missing,
+                $parser,
+                $positionals,
+                $argparse
+            );
+        }
+
+        if (count($positionals) > 2) {
+            $extra = array_slice($positionals, 2);
+
+            return $this->wrapperRuntimeErrorPlan(
+                $tokens,
+                'unrecognized arguments: ' . implode(' ', $extra),
+                $extra[0] ?? null,
+                [],
+                $parser,
+                $positionals,
+                $argparse
+            );
+        }
+
+        if ($argparse['unknown_options'] !== []) {
+            return $this->wrapperRuntimeErrorPlan(
+                $tokens,
+                'unrecognized arguments: ' . implode(' ', $argparse['unknown_options']),
+                $argparse['unknown_options'][0] ?? null,
+                [],
+                $parser,
+                $positionals,
+                $argparse
+            );
+        }
+
+        $scriptPath ??= 'chunk_convert.sh';
+        $inputFolder = $positionals[0];
+        $outputFolder = $positionals[1];
+        $command = $scriptPath . ' ' . $inputFolder . ' ' . $outputFolder;
+        $scriptPathWhitespace = $this->containsShellWhitespace($scriptPath);
+        $scriptPathMetacharacter = $this->containsShellMetacharacter($scriptPath);
+        $whitespacePaths = $scriptPathWhitespace
+            || $this->containsShellWhitespace($inputFolder)
+            || $this->containsShellWhitespace($outputFolder);
+        $metacharacterPaths = $scriptPathMetacharacter
+            || $this->containsShellMetacharacter($inputFolder)
+            || $this->containsShellMetacharacter($outputFolder);
+
+        return [
+            'schema' => 'markerpdf.chunk_convert_wrapper_preflight.v1',
+            'source' => 'sddai/markerPDF chunk_convert.py::main argparse + pkg_resources.resource_filename + subprocess.run',
+            'parser' => $parser,
+            'argv' => $tokens,
+            'parse_args' => [
+                'source' => 'argparse.ArgumentParser.parse_args',
+                'parse_args_reached' => true,
+                'parse_args_success' => true,
+                'exit_code' => 0,
+                'error_boundary' => null,
+                'error_class' => null,
+                'error_argument' => null,
+                'error_message' => null,
+                'missing_required_arguments' => [],
+                'blocks_resource_lookup' => false,
+                'blocks_subprocess' => false,
+                'argv_separator_used' => $argparse['argv_separator_used'],
+                'option_like_positionals_allowed_after_separator' => $argparse['option_like_positionals_after_separator'],
+            ],
+            'arguments' => [
+                'in_folder' => $inputFolder,
+                'out_folder' => $outputFolder,
+                'argv_separator_used' => $argparse['argv_separator_used'],
+                'positionals' => [
+                    'in_folder' => $inputFolder,
+                    'out_folder' => $outputFolder,
+                ],
+            ],
+            'resource_script' => [
+                'source' => 'pkg_resources.resource_filename wrapper',
+                'lookup_call' => 'pkg_resources.resource_filename(__name__, "chunk_convert.sh")',
+                'package_argument' => '__name__',
+                'resource_name' => 'chunk_convert.sh',
+                'script_path' => $scriptPath,
+                'lookup_reached' => true,
+                'blocked' => false,
+            ],
+            'subprocess' => [
+                'source' => 'subprocess.run shell command boundary',
+                'call' => 'subprocess.run(cmd, shell=True, check=True)',
+                'command' => $command,
+                'command_argument_type' => 'string',
+                'shell' => true,
+                'check' => true,
+                'argv_list_used' => false,
+                'argument_escaping_applied' => false,
+                'quotes_positionals' => false,
+                'raw_script_path_fragment' => $scriptPath,
+                'raw_in_folder_fragment' => $inputFolder,
+                'raw_out_folder_fragment' => $outputFolder,
+                'blocks_on_nonzero_exit' => true,
+                'blocked' => false,
+                'blocks_chunk_shell' => false,
+            ],
+            'shell_boundary' => [
+                'env_validation_before_subprocess' => false,
+                'chunk_convert_sh_validates_environment_after_subprocess_launch' => true,
+                'raw_command_source' => 'f"{script_path} {args.in_folder} {args.out_folder}"',
+                'resource_script_contains_shell_whitespace' => $scriptPathWhitespace,
+                'resource_script_contains_shell_metacharacters' => $scriptPathMetacharacter,
+                'raw_script_path_fragment' => $scriptPath,
+                'positionals_contain_shell_whitespace' => $whitespacePaths,
+                'positionals_contain_shell_metacharacters' => $metacharacterPaths,
+                'argv_separator_used' => $argparse['argv_separator_used'],
+                'option_like_positionals_require_separator' => true,
+                'option_like_positionals_allowed_after_separator' => $argparse['option_like_positionals_after_separator'],
+                'raw_shell_command_path_hazard' => $whitespacePaths || $metacharacterPaths,
+                'native_plan_executes_shell' => false,
+            ],
+            'blocked_by' => null,
+            'next_stage' => 'chunk_convert.sh',
+            'review_only' => true,
+            'executes_subprocess' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * Native planning boundary for chunk_convert.py plus chunk_convert.sh.
+     *
+     * @param array<string, mixed> $environment
+     * @return array{input_folder: string, output_folder: string, num_devices: int, num_workers: int, metadata_file: string|null, min_length: string|null, optional_flags: array<string, mixed>, launch_delay_seconds: int, shell_orchestration: array<string, mixed>, jobs: list<array<string, mixed>>, review_only: true, executes_subprocess: false, executes_python_or_models: false, executes_external_pdf_tools: false}
+     */
+    public function planFromEnvironment(?string $inputFolder, ?string $outputFolder, array $environment): array
+    {
+        if ($inputFolder === null || $inputFolder === '') {
+            throw new InvalidArgumentException('Please provide an input folder.');
+        }
+        if ($outputFolder === null || $outputFolder === '') {
+            throw new InvalidArgumentException('Please provide an output folder.');
+        }
+
+        $numDevices = $this->requiredPositiveInteger($environment, 'NUM_DEVICES', 'Please set the NUM_DEVICES environment variable.');
+        $numWorkers = $this->requiredPositiveInteger($environment, 'NUM_WORKERS', 'Please set the NUM_WORKERS environment variable.');
+        $metadataFile = $this->optionalString($environment, 'METADATA_FILE');
+        $minLength = $this->optionalString($environment, 'MIN_LENGTH');
+
+        return $this->planDeviceJobs($inputFolder, $outputFolder, $numDevices, $numWorkers, $metadataFile, $minLength);
+    }
+
+    /**
+     * @return array{input_folder: string, output_folder: string, num_devices: int, num_workers: int, metadata_file: string|null, min_length: string|null, optional_flags: array<string, mixed>, launch_delay_seconds: int, shell_orchestration: array<string, mixed>, jobs: list<array<string, mixed>>, review_only: true, executes_subprocess: false, executes_python_or_models: false, executes_external_pdf_tools: false}
+     */
+    public function planDeviceJobs(
+        string $inputFolder,
+        string $outputFolder,
+        int $numDevices,
+        int $numWorkers,
+        ?string $metadataFile = null,
+        int|string|null $minLength = null
+    ): array {
+        if ($inputFolder === '') {
+            throw new InvalidArgumentException('Please provide an input folder.');
+        }
+        if ($outputFolder === '') {
+            throw new InvalidArgumentException('Please provide an output folder.');
+        }
+        if ($numDevices < 1) {
+            throw new InvalidArgumentException('NUM_DEVICES must be at least one.');
+        }
+        if ($numWorkers < 1) {
+            throw new InvalidArgumentException('NUM_WORKERS must be at least one.');
+        }
+
+        $metadataFileFlag = $metadataFile === null || $metadataFile === '' ? null : $metadataFile;
+        $minLengthFlag = $minLength === null || (string) $minLength === '' ? null : (string) $minLength;
+
+        $jobs = [];
+        for ($device = 0; $device < $numDevices; $device++) {
+            $argv = [
+                'marker',
+                $inputFolder,
+                $outputFolder,
+                '--num_chunks',
+                (string) $numDevices,
+                '--chunk_idx',
+                (string) $device,
+                '--workers',
+                (string) $numWorkers,
+            ];
+
+            if ($metadataFileFlag !== null) {
+                $argv[] = '--metadata_file';
+                $argv[] = $metadataFileFlag;
+            }
+            if ($minLengthFlag !== null) {
+                $argv[] = '--min_length';
+                $argv[] = $minLengthFlag;
+            }
+
+            $env = [
+                'CUDA_VISIBLE_DEVICES' => (string) $device,
+                'DEVICE_NUM' => (string) $device,
+                'NUM_DEVICES' => (string) $numDevices,
+                'NUM_WORKERS' => (string) $numWorkers,
+            ];
+
+            $jobs[] = [
+                'device_num' => $device,
+                'env' => $env,
+                'argv' => $argv,
+                'command' => $this->commandString($env, $argv),
+                'shell_launch' => $this->chunkShellLaunchPlan(
+                    $env,
+                    $argv,
+                    $inputFolder,
+                    $outputFolder,
+                    $metadataFileFlag,
+                    $minLengthFlag
+                ),
+                'chunk_idx' => $device,
+                'num_chunks' => $numDevices,
+                'workers' => $numWorkers,
+                'metadata_file' => $metadataFileFlag,
+                'metadata_file_flag_included' => $metadataFileFlag !== null,
+                'min_length' => $minLengthFlag,
+                'min_length_flag_included' => $minLengthFlag !== null,
+                'min_length_parse_boundary' => 'convert.py argparse --min_length type=int',
+            ];
+        }
+
+        return [
+            'input_folder' => $inputFolder,
+            'output_folder' => $outputFolder,
+            'num_devices' => $numDevices,
+            'num_workers' => $numWorkers,
+            'metadata_file' => $metadataFileFlag,
+            'min_length' => $minLengthFlag,
+            'optional_flags' => [
+                'metadata_file' => $metadataFileFlag,
+                'metadata_file_included' => $metadataFileFlag !== null,
+                'metadata_file_condition' => 'chunk_convert.sh [[ -n "$METADATA_FILE" ]]',
+                'min_length' => $minLengthFlag,
+                'min_length_included' => $minLengthFlag !== null,
+                'min_length_condition' => 'chunk_convert.sh [[ -n "$MIN_LENGTH" ]]',
+                'min_length_parse_boundary' => 'convert.py argparse --min_length type=int',
+                'min_length_integer_validation_deferred_to_marker_argparse' => $minLengthFlag !== null,
+            ],
+            'launch_delay_seconds' => self::LAUNCH_DELAY_SECONDS,
+            'shell_orchestration' => $this->chunkShellOrchestrationPlan(count($jobs)),
+            'jobs' => $jobs,
+            'review_only' => true,
+            'executes_subprocess' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $environment
+     */
+    private function requiredPositiveInteger(array $environment, string $key, string $missingMessage): int
+    {
+        $value = $environment[$key] ?? null;
+        if ($value === null || $value === '') {
+            throw new InvalidArgumentException($missingMessage);
+        }
+
+        return $this->positiveInteger($value, $key);
+    }
+
+    private function positiveInteger(mixed $value, string $key): int
+    {
+        if (is_int($value)) {
+            $number = $value;
+        } elseif (is_string($value) && preg_match('/^\d+$/', $value) === 1) {
+            $number = (int) $value;
+        } else {
+            throw new InvalidArgumentException($key . ' must be a positive integer.');
+        }
+
+        if ($number < 1) {
+            throw new InvalidArgumentException($key . ' must be at least one.');
+        }
+
+        return $number;
+    }
+
+    /**
+     * @param array<string, mixed> $environment
+     */
+    private function optionalString(array $environment, string $key): ?string
+    {
+        $value = $environment[$key] ?? null;
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (string) $value;
+    }
+
+    /**
+     * @param array<mixed> $argv
+     * @return list<string>
+     */
+    private function normalizeWrapperArgv(array $argv): array
+    {
+        $tokens = [];
+        foreach (array_values($argv) as $token) {
+            if (is_bool($token)) {
+                $tokens[] = $token ? '1' : '0';
+                continue;
+            }
+            if (!is_string($token) && !is_int($token) && !is_float($token)) {
+                throw new InvalidArgumentException('chunk_convert.py argv tokens must be scalar CLI values.');
+            }
+
+            $tokens[] = (string) $token;
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function wrapperRuntimeParserPlan(): array
+    {
+        return [
+            'description' => 'Convert a folder of PDFs to a folder of markdown files in chunks.',
+            'positionals' => [
+                'in_folder' => 'Input folder with pdfs.',
+                'out_folder' => 'Output folder',
+            ],
+            'options' => [],
+            'allow_abbrev' => true,
+            'double_dash_terminates_options' => true,
+            'option_like_positionals_require_separator' => true,
+            'error_exit_code' => 2,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{positionals: list<string>, unknown_options: list<string>, argv_separator_used: bool, option_like_positionals_after_separator: bool}
+     */
+    private function wrapperRuntimeArgparsePositionals(array $tokens): array
+    {
+        $positionals = [];
+        $unknownOptions = [];
+        $separatorUsed = false;
+        $optionLikeAfterSeparator = false;
+
+        foreach ($tokens as $token) {
+            if (!$separatorUsed && $token === '--') {
+                $separatorUsed = true;
+                continue;
+            }
+
+            if (!$separatorUsed && $this->wrapperRuntimeArgparseUnknownOptionToken($token)) {
+                $unknownOptions[] = $token;
+                continue;
+            }
+
+            if ($separatorUsed && $this->wrapperRuntimeLooksOptionLike($token)) {
+                $optionLikeAfterSeparator = true;
+            }
+            $positionals[] = $token;
+        }
+
+        return [
+            'positionals' => $positionals,
+            'unknown_options' => $unknownOptions,
+            'argv_separator_used' => $separatorUsed,
+            'option_like_positionals_after_separator' => $optionLikeAfterSeparator,
+        ];
+    }
+
+    private function wrapperRuntimeArgparseUnknownOptionToken(string $token): bool
+    {
+        if ($token === '' || $token === '-') {
+            return false;
+        }
+        if (preg_match('/^-\d+(?:\.\d+)?$/', $token) === 1) {
+            return false;
+        }
+
+        return str_starts_with($token, '-');
+    }
+
+    private function wrapperRuntimeLooksOptionLike(string $token): bool
+    {
+        return $token !== '' && $token !== '-' && str_starts_with($token, '-');
+    }
+
+    /**
+     * @param list<string> $argv
+     * @param list<string> $missingRequiredArguments
+     * @param list<string>|null $positionals
+     * @param array{positionals: list<string>, unknown_options: list<string>, argv_separator_used: bool, option_like_positionals_after_separator: bool}|null $argparse
+     * @return array<string, mixed>
+     */
+    private function wrapperRuntimeErrorPlan(
+        array $argv,
+        string $message,
+        ?string $errorArgument,
+        array $missingRequiredArguments,
+        array $parser,
+        ?array $positionals = null,
+        ?array $argparse = null
+    ): array {
+        $positionals ??= $argv;
+        $argparse ??= [
+            'argv_separator_used' => false,
+            'option_like_positionals_after_separator' => false,
+        ];
+
+        return [
+            'schema' => 'markerpdf.chunk_convert_wrapper_preflight.v1',
+            'source' => 'sddai/markerPDF chunk_convert.py::main argparse + pkg_resources.resource_filename + subprocess.run',
+            'parser' => $parser,
+            'argv' => $argv,
+            'parse_args' => [
+                'source' => 'argparse.ArgumentParser.parse_args',
+                'parse_args_reached' => true,
+                'parse_args_success' => false,
+                'exit_code' => 2,
+                'error_boundary' => 'argparse-system-exit',
+                'error_class' => 'SystemExit',
+                'error_argument' => $errorArgument,
+                'error_message' => $message,
+                'missing_required_arguments' => $missingRequiredArguments,
+                'blocks_resource_lookup' => true,
+                'blocks_subprocess' => true,
+                'argv_separator_used' => $argparse['argv_separator_used'],
+                'option_like_positionals_allowed_after_separator' => $argparse['option_like_positionals_after_separator'],
+            ],
+            'arguments' => null,
+            'resource_script' => [
+                'source' => 'pkg_resources.resource_filename wrapper',
+                'lookup_call' => 'pkg_resources.resource_filename(__name__, "chunk_convert.sh")',
+                'package_argument' => '__name__',
+                'resource_name' => 'chunk_convert.sh',
+                'script_path' => null,
+                'lookup_reached' => false,
+                'blocked' => true,
+            ],
+            'subprocess' => [
+                'source' => 'subprocess.run shell command boundary',
+                'call' => 'subprocess.run(cmd, shell=True, check=True)',
+                'command' => null,
+                'command_argument_type' => 'string',
+                'shell' => true,
+                'check' => true,
+                'argv_list_used' => false,
+                'argument_escaping_applied' => false,
+                'quotes_positionals' => false,
+                'raw_in_folder_fragment' => $positionals[0] ?? null,
+                'raw_out_folder_fragment' => $positionals[1] ?? null,
+                'blocks_on_nonzero_exit' => true,
+                'blocked' => true,
+                'blocks_chunk_shell' => true,
+            ],
+            'shell_boundary' => [
+                'env_validation_before_subprocess' => false,
+                'chunk_convert_sh_validates_environment_after_subprocess_launch' => false,
+                'raw_command_source' => 'f"{script_path} {args.in_folder} {args.out_folder}"',
+                'positionals_contain_shell_whitespace' => false,
+                'positionals_contain_shell_metacharacters' => false,
+                'argv_separator_used' => $argparse['argv_separator_used'],
+                'option_like_positionals_require_separator' => true,
+                'option_like_positionals_allowed_after_separator' => $argparse['option_like_positionals_after_separator'],
+                'raw_shell_command_path_hazard' => false,
+                'native_plan_executes_shell' => false,
+            ],
+            'blocked_by' => 'parse_args',
+            'next_stage' => null,
+            'review_only' => true,
+            'executes_subprocess' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    private function containsShellWhitespace(string $value): bool
+    {
+        return preg_match('/\s/', $value) === 1;
+    }
+
+    private function containsShellMetacharacter(string $value): bool
+    {
+        return preg_match('/[;&|`$<>()[\]{}*?!#~\\\\\'"]/', $value) === 1;
+    }
+
+    /**
+     * @param array<string, string> $environment
+     * @param list<string> $argv
+     * @return array<string, mixed>
+     */
+    private function chunkShellLaunchPlan(
+        array $environment,
+        array $argv,
+        string $inputFolder,
+        string $outputFolder,
+        ?string $metadataFile,
+        ?string $minLength
+    ): array {
+        $fragments = [$inputFolder, $outputFolder, $metadataFile, $minLength];
+        $containsWhitespace = false;
+        $containsMetacharacter = false;
+        foreach ($fragments as $fragment) {
+            if ($fragment === null) {
+                continue;
+            }
+            $containsWhitespace = $containsWhitespace || $this->containsShellWhitespace($fragment);
+            $containsMetacharacter = $containsMetacharacter || $this->containsShellMetacharacter($fragment);
+        }
+
+        return [
+            'schema' => 'markerpdf.chunk_convert_job_shell_launch.v1',
+            'source' => 'sddai/markerPDF chunk_convert.sh per-device eval/background launch boundary',
+            'device_num' => (int) $environment['DEVICE_NUM'],
+            'echo_line' => 'Running convert.py on GPU ' . $environment['DEVICE_NUM'],
+            'command_assignment_pattern' => 'cmd="CUDA_VISIBLE_DEVICES=$DEVICE_NUM marker $INPUT_FOLDER $OUTPUT_FOLDER --num_chunks $NUM_DEVICES --chunk_idx $DEVICE_NUM --workers $NUM_WORKERS"',
+            'metadata_file_append_pattern' => '[[ -n "$METADATA_FILE" ]] && cmd="$cmd --metadata_file $METADATA_FILE"',
+            'min_length_append_pattern' => '[[ -n "$MIN_LENGTH" ]] && cmd="$cmd --min_length $MIN_LENGTH"',
+            'raw_command' => $this->rawChunkShellCommandString($environment, $argv),
+            'eval_call' => 'eval $cmd &',
+            'eval_used' => true,
+            'backgrounded' => true,
+            'background_operator' => '&',
+            'sleep_after_launch_seconds' => self::LAUNCH_DELAY_SECONDS,
+            'quotes_positionals' => false,
+            'argument_escaping_applied' => false,
+            'positionals_contain_shell_whitespace' => $containsWhitespace,
+            'positionals_contain_shell_metacharacters' => $containsMetacharacter,
+            'raw_shell_command_path_hazard' => $containsWhitespace || $containsMetacharacter,
+            'raw_input_folder_fragment' => $inputFolder,
+            'raw_output_folder_fragment' => $outputFolder,
+            'raw_metadata_file_fragment' => $metadataFile,
+            'raw_min_length_fragment' => $minLength,
+            'native_plan_executes_shell' => false,
+            'executes_python_or_models' => false,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chunkShellOrchestrationPlan(int $launchCount): array
+    {
+        return [
+            'schema' => 'markerpdf.chunk_convert_shell_orchestration.v1',
+            'source' => 'sddai/markerPDF chunk_convert.sh trap/background/wait orchestration boundary',
+            'signal_trap' => 'trap \'pkill -P $$\' SIGINT',
+            'trap_signal' => 'SIGINT',
+            'interrupt_cleanup_command' => 'pkill -P $$',
+            'launch_loop' => 'for (( i=0; i<$NUM_DEVICES; i++ ))',
+            'launch_count' => $launchCount,
+            'jobs_launched_in_background' => true,
+            'eval_used_for_jobs' => true,
+            'sleep_between_launches_seconds' => self::LAUNCH_DELAY_SECONDS,
+            'wait_command' => 'wait',
+            'wait_after_all_launches' => true,
+            'native_plan_executes_shell' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $environment
+     * @param list<string> $argv
+     */
+    private function rawChunkShellCommandString(array $environment, array $argv): string
+    {
+        return 'CUDA_VISIBLE_DEVICES=' . $environment['CUDA_VISIBLE_DEVICES'] . ' ' . implode(' ', $argv);
+    }
+
+    /**
+     * @param array<string, string> $environment
+     * @param list<string> $argv
+     */
+    private function commandString(array $environment, array $argv): string
+    {
+        $prefix = [];
+        foreach ($environment as $key => $value) {
+            if ($key === 'DEVICE_NUM' || $key === 'NUM_DEVICES' || $key === 'NUM_WORKERS') {
+                continue;
+            }
+            $prefix[] = $key . '=' . escapeshellarg($value);
+        }
+
+        return trim(implode(' ', array_merge($prefix, array_map('escapeshellarg', $argv))));
+    }
+}

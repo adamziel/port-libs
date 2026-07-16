@@ -1,0 +1,53 @@
+[ Div
+    ( "article"
+    , [ "wp-import" ]
+    , [ ( "role" , "main" ) , ( "source" , "legacy-export" ) ]
+    )
+    [ Div
+        ( "release-audit"
+        , [ "section" , "source-section" ]
+        , [ ( "review" , "keep" ) ]
+        )
+        [ Header
+            2 ( "" , [] , [] ) [ Str "Release" , Space , Str "audit" ]
+        , Para
+            [ Str "Reviewer"
+            , Space
+            , Str "section"
+            , Space
+            , Str "copy"
+            , Space
+            , Str "belongs"
+            , Space
+            , Str "in"
+            , Space
+            , Str "the"
+            , Space
+            , Str "import"
+            , Space
+            , Str "packet."
+            ]
+        ]
+    , Div
+        ( "migration-note"
+        , [ "aside" , "review-note" ]
+        , [ ( "priority" , "high" ) ]
+        )
+        [ Para
+            [ Str "Keep"
+            , Space
+            , Str "the"
+            , Space
+            , Str "migration"
+            , Space
+            , Str "note"
+            , Space
+            , Str "visible"
+            , Space
+            , Str "for"
+            , Space
+            , Str "editors."
+            ]
+        ]
+    ]
+]

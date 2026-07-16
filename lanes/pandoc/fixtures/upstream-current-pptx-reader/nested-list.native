@@ -1,0 +1,7 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Nested list slide" ]
+, BulletList [ [ Plain [ Str "Parent bullet" ] ] ]
+, BulletList [ [ Plain [ Str "Child bullet" ] ] ]
+, Para [ Str "Numbered child" ]
+, BulletList [ [ Plain [ Str "Second parent" ] ] ]
+]

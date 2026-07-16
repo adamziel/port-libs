@@ -1,0 +1,13 @@
+[ RawBlock
+    (Format "html")
+    "<section id=\"review\" class=\"packet\" data-source=\"fixture\">"
+, Header
+    2
+    ( "" , [] , [] )
+    [ Str "Packet" , Space , Str "Title" ]
+, BulletList
+    [ [ Plain [ Strong [ Str "ready" ] ] ]
+    , [ Plain [ Str "task" ] ]
+    ]
+, RawBlock (Format "html") "</section>"
+]

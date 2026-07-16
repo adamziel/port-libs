@@ -1,0 +1,10 @@
+[ Para [ Span ( "check.gif" , [] , [] ) [] ]
+, Para
+    [ Image ( "" , [] , [] ) [] ( "images/check.gif" , "" ) ]
+, Para [ Span ( "photo.jpg" , [] , [] ) [] ]
+, Para
+    [ Image ( "" , [] , [] ) [] ( "images/photo.jpg" , "" ) ]
+, Para [ Span ( "chart.png" , [] , [] ) [] ]
+, Para
+    [ Image ( "" , [] , [] ) [] ( "images/chart.png" , "" ) ]
+]

@@ -1,0 +1,11 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Hidden shape metadata" ]
+, Para [ Str "Explicit visible body" ]
+, Para [ Str "Hidden body remains visible" ]
+, Para
+    [ Image
+        ( "" , [] , [] )
+        [ Str "Hidden picture alt" ]
+        ( "ppt/media/hidden-shape.png" , "Hidden Picture" )
+    ]
+]

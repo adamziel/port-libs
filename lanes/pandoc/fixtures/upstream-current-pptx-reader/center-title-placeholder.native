@@ -1,0 +1,4 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Centered title deck" ]
+, Para [ Str "Body under centered title" ]
+]

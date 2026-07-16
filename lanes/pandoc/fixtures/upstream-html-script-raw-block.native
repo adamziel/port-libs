@@ -1,0 +1,18 @@
+[ Para
+    [ Str "Before"
+    , Space
+    , Str "migration"
+    , Space
+    , Str "script."
+    ]
+, RawBlock
+    (Format "html")
+    "<script id=\"legacy-widget-js\" type=\"text/javascript\" data-source=\"batch-42\">\nwindow.LegacyWidgetQueue = window.LegacyWidgetQueue || [];\nwindow.LegacyWidgetQueue.push({ shortcode: \"[legacy_widget id=42]\" });\n</script>"
+, Para
+    [ Str "After"
+    , Space
+    , Str "migration"
+    , Space
+    , Str "script."
+    ]
+]

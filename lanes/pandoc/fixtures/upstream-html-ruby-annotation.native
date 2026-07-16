@@ -1,0 +1,9 @@
+[ Para
+    [ Str "Japanese"
+    , Space
+    , Str "\28450(kan)"
+    , Space
+    , Str "annotation."
+    ]
+, Para [ Str "After" , Space , Str "ruby." ]
+]

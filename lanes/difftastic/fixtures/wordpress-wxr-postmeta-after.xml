@@ -1,0 +1,9 @@
+<rss>
+<channel>
+<item>
+<title>Imported Pattern</title>
+<wp:postmeta key="_wp_page_template">templates/full-width.html</wp:postmeta>
+<wp:postmeta key="_thumbnail_id">42</wp:postmeta>
+</item>
+</channel>
+</rss>

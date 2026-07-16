@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+<head>
+<title>HTML Code Block Attribute Import</title>
+</head>
+<body>
+<p>Reviewer snippet:</p>
+<pre><code id="legacy-snippet" class="language-php" data-source="batch-42">wp_update_post($post_id);
+clean_post_cache($post_id);
+</code></pre>
+<p>Pre wrapper precedence:</p>
+<pre id="pre-wrapper-wins" data-review="keep"><code id="nested-code-loses" class="javascript">console.log('pre attrs win');
+</code></pre>
+</body>
+</html>

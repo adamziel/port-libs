@@ -1,0 +1,7 @@
+[ Table ( "" , [  ] , [  ] ) (Caption Nothing []) [ ( AlignDefault , ColWidthDefault ) , ( AlignDefault , ColWidthDefault ) , ( AlignDefault , ColWidthDefault ) ] (TableHead ( "" , [  ] , [  ] ) [ Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "id" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "note" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "status" ]
+  ] ] ]) [ TableBody ( "" , [  ] , [  ] ) (RowHeadColumns 0) [  ] [ Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "1" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "alpha" , LineBreak , Str "beta,open" , LineBreak ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [] ] ] ] (TableFoot ( "" , [  ] , [  ] ) [  ])
+]

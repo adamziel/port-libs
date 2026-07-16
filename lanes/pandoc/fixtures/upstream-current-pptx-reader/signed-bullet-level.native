@@ -1,0 +1,8 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Signed level slide" ]
+, BulletList [ [ Plain [ Str "Negative level bullet" ] ] ]
+, BulletList
+    [ [ Plain [ Str "Zero level bullet" ] ]
+    , [ Plain [ Str "Plus level bullet" ] ]
+    ]
+]

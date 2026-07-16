@@ -1,0 +1,7 @@
+[ Plain
+    [ Image
+        ( "" , [] , [ ( "external" , "1" ) ] )
+        []
+        ( "http://example.com/stickman.gif" , "" )
+    ]
+]

@@ -1,0 +1,50 @@
+name: LightningCSS lane
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - lightningcss-full-suite-20260626
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lightningcss-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  php-lane:
+    name: PHP lane
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Validate LightningCSS metadata JSON
+        run: |
+          jq . lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json >/dev/null
+          jq . lanes/lightningcss/lane-status.json >/dev/null
+
+      - name: Run LightningCSS PHP tests
+        shell: bash
+        run: |
+          set -o pipefail
+          php tools/run-tests.php lanes/lightningcss/tests | tee lightningcss-test-output.log
+
+      - name: Assert there were no skipped tests
+        run: |
+          if grep -E '^SKIP' lightningcss-test-output.log; then
+            echo "LightningCSS lane reported skipped tests." >&2
+            exit 1
+          fi

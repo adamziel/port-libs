@@ -1,0 +1,7828 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\LightningCSS\CustomAtRuleTransformer;
+use PortLibs\LightningCSS\CssModulesTransformer;
+
+$customDefinitions = [
+    'theme' => [
+        'prelude' => '<custom-ident>',
+        'body' => 'declaration-list',
+    ],
+    'mixin' => [
+        'prelude' => '<custom-ident>',
+        'body' => 'style-block',
+    ],
+    'apply' => [
+        'prelude' => '<custom-ident>',
+    ],
+    'breakpoint' => [
+        'prelude' => '<length>',
+        'body' => 'rule-list',
+    ],
+    'test' => [
+        'body' => 'style-block',
+    ],
+];
+
+$mixinVisitor = static function (array &$mixins): array {
+    return [
+        'Rule' => [
+            'custom' => [
+                'mixin' => static function (array $rule) use (&$mixins): array {
+                    $mixins[$rule['prelude']] = $rule['body'];
+
+                    return [];
+                },
+                'apply' => static function (array $rule, CustomAtRuleTransformer $transformer) use (&$mixins): array {
+                    return $transformer->styleBlock($mixins[$rule['prelude']] ?? '');
+                },
+            ],
+        ],
+    ];
+};
+
+return [
+    'custom at-rules map upstream declaration-list parser and function visitor' => static function (TestRunner $t) use ($customDefinitions): void {
+        $definitions = [];
+        $css = <<<'CSS'
+@theme spacing {
+  foo: 16px;
+  bar: 32px;
+}
+
+.foo {
+  width: theme('spacing.foo');
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, $customDefinitions, [
+            'Rule' => [
+                'custom' => [
+                    'theme' => static function (array $rule) use (&$definitions): array {
+                        foreach ($rule['declarations'] as $declaration) {
+                            $definitions[$rule['prelude'] . '.' . $declaration['property']] = $declaration['value'];
+                        }
+
+                        return [];
+                    },
+                ],
+            ],
+            'Function' => [
+                'theme' => static function (array $arguments) use (&$definitions): ?string {
+                    return $definitions[$arguments[0] ?? ''] ?? null;
+                },
+            ],
+        ]);
+
+        $t->same('.foo{width:16px}', $result);
+        $t->same('32px', $definitions['spacing.bar']);
+    },
+    'custom at-rules map upstream mixin style-block and apply statement visitor' => static function (TestRunner $t) use ($customDefinitions, $mixinVisitor): void {
+        $mixins = [];
+        $css = <<<'CSS'
+@mixin color {
+  color: red;
+
+  &.bar {
+    color: yellow;
+  }
+}
+
+.foo {
+  @apply color;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, $customDefinitions, $mixinVisitor($mixins));
+
+        $t->same('.foo{color:red}.foo.bar{color:#ff0}', $result);
+        $t->same(['color'], array_keys($mixins));
+    },
+    'custom at-rules map upstream rule-list visitor replacement' => static function (TestRunner $t) use ($customDefinitions): void {
+        $css = <<<'CSS'
+@breakpoint 1024px {
+  .foo { color: yellow; }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, $customDefinitions, [
+            'Rule' => [
+                'custom' => [
+                    'breakpoint' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->media(
+                        '(width <= ' . $rule['prelude'] . ')',
+                        $transformer->ruleList($rule['body'])
+                    ),
+                ],
+            ],
+        ]);
+
+        $t->same('@media (width<=1024px){.foo{color:#ff0}}', $result);
+    },
+    'custom at-rules map upstream nested style-block visitor replacement' => static function (TestRunner $t) use ($customDefinitions): void {
+        $css = <<<'CSS'
+.foo {
+  @breakpoint 1024px {
+    color: yellow;
+
+    &.bar {
+      color: red;
+    }
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'breakpoint' => [
+                'prelude' => '<length>',
+                'body' => 'style-block',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'breakpoint' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->media(
+                        '(width <= ' . $rule['prelude'] . ')',
+                        $transformer->styleBlock($rule['body'])
+                    ),
+                ],
+            ],
+        ]);
+
+        $t->same('@media (width<=1024px){.foo{color:#ff0}.foo.bar{color:red}}', $result);
+    },
+    'custom at-rules preserve upstream top-level style-block without visitor' => static function (TestRunner $t) use ($customDefinitions): void {
+        $css = <<<'CSS'
+@test {
+  .foo {
+    background: black;
+  }
+}
+CSS;
+
+        $t->same(
+            '@test{.foo{background:#000}}',
+            (new CustomAtRuleTransformer())->transform($css, $customDefinitions),
+            'upstream node/test/customAtRules.mjs line 209'
+        );
+    },
+    'custom at-rules map upstream generic custom visitor across nested rules' => static function (TestRunner $t) use ($customDefinitions): void {
+        $css = <<<'CSS'
+@breakpoint 1024px {
+  @theme spacing {
+    foo: 16px;
+    bar: 32px;
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, $customDefinitions, [
+            'Rule' => [
+                'custom' => static function (array $rule, CustomAtRuleTransformer $transformer): array {
+                    if ($rule['name'] === 'breakpoint') {
+                        return $transformer->media(
+                            '(width <= ' . $rule['prelude'] . ')',
+                            $transformer->ruleList($rule['body'])
+                        );
+                    }
+
+                    return $transformer->styleRule(':root', $rule['declarations']);
+                },
+            ],
+        ]);
+
+        $t->same('@media (width<=1024px){:root{foo:16px;bar:32px}}', $result);
+    },
+    'custom at-rules expose upstream typed prelude and body parser aliases' => static function (TestRunner $t): void {
+        $definitions = [];
+        $seen = [];
+        $css = <<<'CSS'
+@tokens spacing {
+  space: 16px;
+  accent: yellow !important;
+}
+
+@breakpoint 1024px {
+  .card {
+    width: token('spacing.space');
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+            'breakpoint' => [
+                'prelude' => '<length>',
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'tokens' => static function (array $rule) use (&$definitions, &$seen): array {
+                        $seen['tokensPrelude'] = $rule['preludeAst'];
+                        $seen['tokensBodyType'] = $rule['bodyAst']['type'];
+                        $seen['tokensImportant'] = $rule['bodyAst']['value']['importantDeclarations'][0]['value']['name'] ?? null;
+
+                        foreach ($rule['bodyAst']['value']['declarations'] as $declaration) {
+                            if (($declaration['property'] ?? null) !== 'custom') {
+                                continue;
+                            }
+
+                            $definitions[$rule['preludeAst']['value'] . '.' . $declaration['value']['name']] = $declaration['value']['value'];
+                        }
+
+                        return [];
+                    },
+                    'breakpoint' => static function (array $rule) use (&$seen): array {
+                        $seen['breakpointPrelude'] = $rule['preludeAst'];
+                        $seen['breakpointBodyType'] = $rule['bodyAst']['type'];
+                        $seen['breakpointRuleType'] = $rule['bodyAst']['value'][0]['type'] ?? null;
+
+                        return [
+                            'type' => 'media',
+                            'value' => [
+                                'query' => [
+                                    'mediaQueries' => [[
+                                        'mediaType' => 'all',
+                                        'condition' => [
+                                            'type' => 'feature',
+                                            'value' => [
+                                                'type' => 'range',
+                                                'name' => 'width',
+                                                'operator' => 'less-than-equal',
+                                                'value' => $rule['preludeAst'],
+                                            ],
+                                        ],
+                                    ]],
+                                ],
+                                'rules' => $rule['bodyAst']['value'],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            'Function' => [
+                'token' => static function (array $arguments) use (&$definitions): ?array {
+                    return $definitions[$arguments[0] ?? ''] ?? null;
+                },
+            ],
+        ]);
+
+        $t->same('@media (width<=1024px){.card{width:16px}}', $result);
+        $t->same(['type' => 'custom-ident', 'value' => 'spacing'], $seen['tokensPrelude']);
+        $t->same('declaration-list', $seen['tokensBodyType']);
+        $t->same('accent', $seen['tokensImportant']);
+        $t->same(['type' => 'length', 'value' => ['type' => 'value', 'value' => ['unit' => 'px', 'value' => 1024.0]]], $seen['breakpointPrelude']);
+        $t->same('rule-list', $seen['breakpointBodyType']);
+        $t->same('style', $seen['breakpointRuleType']);
+    },
+    'custom at-rules preserve nested custom rules in returned parser bodies' => static function (TestRunner $t): void {
+        $definitions = [];
+        $seen = [];
+        $css = <<<'CSS'
+@group {
+  @tokens spacing {
+    --gap: 16px;
+    --accent: yellow;
+  }
+
+  .card {
+    color: token('spacing.--accent');
+    padding: token('spacing.--gap');
+  }
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'custom' => [
+                        'group' => static function (array $rule) use (&$seen): array {
+                            $seen['groupBodyType'] = $rule['bodyAst']['type'];
+                            $seen['groupBodyRuleTypes'] = array_map(
+                                static fn (array $bodyRule): string => $bodyRule['type'] ?? '',
+                                $rule['bodyAst']['value']
+                            );
+                            $seen['nestedTokensPreludeAst'] = $rule['bodyAst']['value'][0]['value']['preludeAst'] ?? null;
+
+                            return $rule['bodyAst']['value'];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'tokens' => static function (array $rule) use (&$definitions, &$seen): array {
+                            $seen['tokensBodyType'] = $rule['bodyAst']['type'];
+                            foreach ($rule['declarations'] as $declaration) {
+                                $definitions[$rule['prelude'] . '.' . $declaration['property']] = $declaration['value'];
+                            }
+
+                            return [];
+                        },
+                    ],
+                ],
+                'Function' => [
+                    'token' => static function (array $arguments) use (&$definitions): ?string {
+                        return $definitions[$arguments[0] ?? ''] ?? null;
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'group' => [
+                'body' => 'rule-list',
+            ],
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+        ], $visitor);
+
+        $t->same('.card{color:#ff0;padding:16px}', $result);
+        $t->same('rule-list', $seen['groupBodyType']);
+        $t->same(['custom', 'style'], $seen['groupBodyRuleTypes']);
+        $t->same(['type' => 'custom-ident', 'value' => 'spacing'], $seen['nestedTokensPreludeAst']);
+        $t->same('declaration-list', $seen['tokensBodyType']);
+        $t->same([
+            'spacing.--gap' => '16px',
+            'spacing.--accent' => 'yellow',
+        ], $definitions);
+    },
+    'custom at-rules parse upstream repeated and alternative prelude syntax strings' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@tokens heading body;
+@breakpoints 320px, 48rem;
+@preset compact;
+@preset 2;
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<custom-ident>+',
+            ],
+            'breakpoints' => [
+                'prelude' => '<length>#',
+            ],
+            'preset' => [
+                'prelude' => 'compact|<number>',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'tokens' => static function (array $rule) use (&$seen): array {
+                        $seen['tokensPrelude'] = $rule['prelude'];
+                        $seen['tokensAst'] = $rule['preludeAst'];
+
+                        return [];
+                    },
+                    'breakpoints' => static function (array $rule) use (&$seen): array {
+                        $seen['breakpointsAst'] = $rule['preludeAst'];
+
+                        return [];
+                    },
+                    'preset' => static function (array $rule) use (&$seen): array {
+                        $seen['presets'][] = $rule['preludeAst'];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same('heading body', $seen['tokensPrelude']);
+        $t->same('repeated', $seen['tokensAst']['type']);
+        $t->same(['heading', 'body'], array_column($seen['tokensAst']['value']['components'], 'value'));
+        $t->same(['type' => 'space'], $seen['tokensAst']['value']['multiplier']);
+        $t->same('repeated', $seen['breakpointsAst']['type']);
+        $t->same(['px', 'rem'], array_map(
+            static fn (array $component): string => $component['value']['value']['unit'],
+            $seen['breakpointsAst']['value']['components']
+        ));
+        $t->same([320.0, 48.0], array_map(
+            static fn (array $component): float => $component['value']['value']['value'],
+            $seen['breakpointsAst']['value']['components']
+        ));
+        $t->same(['type' => 'comma'], $seen['breakpointsAst']['value']['multiplier']);
+        $t->same(['type' => 'literal', 'value' => 'compact'], $seen['presets'][0]);
+        $t->same(['type' => 'number', 'value' => 2.0], $seen['presets'][1]);
+
+        $transformer = new CustomAtRuleTransformer();
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@tokens inherit;', [
+            'tokens' => [
+                'prelude' => '<custom-ident>+',
+            ],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@breakpoints 320px 48rem;', [
+            'breakpoints' => [
+                'prelude' => '<length>#',
+            ],
+        ]));
+    },
+    'custom at-rules parse upstream repeated literal SyntaxString preludes' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@mode compact compact;
+@states editor, editor;
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'mode' => [
+                'prelude' => 'compact+',
+            ],
+            'states' => [
+                'prelude' => 'editor#',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'mode' => static function (array $rule) use (&$seen): array {
+                        $seen['mode'] = [
+                            'prelude' => $rule['prelude'],
+                            'preludeAst' => $rule['preludeAst'],
+                        ];
+
+                        return [];
+                    },
+                    'states' => static function (array $rule) use (&$seen): array {
+                        $seen['states'] = [
+                            'prelude' => $rule['prelude'],
+                            'preludeAst' => $rule['preludeAst'],
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same('compact compact', $seen['mode']['prelude']);
+        $t->same('repeated', $seen['mode']['preludeAst']['type']);
+        $t->same(['compact', 'compact'], array_column($seen['mode']['preludeAst']['value']['components'], 'value'));
+        $t->same(['literal', 'literal'], array_column($seen['mode']['preludeAst']['value']['components'], 'type'));
+        $t->same(['type' => 'space'], $seen['mode']['preludeAst']['value']['multiplier']);
+        $t->same('editor, editor', $seen['states']['prelude']);
+        $t->same('repeated', $seen['states']['preludeAst']['type']);
+        $t->same(['editor', 'editor'], array_column($seen['states']['preludeAst']['value']['components'], 'value'));
+        $t->same(['type' => 'comma'], $seen['states']['preludeAst']['value']['multiplier']);
+
+        $transformer = new CustomAtRuleTransformer();
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@mode compact comfortable;', [
+            'mode' => [
+                'prelude' => 'compact+',
+            ],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@states editor preview;', [
+            'states' => [
+                'prelude' => 'editor#',
+            ],
+        ]));
+    },
+    'custom at-rules reject upstream literal SyntaxString components starting with hyphen' => static function (TestRunner $t): void {
+        $visited = false;
+
+        $t->throws(InvalidArgumentException::class, static function () use (&$visited): void {
+            (new CustomAtRuleTransformer())->transform('@mode -compact;', [
+                'mode' => [
+                    'prelude' => '-compact',
+                ],
+            ], [
+                'Rule' => [
+                    'custom' => [
+                        'mode' => static function () use (&$visited): array {
+                            $visited = true;
+
+                            return [];
+                        },
+                    ],
+                ],
+            ]);
+        });
+        $t->same(false, $visited);
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new CustomAtRuleTransformer())->transform('@mode -compact -compact;', [
+            'mode' => [
+                'prelude' => '-compact+',
+            ],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => (new CustomAtRuleTransformer())->transform('@states -compact, -compact;', [
+            'states' => [
+                'prelude' => '-compact#',
+            ],
+        ]));
+
+        $result = (new CustomAtRuleTransformer())->transform('@mode compact; .wp-block-card { color: red; }', [
+            'mode' => [
+                'prelude' => 'compact',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'mode' => static fn (): array => [],
+                ],
+            ],
+        ]);
+        $t->same('.wp-block-card{color:red}', $result);
+    },
+    'custom at-rules parse upstream extended SyntaxString component preludes' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@motion calc(25px + 25px);
+@space calc(100% - 25px);
+@tilt 90deg;
+@delay 250ms;
+@density 2dppx;
+@move translateX(10px);
+@chain translateX(10px) rotate(45deg);
+@hero url(hero.png);
+@palette red blue;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $definitions = [
+            'motion' => ['prelude' => '<length>'],
+            'space' => ['prelude' => '<length-percentage>'],
+            'tilt' => ['prelude' => '<angle>'],
+            'delay' => ['prelude' => '<time>'],
+            'density' => ['prelude' => '<resolution>'],
+            'move' => ['prelude' => '<transform-function>'],
+            'chain' => ['prelude' => '<transform-list>'],
+            'hero' => ['prelude' => '<image>'],
+            'palette' => ['prelude' => 'foo | <color>+ | <integer>'],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform($css, $definitions, [
+            'Rule' => [
+                'custom' => static function (array $rule) use (&$seen): array {
+                    $seen[$rule['name']] = $rule['preludeAst'];
+
+                    return [];
+                },
+            ],
+        ]);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same(['unit' => 'px', 'value' => 50.0], $seen['motion']['value']['value']);
+        $t->same(['type' => 'calc', 'value' => ['type' => 'raw', 'value' => '100% - 25px']], $seen['space']['value']);
+        $t->same(['type' => 'deg', 'value' => 90.0], $seen['tilt']['value']);
+        $t->same(['type' => 'milliseconds', 'value' => 250.0], $seen['delay']['value']);
+        $t->same(['type' => 'dppx', 'value' => 2.0], $seen['density']['value']);
+        $t->same('translateX', $seen['move']['value']['type']);
+        $t->same(['unit' => 'px', 'value' => 10.0], $seen['move']['value']['value']['value']);
+        $t->same(['translateX', 'rotate'], array_column($seen['chain']['value'], 'type'));
+        $t->same(['type' => 'deg', 'value' => 45.0], $seen['chain']['value'][1]['value']);
+        $t->same('url', $seen['hero']['value']['type']);
+        $t->same('hero.png', $seen['hero']['value']['value']['url']);
+        $t->same('repeated', $seen['palette']['type']);
+        $t->same('space', $seen['palette']['value']['multiplier']['type']);
+        $t->same([255, 0, 0], [
+            $seen['palette']['value']['components'][0]['value']['r'],
+            $seen['palette']['value']['components'][0]['value']['g'],
+            $seen['palette']['value']['components'][0]['value']['b'],
+        ]);
+        $t->same([0, 0, 255], [
+            $seen['palette']['value']['components'][1]['value']['r'],
+            $seen['palette']['value']['components'][1]['value']['g'],
+            $seen['palette']['value']['components'][1]['value']['b'],
+        ]);
+
+        $transformer = new CustomAtRuleTransformer();
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@chain translateX(10px), rotate(45deg);', [
+            'chain' => [
+                'prelude' => '<transform-list>#',
+            ],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@size calc(100% - 25px);', [
+            'size' => [
+                'prelude' => '<length> | <percentage>',
+            ],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@motion 50%;', [
+            'motion' => [
+                'prelude' => '<length>',
+            ],
+        ]));
+    },
+    'custom at-rules map upstream SyntaxString parse value matrix' => static function (TestRunner $t): void {
+        $parse = static function (string $syntax, string $prelude): array {
+            $seen = null;
+            (new CustomAtRuleTransformer())->transform('@probe ' . $prelude . ';', [
+                'probe' => [
+                    'prelude' => $syntax,
+                ],
+            ], [
+                'Rule' => [
+                    'custom' => [
+                        'probe' => static function (array $rule) use (&$seen): array {
+                            $seen = $rule['preludeAst'];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ]);
+
+            return $seen;
+        };
+        $expectInvalid = static function (string $syntax, string $prelude): void {
+            (new CustomAtRuleTransformer())->transform('@probe ' . $prelude . ';', [
+                'probe' => [
+                    'prelude' => $syntax,
+                ],
+            ]);
+        };
+
+        $t->same(['type' => 'literal', 'value' => 'foo'], $parse('foo | <color>+ | <integer>', 'foo'), 'upstream src/values/syntax.rs::tests::test_syntax');
+        $t->same(['type' => 'literal', 'value' => 'foo'], $parse('foo|<color>+|<integer>', 'foo'));
+        $t->same(['type' => 'integer', 'value' => 2], $parse('foo | <color>+ | <integer>', '2'));
+
+        $red = $parse('foo | <color>+ | <integer>', 'red');
+        $t->same('space', $red['value']['multiplier']['type'] ?? null);
+        $t->same([[255, 0, 0]], array_map(
+            static fn (array $component): array => [
+                $component['value']['r'],
+                $component['value']['g'],
+                $component['value']['b'],
+            ],
+            $red['value']['components'] ?? []
+        ));
+
+        $spaceColors = $parse('foo | <color>+ | <integer>', 'red blue');
+        $t->same('space', $spaceColors['value']['multiplier']['type'] ?? null);
+        $t->same([[255, 0, 0], [0, 0, 255]], array_map(
+            static fn (array $component): array => [
+                $component['value']['r'],
+                $component['value']['g'],
+                $component['value']['b'],
+            ],
+            $spaceColors['value']['components'] ?? []
+        ));
+
+        $commaColors = $parse('foo | <color># | <integer>', 'red, blue');
+        $t->same('comma', $commaColors['value']['multiplier']['type'] ?? null);
+        $t->same([[255, 0, 0], [0, 0, 255]], array_map(
+            static fn (array $component): array => [
+                $component['value']['r'],
+                $component['value']['g'],
+                $component['value']['b'],
+            ],
+            $commaColors['value']['components'] ?? []
+        ));
+
+        $t->same(['unit' => 'px', 'value' => 25.0], $parse('<length>', '25px')['value']['value']);
+        $t->same(['unit' => 'px', 'value' => 50.0], $parse('<length>', 'calc(25px + 25px)')['value']['value']);
+        $t->same(['unit' => 'px', 'value' => 25.0], $parse('<length> | <percentage>', '25px')['value']['value']);
+        $t->same(['type' => 'percentage', 'value' => 0.25], $parse('<length> | <percentage>', '25%'));
+        $t->same(['type' => 'literal', 'value' => 'bar'], $parse('foo | bar | baz', 'bar'));
+        $t->same(['type' => 'string', 'value' => 'foo'], $parse('<string>', "'foo'"));
+        $t->same(['type' => 'custom-ident', 'value' => 'hi'], $parse('<custom-ident>', 'hi'));
+
+        foreach ([
+            ['foo | <color>+ | <integer>', '2.5'],
+            ['foo | <color>+ | <integer>', '25px'],
+            ['foo | <color>+ | <integer>', 'red, green'],
+            ['foo | <color># | <integer>', 'red green'],
+            ['<length> | <percentage>', 'calc(100% - 25px)'],
+        ] as [$syntax, $prelude]) {
+            $t->throws(InvalidArgumentException::class, static fn () => $expectInvalid($syntax, $prelude));
+        }
+
+        foreach (['<transform-list>#', '<color', 'color>'] as $syntax) {
+            $t->throws(InvalidArgumentException::class, static fn () => $expectInvalid($syntax, 'foo'));
+        }
+    },
+    'custom at-rules visit upstream SyntaxString image preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $events = [];
+        $rules = [];
+        $css = <<<'CSS'
+@hero url(block-card.png);
+@placeholder none;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'hero' => ['prelude' => '<image>'],
+            'placeholder' => ['prelude' => '<image>'],
+        ], [
+            'Image' => static function (array $image) use (&$events): array {
+                $events[] = 'enter:' . $image['type'] . ':' . (($image['value']['url'] ?? '') ?: 'none');
+                if (($image['type'] ?? null) === 'url') {
+                    $image['value']['url'] = 'theme/' . $image['value']['url'];
+                }
+
+                return $image;
+            },
+            'Url' => static function (array $url) use (&$events): array {
+                $events[] = 'url:' . $url['url'];
+                $url['url'] = 'assets/' . $url['url'];
+
+                return $url;
+            },
+            'ImageExit' => static function (array $image) use (&$events): ?array {
+                $events[] = 'exit:' . $image['type'] . ':' . (($image['value']['url'] ?? '') ?: 'none');
+                if (($image['type'] ?? null) === 'none') {
+                    return [
+                        'type' => 'url',
+                        'value' => [
+                            'url' => 'fallback.svg',
+                            'raw' => 'url(fallback.svg)',
+                            'loc' => ['line' => 1, 'column' => 1],
+                        ],
+                    ];
+                }
+
+                return $image;
+            },
+            'Rule' => [
+                'custom' => static function (array $rule) use (&$rules, &$events): array {
+                    $events[] = 'rule:' . $rule['name'] . ':' . $rule['prelude'];
+                    $rules[$rule['name']] = [
+                        'prelude' => $rule['prelude'],
+                        'preludeAst' => $rule['preludeAst'],
+                    ];
+
+                    return [];
+                },
+            ],
+        ]);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'enter:url:block-card.png',
+            'url:theme/block-card.png',
+            'exit:url:assets/theme/block-card.png',
+            'rule:hero:url(assets/theme/block-card.png)',
+            'enter:none:none',
+            'exit:none:none',
+            'rule:placeholder:url(fallback.svg)',
+        ], $events);
+        $t->same('url(assets/theme/block-card.png)', $rules['hero']['prelude']);
+        $t->same('url', $rules['hero']['preludeAst']['value']['type']);
+        $t->same('assets/theme/block-card.png', $rules['hero']['preludeAst']['value']['value']['url']);
+        $t->same('url(fallback.svg)', $rules['placeholder']['prelude']);
+        $t->same('url', $rules['placeholder']['preludeAst']['value']['type']);
+        $t->same('fallback.svg', $rules['placeholder']['preludeAst']['value']['value']['url']);
+
+        $composedRules = [];
+        $composedVisitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Image' => static function (array $image): array {
+                    if (($image['type'] ?? null) === 'url') {
+                        $image['value']['url'] = 'cdn/' . $image['value']['url'];
+                    }
+
+                    return $image;
+                },
+            ],
+            [
+                'ImageExit' => static function (array $image): array {
+                    if (($image['type'] ?? null) === 'url') {
+                        $image['value']['url'] .= '?v=1';
+                    }
+
+                    return $image;
+                },
+                'Rule' => [
+                    'custom' => static function (array $rule) use (&$composedRules): array {
+                        $composedRules[$rule['name']] = $rule['prelude'];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $composedResult = (new CustomAtRuleTransformer())->transform('@hero url(card.png);', [
+            'hero' => ['prelude' => '<image>'],
+        ], $composedVisitor);
+        $t->same('', $composedResult);
+        $t->same('url(cdn/card.png?v=1)', $composedRules['hero']);
+    },
+    'custom at-rules visit upstream identifier preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'custom' => [],
+            'dashed' => [],
+            'rules' => [],
+        ];
+        $css = <<<'CSS'
+@slot hero;
+@tokens --accent --spacing;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'slot' => ['prelude' => '<custom-ident>'],
+            'tokens' => ['prelude' => '<dashed-ident>+'],
+        ], [
+            'CustomIdent' => static function (string $ident) use (&$seen): string {
+                $seen['custom'][] = $ident;
+
+                return 'wp-' . $ident;
+            },
+            'DashedIdent' => static function (string $ident) use (&$seen): string {
+                $seen['dashed'][] = $ident;
+
+                return '--wp-' . substr($ident, 2);
+            },
+            'Rule' => [
+                'custom' => static function (array $rule) use (&$seen): array {
+                    $seen['rules'][$rule['name']] = [
+                        'prelude' => $rule['prelude'],
+                        'preludeAst' => $rule['preludeAst'],
+                    ];
+
+                    return [];
+                },
+            ],
+        ]);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same(['hero'], $seen['custom']);
+        $t->same(['--accent', '--spacing'], $seen['dashed']);
+        $t->same('wp-hero', $seen['rules']['slot']['prelude']);
+        $t->same(['type' => 'custom-ident', 'value' => 'wp-hero'], $seen['rules']['slot']['preludeAst']);
+        $t->same('--wp-accent --wp-spacing', $seen['rules']['tokens']['prelude']);
+        $t->same('repeated', $seen['rules']['tokens']['preludeAst']['type']);
+        $t->same(['--wp-accent', '--wp-spacing'], array_map(
+            static fn (array $component): string => $component['value'],
+            $seen['rules']['tokens']['preludeAst']['value']['components'],
+        ));
+    },
+    'custom at-rules serialize upstream escaped custom parser preludes' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@block t\65 st {
+  color: yellow;
+}
+@inline in\6c ine;
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'block' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+            'inline' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ]);
+
+        $t->same('@block test{color:#ff0}@inline inline;', $result);
+    },
+    'custom at-rules decode upstream escaped identifier preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'custom' => [],
+            'dashed' => [],
+            'rules' => [],
+        ];
+        $css = <<<'CSS'
+@slot h\65 ro;
+@tokens --wp\2d accent --wp\-spacing;
+@mode comp\61 ct compact;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'slot' => ['prelude' => '<custom-ident>'],
+            'tokens' => ['prelude' => '<dashed-ident>+'],
+            'mode' => ['prelude' => 'compact+'],
+        ], [
+            'CustomIdent' => static function (string $ident) use (&$seen): string {
+                $seen['custom'][] = $ident;
+
+                return 'wp-' . $ident;
+            },
+            'DashedIdent' => static function (string $ident) use (&$seen): string {
+                $seen['dashed'][] = $ident;
+
+                return '--theme-' . substr($ident, 2);
+            },
+            'Rule' => [
+                'custom' => static function (array $rule) use (&$seen): array {
+                    $seen['rules'][$rule['name']] = [
+                        'prelude' => $rule['prelude'],
+                        'preludeAst' => $rule['preludeAst'],
+                    ];
+
+                    return [];
+                },
+            ],
+        ]);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same(['hero'], $seen['custom']);
+        $t->same(['--wp-accent', '--wp-spacing'], $seen['dashed']);
+        $t->same('wp-hero', $seen['rules']['slot']['prelude']);
+        $t->same(['type' => 'custom-ident', 'value' => 'wp-hero'], $seen['rules']['slot']['preludeAst']);
+        $t->same('--theme-wp-accent --theme-wp-spacing', $seen['rules']['tokens']['prelude']);
+        $t->same('repeated', $seen['rules']['tokens']['preludeAst']['type']);
+        $t->same(['--theme-wp-accent', '--theme-wp-spacing'], array_map(
+            static fn (array $component): string => $component['value'],
+            $seen['rules']['tokens']['preludeAst']['value']['components'],
+        ));
+        $t->same('compact compact', $seen['rules']['mode']['prelude']);
+        $t->same(['compact', 'compact'], array_column($seen['rules']['mode']['preludeAst']['value']['components'], 'value'));
+    },
+    'custom at-rules parse upstream unicode SyntaxString identifiers before visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@slot café;
+@tokens --wp-échelle --wp-accent;
+@mode édition édition;
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'slot' => ['prelude' => '<custom-ident>'],
+            'tokens' => ['prelude' => '<dashed-ident>+'],
+            'mode' => ['prelude' => 'édition+'],
+        ], [
+            'CustomIdent' => static fn (string $ident): string => 'wp-' . $ident,
+            'DashedIdent' => static fn (string $ident): string => str_starts_with($ident, '--wp-')
+                ? '--theme-' . substr($ident, 5)
+                : $ident,
+            'Rule' => [
+                'custom' => static function (array $rule) use (&$seen): array {
+                    $seen[$rule['name']] = [
+                        'prelude' => $rule['prelude'],
+                        'preludeAst' => $rule['preludeAst'],
+                    ];
+
+                    return [];
+                },
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same('wp-café', $seen['slot']['prelude']);
+        $t->same(['type' => 'custom-ident', 'value' => 'wp-café'], $seen['slot']['preludeAst']);
+        $t->same('--theme-échelle --theme-accent', $seen['tokens']['prelude']);
+        $t->same(['--theme-échelle', '--theme-accent'], array_column(
+            $seen['tokens']['preludeAst']['value']['components'],
+            'value'
+        ));
+        $t->same('édition édition', $seen['mode']['prelude']);
+        $t->same(['literal', 'literal'], array_column($seen['mode']['preludeAst']['value']['components'], 'type'));
+        $t->same(['édition', 'édition'], array_column($seen['mode']['preludeAst']['value']['components'], 'value'));
+
+        $transformer = new CustomAtRuleTransformer();
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@slot default;', [
+            'slot' => ['prelude' => '<custom-ident>'],
+        ]));
+    },
+    'custom at-rules decode upstream escaped at-rule names before parser lookup' => static function (TestRunner $t): void {
+        $mixins = [];
+        $seen = [];
+        $css = <<<'CSS'
+@m\69 xin card {
+  color: yellow;
+
+  & .wp-block-button__link {
+    color: red;
+  }
+}
+
+.wp-block-card {
+  @ap\70 ly card;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'mixin' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'style-block',
+            ],
+            'apply' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'mixin' => static function (array $rule) use (&$mixins, &$seen): array {
+                        $seen[] = $rule['name'] . ':' . $rule['prelude'];
+                        $mixins[$rule['prelude']] = $rule['body'];
+
+                        return [];
+                    },
+                    'apply' => static function (array $rule, CustomAtRuleTransformer $transformer) use (&$mixins, &$seen): array {
+                        $seen[] = $rule['name'] . ':' . $rule['prelude'];
+
+                        return $transformer->styleBlock($mixins[$rule['prelude']] ?? '');
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:#ff0}.wp-block-card .wp-block-button__link{color:red}', $result);
+        $t->same(['mixin:card', 'apply:card'], $seen);
+
+        $preserved = (new CustomAtRuleTransformer())->transform('@bl\6f ck hero { color: yellow; }', [
+            'block' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+        ]);
+
+        $t->same('@block hero{color:#ff0}', $preserved);
+    },
+    'custom at-rules decode upstream unicode at-rule names before parser lookup' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@thème carte {
+  outline-color: yellow;
+}
+
+@th\00e8 me badge {
+  color: red;
+}
+
+.wp-block-card {
+  color: blue;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'thème' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'thème' => static function (array $rule, CustomAtRuleTransformer $transformer) use (&$seen): array {
+                        $seen[] = $rule['name'] . ':' . $rule['prelude'];
+
+                        return $transformer->styleRule('.wp-block-card.is-style-' . $rule['prelude'], $rule['body']);
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same(
+            '.wp-block-card.is-style-carte{outline-color:#ff0}.wp-block-card.is-style-badge{color:red}.wp-block-card{color:#00f}',
+            $result
+        );
+        $t->same(['thème:carte', 'thème:badge'], $seen);
+    },
+    'custom at-rules visit upstream unicode universal prelude identifiers before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@tokens café --wp-échelle @--wp\2d accent;
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => ['prelude' => '*'],
+        ], [
+            'Token' => [
+                'ident' => static function (array $token) use (&$seen): ?array {
+                    $seen[] = ['ident', $token['value']];
+                    if ($token['value'] !== 'café') {
+                        return null;
+                    }
+
+                    return ['type' => 'ident', 'value' => 'wp-café'];
+                },
+                'at-keyword' => static function (array $token) use (&$seen): ?array {
+                    $seen[] = ['at-keyword', $token['value']];
+
+                    return ['type' => 'token', 'value' => ['type' => 'at-keyword', 'value' => '--theme-accent']];
+                },
+            ],
+            'DashedIdent' => static function (string $ident) use (&$seen): string {
+                $seen[] = ['dashed-ident', $ident];
+
+                return '--theme-' . substr($ident, 5);
+            },
+            'Rule' => [
+                'custom' => [
+                    'tokens' => static function (array $rule) use (&$seen): array {
+                        $seen[] = ['rule', $rule['prelude']];
+                        $seen[] = ['ast', array_map(
+                            static fn (array $component): mixed => $component['type'] === 'token'
+                                ? [$component['value']['type'], $component['value']['value']]
+                                : [$component['type'], $component['value']],
+                            $rule['preludeAst']['value'] ?? []
+                        )];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same([
+            ['ident', 'café'],
+            ['dashed-ident', '--wp-échelle'],
+            ['at-keyword', '--wp-accent'],
+            ['rule', 'wp-café --theme-échelle @--theme-accent'],
+            ['ast', [
+                ['ident', 'wp-café'],
+                ['dashed-ident', '--theme-échelle'],
+                ['at-keyword', '--theme-accent'],
+            ]],
+            ['ident', 'red'],
+        ], $seen);
+    },
+    'custom at-rules visit upstream unit component preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'angles' => [],
+            'times' => [],
+            'resolutions' => [],
+            'rules' => [],
+        ];
+        $css = <<<'CSS'
+@tilt 90deg;
+@delays 250ms 1s;
+@density 2dppx;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Angle' => static function (array $angle) use (&$seen): array {
+                    $seen['angles'][] = $angle;
+
+                    return [
+                        'type' => 'turn',
+                        'value' => $angle['value'] / 360,
+                    ];
+                },
+            ],
+            [
+                'Time' => static function (array $time) use (&$seen): array {
+                    $seen['times'][] = $time;
+
+                    return [
+                        'type' => 'seconds',
+                        'value' => $time['type'] === 'milliseconds' ? $time['value'] / 1000 : $time['value'] * 2,
+                    ];
+                },
+                'Resolution' => static function (array $resolution) use (&$seen): array {
+                    $seen['resolutions'][] = $resolution;
+
+                    return [
+                        'type' => 'resolution',
+                        'value' => [
+                            'type' => 'dpi',
+                            'value' => $resolution['value'] * 96,
+                        ],
+                    ];
+                },
+            ],
+            [
+                'Rule' => [
+                    'custom' => static function (array $rule) use (&$seen): array {
+                        $seen['rules'][$rule['name']] = [
+                            'prelude' => $rule['prelude'],
+                            'preludeAst' => $rule['preludeAst'],
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tilt' => ['prelude' => '<angle>'],
+            'delays' => ['prelude' => '<time>+'],
+            'density' => ['prelude' => '<resolution>'],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([['type' => 'deg', 'value' => 90.0]], $seen['angles']);
+        $t->same([
+            ['type' => 'milliseconds', 'value' => 250.0],
+            ['type' => 'seconds', 'value' => 1.0],
+        ], $seen['times']);
+        $t->same([['type' => 'dppx', 'value' => 2.0]], $seen['resolutions']);
+        $t->same('0.25turn', $seen['rules']['tilt']['prelude']);
+        $t->same(['type' => 'turn', 'value' => 0.25], $seen['rules']['tilt']['preludeAst']['value']);
+        $t->same('0.25s 2s', $seen['rules']['delays']['prelude']);
+        $t->same(['seconds', 'seconds'], array_map(
+            static fn (array $component): string => $component['value']['type'],
+            $seen['rules']['delays']['preludeAst']['value']['components']
+        ));
+        $t->same([0.25, 2.0], array_map(
+            static fn (array $component): float => $component['value']['value'],
+            $seen['rules']['delays']['preludeAst']['value']['components']
+        ));
+        $t->same('192dpi', $seen['rules']['density']['prelude']);
+        $t->same(['type' => 'dpi', 'value' => 192.0], $seen['rules']['density']['preludeAst']['value']);
+    },
+    'custom at-rules visit upstream transform preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'lengths' => [],
+            'angles' => [],
+            'rules' => [],
+        ];
+        $css = <<<'CSS'
+@shift translateX(16px);
+@motion translateX(32px) rotate(90deg);
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Length' => static function (array $length) use (&$seen): array {
+                    $seen['lengths'][] = $length;
+
+                    return [
+                        'unit' => 'rem',
+                        'value' => $length['value'] / 16,
+                    ];
+                },
+                'Angle' => static function (array $angle) use (&$seen): array {
+                    $seen['angles'][] = $angle;
+
+                    return [
+                        'type' => 'turn',
+                        'value' => $angle['value'] / 360,
+                    ];
+                },
+            ],
+            [
+                'Rule' => [
+                    'custom' => static function (array $rule) use (&$seen): array {
+                        $seen['rules'][$rule['name']] = [
+                            'prelude' => $rule['prelude'],
+                            'preludeAst' => $rule['preludeAst'],
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'shift' => ['prelude' => '<transform-function>'],
+            'motion' => ['prelude' => '<transform-list>'],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            ['unit' => 'px', 'value' => 16.0],
+            ['unit' => 'px', 'value' => 32.0],
+        ], $seen['lengths']);
+        $t->same([['type' => 'deg', 'value' => 90.0]], $seen['angles']);
+        $t->same('translateX(1rem)', $seen['rules']['shift']['prelude']);
+        $t->same('translateX(2rem) rotate(0.25turn)', $seen['rules']['motion']['prelude']);
+        $t->same(['unit' => 'rem', 'value' => 1.0], $seen['rules']['shift']['preludeAst']['value']['value']['value']);
+        $t->same(['unit' => 'rem', 'value' => 2.0], $seen['rules']['motion']['preludeAst']['value'][0]['value']['value']);
+        $t->same(['type' => 'turn', 'value' => 0.25], $seen['rules']['motion']['preludeAst']['value'][1]['value']);
+    },
+    'custom at-rules visit upstream length-percentage preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'lengths' => [],
+            'rules' => [],
+        ];
+        $css = <<<'CSS'
+@space 16px;
+@gaps 16px, 2rem, 25%;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'space' => ['prelude' => '<length-percentage>'],
+            'gaps' => ['prelude' => '<length-percentage>#'],
+        ], [
+            'Length' => static function (array $length) use (&$seen): array {
+                $seen['lengths'][] = $length;
+
+                return [
+                    'unit' => 'rem',
+                    'value' => $length['unit'] === 'px' ? $length['value'] / 16 : $length['value'] * 2,
+                ];
+            },
+            'Rule' => [
+                'custom' => static function (array $rule) use (&$seen): array {
+                    $seen['rules'][$rule['name']] = [
+                        'prelude' => $rule['prelude'],
+                        'preludeAst' => $rule['preludeAst'],
+                    ];
+
+                    return [];
+                },
+            ],
+        ]);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            ['unit' => 'px', 'value' => 16.0],
+            ['unit' => 'px', 'value' => 16.0],
+            ['unit' => 'rem', 'value' => 2.0],
+        ], $seen['lengths']);
+        $t->same('1rem', $seen['rules']['space']['prelude']);
+        $t->same([
+            'type' => 'length-percentage',
+            'value' => [
+                'type' => 'dimension',
+                'value' => ['unit' => 'rem', 'value' => 1.0],
+            ],
+        ], $seen['rules']['space']['preludeAst']);
+        $t->same('1rem,4rem,25%', $seen['rules']['gaps']['prelude']);
+
+        $gapComponents = $seen['rules']['gaps']['preludeAst']['value']['components'];
+        $t->same(['dimension', 'dimension', 'percentage'], array_map(
+            static fn (array $component): string => $component['value']['type'],
+            $gapComponents
+        ));
+        $t->same(['rem', 'rem'], array_map(
+            static fn (array $component): string => $component['value']['value']['unit'],
+            array_slice($gapComponents, 0, 2)
+        ));
+        $t->same([1.0, 4.0], array_map(
+            static fn (array $component): float => $component['value']['value']['value'],
+            array_slice($gapComponents, 0, 2)
+        ));
+        $t->same(0.25, $gapComponents[2]['value']['value']);
+    },
+    'custom at-rules visit upstream ratio component preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'ratios' => [],
+            'rules' => [],
+        ];
+        $css = <<<'CSS'
+@viewport 16 / 9 {
+  .hero {
+    color: yellow;
+  }
+}
+
+@ratios 1/1, 3/2;
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Ratio' => static function (array $ratio) use (&$seen): array {
+                    $seen['ratios'][] = $ratio;
+
+                    return match ($ratio) {
+                        [16.0, 9.0] => [4.0, 3.0],
+                        [1.0, 1.0] => [2.0, 1.0],
+                        [3.0, 2.0] => [9.0, 4.0],
+                        default => $ratio,
+                    };
+                },
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'viewport' => static function (array $rule) use (&$seen): array {
+                            $seen['rules']['viewport'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [
+                                'type' => 'media',
+                                'value' => [
+                                    'query' => [
+                                        'mediaQueries' => [[
+                                            'mediaType' => 'all',
+                                            'condition' => [
+                                                'type' => 'feature',
+                                                'value' => [
+                                                    'type' => 'plain',
+                                                    'name' => 'aspect-ratio',
+                                                    'value' => $rule['preludeAst'],
+                                                ],
+                                            ],
+                                        ]],
+                                    ],
+                                    'rules' => $rule['bodyRules'],
+                                ],
+                            ];
+                        },
+                        'ratios' => static function (array $rule) use (&$seen): array {
+                            $seen['rules']['ratios'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'viewport' => [
+                'prelude' => '<ratio>',
+                'body' => 'rule-list',
+            ],
+            'ratios' => [
+                'prelude' => '<ratio>#',
+            ],
+        ], $visitor);
+
+        $t->same('@media (aspect-ratio:4/3){.hero{color:#ff0}}', $result);
+        $t->same([[16.0, 9.0], [1.0, 1.0], [3.0, 2.0]], $seen['ratios']);
+        $t->same('4/3', $seen['rules']['viewport']['prelude']);
+        $t->same(['type' => 'ratio', 'value' => [4.0, 3.0]], $seen['rules']['viewport']['preludeAst']);
+        $t->same('2,9/4', $seen['rules']['ratios']['prelude']);
+        $t->same('repeated', $seen['rules']['ratios']['preludeAst']['type']);
+        $t->same([[2.0, 1.0], [9.0, 4.0]], array_map(
+            static fn (array $component): array => $component['value'],
+            $seen['rules']['ratios']['preludeAst']['value']['components']
+        ));
+    },
+    'custom at-rules visit upstream universal token-list preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@plugin theme("card-gap") var(--wp-gap) env(--wp-breakpoint) 3--wp-step @--wp-accent "draft";
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Function' => [
+                    'theme' => static function (array $arguments) use (&$seen): string {
+                        $seen['events'][] = 'function:theme:' . ($arguments[0] ?? '');
+
+                        return '16px';
+                    },
+                ],
+                'Variable' => [
+                    '--wp-gap' => static function (array $variable) use (&$seen): array {
+                        $seen['events'][] = 'variable:' . ($variable['name']['ident'] ?? '');
+
+                        return [
+                            'unit' => 'px',
+                            'value' => 24.0,
+                        ];
+                    },
+                ],
+                'EnvironmentVariable' => [
+                    '--wp-breakpoint' => static function (array $environmentVariable) use (&$seen): array {
+                        $seen['events'][] = 'environment:' . ($environmentVariable['name']['ident'] ?? $environmentVariable['name']['value'] ?? '');
+
+                        return [
+                            'type' => 'length',
+                            'unit' => 'px',
+                            'value' => 782.0,
+                        ];
+                    },
+                ],
+                'Token' => [
+                    'dimension' => static function (array $token) use (&$seen): array {
+                        $seen['events'][] = 'token:dimension:' . $token['value'] . $token['unit'];
+
+                        return [
+                            'type' => 'function',
+                            'value' => [
+                                'name' => 'calc',
+                                'arguments' => [
+                                    ['type' => 'raw', 'value' => (string) $token['value']],
+                                    ['type' => 'token', 'value' => ['type' => 'delim', 'value' => '*']],
+                                    [
+                                        'type' => 'var',
+                                        'value' => [
+                                            'name' => ['ident' => $token['unit']],
+                                            'fallback' => null,
+                                            'raw' => 'var(' . $token['unit'] . ')',
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ];
+                    },
+                    'at-keyword' => static function (array $token) use (&$seen): array {
+                        $seen['events'][] = 'token:at-keyword:' . $token['value'];
+
+                        return [
+                            'type' => 'color',
+                            'value' => [
+                                'type' => 'rgb',
+                                'r' => 5,
+                                'g' => 110,
+                                'b' => 240,
+                                'alpha' => 1,
+                            ],
+                        ];
+                    },
+                    'string' => static function (array $token) use (&$seen): array {
+                        $seen['events'][] = 'token:string:' . $token['value'];
+
+                        return [
+                            'type' => 'token',
+                            'raw' => '"live"',
+                            'value' => [
+                                'type' => 'string',
+                                'value' => 'live',
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'plugin' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['name'] . ':' . $rule['prelude'];
+                            $seen['rule'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'plugin' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'function:theme:card-gap',
+            'variable:--wp-gap',
+            'environment:--wp-breakpoint',
+            'token:dimension:3--wp-step',
+            'token:at-keyword:--wp-accent',
+            'token:string:draft',
+            'rule:plugin:16px 24px 782px calc(3*var(--wp-step)) #056ef0 "live"',
+        ], $seen['events']);
+        $t->same('16px 24px 782px calc(3*var(--wp-step)) #056ef0 "live"', $seen['rule']['prelude']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same([
+            'length',
+            'length',
+            'length',
+            'function',
+            'color',
+            'token',
+        ], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['preludeAst']['value']
+        ));
+    },
+    'custom at-rules visit upstream hash tokens in universal token-list preludes' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-design-token #wp-card #123slot #wp\2d icon;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'id-hash' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:id-hash:' . $token['value'];
+
+                        if ($token['value'] !== 'wp-card') {
+                            if ($token['value'] !== 'wp-icon') {
+                                return null;
+                            }
+
+                            return [
+                                'type' => 'token',
+                                'value' => [
+                                    'type' => 'id-hash',
+                                    'value' => 'wp-icon-live',
+                                ],
+                            ];
+                        }
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'id-hash',
+                                'value' => 'wp-card-live',
+                            ],
+                        ];
+                    },
+                    'hash' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:hash:' . $token['value'];
+
+                        if ($token['value'] !== '123slot') {
+                            return null;
+                        }
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'hash',
+                                'value' => '456slot',
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'wp-design-token' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['prelude'];
+                            $seen['rule'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-design-token' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'token:id-hash:wp-card',
+            'token:hash:123slot',
+            'token:id-hash:wp-icon',
+            'rule:#wp-card-live #456slot #wp-icon-live',
+        ], $seen['events']);
+        $t->same('#wp-card-live #456slot #wp-icon-live', $seen['rule']['prelude']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same([
+            'id-hash',
+            'hash',
+            'id-hash',
+        ], array_map(
+            static fn (array $component): string => $component['value']['type'],
+            $seen['rule']['preludeAst']['value']
+        ));
+        $t->same([
+            'wp-card-live',
+            '456slot',
+            'wp-icon-live',
+        ], array_map(
+            static fn (array $component): string => $component['value']['value'],
+            $seen['rule']['preludeAst']['value']
+        ));
+    },
+    'custom at-rules visit upstream universal token-list component preludes' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@design-token --wp-gap 90deg 250ms 2dppx url(blocks/card/icon.svg);
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'DashedIdent' => static function (string $ident) use (&$seen): string {
+                    $seen['events'][] = 'dashed:' . $ident;
+
+                    return '--theme-' . substr($ident, 2);
+                },
+                'Angle' => static function (array $angle) use (&$seen): array {
+                    if ($angle['type'] !== 'deg') {
+                        return $angle;
+                    }
+                    $seen['events'][] = 'angle:' . $angle['value'] . $angle['type'];
+
+                    return [
+                        'type' => 'turn',
+                        'value' => $angle['value'] / 360,
+                    ];
+                },
+                'Time' => static function (array $time) use (&$seen): array {
+                    if ($time['type'] !== 'milliseconds') {
+                        return $time;
+                    }
+                    $seen['events'][] = 'time:' . $time['value'] . $time['type'];
+
+                    return [
+                        'type' => 'seconds',
+                        'value' => $time['type'] === 'milliseconds' ? $time['value'] / 1000 : $time['value'],
+                    ];
+                },
+            ],
+            [
+                'Resolution' => static function (array $resolution) use (&$seen): array {
+                    if ($resolution['type'] !== 'dppx') {
+                        return $resolution;
+                    }
+                    $seen['events'][] = 'resolution:' . $resolution['value'] . $resolution['type'];
+
+                    return [
+                        'type' => 'dpi',
+                        'value' => $resolution['value'] * 96,
+                    ];
+                },
+                'Url' => static function (array $url) use (&$seen): array {
+                    if (str_starts_with($url['url'], 'theme/')) {
+                        return $url;
+                    }
+                    $seen['events'][] = 'url:' . $url['url'];
+                    $url['url'] = 'theme/' . $url['url'];
+
+                    return $url;
+                },
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'design-token' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['prelude'];
+                            $seen['rule'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'design-token' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'dashed:--wp-gap',
+            'angle:90deg',
+            'time:250milliseconds',
+            'resolution:2dppx',
+            'url:blocks/card/icon.svg',
+            'rule:--theme-wp-gap 0.25turn 0.25s 192dpi url(theme/blocks/card/icon.svg)',
+        ], $seen['events']);
+        $t->same('--theme-wp-gap 0.25turn 0.25s 192dpi url(theme/blocks/card/icon.svg)', $seen['rule']['prelude']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same([
+            'dashed-ident',
+            'angle',
+            'time',
+            'resolution',
+            'url',
+        ], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['preludeAst']['value']
+        ));
+        $t->same('--theme-wp-gap', $seen['rule']['preludeAst']['value'][0]['value']);
+        $t->same(['type' => 'turn', 'value' => 0.25], $seen['rule']['preludeAst']['value'][1]['value']);
+        $t->same(['type' => 'seconds', 'value' => 0.25], $seen['rule']['preludeAst']['value'][2]['value']);
+        $t->same(['type' => 'dpi', 'value' => 192.0], $seen['rule']['preludeAst']['value'][3]['value']);
+        $t->same('theme/blocks/card/icon.svg', $seen['rule']['preludeAst']['value'][4]['value']['url']);
+    },
+    'custom at-rules visit comma separated upstream token-list prelude components' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@plugin theme("card-gap"), var(--wp-gap), @--wp-accent, env(--wp-breakpoint);
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Function' => [
+                    'theme' => static function (array $arguments) use (&$seen): string {
+                        $seen['events'][] = 'function:theme:' . ($arguments[0] ?? '');
+
+                        return ($arguments[0] ?? '') === 'card-gap' ? '16px' : '0px';
+                    },
+                ],
+                'Variable' => [
+                    '--wp-gap' => static function (array $variable) use (&$seen): array {
+                        $seen['events'][] = 'variable:' . $variable['name']['ident'];
+
+                        return [
+                            'unit' => 'px',
+                            'value' => 24.0,
+                        ];
+                    },
+                ],
+                'EnvironmentVariable' => [
+                    '--wp-breakpoint' => static function (array $environmentVariable) use (&$seen): array {
+                        $seen['events'][] = 'environment:' . $environmentVariable['name']['ident'];
+
+                        return [
+                            'type' => 'length',
+                            'unit' => 'px',
+                            'value' => 782.0,
+                        ];
+                    },
+                ],
+                'Token' => [
+                    'at-keyword' => static function (array $token) use (&$seen): array {
+                        $seen['events'][] = 'token:at-keyword:' . $token['value'];
+
+                        return [
+                            'type' => 'color',
+                            'value' => [
+                                'type' => 'rgb',
+                                'r' => 5,
+                                'g' => 110,
+                                'b' => 240,
+                                'alpha' => 1,
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'plugin' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['name'] . ':' . $rule['prelude'];
+                            $seen['rule'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'plugin' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'function:theme:card-gap',
+            'variable:--wp-gap',
+            'token:at-keyword:--wp-accent',
+            'environment:--wp-breakpoint',
+            'rule:plugin:16px,24px,#056ef0,782px',
+        ], $seen['events']);
+        $t->same('16px,24px,#056ef0,782px', $seen['rule']['prelude']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same([
+            'length',
+            'token',
+            'length',
+            'token',
+            'color',
+            'token',
+            'length',
+        ], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['preludeAst']['value']
+        ));
+        $t->same([
+            'delim',
+            'delim',
+            'delim',
+        ], array_values(array_map(
+            static fn (array $component): string => $component['value']['type'],
+            array_filter(
+                $seen['rule']['preludeAst']['value'],
+                static fn (array $component): bool => ($component['type'] ?? null) === 'token' && (($component['value']['type'] ?? null) === 'delim')
+            )
+        )));
+    },
+    'custom at-rules revisit upstream token-list prelude replacements before custom rule visitors' => static function (TestRunner $t): void {
+        $events = [];
+        $seenRule = null;
+        $css = <<<'CSS'
+@plugin 3--wp-fluid-step;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'dimension' => static function (array $token) use (&$events): array {
+                        $events[] = 'token:' . $token['raw'];
+
+                        return [
+                            'type' => 'function',
+                            'value' => [
+                                'name' => 'fluid',
+                                'arguments' => [
+                                    [
+                                        'type' => 'token',
+                                        'value' => [
+                                            'type' => 'number',
+                                            'value' => $token['value'],
+                                        ],
+                                    ],
+                                    [
+                                        'type' => 'var',
+                                        'value' => [
+                                            'name' => [
+                                                'ident' => $token['unit'],
+                                            ],
+                                            'fallback' => null,
+                                            'raw' => 'var(' . $token['unit'] . ')',
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Variable' => [
+                    '--wp-fluid-step' => static function (array $variable) use (&$events): array {
+                        $events[] = 'variable:' . ($variable['name']['ident'] ?? '');
+
+                        return [
+                            'unit' => 'rem',
+                            'value' => 0.25,
+                        ];
+                    },
+                ],
+                'FunctionExit' => [
+                    'fluid' => static function (array $function) use (&$events): array {
+                        $argument = $function['arguments'][1] ?? [];
+                        $events[] = 'function-exit:' . ($function['name'] ?? '') . ':' . ($argument['type'] ?? '') . ':' . ($argument['unit'] ?? '');
+
+                        return [
+                            'unit' => 'rem',
+                            'value' => 2.0,
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'plugin' => static function (array $rule) use (&$events, &$seenRule): array {
+                            $events[] = 'rule:' . $rule['prelude'];
+                            $seenRule = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'plugin' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'token:3--wp-fluid-step',
+            'variable:--wp-fluid-step',
+            'function-exit:fluid:length:rem',
+            'rule:2rem',
+        ], $events);
+        $t->same('2rem', $seenRule['prelude']);
+        $t->same('length', $seenRule['preludeAst']['value'][0]['type'] ?? null);
+        $t->same(['unit' => 'rem', 'value' => 2.0], $seenRule['preludeAst']['value'][0]['value'] ?? null);
+    },
+    'custom at-rules expose upstream percentage tokens in universal preludes and function exits' => static function (TestRunner $t): void {
+        $events = [];
+        $seenRule = null;
+        $css = <<<'CSS'
+@plugin 25% theme(50%);
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'percentage' => static function (array $token) use (&$events): array {
+                        $events[] = 'token:' . $token['raw'] . ':' . $token['value'];
+
+                        return [
+                            'type' => 'length',
+                            'unit' => 'px',
+                            'value' => $token['value'] * 100,
+                        ];
+                    },
+                ],
+                'FunctionExit' => [
+                    'theme' => static function (array $function) use (&$events): array {
+                        $argument = $function['arguments'][0] ?? [];
+                        $token = is_array($argument['value'] ?? null) ? $argument['value'] : [];
+                        $events[] = 'function:' . ($token['type'] ?? '') . ':' . ($token['value'] ?? '');
+
+                        return $argument;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'plugin' => static function (array $rule) use (&$events, &$seenRule): array {
+                            $events[] = 'rule:' . $rule['prelude'];
+                            $seenRule = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'plugin' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'token:25%:0.25',
+            'function:percentage:0.5',
+            'token:50%:0.5',
+            'rule:25px 50px',
+        ], $events);
+        $t->same('25px 50px', $seenRule['prelude']);
+        $t->same(['length', 'length'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seenRule['preludeAst']['value'] ?? []
+        ));
+        $t->same([
+            ['unit' => 'px', 'value' => 25.0],
+            ['unit' => 'px', 'value' => 50.0],
+        ], array_map(
+            static fn (array $component): array => $component['value'],
+            $seenRule['preludeAst']['value'] ?? []
+        ));
+    },
+    'custom at-rules expose upstream number tokens in universal preludes and function exits' => static function (TestRunner $t): void {
+        $events = [];
+        $seenRule = null;
+        $css = <<<'CSS'
+@plugin 2 theme(4) -1.5;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'number' => static function (array $token) use (&$events): array {
+                        $events[] = 'token:' . $token['raw'] . ':' . $token['value'];
+
+                        return [
+                            'type' => 'length',
+                            'unit' => 'px',
+                            'value' => $token['value'] * 8,
+                        ];
+                    },
+                ],
+                'FunctionExit' => [
+                    'theme' => static function (array $function) use (&$events): array {
+                        $argument = $function['arguments'][0] ?? [];
+                        $token = is_array($argument['value'] ?? null) ? $argument['value'] : [];
+                        $events[] = 'function:' . ($token['type'] ?? '') . ':' . ($token['value'] ?? '');
+
+                        return $argument;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'plugin' => static function (array $rule) use (&$events, &$seenRule): array {
+                            $events[] = 'rule:' . $rule['prelude'];
+                            $seenRule = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'plugin' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'token:2:2',
+            'function:number:4',
+            'token:4:4',
+            'token:-1.5:-1.5',
+            'rule:16px 32px -12px',
+        ], $events);
+        $t->same('16px 32px -12px', $seenRule['prelude']);
+        $t->same(['length', 'length', 'length'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seenRule['preludeAst']['value'] ?? []
+        ));
+        $t->same([
+            ['unit' => 'px', 'value' => 16.0],
+            ['unit' => 'px', 'value' => 32.0],
+            ['unit' => 'px', 'value' => -12.0],
+        ], array_map(
+            static fn (array $component): array => $component['value'],
+            $seenRule['preludeAst']['value'] ?? []
+        ));
+    },
+    'custom at-rules map upstream bundler mixin visitor after import resolution' => static function (TestRunner $t) use ($customDefinitions, $mixinVisitor): void {
+        $mixins = [];
+        $result = (new CustomAtRuleTransformer())->bundle('/apply.css', [
+            '/apply.css' => <<<'CSS'
+@import "./mixin.css";
+
+.foo {
+  @apply color;
+}
+CSS,
+            '/mixin.css' => <<<'CSS'
+@mixin color {
+  color: red;
+
+  &.bar {
+    color: yellow;
+  }
+}
+CSS,
+        ], $customDefinitions, $mixinVisitor($mixins));
+
+        $t->same('.foo{color:red}.foo.bar{color:#ff0}', $result);
+        $t->contains('&.bar', $mixins['color']);
+    },
+    'custom at-rules map upstream Length visitors in declarations and custom values' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::px to rem lines 41-66.
+        $seen = [];
+        $css = <<<'CSS'
+.foo {
+  width: 32px;
+  height: calc(100vh - 64px);
+  --custom: calc(var(--foo) + 32px);
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                $seen[] = [$length['unit'], $length['value']];
+
+                return $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null;
+            },
+        ]);
+
+        $t->same('.foo{width:2rem;height:calc(100vh - 4rem);--custom:calc(var(--foo) + 2rem)}', $result);
+        $t->same([
+            ['px', 32.0],
+            ['vh', 100.0],
+            ['px', 64.0],
+            ['px', 32.0],
+        ], $seen);
+    },
+    'custom at-rules map upstream Length visitors through bundler' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::works with bundler lines 832-849.
+        $seen = [];
+        $result = (new CustomAtRuleTransformer())->bundle('/a.css', [
+            '/a.css' => '@import "./b.css"; .a { width: 32px; }',
+            '/b.css' => '.b { height: calc(100vh - 64px); }',
+        ], [], [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                $seen[] = [$length['unit'], $length['value']];
+
+                return $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null;
+            },
+        ]);
+
+        $t->same('.b{height:calc(100vh - 4rem)}.a{width:2rem}', $result);
+        $t->same([['vh', 100.0], ['px', 64.0], ['px', 32.0]], $seen);
+    },
+    'custom at-rules preserve upstream custom parser inline and block output' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@block test {
+  color: yellow;
+}
+
+@inline test;
+
+.foo {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'block' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+            'inline' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ]);
+
+        $t->same('@block test{color:#ff0}@inline test;.foo{color:red}', $result);
+    },
+    'custom at-rules reject upstream no-prelude and no-body parser shape violations' => static function (TestRunner $t): void {
+        $transformer = new CustomAtRuleTransformer();
+
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@tokens stale;', [
+            'tokens' => [],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@tokens { .foo { color: red; } }', [
+            'tokens' => [],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@breakpoints;', [
+            'breakpoints' => [
+                'body' => 'rule-list',
+            ],
+        ]));
+    },
+    'custom at-rules map upstream visitor rule-array replacement' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@breakpoints {
+  .m-1 {
+    margin: 10px;
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'breakpoints' => [
+                'prelude' => null,
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'breakpoints' => static function (array $rule, CustomAtRuleTransformer $transformer): array {
+                        return [
+                            $transformer->ruleList($rule['body']),
+                            $transformer->media('(min-width: 500px)', '.sm\\:m-1{margin:10px}'),
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.m-1{margin:10px}@media (width>=500px){.sm\\:m-1{margin:10px}}', $result);
+    },
+    'custom at-rules emit upstream returned media raw rule objects' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@breakpoints {
+  .m-1 {
+    margin: 10px;
+  }
+}
+CSS;
+
+        $seenBodyRules = [];
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'breakpoints' => [
+                'prelude' => null,
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'breakpoints' => static function (array $rule) use (&$seenBodyRules): array {
+                        $seenBodyRules = $rule['bodyRules'];
+                        $mediaRules = [];
+                        foreach ($rule['bodyRules'] as $bodyRule) {
+                            if (($bodyRule['type'] ?? null) !== 'style') {
+                                continue;
+                            }
+                            $clone = $bodyRule;
+                            foreach ($clone['value']['selectors'] as &$selector) {
+                                foreach ($selector as &$component) {
+                                    if (($component['type'] ?? null) === 'class') {
+                                        $component['name'] = 'sm:' . $component['name'];
+                                    }
+                                }
+                                unset($component);
+                            }
+                            unset($selector);
+                            $mediaRules[] = $clone;
+                        }
+
+                        return [
+                            ...$rule['bodyRules'],
+                            [
+                                'type' => 'media',
+                                'value' => [
+                                    'query' => [
+                                        'mediaQueries' => [
+                                            ['raw' => '(min-width: 500px)'],
+                                        ],
+                                    ],
+                                    'rules' => $mediaRules,
+                                ],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.m-1{margin:10px}@media (width>=500px){.sm\\:m-1{margin:10px}}', $result, 'upstream node/test/visitor.test.mjs line 1087');
+        $t->same('style', $seenBodyRules[0]['type']);
+        $t->same('m-1', $seenBodyRules[0]['value']['selectors'][0][0]['name']);
+    },
+    'custom at-rules visit upstream returned media replacement children before exit visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'lengths' => [],
+            'mediaExit' => null,
+        ];
+        $css = <<<'CSS'
+@viewport-fix {
+  .wp-block-cover {
+    width: 16px;
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'viewport-fix' => [
+                'prelude' => null,
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'viewport-fix' => static fn (array $rule): array => [
+                        'type' => 'media',
+                        'value' => [
+                            'query' => [
+                                'mediaQueries' => [
+                                    ['raw' => '(min-width: 40rem)'],
+                                ],
+                            ],
+                            'rules' => $rule['bodyRules'],
+                        ],
+                    ],
+                ],
+            ],
+            'Length' => static function (array $length) use (&$seen): ?array {
+                $seen['lengths'][] = $length;
+                if (($length['unit'] ?? null) !== 'px') {
+                    return null;
+                }
+
+                return [
+                    'unit' => 'rem',
+                    'value' => ((float) $length['value']) / 16,
+                ];
+            },
+            'RuleExit' => [
+                'media' => static function (array $rule) use (&$seen): array {
+                    $seen['mediaExit'] = [
+                        'type' => $rule['type'] ?? null,
+                        'declaration' => $rule['value']['rules'][0]['value']['declarations']['declarations'][0] ?? null,
+                    ];
+                    $rule['value']['query']['mediaQueries'][0]['raw'] = '(min-width: 48rem)';
+
+                    return $rule;
+                },
+            ],
+        ]);
+
+        $t->same('@media (width>=48rem){.wp-block-cover{width:1rem}}', $result);
+        $pxLengths = array_values(array_filter(
+            $seen['lengths'],
+            static fn (array $length): bool => ($length['unit'] ?? null) === 'px',
+        ));
+        $t->same([
+            ['unit' => 'px', 'value' => 16.0],
+        ], $pxLengths);
+        $t->same('media', $seen['mediaExit']['type']);
+        $t->same([
+            'property' => 'width',
+            'raw' => '1rem',
+            'important' => false,
+        ], $seen['mediaExit']['declaration']);
+    },
+    'custom at-rules emit upstream returned style and ignored rule objects' => static function (TestRunner $t): void {
+        $result = (new CustomAtRuleTransformer())->transform('@skip unused; @tailwind base; .keep { color: red; }', [
+            'skip' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'skip' => static fn (): array => ['type' => 'ignored'],
+                ],
+                'unknown' => [
+                    'tailwind' => static fn (): array => [
+                        'type' => 'style',
+                        'value' => [
+                            'selectors' => [
+                                [
+                                    ['type' => 'universal'],
+                                ],
+                            ],
+                            'declarations' => [
+                                'declarations' => [
+                                    ['property' => 'visibility', 'raw' => 'hi\\64 den'],
+                                    ['property' => 'background', 'raw' => 'yellow'],
+                                    ['property' => '--custom', 'raw' => 'hi'],
+                                    ['property' => 'transition', 'vendorPrefix' => ['moz'], 'raw' => '200ms test'],
+                                    ['property' => '-webkit-animation', 'raw' => '3s cubic-bezier(0.25, 0.1, 0.25, 1) foo'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $t->same('*{visibility:hidden;--custom:hi;background:#ff0;-moz-transition:test .2s;-webkit-animation:3s foo}.keep{color:red}', $result);
+        $t->same(0, substr_count($result, '@skip'));
+    },
+    'custom at-rules map upstream composed custom rule visitors' => static function (TestRunner $t): void {
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'custom' => [
+                        'testA' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->styleRule('.testA', [
+                            'color' => 'red',
+                        ]),
+                    ],
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'testB' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->styleRule('.testB', [
+                            'color' => 'lime',
+                        ]),
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@testA; @testB;', [
+            'testA' => [],
+            'testB' => [],
+        ], $visitor);
+
+        $t->same('.testA{color:red}.testB{color:#0f0}', $result);
+    },
+    'custom at-rules map upstream composed unknown at-rule visitors' => static function (TestRunner $t): void {
+        $dependencies = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'unknown' => [
+                        'dep' => static function (array $rule) use (&$dependencies): array {
+                            $dependencies[] = $rule['preludeTokens'][0]['value']['value'];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Rule' => [
+                    'unknown' => [
+                        'dep2' => static function (array $rule) use (&$dependencies): array {
+                            $dependencies[] = [
+                                'name' => $rule['name'],
+                                'prelude' => $rule['prelude'],
+                                'string' => $rule['preludeTokens'][0]['value']['value'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@dep "foo.js"; @dep2 "bar.js"; .foo { width: 32px; }', [], $visitor);
+
+        $t->same('.foo{width:32px}', $result);
+        $t->same('foo.js', $dependencies[0]);
+        $t->same(['name' => 'dep2', 'prelude' => '"bar.js"', 'string' => 'bar.js'], $dependencies[1]);
+    },
+    'custom at-rules compose upstream visitor factories with dependencies' => static function (TestRunner $t): void {
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            static function (array $context): array {
+                $addDependency = $context['addDependency'];
+
+                return [
+                    'Rule' => [
+                        'unknown' => [
+                            'dep' => static function (array $rule) use ($addDependency): array {
+                                $addDependency([
+                                    'type' => 'file',
+                                    'filePath' => $rule['preludeTokens'][0]['value']['value'],
+                                ]);
+
+                                return [];
+                            },
+                        ],
+                    ],
+                ];
+            },
+            static function (array $context): array {
+                $addDependency = $context['addDependency'];
+
+                return [
+                    'Rule' => [
+                        'unknown' => [
+                            'dep2' => static function (array $rule) use ($addDependency): array {
+                                $addDependency([
+                                    'type' => 'file',
+                                    'filePath' => $rule['preludeTokens'][0]['value']['value'],
+                                ]);
+
+                                return [];
+                            },
+                        ],
+                    ],
+                ];
+            },
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transformWithDependencies(
+            '@dep "foo.js"; @dep2 "bar.js"; .foo { width: 32px; }',
+            [],
+            $visitor
+        );
+
+        $t->same('.foo{width:32px}', $result['code']);
+        $t->same([
+            ['type' => 'file', 'filePath' => 'foo.js'],
+            ['type' => 'file', 'filePath' => 'bar.js'],
+        ], $result['dependencies']);
+    },
+    'custom at-rules collect visitor factory dependencies after bundling' => static function (TestRunner $t): void {
+        $visitor = static function (array $context): array {
+            $addDependency = $context['addDependency'];
+
+            return [
+                'Rule' => [
+                    'unknown' => [
+                        'dep' => static function (array $rule) use ($addDependency): array {
+                            $addDependency([
+                                'type' => 'file',
+                                'filePath' => $rule['preludeTokens'][0]['value']['value'],
+                            ]);
+
+                            return [];
+                        },
+                    ],
+                ],
+            ];
+        };
+
+        $result = (new CustomAtRuleTransformer())->bundleWithDependencies('/entry.css', [
+            '/entry.css' => '@import "./deps.css"; .entry { width: 16px; }',
+            '/deps.css' => '@dep "tokens.json";',
+        ], [], $visitor);
+
+        $t->same('.entry{width:16px}', $result['code']);
+        $t->same([
+            ['type' => 'file', 'filePath' => 'tokens.json'],
+        ], $result['dependencies']);
+    },
+    'custom at-rules map upstream direct static vars visitor demo' => static function (TestRunner $t): void {
+        $declared = [];
+        $css = <<<'CSS'
+@blue #056ef0;
+
+.menu_link {
+  background: @blue;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => static function (array $rule) use (&$declared): array {
+                    $declared[$rule['name']] = $rule['prelude'];
+
+                    return [];
+                },
+            ],
+            'Token' => [
+                'at-keyword' => static function (array $token) use (&$declared): ?string {
+                    return $declared[$token['value']] ?? null;
+                },
+            ],
+        ]);
+
+        $t->same('.menu_link{background:#056ef0}', $result, 'upstream node/test/visitor.test.mjs line 335');
+    },
+    'custom at-rules map upstream composed unknown rules and token visitors' => static function (TestRunner $t): void {
+        $declared = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'unknown' => [
+                        'test' => static function (array $rule): array {
+                            $rule['name'] = 'blue';
+
+                            return [
+                                'type' => 'unknown',
+                                'value' => $rule,
+                            ];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Rule' => [
+                    'unknown' => static function (array $rule) use (&$declared): array {
+                        $declared[$rule['name']] = $rule['prelude'];
+
+                        return [];
+                    },
+                ],
+                'Token' => [
+                    'at-keyword' => static function (array $token) use (&$declared): ?string {
+                        return $declared[$token['value']] ?? null;
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@test #056ef0;
+
+.menu_link {
+  background: @blue;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.menu_link{background:#056ef0}', $result);
+        $t->same(['blue' => '#056ef0'], $declared);
+    },
+    'custom at-rules compose upstream function visitors with declaration-list parser' => static function (TestRunner $t): void {
+        $definitions = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'custom' => [
+                        'tokens' => static function (array $rule) use (&$definitions): array {
+                            foreach ($rule['declarations'] as $declaration) {
+                                $definitions[$rule['prelude'] . '.' . $declaration['property']] = $declaration['value'];
+                            }
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Function' => static function (array $arguments, string $raw, string $name) use (&$definitions): ?string {
+                    if ($name !== 'theme') {
+                        return null;
+                    }
+
+                    return $definitions[$arguments[0] ?? ''] ?? null;
+                },
+            ],
+            [
+                'Function' => [
+                    'spacing' => static fn (array $arguments): ?string => ($arguments[0] ?? null) === 'card' ? '16px' : null,
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@tokens wp {
+  accent: yellow;
+}
+
+.wp-block-card {
+  color: theme('wp.accent');
+  padding: spacing('card');
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+        ], $visitor);
+
+        $t->same('.wp-block-card{color:#ff0;padding:16px}', $result);
+        $t->same(['wp.accent' => 'yellow'], $definitions);
+    },
+    'custom at-rules expose upstream dashed-ident preludes to token visitors' => static function (TestRunner $t): void {
+        $aliases = [];
+        $seenPreludeTokens = [];
+        $seenValueTokens = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'unknown' => [
+                        'token' => static function (array $rule) use (&$aliases, &$seenPreludeTokens): array {
+                            $seenPreludeTokens = $rule['preludeTokens'];
+                            $aliases[$rule['preludeTokens'][0]['value']] = $rule['preludeTokens'][1]['value'];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Token' => [
+                    'at-keyword' => static function (array $token) use (&$aliases, &$seenValueTokens): mixed {
+                        $seenValueTokens[] = $token;
+
+                        return $aliases[$token['value']] ?? null;
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@token --wp-accent #056ef0;
+
+.wp-block-card {
+  outline-color: @--wp-accent;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.wp-block-card{outline-color:#056ef0}', $result);
+        $t->same(['type' => 'dashed-ident', 'value' => '--wp-accent'], $seenPreludeTokens[0]);
+        $t->same(['type' => 'color', 'value' => ['type' => 'rgb', 'r' => 5, 'g' => 110, 'b' => 240, 'alpha' => 1]], $seenPreludeTokens[1]);
+        $t->same(['type' => 'at-keyword', 'value' => '--wp-accent', 'raw' => '@--wp-accent'], $seenValueTokens[0]);
+    },
+    'custom at-rules expose upstream unknown prelude component token lists' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@wp-token --wp-gap #056ef0 2 90deg 250ms 2dppx url(blocks/card/icon.svg);
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => [
+                    'wp-token' => static function (array $rule) use (&$seen): array {
+                        $seen = [
+                            'prelude' => $rule['prelude'],
+                            'tokens' => $rule['preludeTokens'],
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same('--wp-gap #056ef0 2 90deg 250ms 2dppx url(blocks/card/icon.svg)', $seen['prelude']);
+        $t->same([
+            'dashed-ident',
+            'color',
+            'token',
+            'angle',
+            'time',
+            'resolution',
+            'url',
+        ], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['tokens']
+        ));
+        $t->same('--wp-gap', $seen['tokens'][0]['value']);
+        $t->same(['type' => 'rgb', 'r' => 5, 'g' => 110, 'b' => 240, 'alpha' => 1], $seen['tokens'][1]['value']);
+        $t->same(['type' => 'number', 'value' => 2.0], $seen['tokens'][2]['value']);
+        $t->same(['type' => 'deg', 'value' => 90.0], $seen['tokens'][3]['value']);
+        $t->same(['type' => 'milliseconds', 'value' => 250.0], $seen['tokens'][4]['value']);
+        $t->same(['type' => 'dppx', 'value' => 2.0], $seen['tokens'][5]['value']);
+        $t->same('blocks/card/icon.svg', $seen['tokens'][6]['value']['url']);
+    },
+    'custom at-rules serialize returned upstream unknown prelude token lists' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@wp-token --wp-gap #056ef0;
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => [
+                    'wp-token' => static function (array $rule) use (&$seen): array {
+                        $seen = [
+                            'prelude' => $rule['prelude'],
+                            'tokens' => array_map(
+                                static fn (array $component): string => $component['type'],
+                                $rule['preludeTokens']
+                            ),
+                        ];
+                        $rule['prelude'] = [
+                            ['type' => 'dashed-ident', 'value' => '--wp-card-gap'],
+                            ['type' => 'color', 'value' => ['type' => 'rgb', 'r' => 5, 'g' => 110, 'b' => 240, 'alpha' => 1]],
+                            ['type' => 'function', 'value' => ['name' => 'var', 'arguments' => [
+                                ['type' => 'ident', 'value' => '--wp-scale'],
+                            ]]],
+                        ];
+
+                        return ['type' => 'unknown', 'value' => $rule];
+                    },
+                ],
+            ],
+        ]);
+
+        $cleared = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => [
+                    'wp-token' => static function (array $rule): array {
+                        $rule['prelude'] = [];
+
+                        return ['type' => 'unknown', 'value' => $rule];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('@wp-token --wp-card-gap #056ef0 var(--wp-scale);.wp-block-card{color:red}', $result);
+        $t->same('@wp-token;.wp-block-card{color:red}', $cleared);
+        $t->same('--wp-gap #056ef0', $seen['prelude']);
+        $t->same(['dashed-ident', 'color'], $seen['tokens']);
+    },
+    'custom at-rules serialize returned custom prelude token lists' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@wp-layer --wp-slot {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform(
+            $css,
+            ['wp-layer' => ['prelude' => '*', 'body' => 'style-block']],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'wp-layer' => static function (array $rule) use (&$seen): array {
+                            $seen = [
+                                'prelude' => $rule['prelude'],
+                                'bodyType' => $rule['bodyType'],
+                                'astTypes' => array_map(
+                                    static fn (array $component): string => $component['type'],
+                                    is_array($rule['preludeAst']['value'] ?? null) ? $rule['preludeAst']['value'] : []
+                                ),
+                            ];
+                            $rule['prelude'] = [
+                                ['type' => 'dashed-ident', 'value' => '--wp-slot-live'],
+                            ];
+
+                            return ['type' => 'custom', 'value' => $rule];
+                        },
+                    ],
+                ],
+            ]
+        );
+
+        $t->same('@wp-layer --wp-slot-live{color:red}', $result);
+        $t->same('--wp-slot', $seen['prelude']);
+        $t->same('style-block', $seen['bodyType']);
+        $t->same(['dashed-ident'], $seen['astTypes']);
+    },
+    'custom at-rules visit returned custom prelude token lists before exits' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'custom' => [
+                        'wp-layer' => static function (array $rule): array {
+                            $rule['prelude'] = [
+                                ['type' => 'dashed-ident', 'value' => '--wp-slot'],
+                                ['type' => 'length', 'value' => ['unit' => 'px', 'value' => 16.0]],
+                                ['type' => 'function', 'value' => ['name' => 'theme', 'arguments' => [
+                                    ['type' => 'token', 'value' => ['type' => 'ident', 'value' => 'draft']],
+                                ]]],
+                            ];
+
+                            return ['type' => 'custom', 'value' => $rule];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'DashedIdent' => static fn (string $ident): string => $ident === '--wp-slot'
+                    ? '--theme-wp-slot'
+                    : $ident,
+                'Length' => static function (array $length): ?array {
+                    if (($length['unit'] ?? null) !== 'px') {
+                        return null;
+                    }
+
+                    return [
+                        'unit' => 'rem',
+                        'value' => ((float) $length['value']) / 16,
+                    ];
+                },
+                'RuleExit' => [
+                    'custom' => [
+                        'wp-layer' => static function (array $rule) use (&$seen): ?array {
+                            $preludeAst = is_array($rule['preludeAst']['value'] ?? null) ? $rule['preludeAst']['value'] : [];
+                            $seen = [
+                                'prelude' => $rule['prelude'],
+                                'astTypes' => array_map(
+                                    static fn (array $component): string => $component['type'],
+                                    $preludeAst
+                                ),
+                            ];
+
+                            return null;
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@wp-layer --wp-slot {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform(
+            $css,
+            ['wp-layer' => ['prelude' => '*', 'body' => 'style-block']],
+            $visitor
+        );
+
+        $t->same('@wp-layer --theme-wp-slot 1rem theme(draft){color:red}', $result);
+        $t->same('--theme-wp-slot 1rem theme(draft)', $seen['prelude']);
+        $t->same(['dashed-ident', 'length', 'function'], $seen['astTypes']);
+    },
+    'custom at-rules compose upstream Token scalar visitors in declaration values' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'ident' => static function (array $token) use (&$seen): ?string {
+                        $seen[] = $token;
+
+                        return $token['value'] === 'draft' ? 'published' : null;
+                    },
+                    'hash' => static function (array $token) use (&$seen): array {
+                        $seen[] = $token;
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'hash',
+                                'value' => '123456',
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Token' => [
+                    'id-hash' => static function (array $token) use (&$seen): array {
+                        $seen[] = $token;
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'id-hash',
+                                'value' => 'wp-card-live',
+                            ],
+                        ];
+                    },
+                    'string' => static function (array $token) use (&$seen): array {
+                        $seen[] = $token;
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'string',
+                                'value' => 'live',
+                            ],
+                        ];
+                    },
+                    'number' => static function (array $token) use (&$seen): array {
+                        $seen[] = $token;
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'number',
+                                'value' => $token['value'] * 2,
+                            ],
+                        ];
+                    },
+                    'percentage' => static function (array $token) use (&$seen): array {
+                        $seen[] = $token;
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'percentage',
+                                'value' => $token['value'] * 2,
+                            ],
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+.wp-block-card {
+  --wp-state: draft;
+  --wp-color-token: #056ef0;
+  --wp-anchor-token: #card;
+  --wp-label: "draft";
+  --wp-columns: 3;
+  --wp-progress: 25%;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.wp-block-card{--wp-state:published;--wp-color-token:#123456;--wp-anchor-token:#wp-card-live;--wp-label:"live";--wp-columns:6;--wp-progress:50%}', $result);
+        $t->same(['ident', 'hash', 'id-hash', 'string', 'number', 'percentage'], array_column($seen, 'type'));
+        $t->same(['draft', '056ef0', 'card', 'draft', 3.0, 0.25], array_column($seen, 'value'));
+    },
+    'custom at-rules compose upstream Token dimension custom-unit visitors' => static function (TestRunner $t): void {
+        $customUnits = [];
+        $seenPreludeToken = null;
+        $seenDimensions = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'unknown' => [
+                        'unit' => static function (array $rule) use (&$customUnits, &$seenPreludeToken): array {
+                            $seenPreludeToken = $rule['preludeTokens'][0] ?? null;
+                            if (($seenPreludeToken['type'] ?? null) === 'dashed-ident') {
+                                $customUnits[$seenPreludeToken['value']] = true;
+                            }
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Token' => [
+                    'dimension' => static function (array $token) use (&$customUnits, &$seenDimensions): ?array {
+                        $seenDimensions[] = $token;
+                        if (!isset($customUnits[$token['unit'] ?? ''])) {
+                            return null;
+                        }
+
+                        return [
+                            'type' => 'function',
+                            'value' => [
+                                'name' => 'calc',
+                                'arguments' => [
+                                    [
+                                        'type' => 'token',
+                                        'value' => [
+                                            'type' => 'number',
+                                            'value' => $token['value'],
+                                        ],
+                                    ],
+                                    [
+                                        'type' => 'token',
+                                        'value' => [
+                                            'type' => 'delim',
+                                            'value' => '*',
+                                        ],
+                                    ],
+                                    [
+                                        'type' => 'var',
+                                        'value' => [
+                                            'name' => [
+                                                'ident' => $token['unit'],
+                                            ],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@unit --step;
+
+.wp-block-card {
+  --step: .25rem;
+  font-size: 3--step;
+  margin: 2--step 1rem;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.wp-block-card{--step:.25rem;font-size:calc(3*var(--step));margin:calc(2*var(--step)) 1rem}', $result);
+        $t->same(['type' => 'dashed-ident', 'value' => '--step'], $seenPreludeToken);
+        $t->same(['3--step', '2--step'], array_column($seenDimensions, 'raw'));
+        $t->same([3.0, 2.0], array_column($seenDimensions, 'value'));
+    },
+    'custom at-rules visit unknown at-rule blocks inside style rules' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-card {
+  @when editor {
+    color: yellow;
+
+    & .wp-block-card__title {
+      color: red;
+    }
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => [
+                    'when' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->media(
+                        '(prefers-color-scheme: ' . $rule['prelude'] . ')',
+                        $transformer->styleBlock($rule['body'])
+                    ),
+                ],
+            ],
+        ]);
+
+        $t->same('@media (prefers-color-scheme:editor){.wp-block-card{color:#ff0}.wp-block-card .wp-block-card__title{color:red}}', $result);
+    },
+    'custom at-rules expose upstream unknown at-rule block token lists' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@wp-theme card { #056ef0 4px var(--wp-gap) }
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => [
+                    'wp-theme' => static function (array $rule) use (&$seen): array {
+                        $seen = [
+                            'hasBlock' => $rule['hasBlock'] ?? null,
+                            'prelude' => $rule['preludeTokens'] ?? null,
+                            'block' => $rule['block'] ?? null,
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same(true, $seen['hasBlock']);
+        $t->same([['type' => 'token', 'value' => ['type' => 'ident', 'value' => 'card']]], $seen['prelude']);
+        $t->same(['color', 'length', 'var'], array_column($seen['block'], 'type'));
+        $t->same(['type' => 'rgb', 'r' => 5, 'g' => 110, 'b' => 240, 'alpha' => 1], $seen['block'][0]['value']);
+        $t->same(['unit' => 'px', 'value' => 4.0], $seen['block'][1]['value']);
+        $t->same('--wp-gap', $seen['block'][2]['value']['name']['ident']);
+    },
+    'custom at-rules serialize returned upstream unknown block token lists' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@wp-token-block card { #056ef0 4px var(--wp-gap) }
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => [
+                    'wp-token-block' => static function (array $rule) use (&$seen): array {
+                        $seen = [
+                            'preludeTypes' => array_map(
+                                static fn (array $component): string => $component['type'],
+                                $rule['preludeTokens']
+                            ),
+                            'blockTypes' => array_map(
+                                static fn (array $component): string => $component['type'],
+                                is_array($rule['block'] ?? null) ? $rule['block'] : []
+                            ),
+                        ];
+                        $rule['prelude'] = [
+                            ['type' => 'token', 'value' => ['type' => 'ident', 'value' => 'card-live']],
+                        ];
+                        $rule['block'] = [
+                            ['type' => 'color', 'value' => ['type' => 'rgb', 'r' => 171, 'g' => 205, 'b' => 239, 'alpha' => 1]],
+                            ['type' => 'length', 'value' => ['unit' => 'rem', 'value' => 1.5]],
+                            ['type' => 'var', 'value' => ['name' => ['ident' => '--wp-scale']]],
+                        ];
+                        unset($rule['body']);
+
+                        return ['type' => 'unknown', 'value' => $rule];
+                    },
+                ],
+            ],
+        ]);
+
+        $empty = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => [
+                    'wp-token-block' => static function (array $rule): array {
+                        $rule['block'] = [];
+                        unset($rule['body']);
+
+                        return ['type' => 'unknown', 'value' => $rule];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('@wp-token-block card-live{#abcdef 1.5rem var(--wp-scale)}.wp-block-card{color:red}', $result);
+        $t->same('@wp-token-block card{}.wp-block-card{color:red}', $empty);
+        $t->same(['token'], $seen['preludeTypes']);
+        $t->same(['color', 'length', 'var'], $seen['blockTypes']);
+    },
+    'custom at-rules visit upstream native media boolean rule visitors' => static function (TestRunner $t): void {
+        $seenQuery = null;
+        $result = (new CustomAtRuleTransformer())->transform('@media (hover) { .foo { color: red; } }', [], [
+            'Rule' => [
+                'media' => static function (array $media) use (&$seenQuery): ?array {
+                    $mediaQueries = $media['value']['query']['mediaQueries'];
+                    $seenQuery = $mediaQueries[0];
+                    $condition = $mediaQueries[0]['condition'] ?? null;
+                    if (
+                        !is_array($condition)
+                        || ($condition['type'] ?? null) !== 'feature'
+                        || ($condition['value']['type'] ?? null) !== 'boolean'
+                        || ($condition['value']['name'] ?? null) !== 'hover'
+                    ) {
+                        return null;
+                    }
+
+                    foreach ($media['value']['rules'] as &$rule) {
+                        if (($rule['type'] ?? null) !== 'style') {
+                            continue;
+                        }
+                        foreach ($rule['value']['selectors'] as &$selector) {
+                            array_unshift(
+                                $selector,
+                                ['type' => 'class', 'name' => 'hoverable'],
+                                ['type' => 'combinator', 'value' => 'descendant']
+                            );
+                        }
+                        unset($selector);
+                    }
+                    unset($rule);
+
+                    return $media['value']['rules'];
+                },
+            ],
+        ]);
+
+        $t->same('.hoverable .foo{color:red}', $result, 'upstream node/test/visitor.test.mjs line 714');
+        $t->same('all', $seenQuery['mediaType']);
+        $t->same('hover', $seenQuery['condition']['value']['name'] ?? null);
+    },
+    'custom at-rules map upstream Declaration raw overflow-scrolling visitor' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitOverflow = static function (array $declaration) use (&$seen): array {
+            $seen[] = $declaration['property'];
+
+            return [
+                $declaration,
+                [
+                    'property' => '-webkit-overflow-scrolling',
+                    'raw' => 'touch',
+                ],
+            ];
+        };
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { overflow: auto; }', [], [
+            'Declaration' => [
+                'overflow' => $visitOverflow,
+                'overflow-x' => $visitOverflow,
+                'overflow-y' => $visitOverflow,
+            ],
+        ]);
+
+        $t->same(
+            '.foo{-webkit-overflow-scrolling:touch;overflow:auto}',
+            $result,
+            'upstream node/test/visitor.test.mjs line 754'
+        );
+        $t->same(['overflow'], $seen);
+    },
+    'custom at-rules clone upstream native media plain-feature visitor rules' => static function (TestRunner $t): void {
+        $seenFeature = null;
+        $css = <<<'CSS'
+@media (prefers-color-scheme: dark) {
+  body {
+    background: black;
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'media' => static function (array $media) use (&$seenFeature): ?array {
+                    $query = $media['value']['query']['mediaQueries'][0] ?? null;
+                    $condition = is_array($query) ? ($query['condition'] ?? null) : null;
+                    $feature = is_array($condition) ? ($condition['value'] ?? null) : null;
+                    $seenFeature = $feature;
+                    if (
+                        !is_array($feature)
+                        || ($feature['type'] ?? null) !== 'plain'
+                        || ($feature['name'] ?? null) !== 'prefers-color-scheme'
+                        || ($feature['value']['value'] ?? null) !== 'dark'
+                    ) {
+                        return null;
+                    }
+
+                    $mediaRule = $media;
+                    $clonedRules = [];
+                    foreach ($mediaRule['value']['rules'] as &$rule) {
+                        if (($rule['type'] ?? null) !== 'style') {
+                            continue;
+                        }
+
+                        $clonedSelectors = [];
+                        foreach ($rule['value']['selectors'] as &$selector) {
+                            $clonedSelectors[] = [
+                                ['type' => 'type', 'name' => 'html'],
+                                ['type' => 'attribute', 'name' => 'theme', 'operation' => ['operator' => 'equal', 'value' => 'dark']],
+                                ['type' => 'combinator', 'value' => 'descendant'],
+                                ...$selector,
+                            ];
+                            array_unshift(
+                                $selector,
+                                ['type' => 'type', 'name' => 'html'],
+                                [
+                                    'type' => 'pseudo-class',
+                                    'kind' => 'not',
+                                    'selectors' => [[
+                                        ['type' => 'attribute', 'name' => 'theme', 'operation' => ['operator' => 'equal', 'value' => 'light']],
+                                    ]],
+                                ],
+                                ['type' => 'combinator', 'value' => 'descendant']
+                            );
+                        }
+                        unset($selector);
+
+                        $clone = $rule;
+                        $clone['value']['selectors'] = $clonedSelectors;
+                        $clonedRules[] = $clone;
+                    }
+                    unset($rule);
+
+                    return [$mediaRule, ...$clonedRules];
+                },
+            ],
+        ]);
+
+        $t->same('@media (prefers-color-scheme:dark){html:not([theme=light]) body{background:#000}}html[theme=dark] body{background:#000}', $result, 'upstream node/test/visitor.test.mjs line 527');
+        $t->same('prefers-color-scheme', $seenFeature['name'] ?? null);
+        $t->same('dark', $seenFeature['value']['value'] ?? null);
+    },
+    'custom at-rules map upstream direct property lookup visitor demo' => static function (TestRunner $t): void {
+        $result = (new CustomAtRuleTransformer())->transform('.test { margin-left: 20px; margin-right: @margin-left; }', [], [
+            'Rule' => [
+                'style' => static function (array $rule): array {
+                    $valuesByProperty = [];
+                    foreach ($rule['declarations'] as $declaration) {
+                        $valuesByProperty[$declaration['property']] = $declaration['value'];
+                    }
+
+                    foreach ($rule['declarations'] as $index => $declaration) {
+                        if (str_starts_with($declaration['value'], '@')) {
+                            $referenced = substr($declaration['value'], 1);
+                            if (isset($valuesByProperty[$referenced])) {
+                                $rule['declarations'][$index]['value'] = $valuesByProperty[$referenced];
+                            }
+                        }
+                    }
+
+                    return $rule;
+                },
+            ],
+        ]);
+
+        $t->same('.test{margin-left:20px;margin-right:20px}', $result, 'upstream node/test/visitor.test.mjs line 438');
+    },
+    'custom at-rules map upstream direct focus-visible visitor demo' => static function (TestRunner $t): void {
+        $result = (new CustomAtRuleTransformer())->transform('.test:focus-visible { color: red; }', [], [
+            'Rule' => [
+                'style' => static function (array $rule): ?array {
+                    $fallbackSelectors = [];
+                    foreach ($rule['selectors'] as $selector) {
+                        if (!str_contains($selector, ':focus-visible')) {
+                            continue;
+                        }
+                        $fallbackSelectors[] = str_replace(':focus-visible', '.focus-visible', $selector);
+                    }
+                    if ($fallbackSelectors === []) {
+                        return null;
+                    }
+
+                    return [
+                        array_replace($rule, ['selectors' => $fallbackSelectors]),
+                        $rule,
+                    ];
+                },
+            ],
+        ]);
+
+        $t->same('.test.focus-visible{color:red}.test:focus-visible{color:red}', $result, 'upstream node/test/visitor.test.mjs line 487');
+    },
+    'custom at-rules compose upstream known style rule visitors' => static function (TestRunner $t): void {
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'style' => static function (array $rule): array {
+                        $valuesByProperty = [];
+                        foreach ($rule['declarations'] as $declaration) {
+                            $valuesByProperty[$declaration['property']] = $declaration['value'];
+                        }
+
+                        foreach ($rule['declarations'] as $index => $declaration) {
+                            if (str_starts_with($declaration['value'], '@')) {
+                                $referenced = substr($declaration['value'], 1);
+                                if (isset($valuesByProperty[$referenced])) {
+                                    $rule['declarations'][$index]['value'] = $valuesByProperty[$referenced];
+                                }
+                            }
+                        }
+
+                        return $rule;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'style' => static function (array $rule): ?array {
+                        $fallbackSelectors = [];
+                        foreach ($rule['selectors'] as $selector) {
+                            if (!str_contains($selector, ':focus-visible')) {
+                                continue;
+                            }
+                            $fallbackSelectors[] = str_replace(':focus-visible', '.focus-visible', $selector);
+                        }
+                        if ($fallbackSelectors === []) {
+                            return null;
+                        }
+
+                        return [
+                            array_replace($rule, ['selectors' => $fallbackSelectors]),
+                            $rule,
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+.test:focus-visible {
+  margin-left: 20px;
+  margin-right: @margin-left;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.test.focus-visible{margin-left:20px;margin-right:20px}.test:focus-visible{margin-left:20px;margin-right:20px}', $result);
+        $t->same('.focus-visible', substr($result, 5, 14));
+    },
+    'custom at-rules expose upstream transform AST to style visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+.foo {
+  transform: translateX(50px);
+}
+
+.bar {
+  transform: translateX(20%);
+}
+
+.baz {
+  transform: translateX(calc(100vw - 20px));
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'style' => static function (array $style) use (&$seen): array {
+                    $clone = null;
+                    foreach ($style['value']['declarations']['declarations'] as $property) {
+                        if (($property['property'] ?? null) !== 'transform') {
+                            continue;
+                        }
+
+                        $clonedTransforms = [];
+                        foreach ($property['value'] as $transform) {
+                            $seen[] = [
+                                'function' => $transform['type'] ?? null,
+                                'argument' => $transform['value']['type'] ?? null,
+                            ];
+                            if (($transform['type'] ?? null) !== 'translateX') {
+                                $clonedTransforms[] = $transform;
+                                continue;
+                            }
+
+                            if ($clone === null) {
+                                $clone = $style;
+                                $clone['value']['declarations']['declarations'] = [];
+                            }
+
+                            $argument = $transform['value'];
+                            if (($argument['type'] ?? null) === 'dimension') {
+                                $argument = [
+                                    'type' => 'dimension',
+                                    'value' => [
+                                        'unit' => $argument['value']['unit'],
+                                        'value' => -$argument['value']['value'],
+                                    ],
+                                ];
+                            } elseif (($argument['type'] ?? null) === 'percentage') {
+                                $argument = [
+                                    'type' => 'percentage',
+                                    'value' => -$argument['value'],
+                                ];
+                            } elseif (($argument['type'] ?? null) === 'calc') {
+                                $argument = [
+                                    'type' => 'calc',
+                                    'value' => [
+                                        'type' => 'product',
+                                        'value' => [-1, $argument],
+                                    ],
+                                ];
+                            }
+
+                            $clonedTransforms[] = [
+                                'type' => 'translateX',
+                                'value' => $argument,
+                            ];
+                        }
+
+                        if ($clone !== null) {
+                            $clone['value']['declarations']['declarations'][] = [
+                                'property' => 'transform',
+                                'value' => $clonedTransforms,
+                            ];
+                        }
+                    }
+
+                    if ($clone === null) {
+                        return $style;
+                    }
+
+                    $lastSelector = array_key_last($clone['value']['selectors']);
+                    $clone['value']['selectors'][$lastSelector][] = [
+                        'type' => 'pseudo-class',
+                        'kind' => 'dir',
+                        'direction' => 'rtl',
+                    ];
+
+                    return [$style, $clone];
+                },
+            ],
+        ]);
+
+        $t->same('.foo{transform:translate(50px)}.foo:dir(rtl){transform:translate(-50px)}.bar{transform:translate(20%)}.bar:dir(rtl){transform:translate(-20%)}.baz{transform:translate(calc(100vw - 20px))}.baz:dir(rtl){transform:translate(-1*calc(100vw - 20px))}', $result, 'upstream node/test/visitor.test.mjs line 639');
+        $t->same([
+            ['function' => 'translateX', 'argument' => 'dimension'],
+            ['function' => 'translateX', 'argument' => 'percentage'],
+            ['function' => 'translateX', 'argument' => 'calc'],
+        ], $seen);
+    },
+    'custom at-rules expose upstream nested unknown style rules to apply visitors' => static function (TestRunner $t): void {
+        $defined = [];
+        $seen = [];
+        $seenApplyPrelude = null;
+
+        $css = <<<'CSS'
+--toolbar-theme {
+  color: white;
+  border: 1px solid green;
+}
+
+.toolbar {
+  @apply --toolbar-theme;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'style' => static function (array $rule) use (&$defined, &$seen, &$seenApplyPrelude): array {
+                    $selector = $rule['value']['selectors'][0] ?? [];
+                    $seen[] = [
+                        'selectorType' => $selector[0]['type'] ?? null,
+                        'selectorName' => $selector[0]['name'] ?? null,
+                        'childRules' => count($rule['value']['rules'] ?? []),
+                    ];
+
+                    if (
+                        count($selector) === 1
+                        && ($selector[0]['type'] ?? null) === 'type'
+                        && str_starts_with((string) ($selector[0]['name'] ?? ''), '--')
+                    ) {
+                        $defined[$selector[0]['name']] = $rule['value']['declarations'];
+
+                        return ['type' => 'ignored'];
+                    }
+
+                    $remaining = [];
+                    foreach (($rule['value']['rules'] ?? []) as $child) {
+                        if (($child['type'] ?? null) !== 'unknown' || ($child['value']['name'] ?? null) !== 'apply') {
+                            $remaining[] = $child;
+                            continue;
+                        }
+
+                        foreach (($child['value']['prelude'] ?? []) as $token) {
+                            $seenApplyPrelude = $token;
+                            if (($token['type'] ?? null) === 'dashed-ident' && isset($defined[$token['value']])) {
+                                $rule['value']['declarations']['declarations'] = [
+                                    ...($rule['value']['declarations']['declarations'] ?? []),
+                                    ...($defined[$token['value']]['declarations'] ?? []),
+                                ];
+                                $rule['value']['declarations']['importantDeclarations'] = [
+                                    ...($rule['value']['declarations']['importantDeclarations'] ?? []),
+                                    ...($defined[$token['value']]['importantDeclarations'] ?? []),
+                                ];
+                            }
+                        }
+                    }
+                    $rule['value']['rules'] = $remaining;
+
+                    return $rule;
+                },
+            ],
+        ]);
+
+        $t->same('.toolbar{color:#fff;border:1px solid green}', $result, 'upstream node/test/visitor.test.mjs line 388');
+        $t->same([
+            ['selectorType' => 'type', 'selectorName' => '--toolbar-theme', 'childRules' => 0],
+            ['selectorType' => 'class', 'selectorName' => 'toolbar', 'childRules' => 1],
+        ], $seen);
+        $t->same(['type' => 'dashed-ident', 'value' => '--toolbar-theme'], $seenApplyPrelude);
+        $t->same(['declarations', 'importantDeclarations'], array_keys($defined['--toolbar-theme']));
+    },
+    'custom at-rules compose upstream FunctionExit and Length value visitors' => static function (TestRunner $t): void {
+        $seenFunctions = [];
+        $seenLengthUnits = [];
+        $genericArgumentUnits = [];
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'FunctionExit' => [
+                    'f1' => static function (array $function) use (&$seenFunctions): array {
+                        $seenFunctions[] = $function['name'];
+
+                        return [
+                            'type' => 'length',
+                            'unit' => 'px',
+                            'value' => 32,
+                        ];
+                    },
+                ],
+            ],
+            [
+                'FunctionExit' => static function (array $function) use (&$seenFunctions, &$genericArgumentUnits): ?array {
+                    $seenFunctions[] = $function['name'];
+                    $argument = $function['arguments'][0] ?? null;
+                    if (is_array($argument) && ($argument['type'] ?? null) === 'length') {
+                        $genericArgumentUnits[$function['name']] = $argument['unit'] ?? ($argument['value']['unit'] ?? null);
+                    }
+
+                    return is_array($argument) ? $argument : null;
+                },
+            ],
+            [
+                'Length' => static function (array $length) use (&$seenLengthUnits): ?array {
+                    $seenLengthUnits[] = $length['unit'];
+                    if ($length['unit'] !== 'px') {
+                        return null;
+                    }
+
+                    return [
+                        'unit' => 'rem',
+                        'value' => $length['value'] / 16,
+                    ];
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { width: f3(f2(f1(test))); }', [], $visitor);
+
+        $t->same('.foo{width:2rem}', $result);
+        $t->same(['f1', 'f2', 'f3'], $seenFunctions);
+        $t->same(['px', 'rem', 'rem'], $seenLengthUnits);
+        $t->same(['f2' => 'rem', 'f3' => 'rem'], $genericArgumentUnits);
+    },
+    'custom at-rules compose upstream Function replacements through value visitors' => static function (TestRunner $t): void {
+        $seenFunctions = [];
+        $seenLengths = [];
+        $seenColors = [];
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Function' => [
+                    'theme' => static function (array $arguments, string $raw, string $name) use (&$seenFunctions): ?array {
+                        $seenFunctions[] = [$name, $arguments[0] ?? null, $raw];
+
+                        return match ($arguments[0] ?? null) {
+                            'space' => [
+                                'type' => 'length',
+                                'unit' => 'px',
+                                'value' => 32,
+                            ],
+                            'accent' => [
+                                'type' => 'color',
+                                'value' => [
+                                    'type' => 'rgb',
+                                    'r' => 255,
+                                    'g' => 0,
+                                    'b' => 0,
+                                    'alpha' => 1,
+                                ],
+                            ],
+                            default => null,
+                        };
+                    },
+                ],
+            ],
+            [
+                'Length' => static function (array $length) use (&$seenLengths): ?array {
+                    $seenLengths[] = $length;
+
+                    return $length['unit'] === 'px'
+                        ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                        : null;
+                },
+                'Color' => static function (array $color) use (&$seenColors): ?array {
+                    $seenColors[] = $color;
+                    if (($color['type'] ?? null) !== 'rgb') {
+                        return null;
+                    }
+
+                    return [
+                        'type' => 'rgb',
+                        'r' => $color['g'],
+                        'g' => $color['r'],
+                        'b' => $color['b'],
+                        'alpha' => $color['alpha'],
+                    ];
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.wp-block-card { width: theme("space"); color: theme("accent"); }', [], $visitor);
+
+        $t->same('.wp-block-card{width:2rem;color:#0f0}', $result);
+        $t->same([
+            ['theme', 'space', 'theme("space")'],
+            ['theme', 'accent', 'theme("accent")'],
+        ], $seenFunctions);
+        $t->same([['unit' => 'px', 'value' => 32]], $seenLengths);
+        $t->same([['type' => 'rgb', 'r' => 255, 'g' => 0, 'b' => 0, 'alpha' => 1]], $seenColors);
+    },
+    'custom at-rules compose upstream token-array replacements through structured visitors' => static function (TestRunner $t): void {
+        $seenFunctionList = [];
+        $functionVisitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Function' => [
+                    'theme' => static function (array $arguments, string $raw, string $name) use (&$seenFunctionList): ?array {
+                        $seenFunctionList[] = ['Function', $name, $arguments[0] ?? null, $raw];
+                        if (($arguments[0] ?? null) !== 'space') {
+                            return null;
+                        }
+
+                        return [
+                            ['type' => 'length', 'unit' => 'px', 'value' => 16],
+                            ['type' => 'var', 'value' => ['name' => ['ident' => '--card-gap'], 'fallback' => null]],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Variable' => static function (array $variable) use (&$seenFunctionList): ?array {
+                    $name = $variable['name']['ident'] ?? '';
+                    $seenFunctionList[] = ['Variable', $name];
+
+                    return $name === '--card-gap'
+                        ? ['type' => 'length', 'unit' => 'px', 'value' => 24]
+                        : null;
+                },
+                'Length' => static function (array $length) use (&$seenFunctionList): ?array {
+                    $seenFunctionList[] = ['Length', $length['unit'] . ':' . $length['value']];
+
+                    return $length['unit'] === 'px'
+                        ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                        : null;
+                },
+            ],
+        ]);
+
+        $functionResult = (new CustomAtRuleTransformer())->transform('.wp-block-card { margin: theme("space"); }', [], $functionVisitor);
+
+        $seenTokenList = [];
+        $tokenVisitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'ident' => static function (array $token) use (&$seenTokenList): ?array {
+                        $seenTokenList[] = ['Token.ident', $token['value'] ?? ''];
+                        if (($token['value'] ?? '') !== 'wp-stack') {
+                            return null;
+                        }
+
+                        return [
+                            ['type' => 'length', 'unit' => 'px', 'value' => 8],
+                            ['type' => 'env', 'value' => ['name' => ['type' => 'custom', 'ident' => '--stack-gap'], 'fallback' => null]],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'EnvironmentVariable' => static function (array $environmentVariable) use (&$seenTokenList): ?array {
+                    $name = $environmentVariable['name']['ident'] ?? '';
+                    $seenTokenList[] = ['EnvironmentVariable', $name];
+
+                    return $name === '--stack-gap'
+                        ? ['type' => 'length', 'unit' => 'px', 'value' => 24]
+                        : null;
+                },
+                'Length' => static function (array $length) use (&$seenTokenList): ?array {
+                    $seenTokenList[] = ['Length', $length['unit'] . ':' . $length['value']];
+
+                    return $length['unit'] === 'px'
+                        ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                        : null;
+                },
+            ],
+        ]);
+
+        $tokenResult = (new CustomAtRuleTransformer())->transform('.wp-block-stack { gap: wp-stack; }', [], $tokenVisitor);
+
+        $t->same('.wp-block-card{margin:1rem 1.5rem}', $functionResult);
+        $t->same([
+            ['Function', 'theme', 'space', 'theme("space")'],
+            ['Length', 'px:16'],
+            ['Variable', '--card-gap'],
+            ['Length', 'px:24'],
+        ], $seenFunctionList);
+        $t->same('.wp-block-stack{gap:0.5rem 1.5rem}', $tokenResult);
+        $t->same([
+            ['Token.ident', 'wp-stack'],
+            ['Length', 'px:8'],
+            ['EnvironmentVariable', '--stack-gap'],
+            ['Length', 'px:24'],
+        ], $seenTokenList);
+    },
+    'custom at-rules compose upstream Color and Length value visitors' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/composeVisitors.test.mjs::different types line 21.
+        $seenColors = [];
+        $seenLengths = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Length' => static function (array $length) use (&$seenLengths): ?array {
+                    $seenLengths[] = $length;
+
+                    return $length['unit'] === 'px'
+                        ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                        : null;
+                },
+            ],
+            [
+                'Color' => static function (array $color) use (&$seenColors): ?array {
+                    $seenColors[] = $color;
+                    if (($color['type'] ?? null) !== 'rgb') {
+                        return null;
+                    }
+
+                    return [
+                        'type' => 'rgb',
+                        'r' => $color['g'],
+                        'g' => $color['r'],
+                        'b' => $color['b'],
+                        'alpha' => $color['alpha'],
+                    ];
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { width: 16px; color: red; }', [], $visitor);
+
+        $t->same('.foo{color:#0f0;width:1rem}', $result, 'upstream node/test/composeVisitors.test.mjs line 21');
+        $t->same([['unit' => 'px', 'value' => 16.0]], $seenLengths);
+        $t->same([['type' => 'rgb', 'r' => 255, 'g' => 0, 'b' => 0, 'alpha' => 1]], $seenColors);
+    },
+    'custom at-rules compose upstream matching Length visitors sequentially' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/composeVisitors.test.mjs::simple matching types lines 61-93.
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Length' => static function (array $length) use (&$seen): array {
+                    $seen[] = ['double', $length['unit'], $length['value']];
+
+                    return [
+                        'unit' => $length['unit'],
+                        'value' => $length['value'] * 2,
+                    ];
+                },
+            ],
+            [
+                'Length' => static function (array $length) use (&$seen): ?array {
+                    $seen[] = ['rem', $length['unit'], $length['value']];
+
+                    return $length['unit'] === 'px'
+                        ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                        : null;
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { width: 16px; }', [], $visitor);
+
+        $t->same('.foo{width:2rem}', $result);
+        $t->same([
+            ['double', 'px', 16.0],
+            ['rem', 'px', 32.0],
+        ], $seen);
+    },
+    'custom at-rules compose upstream sequential Color visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Color' => static function (array $color) use (&$seen): array {
+                    $seen[] = $color;
+
+                    return [
+                        'type' => 'rgb',
+                        'r' => $color['g'],
+                        'g' => $color['r'],
+                        'b' => $color['b'],
+                        'alpha' => $color['alpha'],
+                    ];
+                },
+            ],
+            [
+                'Color' => static function (array $color) use (&$seen): ?array {
+                    $seen[] = $color;
+                    if (($color['type'] ?? null) !== 'rgb' || $color['g'] <= 0) {
+                        return null;
+                    }
+
+                    $color['alpha'] /= 2;
+
+                    return $color;
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { color: red; }', [], $visitor);
+
+        $t->same('.foo{color:#00ff0080}', $result);
+        $t->same(2, count($seen));
+        $t->same([255, 0, 0, 1], [$seen[0]['r'], $seen[0]['g'], $seen[0]['b'], $seen[0]['alpha']]);
+        $t->same([0, 255, 0, 1], [$seen[1]['r'], $seen[1]['g'], $seen[1]['b'], $seen[1]['alpha']]);
+    },
+    'custom at-rules map upstream generic EnvironmentVariable visitors in media and declarations' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::env function lines 167-208.
+        $tokens = [
+            '--branding-small' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 600,
+                ],
+            ],
+            '--branding-padding' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 20,
+                ],
+            ],
+        ];
+        $seenNames = [];
+
+        $css = <<<'CSS'
+@media (max-width: env(--branding-small)) {
+  body {
+    padding: env(--branding-padding);
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'EnvironmentVariable' => static function (array $environmentVariable) use (&$seenNames, $tokens): ?array {
+                $name = $environmentVariable['name']['ident'] ?? null;
+                $seenNames[] = $name;
+
+                return is_string($name) ? ($tokens[$name] ?? null) : null;
+            },
+        ]);
+
+        $t->same('@media (width<=600px){body{padding:20px}}', $result);
+        $t->same(['--branding-small', '--branding-padding'], $seenNames);
+    },
+    'custom at-rules map upstream specific EnvironmentVariable visitors in media and declarations' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::specific environment variables lines 210-251.
+        $tokens = [
+            '--branding-small' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 600,
+                ],
+            ],
+            '--branding-padding' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 20,
+                ],
+            ],
+        ];
+        $seenNames = [];
+
+        $css = <<<'CSS'
+@media (max-width: env(--branding-small)) {
+  body {
+    padding: env(--branding-padding);
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'EnvironmentVariable' => [
+                '--branding-small' => static function (array $environmentVariable) use (&$seenNames, $tokens): array {
+                    $seenNames[] = $environmentVariable['name'];
+
+                    return $tokens['--branding-small'];
+                },
+                '--branding-padding' => static function (array $environmentVariable) use (&$seenNames, $tokens): array {
+                    $seenNames[] = $environmentVariable['name'];
+
+                    return $tokens['--branding-padding'];
+                },
+            ],
+        ]);
+
+        $t->same('@media (width<=600px){body{padding:20px}}', $result);
+        $t->same([
+            ['type' => 'custom', 'ident' => '--branding-small'],
+            ['type' => 'custom', 'ident' => '--branding-padding'],
+        ], $seenNames);
+    },
+    'custom at-rules compose upstream EnvironmentVariable visitors in media and declarations' => static function (TestRunner $t): void {
+        $tokens = [
+            '--branding-small' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 600,
+                ],
+            ],
+            '--branding-padding' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 20,
+                ],
+            ],
+        ];
+        $seenNames = [];
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'EnvironmentVariable' => [
+                    '--branding-small' => static function (array $environmentVariable) use (&$seenNames, $tokens): array {
+                        $seenNames[] = $environmentVariable['name'];
+
+                        return $tokens['--branding-small'];
+                    },
+                ],
+            ],
+            [
+                'EnvironmentVariable' => [
+                    '--branding-padding' => static function (array $environmentVariable) use (&$seenNames, $tokens): array {
+                        $seenNames[] = $environmentVariable['name'];
+
+                        return $tokens['--branding-padding'];
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@media (max-width: env(--branding-small)) {
+  body {
+    padding: env(--branding-padding);
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('@media (width<=600px){body{padding:20px}}', $result);
+        $t->same([
+            ['type' => 'custom', 'ident' => '--branding-small'],
+            ['type' => 'custom', 'ident' => '--branding-padding'],
+        ], $seenNames);
+    },
+    'custom at-rules expose upstream EnvironmentVariable indices before visitor lookup' => static function (TestRunner $t): void {
+        $tokens = [
+            '--branding-small' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 600,
+                ],
+            ],
+            '--branding-padding' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 20,
+                ],
+            ],
+        ];
+        $seenVariables = [];
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'EnvironmentVariable' => [
+                    '--branding-small' => static function (array $environmentVariable) use (&$seenVariables, $tokens): array {
+                        $seenVariables[] = [
+                            'name' => $environmentVariable['name'],
+                            'indices' => $environmentVariable['indices'] ?? [],
+                            'fallback' => $environmentVariable['fallback'][0]['value'] ?? null,
+                        ];
+
+                        return $tokens['--branding-small'];
+                    },
+                ],
+            ],
+            [
+                'EnvironmentVariable' => [
+                    '--branding-padding' => static function (array $environmentVariable) use (&$seenVariables, $tokens): array {
+                        $seenVariables[] = [
+                            'name' => $environmentVariable['name'],
+                            'indices' => $environmentVariable['indices'] ?? [],
+                            'fallback' => $environmentVariable['fallback'][0]['value'] ?? null,
+                        ];
+
+                        return $tokens['--branding-padding'];
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@media (max-width: env(--branding-small 1, 20px)) {
+  body {
+    padding: env(--branding-padding 2, 10px);
+    margin: env(safe-area-inset-top 0 1);
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('@media (width<=600px){body{padding:20px;margin:env(safe-area-inset-top 0 1)}}', $result);
+        $t->same([
+            [
+                'name' => ['type' => 'custom', 'ident' => '--branding-small'],
+                'indices' => [1],
+                'fallback' => '20px',
+            ],
+            [
+                'name' => ['type' => 'custom', 'ident' => '--branding-padding'],
+                'indices' => [2],
+                'fallback' => '10px',
+            ],
+        ], $seenVariables);
+
+        $seenDashedIdents = [];
+        $renamed = (new CustomAtRuleTransformer())->transform('.foo { padding: env(--gap 1, 20px); }', [], [
+            'DashedIdent' => static function (string $ident) use (&$seenDashedIdents): string {
+                $seenDashedIdents[] = $ident;
+
+                return '--theme-' . substr($ident, 2);
+            },
+        ]);
+
+        $t->same('.foo{padding:env(--theme-gap 1,20px)}', $renamed);
+        $t->same(['--gap'], $seenDashedIdents);
+    },
+    'custom at-rules compose upstream Variable visitors in declaration values' => static function (TestRunner $t): void {
+        $tokens = [
+            '--branding-small' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 600,
+                ],
+            ],
+            '--branding-padding' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 20,
+                ],
+            ],
+        ];
+        $seenNames = [];
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Variable' => static function (array $variable) use (&$seenNames, $tokens): ?array {
+                    $seenNames[] = $variable['name']['ident'];
+
+                    return $variable['name']['ident'] === '--branding-small' ? $tokens['--branding-small'] : null;
+                },
+            ],
+            [
+                'Variable' => static function (array $variable) use (&$seenNames, $tokens): ?array {
+                    $seenNames[] = $variable['name']['ident'];
+
+                    return $variable['name']['ident'] === '--branding-padding' ? $tokens['--branding-padding'] : null;
+                },
+            ],
+        ]);
+
+        $css = <<<'CSS'
+body {
+  padding: var(--branding-padding);
+  width: var(--branding-small);
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('body{padding:20px;width:600px}', $result);
+        $t->same(['--branding-padding', '--branding-padding', '--branding-small'], $seenNames);
+    },
+    'custom at-rules serialize upstream raw env and var visitor replacements' => static function (TestRunner $t): void {
+        $result = (new CustomAtRuleTransformer())->transform('.foo { margin: env(--gap); padding: var(--pad); }', [], [
+            'EnvironmentVariable' => [
+                '--gap' => static fn (): array => ['raw' => '10px'],
+            ],
+            'Variable' => [
+                '--pad' => static fn (): array => ['raw' => '20px'],
+            ],
+        ]);
+
+        $t->same('.foo{margin:10px;padding:20px}', $result);
+    },
+    'custom at-rules compose upstream EnvironmentVariableExit and VariableExit visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'EnvironmentVariableExit' => [
+                    '--branding-small' => static function (array $environmentVariable) use (&$seen): array {
+                        $seen[] = ['env-exit', $environmentVariable['name']['ident']];
+
+                        return [
+                            'type' => 'length',
+                            'value' => [
+                                'unit' => 'px',
+                                'value' => 600,
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'VariableExit' => [
+                    '--card-gap' => static function (array $variable) use (&$seen): array {
+                        $seen[] = ['var-exit', $variable['name']['ident']];
+
+                        return ['raw' => '24px'];
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@media (max-width: env(--branding-small)) {
+  .card {
+    padding: var(--card-gap);
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('@media (width<=600px){.card{padding:24px}}', $result);
+        $t->same([
+            ['env-exit', '--branding-small'],
+            ['var-exit', '--card-gap'],
+        ], $seen);
+    },
+    'custom at-rules compose upstream exit-array replacements through function visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'VariableExit' => [
+                    '--card-stack' => static function (array $variable) use (&$seen): array {
+                        $seen[] = ['VariableExit', $variable['name']['ident']];
+
+                        return [
+                            [
+                                'type' => 'function',
+                                'value' => [
+                                    'name' => 'wp-var-step',
+                                    'arguments' => [],
+                                ],
+                            ],
+                            [
+                                'type' => 'length',
+                                'unit' => 'px',
+                                'value' => 16,
+                            ],
+                        ];
+                    },
+                ],
+                'EnvironmentVariableExit' => [
+                    '--safe-gap' => static function (array $environmentVariable) use (&$seen): array {
+                        $seen[] = ['EnvironmentVariableExit', $environmentVariable['name']['ident']];
+
+                        return [
+                            [
+                                'type' => 'function',
+                                'value' => [
+                                    'name' => 'wp-env-step',
+                                    'arguments' => [],
+                                ],
+                            ],
+                            [
+                                'type' => 'length',
+                                'unit' => 'px',
+                                'value' => 24,
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'FunctionExit' => [
+                    'wp-var-step' => static function (array $function) use (&$seen): array {
+                        $seen[] = ['FunctionExit', $function['name']];
+
+                        return [
+                            'type' => 'length',
+                            'unit' => 'px',
+                            'value' => 8,
+                        ];
+                    },
+                    'wp-env-step' => static function (array $function) use (&$seen): array {
+                        $seen[] = ['FunctionExit', $function['name']];
+
+                        return [
+                            'type' => 'length',
+                            'unit' => 'px',
+                            'value' => 32,
+                        ];
+                    },
+                ],
+                'Length' => static function (array $length) use (&$seen): ?array {
+                    $seen[] = ['Length', $length['unit'] . ':' . $length['value']];
+
+                    return $length['unit'] === 'px'
+                        ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                        : null;
+                },
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@tokens wp {
+  gap: var(--card-stack);
+  padding: env(--safe-gap);
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+        ], $visitor);
+
+        $t->same('@tokens wp{gap:0.5rem 1rem;padding:2rem 1.5rem}', $result);
+        $t->same([
+            ['VariableExit', '--card-stack'],
+            ['FunctionExit', 'wp-var-step'],
+            ['Length', 'px:8'],
+            ['Length', 'px:16'],
+            ['EnvironmentVariableExit', '--safe-gap'],
+            ['FunctionExit', 'wp-env-step'],
+            ['Length', 'px:32'],
+            ['Length', 'px:24'],
+        ], $seen);
+    },
+    'custom at-rules compose upstream EnvironmentVariable visitors inside generic functions' => static function (TestRunner $t): void {
+        $tokens = [
+            '--percentage1' => '25%',
+            '--percentage2' => '75%',
+            '--length1' => '10px',
+            '--length2' => '20px',
+        ];
+        $seenNames = [];
+
+        $result = (new CustomAtRuleTransformer())->transform(
+            '.test { background: linear-gradient(red env(--percentage1), blue env(--percentage2)); width: calc(env(--length1) - env(--length2)); }',
+            [],
+            [
+                'EnvironmentVariable' => static function (array $environmentVariable) use (&$seenNames, $tokens): ?array {
+                    $name = $environmentVariable['name']['ident'] ?? $environmentVariable['name']['value'] ?? '';
+                    $seenNames[] = $name;
+
+                    return isset($tokens[$name]) ? ['raw' => $tokens[$name]] : null;
+                },
+            ]
+        );
+
+        $t->same('.test{background:linear-gradient(red 25%, blue 75%);width:calc(10px - 20px)}', $result);
+        $t->same(['--percentage1', '--percentage2', '--length1', '--length2'], $seenNames);
+    },
+    'custom at-rules preserve upstream raw env spacing across declaration value boundaries' => static function (TestRunner $t): void {
+        $tokens = [
+            '--var1' => 'var(--foo)',
+            '--var2' => 'var(--bar)',
+            '--function' => 'scale(1.5)',
+            '--length1' => '10px',
+            '--length2' => '20px',
+            '--x' => '4',
+            '--y' => '12',
+            '--num1' => '5',
+            '--num2' => '10',
+            '--num3' => '15',
+            '--counter' => '2',
+            '--ident1' => 'solid',
+            '--ident2' => 'auto',
+            '--percentage1' => '25%',
+            '--percentage2' => '75%',
+            '--color' => 'red',
+            '--string1' => '"hello"',
+            '--string2' => '" world"',
+        ];
+        $seenNames = [];
+
+        $css = <<<'CSS'
+.test {
+  background: env(--var1) env(--var2);
+  border: env(--var1)env(--ident1);
+  transform: env(--function) env(--function);
+  padding: env(--length1) env(--length2);
+  margin: env(--length1) env(--ident2);
+  outline: env(--color) env(--ident1);
+  cursor: url(cursor.png) env(--x) env(--y), auto;
+  stroke-dasharray: env(--num1) env(--num2) env(--num3);
+  counter-increment: myCounter env(--counter);
+  background: linear-gradient(red env(--percentage1), blue env(--percentage2));
+  content: env(--string1) env(--string2);
+  width: calc(env(--length1) - env(--length2));
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'EnvironmentVariable' => static function (array $environmentVariable) use (&$seenNames, $tokens): ?array {
+                $name = $environmentVariable['name']['ident'] ?? $environmentVariable['name']['value'] ?? '';
+                $seenNames[] = $name;
+
+                return isset($tokens[$name]) ? ['raw' => $tokens[$name]] : null;
+            },
+        ]);
+
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::spacing with env substitution line 252.
+        $t->same('.test{background:var(--foo) var(--bar);border:var(--foo)solid;transform:scale(1.5) scale(1.5);padding:10px 20px;margin:10px auto;outline:red solid;cursor:url(cursor.png) 4 12, auto;stroke-dasharray:5 10 15;counter-increment:myCounter 2;background:linear-gradient(red 25%, blue 75%);content:"hello" " world";width:calc(10px - 20px)}', $result);
+        $t->same([
+            '--var1',
+            '--var2',
+            '--var1',
+            '--ident1',
+            '--function',
+            '--function',
+            '--length1',
+            '--length2',
+            '--length1',
+            '--ident2',
+            '--color',
+            '--ident1',
+            '--x',
+            '--y',
+            '--num1',
+            '--num2',
+            '--num3',
+            '--counter',
+            '--percentage1',
+            '--percentage2',
+            '--string1',
+            '--string2',
+            '--length1',
+            '--length2',
+        ], $seenNames);
+    },
+    'custom at-rules revisit upstream raw Function variables' => static function (TestRunner $t): void {
+        $seen = [];
+        $result = (new CustomAtRuleTransformer())->transform('.foo { color: theme("foo"); background: theme("red"); }', [], [
+            'Function' => [
+                'theme' => static function (array $arguments): ?array {
+                    if (($arguments[0] ?? null) === 'foo') {
+                        return ['raw' => 'var(--foo)'];
+                    }
+                    if (($arguments[0] ?? null) === 'red') {
+                        return ['raw' => 'rgba(255, 0, 0)'];
+                    }
+
+                    return null;
+                },
+            ],
+            'DashedIdent' => static function (string $ident) use (&$seen): string {
+                $seen[] = $ident;
+
+                return '--prefix-' . substr($ident, 2);
+            },
+        ]);
+
+        $t->same('.foo{color:var(--prefix-foo);background:red}', $result);
+        $t->same(['--foo'], $seen);
+    },
+    'custom at-rules map upstream visitor custom unit dimensions' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::custom units line 68.
+        $result = (new CustomAtRuleTransformer())->transform('.foo { --step: .25rem; font-size: 3--step; }', [], [
+            'Token' => [
+                'dimension' => static function (array $token): ?array {
+                    if (!str_starts_with((string) ($token['unit'] ?? ''), '--')) {
+                        return null;
+                    }
+
+                    return ['raw' => 'calc(' . ($token['value'] ?? '') . '*var(' . $token['unit'] . '))'];
+                },
+            ],
+        ]);
+
+        $t->same('.foo{--step:.25rem;font-size:calc(3*var(--step))}', $result);
+    },
+    'custom at-rules map upstream raw token function return' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::supports returning raw values for tokens line 998.
+        $result = (new CustomAtRuleTransformer())->transform('.foo { color: theme("red"); }', [], [
+            'Function' => [
+                'theme' => static fn (): array => ['raw' => 'rgba(255, 0, 0)'],
+            ],
+        ]);
+
+        $t->same('.foo{color:red}', $result);
+    },
+    'custom at-rules compose upstream raw Function variables through CSS Modules dashed idents' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::supports returning raw values as variables line 1019.
+        $visited = (new CustomAtRuleTransformer())->transform('.foo { color: theme("foo"); }', [], [
+            'Function' => [
+                'theme' => static fn (): array => ['raw' => 'var(--foo)'],
+            ],
+        ]);
+
+        $result = (new CssModulesTransformer())->transform($visited, [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('.EgL3uq_foo{color:var(--EgL3uq_foo)}', $result['code']);
+        $t->same([
+            'foo' => [
+                'name' => 'EgL3uq_foo',
+                'composes' => [],
+                'isReferenced' => false,
+            ],
+            '--foo' => [
+                'name' => '--EgL3uq_foo',
+                'composes' => [],
+                'isReferenced' => true,
+            ],
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
+    'custom at-rules compose upstream Declaration custom property visitors' => static function (TestRunner $t): void {
+        $seenTokenTypes = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Declaration' => [
+                    'custom' => [
+                        'size' => static function (array $declaration) use (&$seenTokenTypes): array {
+                            $seenTokenTypes[] = $declaration['value'][0]['type'];
+
+                            return [
+                                [
+                                    'property' => 'unparsed',
+                                    'value' => [
+                                        'propertyId' => ['property' => 'width'],
+                                        'value' => $declaration['value'],
+                                    ],
+                                ],
+                                [
+                                    'property' => 'unparsed',
+                                    'value' => [
+                                        'propertyId' => ['property' => 'height'],
+                                        'value' => $declaration['value'],
+                                    ],
+                                ],
+                            ];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Declaration' => [
+                    'custom' => [
+                        'bg' => static function (array $declaration) use (&$seenTokenTypes): ?array {
+                            $seenTokenTypes[] = $declaration['value'][0]['type'];
+                            if (($declaration['value'][0]['type'] ?? null) !== 'color') {
+                                return null;
+                            }
+
+                            return [
+                                'property' => 'background-color',
+                                'value' => $declaration['value'][0]['value'],
+                            ];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { size: 16px; bg: #ff0; }', [], $visitor);
+
+        $t->same('.foo{width:16px;height:16px;background-color:#ff0}', $result);
+        $t->same(['length', 'color'], $seenTokenTypes);
+    },
+    'custom at-rules map upstream Declaration custom size visitor' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::size line 781.
+        $seenTokenTypes = [];
+        $result = (new CustomAtRuleTransformer())->transform('.foo { size: 12px; }', [], [
+            'Declaration' => [
+                'custom' => [
+                    'size' => static function (array $property) use (&$seenTokenTypes): array {
+                        $seenTokenTypes[] = $property['value'][0]['type'];
+                        $value = [
+                            'type' => 'length-percentage',
+                            'value' => [
+                                'type' => 'dimension',
+                                'value' => $property['value'][0]['value'],
+                            ],
+                        ];
+
+                        return [
+                            ['property' => 'width', 'value' => $value],
+                            ['property' => 'height', 'value' => $value],
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.foo{width:12px;height:12px}', $result);
+        $t->same(['length'], $seenTokenTypes);
+    },
+    'custom at-rules compose upstream Declaration replacements with Length visitors' => static function (TestRunner $t): void {
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Declaration' => [
+                    'custom' => [
+                        'size' => static fn (): array => [
+                            [
+                                'property' => 'width',
+                                'value' => [
+                                    'type' => 'length-percentage',
+                                    'value' => [
+                                        'type' => 'dimension',
+                                        'value' => ['unit' => 'px', 'value' => 32],
+                                    ],
+                                ],
+                            ],
+                            [
+                                'property' => 'height',
+                                'value' => [
+                                    'type' => 'length-percentage',
+                                    'value' => [
+                                        'type' => 'dimension',
+                                        'value' => ['unit' => 'px', 'value' => 32],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            [
+                'Length' => static fn (array $length): ?array => $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null,
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { size: test; }', [], $visitor);
+
+        $t->same('.foo{width:2rem;height:2rem}', $result);
+    },
+    'custom at-rules compose upstream Declaration replacements in any order' => static function (TestRunner $t): void {
+        $expandSize = [
+            'Declaration' => [
+                'custom' => [
+                    'size' => static fn (): array => [
+                        [
+                            'property' => 'width',
+                            'value' => [
+                                'type' => 'length-percentage',
+                                'value' => [
+                                    'type' => 'dimension',
+                                    'value' => ['unit' => 'px', 'value' => 16],
+                                ],
+                            ],
+                        ],
+                        [
+                            'property' => 'height',
+                            'value' => [
+                                'type' => 'length-percentage',
+                                'value' => [
+                                    'type' => 'dimension',
+                                    'value' => ['unit' => 'px', 'value' => 16],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        $removeWidth = [
+            'Declaration' => [
+                'width' => static fn (array $declaration): array|null => ($declaration['property'] ?? null) === 'width'
+                    ? []
+                    : null,
+            ],
+        ];
+
+        $results = [];
+        foreach ([[$expandSize, $removeWidth], [$removeWidth, $expandSize]] as $visitorOrder) {
+            $results[] = (new CustomAtRuleTransformer())->transform(
+                '.foo { size: 16px; }',
+                [],
+                CustomAtRuleTransformer::composeVisitors($visitorOrder)
+            );
+        }
+
+        $t->same(['.foo{height:16px}', '.foo{height:16px}'], $results);
+    },
+    'custom at-rules compose upstream DeclarationExit replacements in any order' => static function (TestRunner $t): void {
+        $expandSize = [
+            'DeclarationExit' => [
+                'custom' => [
+                    'size' => static fn (): array => [
+                        [
+                            'property' => 'width',
+                            'value' => [
+                                'type' => 'length-percentage',
+                                'value' => [
+                                    'type' => 'dimension',
+                                    'value' => ['unit' => 'px', 'value' => 16],
+                                ],
+                            ],
+                        ],
+                        [
+                            'property' => 'height',
+                            'value' => [
+                                'type' => 'length-percentage',
+                                'value' => [
+                                    'type' => 'dimension',
+                                    'value' => ['unit' => 'px', 'value' => 16],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        $removeWidth = [
+            'DeclarationExit' => [
+                'width' => static fn (array $declaration): array|null => ($declaration['property'] ?? null) === 'width'
+                    ? []
+                    : null,
+            ],
+        ];
+
+        $results = [];
+        foreach ([[$expandSize, $removeWidth], [$removeWidth, $expandSize]] as $visitorOrder) {
+            $results[] = (new CustomAtRuleTransformer())->transform(
+                '.foo { size: 16px; }',
+                [],
+                CustomAtRuleTransformer::composeVisitors($visitorOrder)
+            );
+        }
+
+        $t->same(['.foo{height:16px}', '.foo{height:16px}'], $results);
+    },
+    'custom at-rules visit upstream unparsed known declarations before value visitors' => static function (TestRunner $t): void {
+        $seenProperties = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Declaration' => [
+                    'width' => static function (array $declaration) use (&$seenProperties): ?array {
+                        $seenProperties[] = $declaration['property'];
+                        if ($declaration['property'] !== 'unparsed') {
+                            return null;
+                        }
+
+                        return [
+                            [
+                                'property' => 'width',
+                                'value' => [
+                                    'type' => 'length-percentage',
+                                    'value' => [
+                                        'type' => 'dimension',
+                                        'value' => ['unit' => 'px', 'value' => 32],
+                                    ],
+                                ],
+                            ],
+                            [
+                                'property' => 'height',
+                                'value' => [
+                                    'type' => 'length-percentage',
+                                    'value' => [
+                                        'type' => 'dimension',
+                                        'value' => ['unit' => 'px', 'value' => 32],
+                                    ],
+                                ],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Length' => static fn (array $length): ?array => $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null,
+            ],
+        ]);
+
+        $css = '.foo { width: test; } .bar { width: 16px; }';
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.foo{width:2rem;height:2rem}.bar{width:1rem}', $result);
+        $t->same(['unparsed', 'width'], $seenProperties);
+    },
+    'custom at-rules compose upstream returned unparsed Declaration values' => static function (TestRunner $t): void {
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Declaration' => [
+                    'width' => static function (array $declaration): ?array {
+                        if (
+                            $declaration['property'] === 'unparsed'
+                            && ($declaration['value']['value'][0]['type'] ?? null) === 'token'
+                            && ($declaration['value']['value'][0]['value']['type'] ?? null) === 'ident'
+                        ) {
+                            return [
+                                'property' => 'unparsed',
+                                'value' => [
+                                    'propertyId' => ['property' => 'width'],
+                                    'value' => [[
+                                        'type' => 'var',
+                                        'value' => [
+                                            'name' => [
+                                                'ident' => '--' . $declaration['value']['value'][0]['value']['value'],
+                                            ],
+                                        ],
+                                    ]],
+                                ],
+                            ];
+                        }
+
+                        return null;
+                    },
+                ],
+            ],
+            [
+                'Declaration' => [
+                    'width' => static function (array $declaration): ?array {
+                        if ($declaration['property'] !== 'unparsed') {
+                            return null;
+                        }
+
+                        return [
+                            'property' => 'unparsed',
+                            'value' => [
+                                'propertyId' => ['property' => 'width'],
+                                'value' => [[
+                                    'type' => 'function',
+                                    'value' => [
+                                        'name' => 'calc',
+                                        'arguments' => $declaration['value']['value'],
+                                    ],
+                                ]],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { width: test; }', [], $visitor);
+
+        $t->same('.foo{width:calc(var(--test))}', $result);
+    },
+    'custom at-rules compose upstream Declaration all-property visitors' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/composeVisitors.test.mjs::all property handlers lines 361-390.
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Declaration' => static function (array $declaration): ?array {
+                    if (($declaration['value']['propertyId']['property'] ?? null) !== 'width') {
+                        return null;
+                    }
+
+                    return [
+                        'property' => 'width',
+                        'value' => [
+                            'type' => 'length-percentage',
+                            'value' => [
+                                'type' => 'dimension',
+                                'value' => ['unit' => 'px', 'value' => 32],
+                            ],
+                        ],
+                    ];
+                },
+            ],
+            [
+                'Declaration' => static function (array $declaration): ?array {
+                    if (($declaration['value']['propertyId']['property'] ?? null) !== 'height') {
+                        return null;
+                    }
+
+                    return [
+                        'property' => 'height',
+                        'value' => [
+                            'type' => 'length-percentage',
+                            'value' => [
+                                'type' => 'dimension',
+                                'value' => ['unit' => 'px', 'value' => 32],
+                            ],
+                        ],
+                    ];
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { width: test; height: test; }', [], $visitor);
+
+        $t->same('.foo{width:32px;height:32px}', $result, 'upstream node/test/composeVisitors.test.mjs lines 361-390');
+    },
+    'custom at-rules compose upstream DeclarationExit all-property visitors' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/composeVisitors.test.mjs::all property handlers (exit) lines 392-421.
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'DeclarationExit' => static function (array $declaration): ?array {
+                    if (($declaration['value']['propertyId']['property'] ?? null) !== 'width') {
+                        return null;
+                    }
+
+                    return [
+                        'property' => 'width',
+                        'value' => [
+                            'type' => 'length-percentage',
+                            'value' => [
+                                'type' => 'dimension',
+                                'value' => ['unit' => 'px', 'value' => 32],
+                            ],
+                        ],
+                    ];
+                },
+            ],
+            [
+                'DeclarationExit' => static function (array $declaration): ?array {
+                    if (($declaration['value']['propertyId']['property'] ?? null) !== 'height') {
+                        return null;
+                    }
+
+                    return [
+                        'property' => 'height',
+                        'value' => [
+                            'type' => 'length-percentage',
+                            'value' => [
+                                'type' => 'dimension',
+                                'value' => ['unit' => 'px', 'value' => 32],
+                            ],
+                        ],
+                    ];
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { width: test; height: test; }', [], $visitor);
+
+        $t->same('.foo{width:32px;height:32px}', $result, 'upstream node/test/composeVisitors.test.mjs lines 392-421');
+    },
+    'custom at-rules compose upstream StyleSheet and StyleSheetExit visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'StyleSheet' => static function (array $stylesheet) use (&$seen): void {
+                    $seen[] = 'enter-a:' . count($stylesheet['rules']);
+                },
+                'StyleSheetExit' => static function (array $stylesheet) use (&$seen): void {
+                    $seen[] = 'exit-a:' . count($stylesheet['rules']);
+                },
+            ],
+            [
+                'StyleSheet' => static function (array $stylesheet) use (&$seen): void {
+                    $seen[] = 'enter-b:' . count($stylesheet['rules']);
+                },
+                'StyleSheetExit' => static function (array $stylesheet) use (&$seen): array {
+                    $seen[] = 'exit-b:' . count($stylesheet['rules']);
+                    usort(
+                        $stylesheet['rules'],
+                        static fn (array $left, array $right): int => strcmp(
+                            (string) ($left['value']['selectors'][0][0]['name'] ?? ''),
+                            (string) ($right['value']['selectors'][0][0]['name'] ?? '')
+                        )
+                    );
+
+                    return $stylesheet;
+                },
+            ],
+        ]);
+
+        $css = <<<'CSS'
+.foo {
+  width: 32px;
+}
+
+.bar {
+  width: 80px;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.bar{width:80px}.foo{width:32px}', $result);
+        $t->same(['enter-a:2', 'enter-b:2', 'exit-a:2', 'exit-b:2'], $seen);
+    },
+    'custom at-rules map upstream direct StyleSheetExit visitor sorting' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.foo {
+  width: 32px;
+}
+
+.bar {
+  width: 80px;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'StyleSheetExit' => static function (array $stylesheet): array {
+                usort(
+                    $stylesheet['rules'],
+                    static fn (array $left, array $right): int => strcmp(
+                        (string) ($left['value']['selectors'][0][0]['name'] ?? ''),
+                        (string) ($right['value']['selectors'][0][0]['name'] ?? '')
+                    )
+                );
+
+                return $stylesheet;
+            },
+        ]);
+
+        $t->same('.bar{width:80px}.foo{width:32px}', $result, 'upstream node/test/visitor.test.mjs line 1149');
+    },
+    'custom at-rules apply upstream StyleSheet enter replacements before child visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $seenLengths = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'StyleSheet' => static function (array $stylesheet) use (&$seen): array {
+                    $seen['ruleTypes'] = array_map(
+                        static fn (array $rule): string => (string) ($rule['type'] ?? ''),
+                        $stylesheet['rules']
+                    );
+                    $customRule = $stylesheet['rules'][0]['value'] ?? [];
+                    $bodyAst = is_array($customRule) ? ($customRule['bodyAst'] ?? []) : [];
+                    $declaration = is_array($bodyAst)
+                        ? ($bodyAst['value']['declarations'][0] ?? [])
+                        : [];
+                    $accentTokens = is_array($declaration['value']['value'] ?? null)
+                        ? $declaration['value']['value']
+                        : [];
+                    $seen['customName'] = is_array($customRule) ? ($customRule['name'] ?? null) : null;
+                    $seen['customPreludeType'] = is_array($customRule) ? ($customRule['preludeAst']['type'] ?? null) : null;
+                    $seen['customBodyType'] = is_array($bodyAst) ? ($bodyAst['type'] ?? null) : null;
+                    $seen['customDeclarationName'] = $declaration['value']['name'] ?? null;
+                    $seen['customDeclarationTokenType'] = $accentTokens[0]['type'] ?? null;
+
+                    return [
+                        'rules' => [
+                            [
+                                'type' => 'style',
+                                'value' => [
+                                    'selectors' => [
+                                        [
+                                            ['type' => 'class', 'name' => 'tokens-from-sheet'],
+                                        ],
+                                    ],
+                                    'declarations' => [
+                                        'declarations' => [
+                                            [
+                                                'property' => 'unparsed',
+                                                'value' => [
+                                                    'propertyId' => ['property' => 'color'],
+                                                    'value' => $accentTokens,
+                                                ],
+                                            ],
+                                            [
+                                                'property' => 'width',
+                                                'value' => [
+                                                    'type' => 'length-percentage',
+                                                    'value' => [
+                                                        'type' => 'dimension',
+                                                        'value' => ['unit' => 'px', 'value' => 16],
+                                                    ],
+                                                ],
+                                            ],
+                                        ],
+                                        'importantDeclarations' => [],
+                                    ],
+                                ],
+                            ],
+                            $stylesheet['rules'][1],
+                        ],
+                    ];
+                },
+            ],
+            [
+                'Length' => static function (array $length) use (&$seenLengths): ?array {
+                    $seenLengths[] = $length['value'];
+
+                    return $length['unit'] === 'px'
+                        ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                        : null;
+                },
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@tokens 8px {
+  accent: yellow;
+}
+
+.card {
+  width: 32px;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<length>',
+                'body' => 'declaration-list',
+            ],
+        ], $visitor);
+
+        $t->same('.tokens-from-sheet{color:#ff0;width:1rem}.card{width:2rem}', $result);
+        $t->same(['custom', 'style'], $seen['ruleTypes']);
+        $t->same('tokens', $seen['customName']);
+        $t->same('length', $seen['customPreludeType']);
+        $t->same('declaration-list', $seen['customBodyType']);
+        $t->same('accent', $seen['customDeclarationName']);
+        $t->same('color', $seen['customDeclarationTokenType']);
+        $t->same([16.0, 32.0], $seenLengths);
+    },
+    'custom at-rules serialize upstream StyleSheetExit style-rule replacements' => static function (TestRunner $t): void {
+        $result = (new CustomAtRuleTransformer())->transform('.foo { color: red; }', [], [
+            'StyleSheetExit' => static function (array $stylesheet): array {
+                $stylesheet['rules'][] = [
+                    'type' => 'style',
+                    'value' => [
+                        'selectors' => [
+                            [
+                                ['type' => 'class', 'name' => 'visitor-ready'],
+                            ],
+                        ],
+                        'declarations' => [
+                            'declarations' => [
+                                [
+                                    'property' => 'color',
+                                    'value' => [
+                                        'type' => 'rgb',
+                                        'r' => 0,
+                                        'g' => 255,
+                                        'b' => 0,
+                                        'alpha' => 1,
+                                    ],
+                                ],
+                                [
+                                    'property' => 'width',
+                                    'value' => [
+                                        'type' => 'length-percentage',
+                                        'value' => [
+                                            'type' => 'dimension',
+                                            'value' => ['unit' => 'px', 'value' => 32],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ];
+
+                return $stylesheet;
+            },
+        ]);
+
+        $t->same('.foo{color:red}.visitor-ready{color:#0f0;width:32px}', $result);
+    },
+    'custom at-rules emit upstream returned supports rules from style visitors' => static function (TestRunner $t): void {
+        $seenHeight = null;
+        $result = (new CustomAtRuleTransformer())->transform('.foo { color: red; height: 100vh; }', [], [
+            'Rule' => [
+                'style' => static function (array $rule) use (&$seenHeight): array {
+                    foreach ($rule['declarations'] as $declaration) {
+                        if (($declaration['property'] ?? null) === 'height') {
+                            $seenHeight = $declaration['value'];
+                        }
+                    }
+
+                    $fallbackRule = [
+                        'type' => 'style',
+                        'value' => [
+                            'selectors' => $rule['value']['selectors'],
+                            'declarations' => [
+                                'declarations' => [[
+                                    'property' => 'height',
+                                    'value' => [
+                                        'type' => 'stretch',
+                                        'vendorPrefix' => ['webkit'],
+                                    ],
+                                ]],
+                                'importantDeclarations' => [],
+                            ],
+                        ],
+                    ];
+
+                    return [
+                        $rule,
+                        [
+                            'type' => 'supports',
+                            'value' => [
+                                'condition' => [
+                                    'type' => 'declaration',
+                                    'propertyId' => ['property' => '-webkit-touch-callout'],
+                                    'value' => 'none',
+                                ],
+                                'rules' => [$fallbackRule],
+                            ],
+                        ],
+                    ];
+                },
+            ],
+        ]);
+
+        $t->same('.foo{color:red;height:100vh}@supports (-webkit-touch-callout:none){.foo{height:-webkit-fill-available}}', $result, 'upstream node/test/visitor.test.mjs line 584');
+        $t->same('100vh', $seenHeight);
+    },
+    'custom at-rules emit upstream returned supports rules from custom parser bodies' => static function (TestRunner $t): void {
+        $seenBodyRuleType = null;
+        $result = (new CustomAtRuleTransformer())->transform('@viewport-fix { .wp-block-cover { height: 100vh; } }', [
+            'viewport-fix' => [
+                'prelude' => null,
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'viewport-fix' => static function (array $rule) use (&$seenBodyRuleType): array {
+                        $seenBodyRuleType = $rule['bodyRules'][0]['type'] ?? null;
+                        $fallbackRule = [
+                            'type' => 'style',
+                            'value' => [
+                                'selectors' => $rule['bodyRules'][0]['value']['selectors'],
+                                'declarations' => [
+                                    'declarations' => [[
+                                        'property' => 'height',
+                                        'value' => [
+                                            'type' => 'stretch',
+                                            'vendorPrefix' => ['webkit'],
+                                        ],
+                                    ]],
+                                    'importantDeclarations' => [],
+                                ],
+                            ],
+                        ];
+
+                        return [
+                            ...$rule['bodyRules'],
+                            [
+                                'type' => 'supports',
+                                'value' => [
+                                    'condition' => [
+                                        'type' => 'declaration',
+                                        'propertyId' => ['property' => '-webkit-touch-callout'],
+                                        'value' => 'none',
+                                    ],
+                                    'rules' => [$fallbackRule],
+                                ],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-cover{height:100vh}@supports (-webkit-touch-callout:none){.wp-block-cover{height:-webkit-fill-available}}', $result);
+        $t->same('style', $seenBodyRuleType);
+    },
+    'custom at-rules compose upstream MediaQuery visitors for native and returned rules' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'MediaQuery' => static function (array $query) use (&$seen): array {
+                    $seen[] = [
+                        'phase' => 'enter',
+                        'mediaType' => $query['mediaType'] ?? ($query['raw'] ?? null),
+                        'feature' => $query['condition']['value']['name'] ?? null,
+                    ];
+
+                    return ['raw' => '(min-width: 500px)'];
+                },
+            ],
+            [
+                'MediaQueryExit' => static function (array $query) use (&$seen): array {
+                    $seen[] = [
+                        'phase' => 'exit',
+                        'raw' => $query['raw'] ?? null,
+                    ];
+
+                    return ['raw' => str_replace('500px', '640px', (string) ($query['raw'] ?? ''))];
+                },
+            ],
+        ]);
+
+        $native = (new CustomAtRuleTransformer())->transform('@media (hover) { .card { color: red; } }', [], $visitor);
+        $returned = (new CustomAtRuleTransformer())->transform('@breakpoints { .card { color: yellow; } }', [
+            'breakpoints' => [
+                'prelude' => null,
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'breakpoints' => static fn (array $rule): array => [
+                        'type' => 'media',
+                        'value' => [
+                            'query' => [
+                                'mediaQueries' => [
+                                    ['raw' => '(min-width: 480px)'],
+                                ],
+                            ],
+                            'rules' => $rule['bodyRules'],
+                        ],
+                    ],
+                ],
+            ],
+            'MediaQuery' => $visitor['MediaQuery'],
+            'MediaQueryExit' => $visitor['MediaQueryExit'],
+        ]);
+
+        $t->same('@media (width>=640px){.card{color:red}}', $native);
+        $t->same('@media (width>=640px){.card{color:#ff0}}', $returned);
+        $t->same([
+            ['phase' => 'enter', 'mediaType' => 'all', 'feature' => 'hover'],
+            ['phase' => 'exit', 'raw' => '(min-width: 500px)'],
+            ['phase' => 'enter', 'mediaType' => '(min-width: 480px)', 'feature' => null],
+            ['phase' => 'exit', 'raw' => '(min-width: 500px)'],
+        ], $seen);
+    },
+    'custom at-rules compose upstream SupportsCondition visitors for native and returned rules' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'SupportsCondition' => static function (array $condition) use (&$seen): array {
+                    $seen[] = 'enter:' . ($condition['type'] ?? 'unknown') . ':' . ($condition['propertyId']['property'] ?? '');
+                    if (($condition['type'] ?? null) === 'declaration' && ($condition['propertyId']['property'] ?? null) === 'display') {
+                        $condition['value'] = 'flex';
+                    }
+
+                    return $condition;
+                },
+            ],
+            [
+                'SupportsConditionExit' => static function (array $condition) use (&$seen): array {
+                    $seen[] = 'exit:' . ($condition['type'] ?? 'unknown') . ':' . ($condition['value'] ?? '');
+
+                    return $condition;
+                },
+            ],
+        ]);
+
+        $native = (new CustomAtRuleTransformer())->transform('@supports (display: grid) { .card { display: grid; } }', [], $visitor);
+        $returned = (new CustomAtRuleTransformer())->transform('@viewport-fix { .card { height: 100vh; } }', [
+            'viewport-fix' => [
+                'prelude' => null,
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'viewport-fix' => static function (array $rule): array {
+                        return [
+                            ...$rule['bodyRules'],
+                            [
+                                'type' => 'supports',
+                                'value' => [
+                                    'condition' => [
+                                        'type' => 'declaration',
+                                        'propertyId' => ['property' => 'display'],
+                                        'value' => 'grid',
+                                    ],
+                                    'rules' => $rule['bodyRules'],
+                                ],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            'SupportsCondition' => $visitor['SupportsCondition'],
+            'SupportsConditionExit' => $visitor['SupportsConditionExit'],
+        ]);
+
+        $t->same('@supports (display:flex){.card{display:grid}}', $native);
+        $t->same('.card{height:100vh}@supports (display:flex){.card{height:100vh}}', $returned);
+        $t->same([
+            'enter:declaration:display',
+            'exit:declaration:flex',
+            'enter:declaration:display',
+            'exit:declaration:flex',
+        ], $seen);
+    },
+    'custom at-rules map upstream Rule supports visitors for known supports rules' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Rule' => [
+                'supports' => static function (array $rule) use (&$seen): array {
+                    $seen = [
+                        'type' => $rule['type'] ?? null,
+                        'conditionType' => $rule['value']['condition']['type'] ?? null,
+                        'property' => $rule['value']['condition']['propertyId']['property'] ?? null,
+                        'value' => $rule['value']['condition']['value'] ?? null,
+                        'childType' => $rule['value']['rules'][0]['type'] ?? null,
+                        'childSelector' => $rule['value']['rules'][0]['value']['selectors'][0][0]['name'] ?? null,
+                    ];
+
+                    $rule['value']['condition']['value'] = 'flex';
+                    $rule['value']['rules'][0]['value']['selectors'][0][0]['name'] = 'wp-card';
+
+                    return $rule;
+                },
+            ],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('@supports (display: grid) { .card { width: 16px; } }', [], $visitor);
+
+        $t->same('@supports (display:flex){.wp-card{width:16px}}', $result);
+        $t->same([
+            'type' => 'supports',
+            'conditionType' => 'declaration',
+            'property' => 'display',
+            'value' => 'grid',
+            'childType' => 'style',
+            'childSelector' => 'card',
+        ], $seen);
+    },
+    'custom at-rules apply upstream RuleExit supports visitors after children' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Length' => static function (array $length): ?array {
+                return $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null;
+            },
+            'RuleExit' => [
+                'supports' => static function (array $rule) use (&$seen): array {
+                    $seen = [
+                        'type' => $rule['type'] ?? null,
+                        'conditionValue' => $rule['value']['condition']['value'] ?? null,
+                        'childRaw' => $rule['value']['rules'][0]['value']['declarations']['declarations'][0]['raw'] ?? null,
+                    ];
+                    $rule['value']['condition'] = [
+                        'type' => 'declaration',
+                        'propertyId' => ['property' => 'display'],
+                        'value' => 'flex',
+                    ];
+
+                    return $rule;
+                },
+            ],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('@supports (display: grid) { .card { width: 16px; } }', [], $visitor);
+
+        $t->same('@supports (display:flex){.card{width:1rem}}', $result);
+        $t->same([
+            'type' => 'supports',
+            'conditionValue' => 'grid',
+            'childRaw' => '1rem',
+        ], $seen);
+    },
+    'custom at-rules compose upstream Rule supports visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'supports' => static function (array $rule) use (&$seen): array {
+                        $seen[] = 'supports:' . ($rule['value']['condition']['value'] ?? '');
+                        $rule['value']['condition']['value'] = 'flex';
+
+                        return $rule;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'supports' => static function (array $rule) use (&$seen): array {
+                        $seen[] = 'supports:' . ($rule['value']['condition']['value'] ?? '');
+                        $rule['value']['rules'][] = [
+                            'type' => 'style',
+                            'value' => [
+                                'selectors' => [
+                                    [
+                                        ['type' => 'class', 'name' => 'supports-ready'],
+                                    ],
+                                ],
+                                'declarations' => [
+                                    'declarations' => [[
+                                        'property' => 'color',
+                                        'value' => [
+                                            'type' => 'rgb',
+                                            'r' => 255,
+                                            'g' => 255,
+                                            'b' => 0,
+                                            'alpha' => 1,
+                                        ],
+                                    ]],
+                                    'importantDeclarations' => [],
+                                ],
+                            ],
+                        ];
+
+                        return $rule;
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@supports (display: grid) { .card { color: red; } }', [], $visitor);
+
+        $t->same('@supports (display:flex){.card{color:red}.supports-ready{color:#ff0}}', $result);
+        $t->same(['supports:grid', 'supports:flex'], $seen);
+    },
+    'custom at-rules map upstream Rule container visitors for native container rules' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Rule' => [
+                'container' => static function (array $rule) use (&$seen): array {
+                    $feature = $rule['value']['condition']['value'] ?? [];
+                    $featureValue = is_array($feature) ? ($feature['value'] ?? []) : [];
+                    $seen = [
+                        'type' => $rule['type'] ?? null,
+                        'name' => $rule['value']['name'] ?? null,
+                        'conditionType' => $rule['value']['condition']['type'] ?? null,
+                        'featureType' => is_array($feature) ? ($feature['type'] ?? null) : null,
+                        'featureName' => is_array($feature) ? ($feature['name'] ?? null) : null,
+                        'operator' => is_array($feature) ? ($feature['operator'] ?? null) : null,
+                        'unit' => is_array($featureValue) ? ($featureValue['unit'] ?? null) : null,
+                        'value' => is_array($featureValue) ? ($featureValue['value'] ?? null) : null,
+                        'childType' => $rule['value']['rules'][0]['type'] ?? null,
+                        'childSelector' => $rule['value']['rules'][0]['value']['selectors'][0][0]['name'] ?? null,
+                    ];
+                    $rule['value']['name'] = 'wp-theme-card';
+                    $rule['value']['condition'] = ['raw' => '(inline-size > 48rem)'];
+                    $rule['value']['rules'][0]['value']['selectors'][0][0]['name'] = 'wp-card';
+
+                    return $rule;
+                },
+            ],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('@container wp-card (inline-size > 45em) { .card { width: 16px; } }', [], $visitor);
+
+        $t->same('@container wp-theme-card (inline-size>48rem){.wp-card{width:16px}}', $result);
+        $t->same([
+            'type' => 'container',
+            'name' => 'wp-card',
+            'conditionType' => 'feature',
+            'featureType' => 'range',
+            'featureName' => 'inline-size',
+            'operator' => 'greater-than',
+            'unit' => 'em',
+            'value' => 45.0,
+            'childType' => 'style',
+            'childSelector' => 'card',
+        ], $seen);
+    },
+    'custom at-rules apply upstream RuleExit container visitors after children' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Length' => static function (array $length): ?array {
+                return $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null;
+            },
+            'RuleExit' => [
+                'container' => static function (array $rule) use (&$seen): array {
+                    $seen = [
+                        'type' => $rule['type'] ?? null,
+                        'name' => $rule['value']['name'] ?? null,
+                        'childRaw' => $rule['value']['rules'][0]['value']['declarations']['declarations'][0]['raw'] ?? null,
+                    ];
+                    $rule['value']['condition'] = ['raw' => '(inline-size > 48rem)'];
+
+                    return $rule;
+                },
+            ],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('@container wp-card (inline-size > 45em) { .card { width: 16px; } }', [], $visitor);
+
+        $t->same('@container wp-card (inline-size>48rem){.card{width:1rem}}', $result);
+        $t->same([
+            'type' => 'container',
+            'name' => 'wp-card',
+            'childRaw' => '1rem',
+        ], $seen);
+    },
+    'custom at-rules compose upstream Rule container visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'container' => static function (array $rule) use (&$seen): array {
+                        $seen[] = 'container:' . ($rule['value']['name'] ?? '') . ':' . ($rule['value']['condition']['value']['value']['value'] ?? '');
+                        $rule['value']['condition']['value']['value']['value'] = 48.0;
+
+                        return $rule;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'container' => static function (array $rule) use (&$seen): array {
+                        $seen[] = 'container:' . ($rule['value']['name'] ?? '') . ':' . ($rule['value']['condition']['value']['value']['value'] ?? '');
+                        $rule['value']['rules'][] = [
+                            'type' => 'style',
+                            'value' => [
+                                'selectors' => [
+                                    [
+                                        ['type' => 'class', 'name' => 'container-ready'],
+                                    ],
+                                ],
+                                'declarations' => [
+                                    'declarations' => [[
+                                        'property' => 'color',
+                                        'value' => [
+                                            'type' => 'rgb',
+                                            'r' => 255,
+                                            'g' => 255,
+                                            'b' => 0,
+                                            'alpha' => 1,
+                                        ],
+                                    ]],
+                                    'importantDeclarations' => [],
+                                ],
+                            ],
+                        ];
+
+                        return $rule;
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@container wp-card (inline-size > 45em) { .card { color: red; } }', [], $visitor);
+
+        $t->same('@container wp-card (inline-size>48em){.card{color:red}.container-ready{color:#ff0}}', $result);
+        $t->same(['container:wp-card:45', 'container:wp-card:48'], $seen);
+    },
+    'custom at-rules expose upstream cascade layer statement and block visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Rule' => [
+                'layer-statement' => static function (array $rule) use (&$seen): array {
+                    $seen[] = [
+                        'type' => $rule['type'] ?? null,
+                        'names' => $rule['value']['names'] ?? null,
+                    ];
+                    $rule['value']['names'][] = ['utilities'];
+
+                    return $rule;
+                },
+                'layer-block' => static function (array $rule) use (&$seen): array {
+                    $seen[] = [
+                        'type' => $rule['type'] ?? null,
+                        'name' => $rule['value']['name'] ?? null,
+                        'childType' => $rule['value']['rules'][0]['type'] ?? null,
+                        'childSelector' => $rule['value']['rules'][0]['value']['selectors'][0][0]['name'] ?? null,
+                    ];
+                    $rule['value']['name'] = ['theme', 'cards'];
+
+                    return $rule;
+                },
+            ],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('@layer reset, theme.blocks; @layer theme.blocks { .card { width: 16px; } }', [], $visitor);
+
+        $t->same('@layer reset,theme.blocks,utilities;@layer theme.cards{.card{width:16px}}', $result);
+        $t->same([
+            [
+                'type' => 'layer-statement',
+                'names' => [['reset'], ['theme', 'blocks']],
+            ],
+            [
+                'type' => 'layer-block',
+                'name' => ['theme', 'blocks'],
+                'childType' => 'style',
+                'childSelector' => 'card',
+            ],
+        ], $seen);
+    },
+    'custom at-rules expose upstream cascade layer rules to StyleSheet visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'StyleSheet' => static function (array $stylesheet) use (&$seen): array {
+                foreach ($stylesheet['rules'] as $rule) {
+                    $seen[] = [
+                        'type' => $rule['type'] ?? null,
+                        'names' => $rule['value']['names'] ?? null,
+                        'name' => $rule['value']['name'] ?? null,
+                        'childType' => $rule['value']['rules'][0]['type'] ?? null,
+                    ];
+                }
+
+                return $stylesheet;
+            },
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('@layer reset, theme.blocks; @layer theme.blocks { .card { color: red; } }', [], $visitor);
+
+        $t->same('@layer reset;@layer theme.blocks{.card{color:red}}', $result);
+        $t->same([
+            [
+                'type' => 'layer-statement',
+                'names' => [['reset'], ['theme', 'blocks']],
+                'name' => null,
+                'childType' => null,
+            ],
+            [
+                'type' => 'layer-block',
+                'names' => null,
+                'name' => ['theme', 'blocks'],
+                'childType' => 'style',
+            ],
+        ], $seen);
+    },
+    'custom at-rules apply upstream RuleExit layer block visitors after children' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Length' => static function (array $length): ?array {
+                return $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null;
+            },
+            'RuleExit' => [
+                'layer-block' => static function (array $rule) use (&$seen): array {
+                    $seen = [
+                        'type' => $rule['type'] ?? null,
+                        'name' => $rule['value']['name'] ?? null,
+                        'childRaw' => $rule['value']['rules'][0]['value']['declarations']['declarations'][0]['raw'] ?? null,
+                    ];
+                    $rule['value']['name'] = ['theme', 'ready'];
+
+                    return $rule;
+                },
+            ],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('@layer theme { .card { width: 16px; } }', [], $visitor);
+
+        $t->same('@layer theme.ready{.card{width:1rem}}', $result);
+        $t->same([
+            'type' => 'layer-block',
+            'name' => ['theme'],
+            'childRaw' => '1rem',
+        ], $seen);
+    },
+    'custom at-rules compose upstream Rule layer block visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'layer-block' => static function (array $rule) use (&$seen): array {
+                        $seen[] = implode('.', $rule['value']['name'] ?? []);
+                        $rule['value']['name'] = ['theme', 'components'];
+
+                        return $rule;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'layer-block' => static function (array $rule) use (&$seen): array {
+                        $seen[] = implode('.', $rule['value']['name'] ?? []);
+                        $rule['value']['rules'][] = [
+                            'type' => 'style',
+                            'value' => [
+                                'selectors' => [
+                                    [
+                                        ['type' => 'class', 'name' => 'layer-ready'],
+                                    ],
+                                ],
+                                'declarations' => [
+                                    'declarations' => [[
+                                        'property' => 'color',
+                                        'value' => [
+                                            'type' => 'rgb',
+                                            'r' => 255,
+                                            'g' => 255,
+                                            'b' => 0,
+                                            'alpha' => 1,
+                                        ],
+                                    ]],
+                                    'importantDeclarations' => [],
+                                ],
+                            ],
+                        ];
+
+                        return $rule;
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@layer theme { .card { color: red; } }', [], $visitor);
+
+        $t->same('@layer theme.components{.card{color:red}.layer-ready{color:#ff0}}', $result);
+        $t->same(['theme', 'theme.components'], $seen);
+    },
+    'custom at-rules compose upstream Selector prefix visitors' => static function (TestRunner $t): void {
+        $seenSelectorTypes = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Selector' => static function (array $selector) use (&$seenSelectorTypes): array {
+                    $seenSelectorTypes[] = array_column($selector, 'type');
+
+                    return array_merge([
+                        ['type' => 'class', 'name' => 'prefix'],
+                        ['type' => 'combinator', 'value' => 'descendant'],
+                    ], $selector);
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.a, .b { color: red; }', [], $visitor);
+
+        $t->same('.prefix .a,.prefix .b{color:red}', $result, 'upstream node/test/visitor.test.mjs line 368');
+        $t->same([['class'], ['class']], $seenSelectorTypes);
+    },
+    'custom at-rules expose upstream nth-of-S selectors to Selector visitors' => static function (TestRunner $t): void {
+        $seenNth = null;
+        $visitor = [
+            'Selector' => static function (array $selector) use (&$seenNth): array {
+                foreach ($selector as &$component) {
+                    if (($component['type'] ?? null) === 'pseudo-class' && ($component['kind'] ?? null) === 'nth-child' && isset($component['of'])) {
+                        $seenNth = $component;
+                        unset($component['of']);
+                        $component['kind'] = 'nth-of-type';
+                    }
+                }
+                unset($component);
+
+                return $selector;
+            },
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('a:nth-child(even of a) { color: red; }', [], $visitor);
+
+        $t->same('a:nth-of-type(2n){color:red}', $result, 'upstream node/test/visitor.test.mjs line 1062');
+        $t->same('2n', $seenNth['formula'] ?? null);
+        $t->same('type', $seenNth['of'][0][0]['type'] ?? null);
+        $t->same('a', $seenNth['of'][0][0]['name'] ?? null);
+    },
+    'custom at-rules expose upstream nested pseudo-class selectors to Selector visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Selector' => static function (array $selector) use (&$seen): array {
+                $seen[] = $selector;
+
+                return $selector;
+            },
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform(
+            ':not(:hover) ~ label { color: red; } ::before:hover { color: blue; }',
+            [],
+            $visitor
+        );
+
+        $t->same(':not(:hover)~label{color:red}:before:hover{color:#00f}', $result, 'upstream selectors/parser.rs::tests::visitor lines 4007-4016');
+        $t->same('not', $seen[0][0]['kind'] ?? null);
+        $t->same('hover', $seen[0][0]['selectors'][0][0]['kind'] ?? null);
+        $t->same('before', $seen[1][0]['kind'] ?? null);
+        $t->same('hover', $seen[1][1]['kind'] ?? null);
+    },
+    'custom at-rules expose upstream pseudo-elements to Selector visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Selector' => static function (array $selector) use (&$seen): array {
+                $seen[] = array_map(static fn (array $component): array => [
+                    $component['type'] ?? null,
+                    $component['kind'] ?? $component['name'] ?? $component['value'] ?? null,
+                    $component['names'] ?? null,
+                ], $selector);
+
+                foreach ($selector as &$component) {
+                    if (($component['type'] ?? null) === 'pseudo-element' && ($component['kind'] ?? null) === 'before') {
+                        $component['kind'] = 'marker';
+                    }
+                }
+                unset($component);
+
+                return $selector;
+            },
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('.wp-block-list li::before, #toc::part(icon) { color: red; }', [], $visitor);
+
+        $t->same('.wp-block-list li::marker,#toc::part(icon){color:red}', $result);
+        $t->same('pseudo-element', $seen[0][3][0] ?? null);
+        $t->same('before', $seen[0][3][1] ?? null);
+        $t->same(['icon'], $seen[1][1][2] ?? null);
+    },
+    'custom at-rules serialize upstream returned pseudo-element selectors' => static function (TestRunner $t): void {
+        $result = (new CustomAtRuleTransformer())->transform('@wordpress markers;', [
+            'wordpress' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'wordpress' => static fn (): array => [
+                        'type' => 'style',
+                        'value' => [
+                            'selectors' => [
+                                [
+                                    ['type' => 'class', 'name' => 'wp-block-list'],
+                                    ['type' => 'combinator', 'value' => 'child'],
+                                    ['type' => 'type', 'name' => 'li'],
+                                    ['type' => 'pseudo-element', 'kind' => 'marker'],
+                                ],
+                                [
+                                    ['type' => 'id', 'name' => 'toc'],
+                                    ['type' => 'pseudo-element', 'kind' => 'part', 'names' => ['marker']],
+                                ],
+                            ],
+                            'declarations' => [
+                                'declarations' => [
+                                    ['property' => 'color', 'raw' => 'yellow'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-list>li::marker,#toc::part(marker){color:#ff0}', $result);
+    },
+    'custom at-rules compose upstream Url visitors in declaration values' => static function (TestRunner $t): void {
+        $seenUrls = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Url' => static function (array $url) use (&$seenUrls): array {
+                    $seenUrls[] = [
+                        'url' => $url['url'],
+                        'raw' => $url['raw'],
+                    ];
+                    $url['url'] = 'https://mywebsite.com/' . $url['url'];
+
+                    return $url;
+                },
+            ],
+            [
+                'Url' => static function (array $url) use (&$seenUrls): array {
+                    $seenUrls[] = [
+                        'url' => $url['url'],
+                        'raw' => $url['raw'],
+                    ];
+                    $url['url'] = str_replace('/foo.png', '/assets/foo.png', $url['url']);
+
+                    return $url;
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { background: url(foo.png); }', [], $visitor);
+
+        $t->same('.foo{background:url(https://mywebsite.com/assets/foo.png)}', $result);
+        $t->same([
+            ['url' => 'foo.png', 'raw' => 'url(foo.png)'],
+            ['url' => 'https://mywebsite.com/foo.png', 'raw' => 'url(foo.png)'],
+        ], $seenUrls);
+    },
+    'custom at-rules compose upstream DashedIdent visitors for custom properties and variables' => static function (TestRunner $t): void {
+        $directSeen = [];
+        $directResult = (new CustomAtRuleTransformer())->transform('.foo { --foo: #ff0; color: var(--foo); }', [], [
+            'DashedIdent' => static function (string $ident) use (&$directSeen): string {
+                $directSeen[] = $ident;
+
+                return '--prefix-' . substr($ident, 2);
+            },
+        ]);
+
+        $t->same('.foo{--prefix-foo:#ff0;color:var(--prefix-foo)}', $directResult, 'upstream node/test/visitor.test.mjs line 870');
+        $t->same(['--foo', '--foo'], $directSeen);
+
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'DashedIdent' => static function (string $ident) use (&$seen): string {
+                    $seen[] = $ident;
+
+                    return '--prefix-' . substr($ident, 2);
+                },
+            ],
+            [
+                'DashedIdent' => static function (string $ident) use (&$seen): string {
+                    $seen[] = $ident;
+
+                    return str_replace('--prefix-', '--theme-', $ident);
+                },
+            ],
+        ]);
+
+        $css = <<<'CSS'
+.foo {
+  --foo: #ff0;
+  color: var(--foo);
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.foo{--theme-foo:#ff0;color:var(--theme-foo)}', $result);
+        $t->same(['--foo', '--prefix-foo', '--foo', '--prefix-foo'], $seen);
+    },
+    'custom at-rules map upstream visitor CustomIdent row 890 for keyframes and animation names' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'CustomIdent' => static function (string $ident) use (&$seen): string {
+                    $seen[] = $ident;
+
+                    return 'prefix-' . $ident;
+                },
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@keyframes test {
+  from { color: red }
+  to { color: green }
+}
+
+.foo {
+  animation: test;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('@keyframes prefix-test{0%{color:red}to{color:green}}.foo{animation:prefix-test}', $result, 'upstream node/test/visitor.test.mjs line 890');
+        $t->same(['test', 'test'], $seen, 'upstream node/test/visitor.test.mjs line 890 visits keyframes and animation names');
+    },
+    'custom at-rules map upstream Rule keyframes visitors for native keyframes' => static function (TestRunner $t): void {
+        $seen = [];
+        $seenColors = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'keyframes' => static function (array $rule) use (&$seen): array {
+                        $seen['enter'] = [
+                            'type' => $rule['type'] ?? null,
+                            'nameType' => $rule['value']['name']['type'] ?? null,
+                            'name' => $rule['value']['name']['value'] ?? null,
+                            'vendorPrefix' => $rule['value']['vendorPrefix'] ?? null,
+                            'selectors' => array_map(
+                                static fn (array $selector): string => ($selector['type'] ?? '') . (isset($selector['value']) ? ':' . $selector['value'] : ''),
+                                $rule['value']['keyframes'][1]['selectors'] ?? []
+                            ),
+                        ];
+                        $rule['value']['name']['value'] = 'wp-card-live';
+
+                        return $rule;
+                    },
+                ],
+            ],
+            [
+                'Color' => static function (array $color) use (&$seenColors): ?array {
+                    $seenColors[] = $color;
+                    if (($color['type'] ?? null) !== 'rgb') {
+                        return null;
+                    }
+
+                    return [
+                        'type' => 'rgb',
+                        'r' => 0,
+                        'g' => 0,
+                        'b' => 255,
+                        'alpha' => 1,
+                    ];
+                },
+                'Length' => static fn (array $length): ?array => ($length['unit'] ?? null) === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null,
+                'RuleExit' => [
+                    'keyframes' => static function (array $rule) use (&$seen): ?array {
+                        $seen['exit'] = [
+                            'name' => $rule['value']['name']['value'] ?? null,
+                            'firstColor' => $rule['value']['keyframes'][0]['declarations']['declarations'][0]['raw'] ?? null,
+                            'firstLeft' => $rule['value']['keyframes'][0]['declarations']['declarations'][1]['raw'] ?? null,
+                        ];
+
+                        return null;
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@keyframes wp-card {
+  from {
+    color: red;
+    left: 16px;
+  }
+
+  50%, to {
+    color: green;
+    left: 32px;
+  }
+}
+
+.wp-block-card {
+  animation-name: wp-card;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('@keyframes wp-card-live{0%{color:#00f;left:1rem}50%,to{color:#00f;left:2rem}}.wp-block-card{animation-name:wp-card}', $result);
+        $t->same([
+            'type' => 'keyframes',
+            'nameType' => 'ident',
+            'name' => 'wp-card',
+            'vendorPrefix' => [],
+            'selectors' => ['percentage:50', 'to'],
+        ], $seen['enter']);
+        $t->same([
+            'name' => 'wp-card-live',
+            'firstColor' => '#00f',
+            'firstLeft' => '1rem',
+        ], $seen['exit']);
+        $t->same([
+            ['type' => 'rgb', 'r' => 255, 'g' => 0, 'b' => 0, 'alpha' => 1],
+            ['type' => 'rgb', 'r' => 0, 'g' => 128, 'b' => 0, 'alpha' => 1],
+        ], $seenColors);
+    },
+    'custom at-rules map upstream generic Rule visitor currentColor passthrough' => static function (TestRunner $t): void {
+        $seen = [];
+        $result = (new CustomAtRuleTransformer())->transform('.foo { color: currentColor; }', [], [
+            'Rule' => static function (array $rule) use (&$seen): array {
+                $seen[] = [
+                    'type' => $rule['type'] ?? null,
+                    'selector' => $rule['value']['selectors'][0][0]['name'] ?? null,
+                    'property' => $rule['value']['declarations']['declarations'][0]['property'] ?? null,
+                    'value' => $rule['value']['declarations']['declarations'][0]['value'] ?? null,
+                ];
+
+                return $rule;
+            },
+        ]);
+
+        $t->same('.foo{color:currentColor}', $result, 'upstream node/test/visitor.test.mjs line 1043');
+        $t->same([
+            [
+                'type' => 'style',
+                'selector' => 'foo',
+                'property' => 'color',
+                'value' => 'currentColor',
+            ],
+        ], $seen);
+    },
+    'custom at-rules reject upstream visitor returned invalid dashed var names' => static function (TestRunner $t): void {
+        $exception = null;
+        try {
+            (new CustomAtRuleTransformer())->transform('.foo { background: opacity(abcdef); }', [], [
+                'Function' => static function (array $arguments, string $raw, string $name): ?array {
+                    if (($arguments[0] ?? null) !== 'abcdef') {
+                        return null;
+                    }
+
+                    return [
+                        'type' => 'function',
+                        'value' => [
+                            'name' => $name,
+                            'arguments' => [[
+                                'type' => 'var',
+                                'value' => [
+                                    'name' => [
+                                        'ident' => $arguments[0],
+                                    ],
+                                ],
+                            ]],
+                        ],
+                    ];
+                },
+            ]);
+        } catch (InvalidArgumentException $caught) {
+            $exception = $caught;
+        }
+
+        $t->same('Dashed idents must start with --', $exception?->getMessage(), 'upstream node/test/visitor.test.mjs line 965');
+    },
+    'custom at-rules apply upstream identifier visitors after parser replacements' => static function (TestRunner $t): void {
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'custom' => [
+                        'tokens' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->styleRule(':root', [
+                            '--' . $rule['prelude'] => 'var(--' . $rule['prelude'] . ')',
+                        ]),
+                    ],
+                ],
+            ],
+            [
+                'DashedIdent' => static fn (string $ident): string => '--wp-' . substr($ident, 2),
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@tokens accent;', [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ], $visitor);
+
+        $t->same(':root{--wp-accent:var(--wp-accent)}', $result);
+    },
+    'custom at-rules map upstream style attribute Length visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $result = (new CustomAtRuleTransformer())->transformStyleAttribute('height: calc(100vh - 64px)', [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                $seen[] = [
+                    'unit' => $length['unit'],
+                    'value' => $length['value'],
+                ];
+
+                return $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null;
+            },
+        ]);
+
+        $t->same('height:calc(100vh - 4rem)', $result);
+        $t->same([
+            ['unit' => 'vh', 'value' => 100.0],
+            ['unit' => 'px', 'value' => 64.0],
+        ], $seen);
+    },
+    'custom at-rules collect upstream visitor factory dependencies from style attributes' => static function (TestRunner $t): void {
+        $seen = [];
+        $result = (new CustomAtRuleTransformer())->transformStyleAttributeWithDependencies(
+            'height: 12px',
+            static function (array $context) use (&$seen): array {
+                $addDependency = $context['addDependency'];
+
+                return [
+                    'Length' => static function (array $length) use (&$seen, $addDependency): void {
+                        $seen[] = [
+                            'unit' => $length['unit'],
+                            'value' => $length['value'],
+                        ];
+                        $addDependency([
+                            'type' => 'file',
+                            'filePath' => 'test.json',
+                        ]);
+                    },
+                ];
+            }
+        );
+
+        $t->same('height:12px', $result['code'], 'upstream node/test/visitor.test.mjs line 1207');
+        $t->same([
+            ['type' => 'file', 'filePath' => 'test.json'],
+        ], $result['dependencies']);
+        $t->same([
+            ['unit' => 'px', 'value' => 12.0],
+        ], $seen);
+    },
+    'custom at-rules apply upstream RuleExit custom and unknown visitors after parser' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@tokens wp {
+  accent: yellow;
+  spacing: 16px;
+}
+
+@dep "tokens.json";
+
+.card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+        ], [
+            'RuleExit' => [
+                'custom' => [
+                    'tokens' => static function (array $rule, CustomAtRuleTransformer $transformer) use (&$seen): array {
+                        $seen['customBodyType'] = $rule['bodyAst']['type'] ?? null;
+                        $seen['firstDeclaration'] = $rule['declarations'][0]['property'] ?? null;
+
+                        return $transformer->styleRule('.tokens-ready', [
+                            'outline-color' => $rule['declarations'][0]['value'] ?? 'transparent',
+                        ]);
+                    },
+                ],
+                'unknown' => [
+                    'dep' => static function (array $rule, CustomAtRuleTransformer $transformer) use (&$seen): array {
+                        $seen['depName'] = $rule['preludeTokens'][0]['value']['value'] ?? null;
+
+                        return $transformer->styleRule('.dep-ready', [
+                            'outline-color' => '#056ef0',
+                        ]);
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.tokens-ready{outline-color:#ff0}.dep-ready{outline-color:#056ef0}.card{color:red}', $result);
+        $t->same('declaration-list', $seen['customBodyType']);
+        $t->same('accent', $seen['firstDeclaration']);
+        $t->same('tokens.json', $seen['depName']);
+    },
+    'custom at-rules compose upstream RuleExit style visitors' => static function (TestRunner $t): void {
+        $seenSelectors = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'RuleExit' => [
+                    'style' => static function (array $rule): ?array {
+                        if (($rule['selector'] ?? null) !== '.card') {
+                            return null;
+                        }
+
+                        $clone = $rule;
+                        $clone['selector'] = '.card--exit';
+                        $clone['selectors'] = ['.card--exit'];
+
+                        return [$rule, $clone];
+                    },
+                ],
+            ],
+            [
+                'RuleExit' => [
+                    'style' => static function (array $rule) use (&$seenSelectors): array {
+                        $seenSelectors[] = $rule['selector'] ?? '';
+                        $rule['declarations'][] = [
+                            'property' => 'height',
+                            'value' => '16px',
+                            'important' => false,
+                        ];
+
+                        return $rule;
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.card { width: 16px; }', [], $visitor);
+
+        $t->same('.card{width:16px;height:16px}.card--exit{width:16px;height:16px}', $result);
+        $t->same(['.card', '.card--exit'], $seenSelectors);
+    },
+    'custom at-rules apply upstream RuleExit media visitors after body traversal' => static function (TestRunner $t): void {
+        $seen = [];
+        $result = (new CustomAtRuleTransformer())->transform('@media (hover) { .notice { width: 16px; } }', [], [
+            'RuleExit' => [
+                'media' => static function (array $rule) use (&$seen): array {
+                    $seen['type'] = $rule['type'] ?? null;
+                    $seen['feature'] = $rule['value']['query']['mediaQueries'][0]['condition']['value']['name'] ?? null;
+                    $rule['value']['query'] = [
+                        'mediaQueries' => [
+                            ['raw' => '(min-width: 640px)'],
+                        ],
+                    ];
+
+                    return $rule;
+                },
+            ],
+        ]);
+
+        $t->same('@media (width>=640px){.notice{width:16px}}', $result);
+        $t->same('media', $seen['type']);
+        $t->same('hover', $seen['feature']);
+    },
+    'custom at-rules expose visited media children to generic RuleExit visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $result = (new CustomAtRuleTransformer())->transform('@media (hover) { .card { width: 16px; } }', [], [
+            'Length' => static function (array $length): ?array {
+                if (($length['unit'] ?? null) !== 'px') {
+                    return null;
+                }
+
+                return [
+                    'unit' => 'rem',
+                    'value' => ((float) $length['value']) / 16,
+                ];
+            },
+            'RuleExit' => static function (array $rule) use (&$seen): ?array {
+                if (($rule['type'] ?? null) !== 'media') {
+                    return null;
+                }
+
+                $seen['declaration'] = $rule['value']['rules'][0]['value']['declarations']['declarations'][0] ?? null;
+
+                return null;
+            },
+        ]);
+
+        $t->same('@media (hover){.card{width:1rem}}', $result);
+        $t->same([
+            'property' => 'width',
+            'raw' => '1rem',
+            'important' => false,
+        ], $seen['declaration']);
+    },
+    'custom at-rules preserve visited preludes and bodies without replacements' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@tokens theme {
+  .card {
+    width: 16px;
+  }
+}
+
+@alias accent;
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'rule-list',
+            ],
+            'alias' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ], [
+            'CustomIdent' => static fn (string $ident): string => 'wp-' . $ident,
+            'Length' => static function (array $length): ?array {
+                if (($length['unit'] ?? null) !== 'px') {
+                    return null;
+                }
+
+                return [
+                    'unit' => 'rem',
+                    'value' => ((float) $length['value']) / 16,
+                ];
+            },
+            'RuleExit' => [
+                'custom' => static function (array $rule) use (&$seen): ?array {
+                    $seen[$rule['name']] = $rule;
+
+                    return null;
+                },
+            ],
+        ]);
+
+        $t->same('@tokens wp-theme{.card{width:1rem}}@alias wp-accent;', $result);
+        $t->same('wp-theme', $seen['tokens']['prelude']);
+        $t->same('1rem', $seen['tokens']['bodyRules'][0]['value']['declarations']['declarations'][0]['raw']);
+        $t->same('wp-accent', $seen['alias']['prelude']);
+    },
+    'custom at-rules visit returned declaration-list custom rule bodies before exits' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'custom' => [
+                        'tokens' => static function (array $rule): array {
+                            $rule['body'] = <<<'CSS'
+gap: 16px;
+color: theme-token('accent');
+CSS;
+
+                            return [
+                                'type' => 'custom',
+                                'value' => $rule,
+                            ];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Length' => static function (array $length): ?array {
+                    if (($length['unit'] ?? null) !== 'px') {
+                        return null;
+                    }
+
+                    return [
+                        'unit' => 'rem',
+                        'value' => ((float) $length['value']) / 16,
+                    ];
+                },
+                'Function' => [
+                    'theme-token' => static fn (array $arguments): ?array => ($arguments[0] ?? null) === 'accent'
+                        ? ['raw' => 'var(--wp-card-accent)']
+                        : null,
+                ],
+                'DeclarationExit' => [
+                    'gap' => static function (array $declaration) use (&$seen): ?array {
+                        $seen['declarationExit'] = $declaration['property'] ?? null;
+
+                        return null;
+                    },
+                ],
+                'RuleExit' => [
+                    'custom' => [
+                        'tokens' => static function (array $rule) use (&$seen): ?array {
+                            $seen['ruleExitBody'] = $rule['body'];
+
+                            return null;
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@tokens theme { gap: 8px; }', [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+        ], $visitor);
+
+        $t->same('@tokens theme{gap:1rem;color:var(--wp-card-accent)}', $result);
+        $t->same('gap', $seen['declarationExit']);
+        $t->same('gap:1rem;color:var(--wp-card-accent)', $seen['ruleExitBody']);
+    },
+    'custom at-rules compose upstream returned parser rules through later Rule visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'custom' => [
+                        'tokens' => static function (array $rule) use (&$seen): array {
+                            $seen[] = 'custom:' . $rule['prelude'];
+
+                            return [
+                                [
+                                    'type' => 'style',
+                                    'value' => [
+                                        'selectors' => [
+                                            [
+                                                ['type' => 'class', 'name' => 'wp-token'],
+                                            ],
+                                        ],
+                                        'declarations' => [
+                                            'declarations' => [[
+                                                'property' => 'color',
+                                                'value' => [
+                                                    'type' => 'rgb',
+                                                    'r' => 255,
+                                                    'g' => 255,
+                                                    'b' => 0,
+                                                    'alpha' => 1,
+                                                ],
+                                            ]],
+                                            'importantDeclarations' => [],
+                                        ],
+                                    ],
+                                ],
+                                [
+                                    'type' => 'media',
+                                    'value' => [
+                                        'query' => [
+                                            'mediaQueries' => [
+                                                ['raw' => '(min-width: 40rem)'],
+                                            ],
+                                        ],
+                                        'rules' => [[
+                                            'type' => 'style',
+                                            'value' => [
+                                                'selectors' => [
+                                                    [
+                                                        ['type' => 'class', 'name' => 'wp-card'],
+                                                    ],
+                                                ],
+                                                'declarations' => [
+                                                    'declarations' => [[
+                                                        'property' => 'color',
+                                                        'value' => [
+                                                            'type' => 'rgb',
+                                                            'r' => 255,
+                                                            'g' => 0,
+                                                            'b' => 0,
+                                                            'alpha' => 1,
+                                                        ],
+                                                    ]],
+                                                    'importantDeclarations' => [],
+                                                ],
+                                            ],
+                                        ]],
+                                    ],
+                                ],
+                            ];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Rule' => [
+                    'style' => static function (array $rule) use (&$seen): array {
+                        $seen[] = 'style:' . ($rule['value']['selectors'][0][0]['name'] ?? '');
+                        $rule['value']['declarations']['declarations'][] = [
+                            'property' => 'width',
+                            'value' => [
+                                'type' => 'length-percentage',
+                                'value' => [
+                                    'type' => 'dimension',
+                                    'value' => ['unit' => 'px', 'value' => 16],
+                                ],
+                            ],
+                        ];
+
+                        return $rule;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'media' => static function (array $rule) use (&$seen): array {
+                        $seen[] = 'media:' . ($rule['value']['query']['mediaQueries'][0]['raw'] ?? '');
+                        $rule['value']['query']['mediaQueries'][0]['raw'] = '(min-width: 48rem)';
+
+                        return $rule;
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@tokens accent;', [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ], $visitor);
+
+        $t->same('.wp-token{color:#ff0;width:16px}@media (width>=48rem){.wp-card{color:red}}', $result);
+        $t->same([
+            'custom:accent',
+            'style:wp-token',
+            'media:(min-width: 40rem)',
+        ], $seen);
+    },
+    'custom at-rules compose upstream RuleExit returned custom and unknown rules through later style visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $returnedStyle = static function (string $selector, array $color): array {
+            return [
+                'type' => 'style',
+                'value' => [
+                    'selectors' => [
+                        [
+                            ['type' => 'class', 'name' => $selector],
+                        ],
+                    ],
+                    'declarations' => [
+                        'declarations' => [[
+                            'property' => 'color',
+                            'value' => $color,
+                        ]],
+                        'importantDeclarations' => [],
+                    ],
+                ],
+            ];
+        };
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'RuleExit' => [
+                    'custom' => [
+                        'tokens' => static function (array $rule) use (&$seen, $returnedStyle): array {
+                            $seen[] = 'custom-exit:' . $rule['prelude'];
+
+                            return $returnedStyle('wp-token-exit', [
+                                'type' => 'rgb',
+                                'r' => 255,
+                                'g' => 255,
+                                'b' => 0,
+                                'alpha' => 1,
+                            ]);
+                        },
+                    ],
+                    'unknown' => [
+                        'dep' => static function (array $rule) use (&$seen, $returnedStyle): array {
+                            $seen[] = 'unknown-exit:' . ($rule['preludeTokens'][0]['value']['value'] ?? '');
+
+                            return $returnedStyle('wp-dep-exit', [
+                                'type' => 'rgb',
+                                'r' => 255,
+                                'g' => 0,
+                                'b' => 0,
+                                'alpha' => 1,
+                            ]);
+                        },
+                    ],
+                ],
+            ],
+            [
+                'RuleExit' => [
+                    'style' => static function (array $rule) use (&$seen): array {
+                        $seen[] = 'style-exit:' . ($rule['value']['selectors'][0][0]['name'] ?? '');
+                        $rule['value']['declarations']['declarations'][] = [
+                            'property' => 'height',
+                            'value' => [
+                                'type' => 'length-percentage',
+                                'value' => [
+                                    'type' => 'dimension',
+                                    'value' => ['unit' => 'px', 'value' => 24],
+                                ],
+                            ],
+                        ];
+
+                        return $rule;
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@tokens accent;
+@dep "tokens.css";
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ], $visitor);
+
+        $t->same('.wp-token-exit{color:#ff0;height:24px}.wp-dep-exit{color:red;height:24px}', $result);
+        $t->same([
+            'custom-exit:accent',
+            'style-exit:wp-token-exit',
+            'unknown-exit:tokens.css',
+            'style-exit:wp-dep-exit',
+        ], $seen);
+    },
+    'custom at-rules expose upstream source locations to custom and unknown visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@tokens accent;
+
+@dep "tokens.css";
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => ['prelude' => '<custom-ident>'],
+        ], [
+            'StyleSheet' => static function (array $stylesheet) use (&$seen): void {
+                $seen['sheetCustomLoc'] = $stylesheet['rules'][0]['value']['loc'] ?? null;
+                $seen['sheetUnknownLoc'] = $stylesheet['rules'][1]['value']['loc'] ?? null;
+            },
+            'Rule' => [
+                'custom' => [
+                    'tokens' => static function (array $rule) use (&$seen): array {
+                        $seen['customLoc'] = $rule['loc'] ?? null;
+
+                        return [];
+                    },
+                ],
+                'unknown' => [
+                    'dep' => static function (array $rule) use (&$seen): array {
+                        $seen['unknownLoc'] = $rule['loc'] ?? null;
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $expectedCustom = ['source_index' => 0, 'line' => 0, 'column' => 1];
+        $expectedUnknown = ['source_index' => 0, 'line' => 2, 'column' => 1];
+
+        $t->same('', $result);
+        $t->same($expectedCustom, $seen['sheetCustomLoc']);
+        $t->same($expectedUnknown, $seen['sheetUnknownLoc']);
+        $t->same($expectedCustom, $seen['customLoc']);
+        $t->same($expectedUnknown, $seen['unknownLoc']);
+    },
+    'custom at-rules visit nested upstream token-list block preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-block-state [data-state=draft] (16px draft);
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-block-state' => ['prelude' => '*'],
+        ], [
+            'Token' => [
+                'ident' => static function (array $token) use (&$seen): ?string {
+                    if (!in_array($token['value'], ['data-state', 'draft'], true)) {
+                        return null;
+                    }
+
+                    $seen['events'][] = 'token:ident:' . $token['value'];
+
+                    return match ($token['value']) {
+                        'data-state' => 'data-wp-state',
+                        'draft' => 'published',
+                        default => null,
+                    };
+                },
+            ],
+            'Length' => static function (array $length) use (&$seen): ?array {
+                if ($length['unit'] !== 'px') {
+                    return null;
+                }
+
+                $seen['events'][] = 'length:' . $length['value'] . $length['unit'];
+
+                return ['unit' => 'rem', 'value' => $length['value'] / 16];
+            },
+            'Rule' => [
+                'custom' => [
+                    'wp-block-state' => static function (array $rule) use (&$seen): array {
+                        $seen['events'][] = 'rule:' . $rule['prelude'];
+                        $seen['rule'] = [
+                            'prelude' => $rule['prelude'],
+                            'preludeAst' => $rule['preludeAst'],
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same([
+            'token:ident:data-state',
+            'token:ident:draft',
+            'length:16px',
+            'token:ident:draft',
+            'rule:[data-wp-state=published] (1rem published)',
+        ], $seen['events']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same('[data-wp-state=published] (1rem published)', $seen['rule']['prelude']);
+        $t->same([
+            'square-bracket-block',
+            'ident',
+            'delim:=',
+            'ident',
+            'close-square-bracket',
+            'parenthesis-block',
+            'length',
+            'ident',
+            'close-parenthesis',
+        ], array_map(static function (array $component): string {
+            if (($component['type'] ?? null) !== 'token') {
+                return (string) ($component['type'] ?? '');
+            }
+
+            $token = $component['value'] ?? [];
+            $type = (string) ($token['type'] ?? '');
+
+            return $type === 'delim' ? 'delim:' . ($token['value'] ?? '') : $type;
+        }, $seen['rule']['preludeAst']['value']));
+        $t->same('data-wp-state', $seen['rule']['preludeAst']['value'][1]['value']['value']);
+        $t->same('published', $seen['rule']['preludeAst']['value'][3]['value']['value']);
+        $t->same(['unit' => 'rem', 'value' => 1.0], $seen['rule']['preludeAst']['value'][6]['value']);
+        $t->same('published', $seen['rule']['preludeAst']['value'][7]['value']['value']);
+    },
+    'custom at-rules visit upstream generic function prelude arguments before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-design-token theme(16px,--wp-gap,draft);
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-design-token' => ['prelude' => '*'],
+        ], [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                if ($length['unit'] !== 'px') {
+                    return null;
+                }
+
+                $seen['events'][] = 'length:' . $length['value'] . $length['unit'];
+
+                return ['unit' => 'rem', 'value' => $length['value'] / 16];
+            },
+            'DashedIdent' => static function (string $ident) use (&$seen): string {
+                $seen['events'][] = 'dashed:' . $ident;
+
+                return '--theme-' . substr($ident, 2);
+            },
+            'Token' => [
+                'ident' => static function (array $token) use (&$seen): ?string {
+                    if (($token['value'] ?? null) !== 'draft') {
+                        return null;
+                    }
+
+                    $seen['events'][] = 'token:ident:' . $token['value'];
+
+                    return 'live';
+                },
+            ],
+            'Rule' => [
+                'custom' => [
+                    'wp-design-token' => static function (array $rule) use (&$seen): array {
+                        $seen['events'][] = 'rule:' . $rule['prelude'];
+                        $seen['rule'] = [
+                            'prelude' => $rule['prelude'],
+                            'preludeAst' => $rule['preludeAst'],
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same([
+            'length:16px',
+            'dashed:--wp-gap',
+            'token:ident:draft',
+            'rule:theme(1rem,--theme-wp-gap,live)',
+        ], $seen['events']);
+        $t->same('theme(1rem,--theme-wp-gap,live)', $seen['rule']['prelude']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same('function', $seen['rule']['preludeAst']['value'][0]['type']);
+        $t->same('theme', $seen['rule']['preludeAst']['value'][0]['value']['name']);
+        $t->same(['length', 'dashed-ident', 'token'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['preludeAst']['value'][0]['value']['arguments']
+        ));
+        $t->same(['unit' => 'rem', 'value' => 1.0], $seen['rule']['preludeAst']['value'][0]['value']['arguments'][0]['value']);
+        $t->same('--theme-wp-gap', $seen['rule']['preludeAst']['value'][0]['value']['arguments'][1]['value']);
+        $t->same('live', $seen['rule']['preludeAst']['value'][0]['value']['arguments'][2]['value']['value']);
+    },
+    'custom at-rules visit upstream space-separated generic function prelude arguments' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-design-token theme(16px --wp-gap draft) clamp(8px --wp-min draft);
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-design-token' => ['prelude' => '*'],
+        ], [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                if ($length['unit'] !== 'px') {
+                    return null;
+                }
+
+                $seen['events'][] = 'length:' . $length['value'] . $length['unit'];
+
+                return ['unit' => 'rem', 'value' => $length['value'] / 16];
+            },
+            'DashedIdent' => static function (string $ident) use (&$seen): string {
+                $seen['events'][] = 'dashed:' . $ident;
+
+                return '--theme-' . substr($ident, 2);
+            },
+            'Token' => [
+                'ident' => static function (array $token) use (&$seen): ?string {
+                    if (($token['value'] ?? null) !== 'draft') {
+                        return null;
+                    }
+
+                    $seen['events'][] = 'token:ident:' . $token['value'];
+
+                    return 'live';
+                },
+            ],
+            'Rule' => [
+                'custom' => [
+                    'wp-design-token' => static function (array $rule) use (&$seen): array {
+                        $seen['events'][] = 'rule:' . $rule['prelude'];
+                        $seen['rule'] = [
+                            'prelude' => $rule['prelude'],
+                            'preludeAst' => $rule['preludeAst'],
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same([
+            'length:16px',
+            'dashed:--wp-gap',
+            'token:ident:draft',
+            'length:8px',
+            'dashed:--wp-min',
+            'token:ident:draft',
+            'rule:theme(1rem --theme-wp-gap live) clamp(0.5rem --theme-wp-min live)',
+        ], $seen['events']);
+        $t->same('theme(1rem --theme-wp-gap live) clamp(0.5rem --theme-wp-min live)', $seen['rule']['prelude']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same(['function', 'function'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['preludeAst']['value']
+        ));
+        $t->same(['theme', 'clamp'], array_map(
+            static fn (array $component): string => $component['value']['name'],
+            $seen['rule']['preludeAst']['value']
+        ));
+        $t->same(['space', 'space'], array_map(
+            static fn (array $component): string => $component['value']['argumentSeparator'] ?? '',
+            $seen['rule']['preludeAst']['value']
+        ));
+        $t->same(['length', 'dashed-ident', 'token'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['preludeAst']['value'][0]['value']['arguments']
+        ));
+        $t->same(['length', 'dashed-ident', 'token'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['preludeAst']['value'][1]['value']['arguments']
+        ));
+        $t->same(['unit' => 'rem', 'value' => 1.0], $seen['rule']['preludeAst']['value'][0]['value']['arguments'][0]['value']);
+        $t->same('--theme-wp-gap', $seen['rule']['preludeAst']['value'][0]['value']['arguments'][1]['value']);
+        $t->same('live', $seen['rule']['preludeAst']['value'][0]['value']['arguments'][2]['value']['value']);
+        $t->same(['unit' => 'rem', 'value' => 0.5], $seen['rule']['preludeAst']['value'][1]['value']['arguments'][0]['value']);
+        $t->same('--theme-wp-min', $seen['rule']['preludeAst']['value'][1]['value']['arguments'][1]['value']);
+        $t->same('live', $seen['rule']['preludeAst']['value'][1]['value']['arguments'][2]['value']['value']);
+    },
+    'custom at-rules visit upstream function prelude arguments before FunctionExit' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'exitArguments' => null,
+            'exitSeparator' => null,
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-design-token theme(16px --wp-gap draft);
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-design-token' => ['prelude' => '*'],
+        ], [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                if ($length['unit'] !== 'px') {
+                    return null;
+                }
+
+                $seen['events'][] = 'length:' . $length['value'] . $length['unit'];
+
+                return ['unit' => 'rem', 'value' => $length['value'] / 16];
+            },
+            'DashedIdent' => static function (string $ident) use (&$seen): string {
+                $seen['events'][] = 'dashed:' . $ident;
+
+                return '--theme-' . substr($ident, 2);
+            },
+            'Token' => [
+                'ident' => static function (array $token) use (&$seen): ?string {
+                    if (($token['value'] ?? null) !== 'draft') {
+                        return null;
+                    }
+
+                    $seen['events'][] = 'token:ident:' . $token['value'];
+
+                    return 'live';
+                },
+            ],
+            'FunctionExit' => [
+                'theme' => static function (array $function) use (&$seen): ?array {
+                    $seen['events'][] = 'exit:' . implode(',', array_map(
+                        static fn (array $argument): string => $argument['type'] ?? 'raw',
+                        $function['arguments'] ?? []
+                    ));
+                    $seen['exitArguments'] = $function['arguments'] ?? null;
+                    $seen['exitSeparator'] = $function['argumentSeparator'] ?? null;
+
+                    return null;
+                },
+            ],
+            'Rule' => [
+                'custom' => [
+                    'wp-design-token' => static function (array $rule) use (&$seen): array {
+                        $seen['events'][] = 'rule:' . $rule['prelude'];
+                        $seen['rule'] = [
+                            'prelude' => $rule['prelude'],
+                            'preludeAst' => $rule['preludeAst'],
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same([
+            'length:16px',
+            'dashed:--wp-gap',
+            'token:ident:draft',
+            'exit:length,dashed-ident,token',
+            'rule:theme(1rem --theme-wp-gap live)',
+        ], $seen['events']);
+        $t->same('space', $seen['exitSeparator']);
+        $t->same(['length', 'dashed-ident', 'token'], array_map(
+            static fn (array $argument): string => $argument['type'],
+            $seen['exitArguments']
+        ));
+        $t->same(['unit' => 'rem', 'value' => 1.0], $seen['exitArguments'][0]['value']);
+        $t->same('--theme-wp-gap', $seen['exitArguments'][1]['value']);
+        $t->same('live', $seen['exitArguments'][2]['value']['value']);
+        $t->same('theme(1rem --theme-wp-gap live)', $seen['rule']['prelude']);
+        $t->same('space', $seen['rule']['preludeAst']['value'][0]['value']['argumentSeparator'] ?? null);
+    },
+    'custom at-rules revisit upstream raw Function calc prelude replacements' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::custom units lines 68-119,
+        // ::spacing with env substitution lines 252-311, and ::supports returning raw values for tokens lines 998-1016.
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Function' => [
+                    'theme' => static function () use (&$seen): array {
+                        $seen['events'][] = 'function:theme';
+
+                        return ['raw' => 'calc(3--wp-step + env(--wp-gap))'];
+                    },
+                ],
+            ],
+            [
+                'EnvironmentVariable' => [
+                    '--wp-gap' => static function (array $environmentVariable) use (&$seen): array {
+                        $seen['events'][] = 'env:' . ($environmentVariable['name']['ident'] ?? '');
+
+                        return ['raw' => '8px'];
+                    },
+                ],
+                'Token' => [
+                    'dimension' => static function (array $token) use (&$seen): ?array {
+                        if (!str_starts_with((string) ($token['unit'] ?? ''), '--')) {
+                            return null;
+                        }
+
+                        $seen['events'][] = 'token:' . ($token['raw'] ?? '');
+
+                        return [
+                            'type' => 'var',
+                            'value' => [
+                                'name' => ['ident' => $token['unit']],
+                                'fallback' => null,
+                                'raw' => 'var(' . $token['unit'] . ')',
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Variable' => [
+                    '--wp-step' => static function (array $variable) use (&$seen): array {
+                        $seen['events'][] = 'var:' . ($variable['name']['ident'] ?? '');
+
+                        return ['type' => 'length', 'unit' => 'rem', 'value' => 0.25];
+                    },
+                ],
+                'Rule' => [
+                    'custom' => [
+                        'plugin' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['prelude'];
+                            $seen['rule'] = $rule;
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@plugin theme("fluid"); .keep { color: red; }', [
+            'plugin' => ['prelude' => '*'],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'function:theme',
+            'env:--wp-gap',
+            'token:3--wp-step',
+            'var:--wp-step',
+            'rule:calc(0.25rem+8px)',
+        ], $seen['events']);
+        $t->same('calc(0.25rem+8px)', $seen['rule']['prelude']);
+        $t->same('function', $seen['rule']['preludeAst']['value'][0]['type'] ?? null);
+        $t->same('calc', $seen['rule']['preludeAst']['value'][0]['value']['name'] ?? null);
+    },
+    'custom at-rules visit upstream variable prelude fallbacks before exit visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rules' => [],
+            'exitFallbackTypes' => [],
+        ];
+        $css = <<<'CSS'
+@wp-token var(--card-gap, 16px draft);
+@wp-safe env(--safe-gap 1, 8px draft);
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-token' => ['prelude' => '*'],
+            'wp-safe' => ['prelude' => '*'],
+        ], [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                if ($length['unit'] !== 'px') {
+                    return null;
+                }
+
+                $seen['events'][] = 'length:' . $length['value'] . $length['unit'];
+
+                return ['unit' => 'rem', 'value' => $length['value'] / 16];
+            },
+            'Token' => [
+                'ident' => static function (array $token) use (&$seen): ?string {
+                    if (($token['value'] ?? null) !== 'draft') {
+                        return null;
+                    }
+
+                    $seen['events'][] = 'token:ident:' . $token['value'];
+
+                    return 'live';
+                },
+            ],
+            'VariableExit' => [
+                '--card-gap' => static function (array $variable) use (&$seen): ?array {
+                    $fallback = $variable['fallback'] ?? [];
+                    $seen['events'][] = 'var-exit:' . implode(',', array_map(
+                        static fn (array $component): string => $component['type'] ?? 'raw',
+                        $fallback
+                    ));
+                    $seen['exitFallbackTypes']['var'] = array_map(
+                        static fn (array $component): string => $component['type'] ?? 'raw',
+                        $fallback
+                    );
+
+                    return null;
+                },
+            ],
+            'EnvironmentVariableExit' => [
+                '--safe-gap' => static function (array $environmentVariable) use (&$seen): ?array {
+                    $fallback = $environmentVariable['fallback'] ?? [];
+                    $seen['events'][] = 'env-exit:' . implode(',', array_map(
+                        static fn (array $component): string => $component['type'] ?? 'raw',
+                        $fallback
+                    ));
+                    $seen['exitFallbackTypes']['env'] = array_map(
+                        static fn (array $component): string => $component['type'] ?? 'raw',
+                        $fallback
+                    );
+
+                    return null;
+                },
+            ],
+            'Rule' => [
+                'custom' => static function (array $rule) use (&$seen): array {
+                    $seen['events'][] = 'rule:' . $rule['prelude'];
+                    $seen['rules'][] = [
+                        'prelude' => $rule['prelude'],
+                        'preludeAst' => $rule['preludeAst'],
+                    ];
+
+                    return [];
+                },
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same([
+            'length:16px',
+            'token:ident:draft',
+            'var-exit:length,token',
+            'rule:var(--card-gap,1rem live)',
+            'length:8px',
+            'token:ident:draft',
+            'env-exit:length,token',
+            'rule:env(--safe-gap 1,0.5rem live)',
+        ], $seen['events']);
+        $t->same(['length', 'token'], $seen['exitFallbackTypes']['var']);
+        $t->same(['length', 'token'], $seen['exitFallbackTypes']['env']);
+        $t->same('var(--card-gap,1rem live)', $seen['rules'][0]['prelude']);
+        $t->same('env(--safe-gap 1,0.5rem live)', $seen['rules'][1]['prelude']);
+        $t->same(['length', 'token'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rules'][0]['preludeAst']['value'][0]['value']['fallback']
+        ));
+        $t->same(['unit' => 'rem', 'value' => 1.0], $seen['rules'][0]['preludeAst']['value'][0]['value']['fallback'][0]['value']);
+        $t->same('live', $seen['rules'][0]['preludeAst']['value'][0]['value']['fallback'][1]['value']['value']);
+        $t->same(['length', 'token'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rules'][1]['preludeAst']['value'][0]['value']['fallback']
+        ));
+        $t->same(['unit' => 'rem', 'value' => 0.5], $seen['rules'][1]['preludeAst']['value'][0]['value']['fallback'][0]['value']);
+        $t->same('live', $seen['rules'][1]['preludeAst']['value'][0]['value']['fallback'][1]['value']['value']);
+        $t->same([1], $seen['rules'][1]['preludeAst']['value'][0]['value']['indices']);
+    },
+    'custom at-rules expose upstream selector match tokens in universal preludes' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-block-variant [data-state~=draft] [lang|=en] [href^=shop] [file$=pdf] [class*=wp-block];
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'include-match' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                    'dash-match' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                    'prefix-match' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                    'suffix-match' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                    'substring-match' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'wp-block-variant' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['prelude'];
+                            $seen['rule'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [
+                                'type' => 'unknown',
+                                'value' => [
+                                    'name' => 'wp-variant',
+                                    'prelude' => $rule['preludeAst'],
+                                    'hasBlock' => false,
+                                ],
+                            ];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-block-variant' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('@wp-variant[data-state~=draft][lang|=en][href^=shop][file$=pdf][class*=wp-block];.wp-block-card{color:red}', $result);
+        $t->same([
+            'token:include-match:~=',
+            'token:dash-match:|=',
+            'token:prefix-match:^=',
+            'token:suffix-match:$=',
+            'token:substring-match:*=',
+            'rule:[data-state~=draft] [lang|=en] [href^=shop] [file$=pdf] [class*=wp-block]',
+        ], $seen['events']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+
+        $operatorTokens = array_values(array_filter(
+            $seen['rule']['preludeAst']['value'] ?? [],
+            static fn (array $component): bool => ($component['type'] ?? null) === 'token'
+                && in_array(($component['value']['type'] ?? null), ['include-match', 'dash-match', 'prefix-match', 'suffix-match', 'substring-match'], true)
+        ));
+        $t->same([
+            'include-match',
+            'dash-match',
+            'prefix-match',
+            'suffix-match',
+            'substring-match',
+        ], array_map(
+            static fn (array $component): string => $component['value']['type'],
+            $operatorTokens
+        ));
+    },
+    'custom at-rules compose upstream structural token visitors in universal preludes' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-block-variant [data-state=draft] (draft/live);
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'square-bracket-block' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                    'parenthesis-block' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                    'delim' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:delim:' . ($token['value'] ?? '');
+                        if (($token['value'] ?? '') !== '/') {
+                            return null;
+                        }
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'delim',
+                                'value' => ':',
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Token' => [
+                    'ident' => static function (array $token) use (&$seen): ?string {
+                        if (($token['value'] ?? null) !== 'draft') {
+                            return null;
+                        }
+
+                        $seen['events'][] = 'token:ident:' . $token['value'];
+
+                        return 'live';
+                    },
+                ],
+                'Rule' => [
+                    'custom' => [
+                        'wp-block-variant' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['prelude'];
+                            $seen['rule'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-block-variant' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same([
+            'token:square-bracket-block:[',
+            'token:delim:=',
+            'token:ident:draft',
+            'token:parenthesis-block:(',
+            'token:ident:draft',
+            'token:delim:/',
+            'rule:[data-state=live] (live:live)',
+        ], $seen['events']);
+        $t->same('[data-state=live] (live:live)', $seen['rule']['prelude']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same([
+            'square-bracket-block',
+            'ident',
+            'delim:=',
+            'ident',
+            'close-square-bracket',
+            'parenthesis-block',
+            'ident',
+            'delim::',
+            'ident',
+            'close-parenthesis',
+        ], array_map(static function (array $component): string {
+            $token = $component['value'] ?? [];
+            $type = (string) ($token['type'] ?? ($component['type'] ?? ''));
+
+            return $type === 'delim' ? 'delim:' . ($token['value'] ?? '') : $type;
+        }, $seen['rule']['preludeAst']['value']));
+    },
+    'custom at-rules visit upstream unknown prelude and block token lists before unknown visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-token draft 16px { 8px draft var(--wp-gap, 4px draft) }
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $visitor = [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                if (($length['unit'] ?? null) !== 'px') {
+                    return null;
+                }
+
+                $seen['events'][] = 'length:' . $length['value'] . $length['unit'];
+
+                return [
+                    'unit' => 'rem',
+                    'value' => $length['value'] / 16,
+                ];
+            },
+            'Token' => [
+                'ident' => static function (array $token) use (&$seen): ?string {
+                    if (($token['value'] ?? null) !== 'draft') {
+                        return null;
+                    }
+
+                    $seen['events'][] = 'ident:' . $token['value'];
+
+                    return 'live';
+                },
+            ],
+            'Rule' => [
+                'unknown' => [
+                    'wp-token' => static function (array $rule) use (&$seen): array {
+                        $seen['events'][] = 'rule:' . $rule['prelude'] . ':' . implode(',', array_map(
+                            static fn (array $component): string => $component['type'] ?? '',
+                            $rule['block'] ?? []
+                        ));
+                        $seen['rule'] = $rule;
+
+                        return [];
+                    },
+                ],
+            ],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+        $visitedEvents = $seen['events'];
+        $preserved = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Length' => $visitor['Length'],
+            'Token' => $visitor['Token'],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same('@wp-token live 1rem{0.5rem live var(--wp-gap,0.25rem live)}.wp-block-card{color:red}', $preserved);
+        $t->same([
+            'ident:draft',
+            'length:16px',
+            'length:8px',
+            'ident:draft',
+            'length:4px',
+            'ident:draft',
+            'rule:live 1rem:length,token,var',
+        ], $visitedEvents);
+        $t->same('live 1rem', $seen['rule']['prelude']);
+        $t->same(['token', 'length'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['preludeTokens']
+        ));
+        $t->same('live', $seen['rule']['preludeTokens'][0]['value']['value']);
+        $t->same(['unit' => 'rem', 'value' => 1.0], $seen['rule']['preludeTokens'][1]['value']);
+        $t->same(['length', 'token', 'var'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['block']
+        ));
+        $t->same(['unit' => 'rem', 'value' => 0.5], $seen['rule']['block'][0]['value']);
+        $t->same('live', $seen['rule']['block'][1]['value']['value']);
+        $t->same(['length', 'token'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['block'][2]['value']['fallback']
+        ));
+        $t->same(['unit' => 'rem', 'value' => 0.25], $seen['rule']['block'][2]['value']['fallback'][0]['value']);
+        $t->same('live', $seen['rule']['block'][2]['value']['fallback'][1]['value']['value']);
+    },
+    'custom at-rules expose upstream attribute selectors to parser bodies and Selector visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'customAttribute' => null,
+            'sourceAttribute' => null,
+        ];
+        $css = <<<'CSS'
+@variant block {
+  .wp-block-card[data-state="draft" i] > a[href^="/shop"] {
+    color: red;
+  }
+}
+
+.wp-block-card[data-state="published" s] {
+  color: yellow;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'variant' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Selector' => static function (array $selector) use (&$seen): array {
+                foreach ($selector as &$component) {
+                    if (($component['type'] ?? null) !== 'attribute' || ($component['name'] ?? null) !== 'data-state') {
+                        continue;
+                    }
+
+                    $seen['sourceAttribute'] = $component;
+                    $component['operation']['value'] = 'public';
+                    $component['operation']['caseSensitivity'] = 'ascii-case-insensitive';
+                }
+                unset($component);
+
+                return $selector;
+            },
+            'Rule' => [
+                'custom' => [
+                    'variant' => static function (array $rule) use (&$seen): array {
+                        $seen['customAttribute'] = $rule['bodyRules'][0]['value']['selectors'][0][1] ?? null;
+                        $rule['bodyRules'][0]['value']['selectors'][0][1]['operation']['value'] = 'live';
+
+                        return $rule['bodyRules'];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card[data-state=live i]>a[href^=\/shop]{color:red}.wp-block-card[data-state=public i]{color:#ff0}', $result);
+        $t->same([
+            'type' => 'attribute',
+            'name' => 'data-state',
+            'operation' => [
+                'operator' => 'equal',
+                'value' => 'draft',
+                'caseSensitivity' => 'ascii-case-insensitive',
+            ],
+        ], $seen['customAttribute']);
+        $t->same([
+            'type' => 'attribute',
+            'name' => 'data-state',
+            'operation' => [
+                'operator' => 'equal',
+                'value' => 'published',
+                'caseSensitivity' => 'explicit-case-sensitive',
+            ],
+        ], $seen['sourceAttribute']);
+    },
+];

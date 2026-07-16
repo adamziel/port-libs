@@ -1,0 +1,3 @@
+[ Para [ Str "Fallback" , Space , Strong [ Str "content" ] ]
+, Para [ Str "After" , Space , Str "template." ]
+]

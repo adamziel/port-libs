@@ -1,0 +1,69 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter.xhtml_start" , [ "section" ] , [] )
+    [ Header
+        1
+        ( "" , [] , [] )
+        [ Str "Duplicate"
+        , Space
+        , Str "Spine"
+        , Space
+        , Str "IDRef"
+        ]
+    , Para
+        [ Str "The"
+        , Space
+        , Str "same"
+        , Space
+        , Str "manifest"
+        , Space
+        , Str "item"
+        , Space
+        , Str "appears"
+        , Space
+        , Str "twice"
+        , Space
+        , Str "in"
+        , Space
+        , Str "the"
+        , Space
+        , Str "linear"
+        , Space
+        , Str "spine."
+        ]
+    ]
+, Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter.xhtml_start" , [ "section" ] , [] )
+    [ Header
+        1
+        ( "" , [] , [] )
+        [ Str "Duplicate"
+        , Space
+        , Str "Spine"
+        , Space
+        , Str "IDRef"
+        ]
+    , Para
+        [ Str "The"
+        , Space
+        , Str "same"
+        , Space
+        , Str "manifest"
+        , Space
+        , Str "item"
+        , Space
+        , Str "appears"
+        , Space
+        , Str "twice"
+        , Space
+        , Str "in"
+        , Space
+        , Str "the"
+        , Space
+        , Str "linear"
+        , Space
+        , Str "spine."
+        ]
+    ]
+]

@@ -1,0 +1,28 @@
+[ Para
+    [ Emph
+        [ Strong [ Str "a" ]
+        , Str "b"
+        , Space
+        , Strong [ Str "c" ]
+        , Str "d"
+        ]
+    ]
+, Para
+    [ Emph [ Str "xxx" ]
+    , Space
+    , Strong [ Emph [ Str "xxx" ] ]
+    , Space
+    , Str "xxx"
+    , SoftBreak
+    , Emph [ Str "xxx" ]
+    , Space
+    , Strong [ Emph [ Str "xxx" ] ]
+    , Space
+    , Str "xxx"
+    ]
+, Para
+    [ Emph
+        [ Str "x" , Space , Strong [ Str "xx" ] , Space , Str "x" ]
+    ]
+, Para [ Emph [ Str "foot_ball" ] ]
+]

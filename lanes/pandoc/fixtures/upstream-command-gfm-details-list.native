@@ -1,0 +1,9 @@
+[ BulletList [ [ Para [ Str "list" , Space , Str "item" ]
+  , RawBlock (Format "html") "<details>"
+  , BulletList [ [ Plain [ Str "subitem" ]
+    ] ]
+  , RawBlock (Format "html") "</details>"
+  , Para [ Str "item" , Space , Emph [ Str "continue" ] , Space , Strong [ Str "with" ] , Space , Str "formatting" ]
+  ] , [ Plain [ Str "next" , Space , Str "list" , Space , Str "item" ]
+  ] ]
+]

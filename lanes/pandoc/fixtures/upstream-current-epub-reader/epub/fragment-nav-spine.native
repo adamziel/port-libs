@@ -1,0 +1,26 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter.xhtml_section-one" , [ "section" ] , [] )
+    [ Header
+        1 ( "" , [] , [] ) [ Str "Fragment" , Space , Str "target" ]
+    , Para
+        [ Str "The"
+        , Space
+        , Str "table"
+        , Space
+        , Str "of"
+        , Space
+        , Str "contents"
+        , Space
+        , Str "points"
+        , Space
+        , Str "at"
+        , Space
+        , Str "this"
+        , Space
+        , Str "section"
+        , Space
+        , Str "fragment."
+        ]
+    ]
+]

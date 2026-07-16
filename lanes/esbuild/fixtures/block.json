@@ -1,0 +1,5 @@
+{
+  "apiVersion": 3,
+  "name": "port-libs/card",
+  "viewScriptModule": "file:./wordpress-block-view.js"
+}

@@ -1,0 +1,21 @@
+[ Para
+    [ Link
+        ( "i" , [ "j" , "z" ] , [ ( "k" , "v" ) ] )
+        [ Str "http://foo.bar" ]
+        ( "http://foo.bar" , "" )
+    ]
+, Para
+    [ Link
+        ( "" , [ "uri" ] , [] )
+        [ Str "http://foo.bar" ]
+        ( "http://foo.bar" , "" )
+    , Space
+    , Str "{#i"
+    , Space
+    , Str ".j"
+    , Space
+    , Str ".z"
+    , Space
+    , Str "k=v}"
+    ]
+]

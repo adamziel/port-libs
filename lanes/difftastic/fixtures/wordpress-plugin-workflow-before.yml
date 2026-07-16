@@ -1,0 +1,16 @@
+name: Release block plugin
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        default: true
+      release-channel:
+        default: null
+jobs:
+  package:
+    steps:
+      - name: Build assets
+        run: |
+          npm ci
+          npm run build
+          wp i18n make-json languages --no-purge

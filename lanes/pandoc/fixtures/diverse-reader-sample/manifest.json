@@ -1,0 +1,296 @@
+{
+  "title": "Diverse Haskell Pandoc Reader Comparison",
+  "description": "Hand-picked generated and online-sourced samples that stress format-specific reader features across HTML, Markdown dialects, EPUB, and PPTX.",
+  "entries": [
+    {
+      "id": "generated-html-mathml-semantics",
+      "format": "html",
+      "path": "lanes/pandoc/fixtures/diverse-reader-sample/html/generated-html-mathml-semantics.html",
+      "pandocFormat": "html",
+      "sourceKind": "generated-local-from-online-reference",
+      "sourceUrl": "https://w3c.github.io/mathml-core/",
+      "description": "Generated HTML document using inline and display MathML semantics with TeX annotations.",
+      "features": ["html5", "mathml", "semantics", "display-math", "inline-math"]
+    },
+    {
+      "id": "generated-html-table-ruby-media",
+      "format": "html",
+      "path": "lanes/pandoc/fixtures/diverse-reader-sample/html/generated-html-table-ruby-media.html",
+      "pandocFormat": "html",
+      "sourceKind": "generated-local",
+      "description": "Generated HTML document with ruby text, bidirectional override, picture fallback, figure caption, and table structure.",
+      "features": ["html5", "ruby", "bdo", "picture", "figure", "table"]
+    },
+    {
+      "id": "upstream-html-picture-fallback-image",
+      "format": "html",
+      "path": "lanes/pandoc/fixtures/upstream-html-picture-fallback-image.html",
+      "pandocFormat": "html",
+      "sourceKind": "checked-in-upstream-derived",
+      "description": "HTML picture/source fallback to img alt/title handling.",
+      "features": ["html", "picture", "image", "alt-text", "title"]
+    },
+    {
+      "id": "upstream-html-colgroup-width-table",
+      "format": "html",
+      "path": "lanes/pandoc/fixtures/upstream-html-colgroup-width-table.html",
+      "pandocFormat": "html",
+      "sourceKind": "checked-in-upstream-derived",
+      "description": "HTML table with colgroup width handling.",
+      "features": ["html", "table", "colgroup", "column-widths"]
+    },
+    {
+      "id": "upstream-html-details-summary-raw-block",
+      "format": "html",
+      "path": "lanes/pandoc/fixtures/upstream-html-details-summary-raw-block.html",
+      "pandocFormat": "html",
+      "sourceKind": "generated-current",
+      "description": "HTML details/summary block boundary fixture.",
+      "features": ["html", "details", "summary", "raw-html-boundary"]
+    },
+    {
+      "id": "upstream-html-form-controls",
+      "format": "html",
+      "path": "lanes/pandoc/fixtures/upstream-html-form-controls.html",
+      "pandocFormat": "html",
+      "sourceKind": "generated-current",
+      "description": "HTML form control projection fixture.",
+      "features": ["html", "forms", "inputs", "controls"]
+    },
+    {
+      "id": "upstream-html-foster-parent-table-text",
+      "format": "html",
+      "path": "lanes/pandoc/fixtures/upstream-html-foster-parent-table-text.html",
+      "pandocFormat": "html",
+      "sourceKind": "generated-current",
+      "description": "HTML5 table text foster-parenting tree-construction fixture.",
+      "features": ["html5-tree-construction", "table", "foster-parenting"]
+    },
+    {
+      "id": "generated-markdown-gfm-kitchen",
+      "format": "markdown",
+      "path": "lanes/pandoc/fixtures/diverse-reader-sample/markdown/generated-markdown-gfm-kitchen.md",
+      "pandocFormat": "gfm",
+      "readerOptions": {"format": "gfm"},
+      "sourceKind": "generated-local",
+      "description": "Generated GFM sample with alert blockquote, task list, pipe table, strikeout, fenced math, and autolink.",
+      "features": ["gfm", "alerts", "task-list", "pipe-table", "strikeout", "math-fence", "autolink"]
+    },
+    {
+      "id": "generated-markdown-footnote-math",
+      "format": "markdown",
+      "path": "lanes/pandoc/fixtures/diverse-reader-sample/markdown/generated-markdown-footnote-math.md",
+      "pandocFormat": "markdown",
+      "sourceKind": "generated-local",
+      "description": "Generated Pandoc Markdown sample with YAML metadata, definition list, inline/display math, and footnote continuation.",
+      "features": ["markdown", "yaml-metadata", "definition-list", "footnotes", "inline-math", "display-math"]
+    },
+    {
+      "id": "upstream-markdown-gfm-math-fence-profile",
+      "format": "markdown",
+      "path": "lanes/pandoc/fixtures/upstream-markdown-gfm-math-fence-profile.md",
+      "pandocFormat": "gfm",
+      "readerOptions": {"format": "gfm"},
+      "sourceKind": "generated-current",
+      "description": "GFM fenced math profile fixture.",
+      "features": ["gfm", "math-fence", "display-math"]
+    },
+    {
+      "id": "upstream-markdown-z-phpextra-profile",
+      "format": "markdown",
+      "path": "lanes/pandoc/fixtures/upstream-markdown-z-phpextra-profile.md",
+      "pandocFormat": "markdown_phpextra",
+      "readerOptions": {"format": "markdown_phpextra"},
+      "sourceKind": "generated-current",
+      "description": "PHP Markdown Extra profile fixture.",
+      "features": ["markdown_phpextra", "attributes", "definition-list", "footnotes"]
+    },
+    {
+      "id": "upstream-markdown-mmd-title-block-profile",
+      "format": "markdown",
+      "path": "lanes/pandoc/fixtures/upstream-markdown-zzzzzzzzzzz-mmd-title-block-profile.md",
+      "pandocFormat": "markdown_mmd",
+      "readerOptions": {"format": "markdown_mmd"},
+      "sourceKind": "generated-current",
+      "description": "MultiMarkdown title block profile fixture.",
+      "features": ["markdown_mmd", "metadata", "title-block"]
+    },
+    {
+      "id": "upstream-markdown-commonmark-x-grid-table-default",
+      "format": "markdown",
+      "path": "lanes/pandoc/fixtures/upstream-markdown-z-commonmark-x-grid-table-default.md",
+      "pandocFormat": "commonmark_x",
+      "readerOptions": {"format": "commonmark_x"},
+      "sourceKind": "generated-current",
+      "description": "CommonMark X profile around grid-table-looking text.",
+      "features": ["commonmark_x", "table-looking-text", "extension-profile"]
+    },
+    {
+      "id": "upstream-markdown-gfm-auto-identifiers-profile",
+      "format": "markdown",
+      "path": "lanes/pandoc/fixtures/upstream-markdown-zzzzzzzzzzzz-gfm-auto-identifiers-profile.md",
+      "pandocFormat": "commonmark+gfm_auto_identifiers+ascii_identifiers",
+      "readerOptions": {"format": "commonmark+gfm_auto_identifiers+ascii_identifiers"},
+      "sourceKind": "generated-current",
+      "description": "CommonMark/GFM auto identifier profile fixture.",
+      "features": ["commonmark", "gfm_auto_identifiers", "ascii_identifiers", "heading-ids"]
+    },
+    {
+      "id": "upstream-markdown-simple-table-profile",
+      "format": "markdown",
+      "path": "lanes/pandoc/fixtures/upstream-markdown-z-simple-table-profile.md",
+      "pandocFormat": "markdown+simple_tables",
+      "readerOptions": {"format": "markdown+simple_tables"},
+      "sourceKind": "generated-current",
+      "description": "Pandoc Markdown simple table profile fixture.",
+      "features": ["markdown", "simple_tables", "table"]
+    },
+    {
+      "id": "upstream-epub-img",
+      "format": "epub",
+      "path": "lanes/pandoc/fixtures/upstream-current-epub-reader/epub/img.epub",
+      "pandocFormat": "epub",
+      "sourceKind": "online-upstream-fixture",
+      "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/4f5226df4faa0d66dd2c089465b13886360ab3c2/test/epub/img.epub",
+      "description": "Upstream EPUB fixture with image media bag entries.",
+      "features": ["epub", "images", "media-bag", "manifest"]
+    },
+    {
+      "id": "upstream-epub-wasteland",
+      "format": "epub",
+      "path": "lanes/pandoc/fixtures/upstream-current-epub-reader/epub/wasteland.epub",
+      "pandocFormat": "epub",
+      "sourceKind": "online-upstream-fixture",
+      "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/4f5226df4faa0d66dd2c089465b13886360ab3c2/test/epub/wasteland.epub",
+      "description": "Upstream EPUB3 fixture with cover metadata.",
+      "features": ["epub3", "cover", "metadata", "spine"]
+    },
+    {
+      "id": "upstream-epub-mathml-spine",
+      "format": "epub",
+      "path": "lanes/pandoc/fixtures/upstream-current-epub-reader/epub/mathml-spine.epub",
+      "pandocFormat": "epub",
+      "sourceKind": "generated-current",
+      "description": "EPUB spine item with MathML content.",
+      "features": ["epub", "xhtml-spine", "mathml"]
+    },
+    {
+      "id": "upstream-epub-direct-svg-spine",
+      "format": "epub",
+      "path": "lanes/pandoc/fixtures/upstream-current-epub-reader/epub/direct-svg-spine.epub",
+      "pandocFormat": "epub",
+      "sourceKind": "generated-current",
+      "description": "EPUB spine item with direct SVG content.",
+      "features": ["epub", "svg", "xhtml-spine"]
+    },
+    {
+      "id": "upstream-epub-video-navigation",
+      "format": "epub",
+      "path": "lanes/pandoc/fixtures/upstream-current-epub-reader/epub/video-navigation.epub",
+      "pandocFormat": "epub",
+      "sourceKind": "generated-current",
+      "description": "EPUB navigation with video resource metadata.",
+      "features": ["epub", "video", "navigation", "media"]
+    },
+    {
+      "id": "upstream-epub-audio-navigation",
+      "format": "epub",
+      "path": "lanes/pandoc/fixtures/upstream-current-epub-reader/epub/audio-navigation.epub",
+      "pandocFormat": "epub",
+      "sourceKind": "generated-current",
+      "description": "EPUB navigation with audio resource metadata.",
+      "features": ["epub", "audio", "navigation", "media"]
+    },
+    {
+      "id": "upstream-epub-epub3-ncx-toc-fallback",
+      "format": "epub",
+      "path": "lanes/pandoc/fixtures/upstream-current-epub-reader/epub/epub3-ncx-toc-fallback.epub",
+      "pandocFormat": "epub",
+      "sourceKind": "generated-current",
+      "description": "EPUB3 NCX table-of-contents fallback fixture.",
+      "features": ["epub3", "ncx", "toc", "navigation"]
+    },
+    {
+      "id": "upstream-epub-xhtml-ruby-table-mark",
+      "format": "epub",
+      "path": "lanes/pandoc/fixtures/upstream-current-epub-reader/epub/xhtml-ruby-table-mark.epub",
+      "pandocFormat": "epub",
+      "sourceKind": "generated-current",
+      "description": "EPUB XHTML spine fixture with ruby/table/mark semantics.",
+      "features": ["epub", "xhtml", "ruby", "table", "mark"]
+    },
+    {
+      "id": "upstream-pptx-basic",
+      "format": "pptx",
+      "path": "lanes/pandoc/fixtures/upstream-current-pptx-reader/basic.pptx",
+      "pandocFormat": "pptx",
+      "sourceKind": "online-upstream-fixture",
+      "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/4f5226df4faa0d66dd2c089465b13886360ab3c2/test/pptx-reader/basic.pptx",
+      "description": "Upstream PPTX baseline text extraction fixture.",
+      "features": ["pptx", "text", "slides"]
+    },
+    {
+      "id": "upstream-pptx-chart-embedded-workbook",
+      "format": "pptx",
+      "path": "lanes/pandoc/fixtures/upstream-current-pptx-reader/chart-embedded-workbook.pptx",
+      "pandocFormat": "pptx",
+      "sourceKind": "generated-current",
+      "description": "PPTX chart fixture with embedded workbook sidecar metadata.",
+      "features": ["pptx", "chart", "embedded-workbook", "relationships"]
+    },
+    {
+      "id": "upstream-pptx-generated-table",
+      "format": "pptx",
+      "path": "lanes/pandoc/fixtures/upstream-current-pptx-reader/generated-table.pptx",
+      "pandocFormat": "pptx",
+      "sourceKind": "generated-current",
+      "description": "PPTX generated table fixture.",
+      "features": ["pptx", "table", "drawingml"]
+    },
+    {
+      "id": "upstream-pptx-smartart-hierarchy",
+      "format": "pptx",
+      "path": "lanes/pandoc/fixtures/upstream-current-pptx-reader/smartart-hierarchy.pptx",
+      "pandocFormat": "pptx",
+      "sourceKind": "generated-current",
+      "description": "PPTX SmartArt hierarchy fixture.",
+      "features": ["pptx", "smartart", "hierarchy", "relationships"]
+    },
+    {
+      "id": "upstream-pptx-grouped-shapes",
+      "format": "pptx",
+      "path": "lanes/pandoc/fixtures/upstream-current-pptx-reader/grouped-shapes.pptx",
+      "pandocFormat": "pptx",
+      "sourceKind": "generated-current",
+      "description": "PPTX grouped shapes fixture.",
+      "features": ["pptx", "grouped-shapes", "drawingml"]
+    },
+    {
+      "id": "upstream-pptx-speaker-notes",
+      "format": "pptx",
+      "path": "lanes/pandoc/fixtures/upstream-current-pptx-reader/speaker-notes.pptx",
+      "pandocFormat": "pptx",
+      "sourceKind": "generated-current",
+      "description": "PPTX speaker notes fixture.",
+      "features": ["pptx", "speaker-notes", "notesSlide"]
+    },
+    {
+      "id": "upstream-pptx-comments-ignored",
+      "format": "pptx",
+      "path": "lanes/pandoc/fixtures/upstream-current-pptx-reader/comments-ignored.pptx",
+      "pandocFormat": "pptx",
+      "sourceKind": "generated-current",
+      "description": "PPTX comments review metadata fixture.",
+      "features": ["pptx", "comments", "review-metadata"]
+    },
+    {
+      "id": "upstream-pptx-transition-sound-media",
+      "format": "pptx",
+      "path": "lanes/pandoc/fixtures/upstream-current-pptx-reader/transition-sound-media.pptx",
+      "pandocFormat": "pptx",
+      "sourceKind": "generated-current",
+      "description": "PPTX transition sound media fixture.",
+      "features": ["pptx", "transition", "sound", "media"]
+    }
+  ]
+}

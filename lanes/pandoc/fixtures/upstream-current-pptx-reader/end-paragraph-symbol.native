@@ -1,0 +1,3 @@
+[ Header 2 ( "slide-1" , [] , [] ) [ Str "Symbol slide" ]
+, Para [ Str "Not a Wingdings bullet" ]
+]

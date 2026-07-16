@@ -1,0 +1,6 @@
+[ Plain
+    [ Strong [ Str "bold" ]
+    , Emph [ Str "em" ]
+    , Span ( "" , [ "x" ] , [] ) [ Str "sp" ]
+    ]
+]

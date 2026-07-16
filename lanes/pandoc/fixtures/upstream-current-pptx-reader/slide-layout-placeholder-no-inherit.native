@@ -1,0 +1,5 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Layout inheritance deck" ]
+, Para [ Str "" ]
+, Para [ Str "Visible slide body" ]
+]

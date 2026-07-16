@@ -1,0 +1,21 @@
+# Real Upstream Window2 ROWS Following Blocker
+
+- Slice: `real-upstream-corpus-window-functions-dynamic-20260531T145932Z-0`
+- Base accepted HEAD: `5042ee5a640251937d88ffe1e25c7b681010f72f`
+- Upstream source: `/home/claude/port-libs/.upstream-cache/libsqlite/test/window2.test`
+- Ported/fixed sections:
+  - `window2.test` `2.14-2.24`: ROWS frames that end at prior rows, start at following rows, and run through `UNBOUNDED FOLLOWING`.
+  - Existing `window6.test` frame-syntax guard remains authoritative for unsupported frame-boundary order.
+- Before fix:
+  - `php -d memory_limit=2048M tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamWindow2RowsFollowingDynamicTest.php`
+  - Failed during test load with `InvalidArgumentException: SQLite window frame specification is not supported` from `SQLiteWindowFunction::validateFrameBoundaryOrder()`.
+- Patch:
+  - Restricted the window2 dynamic ROWS generator to SQLite-supported frame-boundary ordering while preserving the `1002` dynamic row checks and the upstream `2.14-2.24` focused examples.
+  - Updated the older SELECT/window expectation to assert legal same-class `FOLLOWING/FOLLOWING` and `PRECEDING/PRECEDING` frames, while retaining the bare numeric bound rejection.
+- Focused evidence:
+  - `php -d memory_limit=2048M tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamWindow2RowsFollowingDynamicTest.php` passed with `1 test files, 1070 assertions, 0 failures` and `1069` PASS lines.
+  - `php -d memory_limit=2048M tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectWindowExcludeFilterCurrentNext27Test.php` passed with `1 test files, 51 assertions, 0 failures`.
+  - `php -d memory_limit=2048M tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamWindow2RowsFollowingDynamicTest.php lanes/libsqlite/tests/SQLiteRealUpstreamWindow2RowsDynamicCorpusTest.php lanes/libsqlite/tests/SQLiteRealUpstreamWindow6FrameSyntaxDynamic20260531Test.php lanes/libsqlite/tests/SQLiteRealUpstreamWindowDynamicFramesTest.php lanes/libsqlite/tests/SQLiteSelectWindowExcludeFilterCurrentNext27Test.php` passed with `5 test files, 11896 assertions, 0 failures`.
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingSourceNeutralDefaultsTest.php` passed with `1 test files, 1 assertions, 0 failures`; no dedicated `SQLiteNoWordPressSpecificApiTest.php` file exists in this worktree.
+- Non-overlap: this removes the current full-lane blocker in `SQLiteRealUpstreamWindow2RowsFollowingDynamicTest.php`. It does not add metadata-only rows, generated fake upstream IDs, or duplicate WAL/VFS/B-tree/JSON/source-neutral surfaces.
+- Dependency closure: no new support component is needed; the slice reuses the native window-frame helpers and existing lane test runner.

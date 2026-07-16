@@ -1,0 +1,5 @@
+[ Para [ Str "Before" ]
+, Para [ Str "Alpha" , Space , Emph [ Str "one" ] ]
+, Para [ Str "Beta" , Space , Strong [ Str "two" ] ]
+, Para [ Str "After" ]
+]

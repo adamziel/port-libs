@@ -1,0 +1,7 @@
+[ Para [ Str "a\8212b" ]
+, Para [ Str "a\8212-b" ]
+, Para [ Str "a\8212\8212b" ]
+, Para [ Str "a\8212\8212-b" ]
+, Para [ Str "a" , Space , Str "\8212" , Space , Str "b" ]
+, Para [ Str "a" , Space , Str "\8212-" , Space , Str "b" ]
+]

@@ -1,0 +1,6 @@
+[ Header
+    2
+    ( "slide-1" , [] , [] )
+    [ Str "Subtitle placeholder deck" ]
+, Para [ Str "Subtitle remains body text" ]
+]

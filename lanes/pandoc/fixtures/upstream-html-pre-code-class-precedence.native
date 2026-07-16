@@ -1,0 +1,7 @@
+[ CodeBlock
+    ( "pre-class-wins"
+    , [ "language-python" , "audit" ]
+    , [ ( "source" , "upstream-pre" ) ]
+    )
+    "print(\"hi\")"
+]

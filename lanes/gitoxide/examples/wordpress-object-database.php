@@ -1,0 +1,371 @@
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../../../tools/bootstrap.php';
+
+use PortLibs\Gitoxide\Commit;
+use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\GitTag;
+use PortLibs\Gitoxide\LooseObjectStore;
+use PortLibs\Gitoxide\LooseReferenceStore;
+use PortLibs\Gitoxide\ObjectDatabase;
+use PortLibs\Gitoxide\Tree;
+
+$fixture = require __DIR__ . '/../fixtures/wordpress-pack-data.php';
+$gitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-' . bin2hex(random_bytes(4)) . '/.git';
+$packDir = $gitDir . '/objects/pack';
+if (!mkdir($packDir, 0777, true) && !is_dir($packDir)) {
+    throw new RuntimeException("Unable to create pack example directory: {$packDir}");
+}
+
+$basename = 'pack-' . $fixture['packChecksum'];
+file_put_contents($packDir . '/' . $basename . '.pack', $fixture['packBytes']);
+file_put_contents($packDir . '/' . $basename . '.idx', $fixture['indexBytes']);
+
+$loose = new LooseObjectStore($gitDir);
+$draftOid = $loose->write(new GitObject('blob', 'Draft block content pending the next packed snapshot.'));
+$reviewedDraftOid = $loose->write(new GitObject('blob', 'Reviewed draft block content ready for publishing.'));
+(new LooseReferenceStore($gitDir))->writeDirect('refs/replace/' . $draftOid, $reviewedDraftOid);
+$alternateObjectsDir = dirname($gitDir) . '/shared-package-cache/.git/objects';
+if (!mkdir($alternateObjectsDir, 0777, true) && !is_dir($alternateObjectsDir)) {
+    throw new RuntimeException("Unable to create alternate object directory: {$alternateObjectsDir}");
+}
+$sharedPackageOid = LooseObjectStore::fromObjectsDirectory($alternateObjectsDir)
+    ->write(new GitObject('blob', 'Shared plugin package object from an alternate cache.'));
+$infoDir = $gitDir . '/objects/info';
+if (!mkdir($infoDir, 0777, true) && !is_dir($infoDir)) {
+    throw new RuntimeException("Unable to create objects info directory: {$infoDir}");
+}
+file_put_contents($infoDir . '/alternates', "# shared object cache\n{$alternateObjectsDir}\n");
+
+$database = new ObjectDatabase($gitDir);
+$packedCommitWriteOid = $database->writeCommit(Commit::parse($fixture['objects'][0]['body']));
+$deploymentCommit = new Commit(
+    'e90926b07092bccb7bf7da445fae6ffdfacf3eae',
+    [$fixture['objects'][0]['oid']],
+    'WordPress Importer <importer@example.test> 1710000000 +0000',
+    'WordPress Deploy Bot <deploy@example.test> 1710000300 +0000',
+    "Publish regenerated block snapshot\n",
+    [],
+);
+$deploymentCommitOid = $database->writeCommit($deploymentCommit);
+$deploymentCommitPath = $gitDir . '/objects/' . substr($deploymentCommitOid, 0, 2) . '/' . substr($deploymentCommitOid, 2);
+$deploymentCommitRoundTrip = Commit::parse($database->read($deploymentCommitOid)->body);
+$deploymentCommitHeader = $database->readHeader($deploymentCommitOid);
+$deltaBlob = $database->read($fixture['objects'][2]['oid']);
+$draft = $database->read($draftOid);
+$rawDraft = $database->withReplacementsIgnored()->read($draftOid);
+$draftHeader = $database->readHeader($draftOid);
+$rawDraftHeader = $database->withReplacementsIgnored()->readHeader($draftOid);
+$sharedPackage = $database->read($sharedPackageOid);
+$prefix = $database->lookupPrefix(substr($fixture['objects'][2]['oid'], 0, 8));
+$looseIntegrity = $database->verifyLooseIntegrity();
+$looseIntegrityObjects = array_sum(array_map(
+    static fn (array $row): int => $row['statistics']['numObjects'],
+    $looseIntegrity
+));
+
+$duplicateIndexObject = $fixture['objects'][1];
+$duplicateIndexEntries = [$duplicateIndexObject, $duplicateIndexObject];
+$duplicateIndexFanout = array_fill(0, 256, 0);
+foreach ($duplicateIndexEntries as $entry) {
+    $duplicateIndexFanout[hexdec(substr($entry['oid'], 0, 2))]++;
+}
+$duplicateIndexRunning = 0;
+foreach ($duplicateIndexFanout as $index => $count) {
+    $duplicateIndexRunning += $count;
+    $duplicateIndexFanout[$index] = $duplicateIndexRunning;
+}
+$duplicateIndexBytes = "\xfftOc" . pack('N', 2);
+foreach ($duplicateIndexFanout as $count) {
+    $duplicateIndexBytes .= pack('N', $count);
+}
+foreach ($duplicateIndexEntries as $entry) {
+    $oidBytes = hex2bin($entry['oid']);
+    if ($oidBytes === false) {
+        throw new RuntimeException('Unable to decode duplicate-index object id');
+    }
+    $duplicateIndexBytes .= $oidBytes;
+}
+foreach ($duplicateIndexEntries as $entry) {
+    $duplicateIndexBytes .= pack('N', $entry['crc32']);
+}
+foreach ($duplicateIndexEntries as $entry) {
+    $duplicateIndexBytes .= pack('N', $entry['offset']);
+}
+$duplicateIndexBytes .= hex2bin($fixture['packChecksum']);
+$duplicateIndexBytes .= hex2bin(hash('sha1', $duplicateIndexBytes));
+
+$duplicateIndexGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-duplicate-index-' . bin2hex(random_bytes(4)) . '/.git';
+$duplicateIndexPackDir = $duplicateIndexGitDir . '/objects/pack';
+if (!mkdir($duplicateIndexPackDir, 0777, true) && !is_dir($duplicateIndexPackDir)) {
+    throw new RuntimeException("Unable to create duplicate-index pack example directory: {$duplicateIndexPackDir}");
+}
+$duplicateIndexBase = 'pack-duplicate-prefix-' . $fixture['packChecksum'];
+file_put_contents($duplicateIndexPackDir . '/' . $duplicateIndexBase . '.pack', $fixture['packBytes']);
+file_put_contents($duplicateIndexPackDir . '/' . $duplicateIndexBase . '.idx', $duplicateIndexBytes);
+$duplicateIndexDatabase = new ObjectDatabase($duplicateIndexGitDir);
+$duplicateIndexPrefix = strtoupper(substr($duplicateIndexObject['oid'], 0, 8));
+$duplicateIndexPrefixWithoutCandidates = $duplicateIndexDatabase->lookupPrefix($duplicateIndexPrefix);
+$duplicateIndexPrefixWithCandidates = $duplicateIndexDatabase->lookupPrefix($duplicateIndexPrefix, true);
+
+$sha256GitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-sha256-' . bin2hex(random_bytes(4)) . '/.git';
+$sha256Database = new ObjectDatabase($sha256GitDir, objectHash: 'sha256');
+$sha256Object = new GitObject('blob', 'SHA-256-addressed WordPress deployment snapshot.');
+$sha256Oid = $sha256Database->write($sha256Object);
+$sha256Header = $sha256Database->readHeader(strtoupper($sha256Oid));
+$sha256OidBytes = hex2bin($sha256Oid);
+if ($sha256OidBytes === false) {
+    throw new RuntimeException('Unable to decode SHA-256 loose object id for tree fixture');
+}
+$sha256TreeObject = new GitObject('tree', "100644 block.html\0" . $sha256OidBytes);
+$sha256TreeOid = $sha256Database->write($sha256TreeObject);
+$sha256ParsedTree = Tree::parse($sha256TreeObject->body, 'sha256');
+$sha256Commit = new Commit(
+    $sha256TreeOid,
+    [],
+    'WordPress Importer <importer@example.test> 1710000000 +0000',
+    'WordPress Deploy Bot <deploy@example.test> 1710000300 +0000',
+    "Publish SHA-256 deployment snapshot\n",
+    [],
+);
+$sha256CommitOid = $sha256Database->write($sha256Commit->object());
+$sha256Tag = new GitTag($sha256CommitOid, 'commit', 'deploy/sha256-integrity', null, "Verified SHA-256 deployment object graph\n");
+$sha256TagOid = $sha256Database->write($sha256Tag->object());
+$sha256Integrity = $sha256Database->verifyLooseIntegrity();
+
+$blockedGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-directory-blocker-' . bin2hex(random_bytes(4)) . '/.git';
+$blockedOid = str_repeat('a', 40);
+$blockedPath = $blockedGitDir . '/objects/' . substr($blockedOid, 0, 2) . '/' . substr($blockedOid, 2);
+if (!mkdir($blockedPath, 0777, true) && !is_dir($blockedPath)) {
+    throw new RuntimeException("Unable to create loose object blocker example directory: {$blockedPath}");
+}
+$looseIntegrityDirectoryBlockerRejected = false;
+try {
+    (new ObjectDatabase($blockedGitDir))->verifyLooseIntegrity();
+} catch (RuntimeException $exception) {
+    $looseIntegrityDirectoryBlockerRejected = str_contains($exception->getMessage(), "Loose object {$blockedOid} could not be read exactly")
+        && str_contains($exception->getMessage(), 'Loose object path is not a regular file');
+}
+
+$nestedCandidateGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-nested-candidate-' . bin2hex(random_bytes(4)) . '/.git';
+$nestedCandidateOid = str_repeat('b', 40);
+$nestedCandidatePath = $nestedCandidateGitDir . '/objects/transient/' . substr($nestedCandidateOid, 0, 2) . '/' . substr($nestedCandidateOid, 2);
+if (!mkdir(dirname($nestedCandidatePath), 0777, true) && !is_dir(dirname($nestedCandidatePath))) {
+    throw new RuntimeException("Unable to create nested loose object candidate directory: " . dirname($nestedCandidatePath));
+}
+file_put_contents($nestedCandidatePath, 'stale loose object candidate');
+$looseIntegrityNestedCandidateRejected = false;
+try {
+    (new ObjectDatabase($nestedCandidateGitDir))->verifyLooseIntegrity();
+} catch (RuntimeException $exception) {
+    $looseIntegrityNestedCandidateRejected = str_contains($exception->getMessage(), "Loose object {$nestedCandidateOid} could not be read exactly")
+        && str_contains($exception->getMessage(), 'Loose object not found');
+}
+
+$sizeMismatchGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-size-mismatch-' . bin2hex(random_bytes(4)) . '/.git';
+$sizeMismatchOid = hash('sha1', "blob 3\0abc");
+$sizeMismatchPath = $sizeMismatchGitDir . '/objects/' . substr($sizeMismatchOid, 0, 2) . '/' . substr($sizeMismatchOid, 2);
+if (!mkdir(dirname($sizeMismatchPath), 0777, true) && !is_dir(dirname($sizeMismatchPath))) {
+    throw new RuntimeException("Unable to create loose object size-mismatch directory: " . dirname($sizeMismatchPath));
+}
+$sizeMismatchBytes = gzcompress("blob 3\0abcdef");
+if ($sizeMismatchBytes === false) {
+    throw new RuntimeException('Unable to compress loose object size-mismatch fixture');
+}
+file_put_contents($sizeMismatchPath, $sizeMismatchBytes);
+$looseIntegritySizeMismatchRejected = false;
+try {
+    (new ObjectDatabase($sizeMismatchGitDir))->verifyLooseIntegrity();
+} catch (RuntimeException $exception) {
+    $looseIntegritySizeMismatchRejected = str_contains($exception->getMessage(), "Loose object {$sizeMismatchOid} could not be read exactly")
+        && str_contains($exception->getMessage(), 'Loose object inflated size mismatch');
+}
+
+$emptyLooseGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-empty-loose-' . bin2hex(random_bytes(4)) . '/.git';
+$emptyLooseOid = str_repeat('c', 40);
+$emptyLoosePath = $emptyLooseGitDir . '/objects/' . substr($emptyLooseOid, 0, 2) . '/' . substr($emptyLooseOid, 2);
+if (!mkdir(dirname($emptyLoosePath), 0777, true) && !is_dir(dirname($emptyLoosePath))) {
+    throw new RuntimeException('Unable to create empty loose object example directory');
+}
+file_put_contents($emptyLoosePath, '');
+$looseIntegrityEmptyFileRejected = false;
+try {
+    (new ObjectDatabase($emptyLooseGitDir))->verifyLooseIntegrity();
+} catch (RuntimeException $exception) {
+    $looseIntegrityEmptyFileRejected = str_contains($exception->getMessage(), "Loose object {$emptyLooseOid} could not be read exactly")
+        && str_contains($exception->getMessage(), "Loose object file is empty: {$emptyLooseOid}");
+}
+
+$brokenSymlinkGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-broken-symlink-' . bin2hex(random_bytes(4)) . '/.git';
+$brokenSymlinkOid = str_repeat('d', 40);
+$brokenSymlinkPath = $brokenSymlinkGitDir . '/objects/' . substr($brokenSymlinkOid, 0, 2) . '/' . substr($brokenSymlinkOid, 2);
+if (!mkdir(dirname($brokenSymlinkPath), 0777, true) && !is_dir(dirname($brokenSymlinkPath))) {
+    throw new RuntimeException('Unable to create broken loose object symlink example directory');
+}
+if (!symlink($brokenSymlinkGitDir . '/objects/missing-target', $brokenSymlinkPath)) {
+    throw new RuntimeException('Unable to create broken loose object symlink example fixture');
+}
+$brokenSymlinkStore = new LooseObjectStore($brokenSymlinkGitDir);
+$looseIntegrityBrokenSymlinkRejected = false;
+try {
+    (new ObjectDatabase($brokenSymlinkGitDir))->verifyLooseIntegrity();
+} catch (RuntimeException $exception) {
+    $looseIntegrityBrokenSymlinkRejected = !$brokenSymlinkStore->contains($brokenSymlinkOid)
+        && $brokenSymlinkStore->tryReadHeader($brokenSymlinkOid) === null
+        && str_contains($exception->getMessage(), "Loose object {$brokenSymlinkOid} could not be read exactly")
+        && str_contains($exception->getMessage(), "Loose object not found: {$brokenSymlinkOid}");
+}
+
+$unwalkableGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-unwalkable-' . bin2hex(random_bytes(4)) . '/.git';
+$unwalkableStore = new LooseObjectStore($unwalkableGitDir);
+$unwalkableOid = $unwalkableStore->write(new GitObject('blob', 'Verified deployment object beside transient scratch data.'));
+$unwalkableDirectory = $unwalkableGitDir . '/objects/transient-unwalkable';
+if (!mkdir($unwalkableDirectory, 0777, true) && !is_dir($unwalkableDirectory)) {
+    throw new RuntimeException("Unable to create unwalkable loose object directory: {$unwalkableDirectory}");
+}
+file_put_contents($unwalkableDirectory . '/ignored.tmp', 'transient deployment scratch file');
+chmod($unwalkableDirectory, 0000);
+try {
+    $looseIntegrityTraversalSummary = (new ObjectDatabase($unwalkableGitDir))->verifyLooseIntegrity();
+} finally {
+    chmod($unwalkableDirectory, 0777);
+}
+$looseIntegrityTraversalErrorIgnored = $looseIntegrityTraversalSummary[0]['statistics']['numObjects'] === 1
+    && in_array($unwalkableOid, $looseIntegrityTraversalSummary[0]['statistics']['verifiedObjectIds'], true);
+
+$caseDuplicateGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-case-duplicate-' . bin2hex(random_bytes(4)) . '/.git';
+$caseDuplicateStore = new LooseObjectStore($caseDuplicateGitDir);
+$caseDuplicateObject = null;
+$caseDuplicateOid = null;
+for ($i = 0; $i < 100; $i++) {
+    $candidate = new GitObject('blob', "WordPress case-variant loose object candidate {$i}");
+    $candidateOid = $candidate->oid();
+    if (strtoupper($candidateOid) !== $candidateOid) {
+        $caseDuplicateObject = $candidate;
+        $caseDuplicateOid = $candidateOid;
+        break;
+    }
+}
+if (!$caseDuplicateObject instanceof GitObject || $caseDuplicateOid === null) {
+    throw new RuntimeException('Unable to create mixed-case loose object example fixture');
+}
+$caseDuplicateStore->write($caseDuplicateObject);
+$caseDuplicatePath = $caseDuplicateGitDir . '/objects/' . substr(strtoupper($caseDuplicateOid), 0, 2) . '/' . substr(strtoupper($caseDuplicateOid), 2);
+$caseDuplicateMaterialized = false;
+if (!file_exists($caseDuplicatePath) && !is_link($caseDuplicatePath)) {
+    if (!is_dir(dirname($caseDuplicatePath)) && !mkdir(dirname($caseDuplicatePath), 0777, true) && !is_dir(dirname($caseDuplicatePath))) {
+        throw new RuntimeException("Unable to create case-variant loose object example directory: " . dirname($caseDuplicatePath));
+    }
+    if (file_put_contents($caseDuplicatePath, 'stale case-variant loose object candidate') === false) {
+        throw new RuntimeException("Unable to create case-variant loose object example candidate: {$caseDuplicatePath}");
+    }
+    $caseDuplicateMaterialized = true;
+}
+$caseDuplicateIntegrity = (new ObjectDatabase($caseDuplicateGitDir))->verifyLooseIntegrity();
+
+$crlfCommitGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-crlf-commit-' . bin2hex(random_bytes(4)) . '/.git';
+$crlfCommitTree = str_repeat('e', 40);
+$crlfCommitBody = "tree {$crlfCommitTree}\r\n"
+    . "author WordPress Importer <importer@example.test> 1710000000 +0000\r\n"
+    . "committer WordPress Deploy Bot <deploy@example.test> 1710000300 +0000\r\n"
+    . "\n"
+    . "Import block snapshot with CRLF object headers\n";
+$crlfCommitOid = (new LooseObjectStore($crlfCommitGitDir))->write(new GitObject('commit', $crlfCommitBody));
+$looseIntegrityCrLfCommitHeaderRejected = false;
+try {
+    (new ObjectDatabase($crlfCommitGitDir))->verifyLooseIntegrity();
+} catch (RuntimeException $exception) {
+    $looseIntegrityCrLfCommitHeaderRejected = str_contains($exception->getMessage(), "commit object {$crlfCommitOid} could not be decoded")
+        && str_contains($exception->getMessage(), 'Commit tree must be a 40-character sha1 hex object id');
+}
+
+$crlfTagGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-crlf-tag-' . bin2hex(random_bytes(4)) . '/.git';
+$crlfTagTarget = str_repeat('f', 40);
+$crlfTagBody = "object {$crlfTagTarget}\r\n"
+    . "type commit\r\n"
+    . "tag deploy/crlf-header\r\n"
+    . "\n"
+    . "Tag body after CRLF object headers\n";
+$crlfTagOid = (new LooseObjectStore($crlfTagGitDir))->write(new GitObject('tag', $crlfTagBody));
+$looseIntegrityCrLfTagHeaderRejected = false;
+try {
+    (new ObjectDatabase($crlfTagGitDir))->verifyLooseIntegrity();
+} catch (RuntimeException $exception) {
+    $looseIntegrityCrLfTagHeaderRejected = str_contains($exception->getMessage(), "tag object {$crlfTagOid} could not be decoded")
+        && str_contains($exception->getMessage(), 'Git tag target must be a 40-character sha1 hex object id');
+}
+
+$emptyModeTreeGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-empty-tree-mode-' . bin2hex(random_bytes(4)) . '/.git';
+$emptyModeTreeTarget = str_repeat('0', 40);
+$emptyModeTreeTargetBytes = hex2bin($emptyModeTreeTarget);
+if ($emptyModeTreeTargetBytes === false) {
+    throw new RuntimeException('Unable to decode empty-mode tree target oid');
+}
+$emptyModeTreeStore = new LooseObjectStore($emptyModeTreeGitDir);
+$emptyModeTreeOid = $emptyModeTreeStore->write(new GitObject('tree', " block-template.html\0" . $emptyModeTreeTargetBytes));
+$emptyModeTreeDatabase = new ObjectDatabase($emptyModeTreeGitDir);
+$emptyModeTree = Tree::parse($emptyModeTreeDatabase->read($emptyModeTreeOid)->body);
+$emptyModeTreeIntegrity = $emptyModeTreeDatabase->verifyLooseIntegrity();
+$looseIntegrityEmptyTreeModeAccepted = $emptyModeTree->entries[0]->mode === ''
+    && $emptyModeTree->entries[0]->filename === 'block-template.html'
+    && $emptyModeTree->entries[0]->oid === $emptyModeTreeTarget
+    && $emptyModeTree->entries[0]->kind() === 'commit'
+    && in_array($emptyModeTreeOid, $emptyModeTreeIntegrity[0]['statistics']['verifiedObjectIds'], true);
+
+return [
+    'packedObjects' => $database->packedObjectCount(),
+    'totalIterableObjects' => count($database->objectIds()),
+    'alternateObjectDatabases' => count($database->alternateObjectDirectories()),
+    'deltaBlobOid' => $deltaBlob->oid(),
+    'deltaBlobHasPackedEdit' => str_contains($deltaBlob->body, 'reconstructed packed edit'),
+    'draftOid' => $draft->oid(),
+    'draftSource' => 'replacement ref',
+    'rawDraftOid' => $rawDraft->oid(),
+    'replacementCount' => count($database->replacements()),
+    'sharedPackageOid' => $sharedPackage->oid(),
+    'sharedPackageSource' => 'alternate object database',
+    'deltaPrefixStatus' => $prefix['status'],
+    'duplicateIndexOid' => $duplicateIndexObject['oid'],
+    'duplicateIndexPrefixStatusWithoutCandidates' => $duplicateIndexPrefixWithoutCandidates['status'],
+    'duplicateIndexPrefixMatchesWithoutCandidates' => $duplicateIndexPrefixWithoutCandidates['matches'],
+    'duplicateIndexPrefixStatusWithCandidates' => $duplicateIndexPrefixWithCandidates['status'],
+    'duplicateIndexPrefixCandidates' => $duplicateIndexPrefixWithCandidates['candidates'],
+    'firstPackOffsetOid' => $database->objectIds(ObjectDatabase::ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL)[0],
+    'packedCommitWriteSkippedLoose' => $packedCommitWriteOid === $fixture['objects'][0]['oid']
+        && !is_file($gitDir . '/objects/' . substr($packedCommitWriteOid, 0, 2) . '/' . substr($packedCommitWriteOid, 2)),
+    'deploymentCommitOid' => $deploymentCommitOid,
+    'deploymentCommitStoredLoose' => is_file($deploymentCommitPath),
+    'deploymentCommitSummary' => $deploymentCommitRoundTrip->messageSummary(),
+    'deploymentCommitParent' => $deploymentCommitRoundTrip->parents[0],
+    'deploymentCommitHeaderType' => $deploymentCommitHeader['type'],
+    'deploymentCommitHeaderSize' => $deploymentCommitHeader['size'],
+    'replacementHeaderUsesReviewedDraft' => $draftHeader['size'] === strlen('Reviewed draft block content ready for publishing.')
+        && $rawDraftHeader['size'] === strlen('Draft block content pending the next packed snapshot.'),
+    'looseIntegrityStores' => count($looseIntegrity),
+    'looseIntegrityObjects' => $looseIntegrityObjects,
+    'looseIntegrityVerifiedDeploymentCommit' => in_array($deploymentCommitOid, $looseIntegrity[0]['statistics']['verifiedObjectIds'], true),
+    'looseIntegrityVerifiedSharedPackage' => in_array($sharedPackageOid, $looseIntegrity[1]['statistics']['verifiedObjectIds'], true),
+    'sha256LooseObjectOidLength' => strlen($sha256Oid),
+    'sha256LooseObjectReadable' => $sha256Database->read($sha256Oid)->body === $sha256Object->body,
+    'sha256LooseHeaderSource' => $sha256Header['source'],
+    'sha256LooseIntegrityObjects' => $sha256Integrity[0]['statistics']['numObjects'],
+    'sha256LooseIntegrityVerified' => in_array($sha256Oid, $sha256Integrity[0]['statistics']['verifiedObjectIds'], true),
+    'sha256StructuredTreeEntryOidLength' => strlen($sha256ParsedTree->entries[0]->oid),
+    'sha256StructuredIntegrityVerified' => in_array($sha256TreeOid, $sha256Integrity[0]['statistics']['verifiedObjectIds'], true)
+        && in_array($sha256CommitOid, $sha256Integrity[0]['statistics']['verifiedObjectIds'], true)
+        && in_array($sha256TagOid, $sha256Integrity[0]['statistics']['verifiedObjectIds'], true),
+    'looseIntegrityDirectoryBlockerRejected' => $looseIntegrityDirectoryBlockerRejected,
+    'looseIntegrityNestedCandidateRejected' => $looseIntegrityNestedCandidateRejected,
+    'looseIntegritySizeMismatchRejected' => $looseIntegritySizeMismatchRejected,
+    'looseIntegrityEmptyFileRejected' => $looseIntegrityEmptyFileRejected,
+    'looseIntegrityBrokenSymlinkRejected' => $looseIntegrityBrokenSymlinkRejected,
+    'looseIntegrityTraversalErrorIgnored' => $looseIntegrityTraversalErrorIgnored,
+    'looseIntegrityCaseDuplicateMaterialized' => $caseDuplicateMaterialized,
+    'looseIntegrityCaseDuplicateCount' => $caseDuplicateIntegrity[0]['statistics']['numObjects'],
+    'looseIntegrityCaseDuplicateVerifiedIds' => $caseDuplicateIntegrity[0]['statistics']['verifiedObjectIds'],
+    'looseIntegrityCrLfCommitHeaderRejected' => $looseIntegrityCrLfCommitHeaderRejected,
+    'looseIntegrityCrLfTagHeaderRejected' => $looseIntegrityCrLfTagHeaderRejected,
+    'looseIntegrityEmptyTreeModeAccepted' => $looseIntegrityEmptyTreeModeAccepted,
+];

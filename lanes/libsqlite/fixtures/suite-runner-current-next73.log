@@ -1,0 +1,8 @@
+SQLite Tcl bounded runner focused fixture
+label: sqlite-focused-current-next73
+source: c1b3825e121841b3669ec7027e8adbacaebb6283
+command: ./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error current-next73-runner-01.test
+scripts: 1
+tests: 601
+errors: 0
+status: focused-pass

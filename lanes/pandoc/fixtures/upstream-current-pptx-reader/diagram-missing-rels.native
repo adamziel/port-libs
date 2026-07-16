@@ -1,0 +1,6 @@
+[ Header
+    2
+    ( "slide-1" , [] , [] )
+    [ Str "Diagram missing relationship ids" ]
+, Para [ Str "[Graphic: diagram-missing-rels]" ]
+]

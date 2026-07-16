@@ -1,0 +1,2 @@
+[ Para [ RawInline (Format "html") "<object data=\"/wp-content/uploads/imported-map.svg\" type=\"image/svg+xml\">" , RawInline (Format "html") "<embed src=\"/wp-content/uploads/imported-map-fallback.swf\" type=\"application/x-shockwave-flash\">" , Str "Interactive" , Space , Str "map" , Space , Str "fallback" , RawInline (Format "html") "</object>" , Space , Str "remains" , Space , Str "reviewable" , Space , Str "after" , Space , Str "import." ]
+]

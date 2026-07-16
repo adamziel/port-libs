@@ -1,0 +1,47 @@
+[ Div
+    ( "article-body"
+    , [ "wp-import" ]
+    , [ ( "role" , "main" ) , ( "source" , "legacy-export" ) ]
+    )
+    [ Div
+        ( "import-title"
+        , [ "header" ]
+        , [ ( "review" , "keep" ) ]
+        )
+        [ Header
+            1
+            ( "imported-feature" , [] , [] )
+            [ Str "Imported" , Space , Str "Feature" ]
+        , Para
+            [ Str "Deck"
+            , Space
+            , Str "copy"
+            , Space
+            , Str "that"
+            , Space
+            , Str "belongs"
+            , Space
+            , Str "with"
+            , Space
+            , Str "the"
+            , Space
+            , Str "article"
+            , Space
+            , Str "header."
+            ]
+        ]
+    , Para
+        [ Str "Article"
+        , Space
+        , Str "body"
+        , Space
+        , Str "copy"
+        , Space
+        , Str "for"
+        , Space
+        , Str "WordPress"
+        , Space
+        , Str "review."
+        ]
+    ]
+]

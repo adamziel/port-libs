@@ -1,0 +1,16 @@
+lanes/pandoc/fixtures/generated-current-csv-reader/crlf-rows.csv -whitespace
+lanes/pandoc/fixtures/generated-current-csv-reader/leading-whitespace-record.csv -whitespace
+lanes/pandoc/fixtures/generated-current-csv-reader/leading-blank-whitespace.csv -whitespace
+lanes/pandoc/fixtures/generated-current-csv-reader/space-only-record.csv -whitespace
+lanes/pandoc/fixtures/generated-current-csv-reader/quoted-final-vtab-whitespace.csv -whitespace
+lanes/pandoc/fixtures/generated-current-csv-reader/quoted-crlf-linebreak.csv -whitespace
+lanes/pandoc/fixtures/generated-current-csv-reader/quoted-blank-line-cell.csv -whitespace
+lanes/pandoc/fixtures/generated-current-csv-reader/unquoted-final-formfeed.csv -whitespace
+lanes/pandoc/fixtures/generated-current-tsv-reader/leading-blank-whitespace.tsv -whitespace
+lanes/pandoc/fixtures/generated-current-tsv-reader/interior-empty-header.tsv -whitespace
+lanes/pandoc/fixtures/generated-current-tsv-reader/trailing-empty-header.tsv -whitespace
+lanes/pandoc/fixtures/generated-current-tsv-reader/trailing-empty-fields.tsv -whitespace
+lanes/pandoc/fixtures/generated-current-tsv-reader/unquoted-final-formfeed.tsv -whitespace
+pandoc-showcase/samples/** -whitespace
+pandoc-showcase/outputs/** -whitespace
+lanes/difftastic/fixtures/upstream-sample-files/** -text -diff

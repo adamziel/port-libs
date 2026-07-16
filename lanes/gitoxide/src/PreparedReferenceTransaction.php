@@ -1,0 +1,571 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\Gitoxide;
+
+final class PreparedReferenceTransaction
+{
+    public const ACTION_UPDATE = 'update';
+    public const ACTION_DELETE = 'delete';
+    public const ACTION_NOOP = 'noop';
+    public const ACTION_PACKED_UPDATE = 'packed-update';
+
+    private bool $open = true;
+
+    /**
+     * @param list<array{action?:string,lockPath?:string,edit:ReferenceTransactionEdit,reflog?:array{physicalName:string,previousTarget:?ReferenceTarget,newTarget:ReferenceTarget,committer:?CommitSignature,message:string,forceCreate:bool,algorithm:string,writeMode?:string}|null,delete?:array{physicalName:string,deleteReference:bool,deleteReflog:bool}}> $locks
+     * @param ?array{deletions:list<string>,algorithm:string} $packedRefsDeletionPlan
+     * @param ?array{updates:array<string,PackedReference>,deleteLoose:list<string>,algorithm:string} $packedRefsUpdatePlan
+     */
+    public function __construct(
+        private readonly string $gitDirectory,
+        private readonly array $locks,
+        private ?string $packedRefsLockPath = null,
+        private ?array $packedRefsDeletionPlan = null,
+        private ?array $packedRefsUpdatePlan = null,
+    ) {
+        foreach ($locks as $lock) {
+            if (!$lock['edit'] instanceof ReferenceTransactionEdit) {
+                throw new \InvalidArgumentException('Prepared reference operations must contain transaction edits');
+            }
+            $action = $lock['action'] ?? self::ACTION_UPDATE;
+            if (!in_array($action, [self::ACTION_UPDATE, self::ACTION_DELETE, self::ACTION_NOOP, self::ACTION_PACKED_UPDATE], true)) {
+                throw new \InvalidArgumentException("Unknown prepared reference action: {$action}");
+            }
+            $reflog = $lock['reflog'] ?? null;
+            if ($reflog !== null && (
+                    !is_string($reflog['physicalName'] ?? null)
+                    || !(($reflog['previousTarget'] ?? null) === null || $reflog['previousTarget'] instanceof ReferenceTarget)
+                    || !$reflog['newTarget'] instanceof ReferenceTarget
+                    || !(($reflog['committer'] ?? null) === null || $reflog['committer'] instanceof CommitSignature)
+                    || !is_string($reflog['message'] ?? null)
+                    || !is_bool($reflog['forceCreate'] ?? null)
+                    || !is_string($reflog['algorithm'] ?? null)
+                    || !is_string($reflog['writeMode'] ?? ReferenceStore::WRITE_REFLOG_NORMAL)
+                    || !in_array($reflog['writeMode'] ?? ReferenceStore::WRITE_REFLOG_NORMAL, [
+                        ReferenceStore::WRITE_REFLOG_NORMAL,
+                        ReferenceStore::WRITE_REFLOG_ALWAYS,
+                        ReferenceStore::WRITE_REFLOG_DISABLE,
+                    ], true)
+                )) {
+                throw new \InvalidArgumentException('Prepared reference reflogs must contain validated reference targets and metadata');
+            }
+
+            if ($action === self::ACTION_NOOP) {
+                continue;
+            }
+            if ($action !== self::ACTION_PACKED_UPDATE && !is_string($lock['lockPath'] ?? null)) {
+                throw new \InvalidArgumentException('Prepared reference locks must contain lock paths and transaction edits');
+            }
+
+            if ($action === self::ACTION_DELETE) {
+                $delete = $lock['delete'] ?? null;
+                if (
+                    !is_array($delete)
+                    || !is_string($delete['physicalName'] ?? null)
+                    || !is_bool($delete['deleteReference'] ?? null)
+                    || !is_bool($delete['deleteReflog'] ?? null)
+                ) {
+                    throw new \InvalidArgumentException('Prepared reference deletes must contain validated reference names and deletion modes');
+                }
+            }
+        }
+
+        if ($packedRefsDeletionPlan !== null) {
+            if (!is_array($packedRefsDeletionPlan['deletions'] ?? null) || !is_string($packedRefsDeletionPlan['algorithm'] ?? null)) {
+                throw new \InvalidArgumentException('Prepared packed-ref deletion plans must contain deletions and an algorithm');
+            }
+            foreach ($packedRefsDeletionPlan['deletions'] as $deletion) {
+                if (!is_string($deletion)) {
+                    throw new \InvalidArgumentException('Prepared packed-ref deletion names must be strings');
+                }
+                ReferenceName::assertValid($deletion);
+            }
+        }
+
+        if ($packedRefsUpdatePlan !== null) {
+            if (
+                !is_array($packedRefsUpdatePlan['updates'] ?? null)
+                || !is_array($packedRefsUpdatePlan['deleteLoose'] ?? null)
+                || !is_string($packedRefsUpdatePlan['algorithm'] ?? null)
+            ) {
+                throw new \InvalidArgumentException('Prepared packed-ref update plans must contain updates, loose deletions, and an algorithm');
+            }
+            foreach ($packedRefsUpdatePlan['updates'] as $name => $reference) {
+                if (!is_string($name) || !$reference instanceof PackedReference || $reference->name !== $name) {
+                    throw new \InvalidArgumentException('Prepared packed-ref updates must be keyed by matching packed reference names');
+                }
+                ReferenceName::assertValid($name);
+            }
+            foreach ($packedRefsUpdatePlan['deleteLoose'] as $name) {
+                if (!is_string($name)) {
+                    throw new \InvalidArgumentException('Prepared packed-ref loose deletion names must be strings');
+                }
+                ReferenceName::assertValid($name);
+            }
+        }
+    }
+
+    public function __destruct()
+    {
+        if (!$this->open) {
+            return;
+        }
+
+        try {
+            $this->rollback();
+        } catch (\Throwable) {
+            // Destructors must not turn rollback cleanup failures into shutdown-time fatals.
+        }
+    }
+
+    /**
+     * @return list<ReferenceTransactionEdit>
+     */
+    public function edits(): array
+    {
+        return array_map(static fn (array $lock): ReferenceTransactionEdit => $lock['edit'], $this->locks);
+    }
+
+    /**
+     * @return list<ReferenceTransactionEdit>
+     */
+    public function rollback(): array
+    {
+        if (!$this->open) {
+            return $this->edits();
+        }
+
+        try {
+            for ($index = count($this->locks) - 1; $index >= 0; $index--) {
+                if (in_array($this->locks[$index]['action'] ?? self::ACTION_UPDATE, [self::ACTION_NOOP, self::ACTION_PACKED_UPDATE], true)) {
+                    continue;
+                }
+
+                $lockPath = $this->locks[$index]['lockPath'];
+                if (is_file($lockPath) && !unlink($lockPath)) {
+                    throw new \RuntimeException("Unable to remove prepared reference lock: {$lockPath}");
+                }
+
+                $this->deleteEmptyParents(dirname($lockPath));
+            }
+        } finally {
+            $this->releasePackedRefsLock();
+        }
+
+        $this->open = false;
+
+        return $this->edits();
+    }
+
+    /**
+     * Publish prepared loose-reference lock files in order.
+     *
+     * Like upstream gix-ref file transactions, commit is intentionally
+     * non-atomic across multiple loose reference files: if a later lock cannot
+     * be committed, earlier references stay published and no rollback is
+     * attempted.
+     *
+     * @return list<ReferenceTransactionEdit>
+     */
+    public function commit(): array
+    {
+        if (!$this->open) {
+            return $this->edits();
+        }
+
+        $this->open = false;
+
+        try {
+            foreach ($this->locks as $lock) {
+                $action = $lock['action'] ?? self::ACTION_UPDATE;
+                if ($action === self::ACTION_UPDATE) {
+                    $this->commitUpdate($lock);
+                } elseif ($action === self::ACTION_PACKED_UPDATE) {
+                    $this->commitPackedUpdate($lock);
+                }
+            }
+            foreach ($this->locks as $lock) {
+                if (($lock['action'] ?? self::ACTION_UPDATE) === self::ACTION_DELETE) {
+                    $this->commitDeleteReflog($lock);
+                }
+            }
+            $this->commitPackedReferenceChanges();
+            $this->deleteLoosePackedUpdateSources();
+            foreach ($this->locks as $lock) {
+                if (($lock['action'] ?? self::ACTION_UPDATE) === self::ACTION_DELETE) {
+                    $this->commitDeleteReference($lock);
+                }
+            }
+        } finally {
+            $this->releasePackedRefsLock();
+        }
+
+        return $this->edits();
+    }
+
+    private function commitPackedReferenceChanges(): void
+    {
+        $deletions = $this->packedRefsDeletionPlan['deletions'] ?? [];
+        $updates = $this->packedRefsUpdatePlan['updates'] ?? [];
+        if ($deletions === [] && $updates === []) {
+            return;
+        }
+
+        $algorithm = $this->packedRefsUpdatePlan['algorithm']
+            ?? $this->packedRefsDeletionPlan['algorithm']
+            ?? 'sha1';
+        $packedPath = $this->packedRefsPath();
+        $byName = [];
+        if (is_file($packedPath)) {
+            $packed = PackedReferences::open($packedPath, $algorithm);
+            foreach ($packed->all() as $reference) {
+                $byName[$reference->name] = $reference;
+            }
+        }
+
+        foreach ($deletions as $name) {
+            unset($byName[$name]);
+        }
+        foreach ($updates as $name => $reference) {
+            $byName[$name] = $reference;
+        }
+
+        if ($byName === []) {
+            if (is_file($packedPath) && !unlink($packedPath)) {
+                throw new \RuntimeException('Unable to remove empty prepared packed-refs file');
+            }
+            $lockPath = $this->packedRefsLockPath ?? $this->packedRefsLockPath();
+            if (is_file($lockPath) && !unlink($lockPath)) {
+                throw new \RuntimeException('Unable to remove empty prepared packed-refs lock file');
+            }
+            if ($this->packedRefsLockPath === $lockPath) {
+                $this->packedRefsLockPath = null;
+            }
+            $this->packedRefsDeletionPlan = null;
+            $this->packedRefsUpdatePlan = null;
+            return;
+        }
+
+        ksort($byName, SORT_STRING);
+
+        $contents = "# pack-refs with: peeled fully-peeled sorted \n";
+        foreach ($byName as $reference) {
+            $contents .= $reference->target->value . ' ' . $reference->name . "\n";
+            if ($reference->peeledObjectId !== null) {
+                $contents .= '^' . $reference->peeledObjectId . "\n";
+            }
+        }
+
+        $lockPath = $this->packedRefsLockPath ?? $this->packedRefsLockPath();
+        if (is_dir($lockPath)) {
+            throw new \RuntimeException("Prepared packed-refs lock is a directory: {$lockPath}");
+        }
+        if (file_put_contents($lockPath, $contents, LOCK_EX) === false) {
+            throw new \RuntimeException('Unable to write prepared packed-refs lock file');
+        }
+        if (!rename($lockPath, $packedPath)) {
+            throw new \RuntimeException('Unable to commit prepared packed-refs lock file');
+        }
+
+        if ($this->packedRefsLockPath === $lockPath) {
+            $this->packedRefsLockPath = null;
+        }
+        $this->packedRefsDeletionPlan = null;
+    }
+
+    private function deleteLoosePackedUpdateSources(): void
+    {
+        foreach ($this->packedRefsUpdatePlan['deleteLoose'] ?? [] as $physicalName) {
+            $targetPath = rtrim($this->gitDirectory, '/\\') . '/' . $physicalName;
+            if (is_dir($targetPath)) {
+                throw new \RuntimeException("Unable to remove prepared packed-ref loose source directory: {$physicalName}");
+            }
+            if (!is_file($targetPath)) {
+                continue;
+            }
+            if (!unlink($targetPath)) {
+                throw new \RuntimeException("Unable to remove prepared packed-ref loose source: {$physicalName}");
+            }
+            $this->deleteEmptyParents(dirname($targetPath));
+        }
+
+        $this->packedRefsUpdatePlan = null;
+    }
+
+    public function isOpen(): bool
+    {
+        return $this->open;
+    }
+
+    private function targetPathForLock(string $lockPath): string
+    {
+        if (!str_ends_with($lockPath, '.lock')) {
+            throw new \RuntimeException("Prepared reference lock path has no .lock suffix: {$lockPath}");
+        }
+
+        return substr($lockPath, 0, -5);
+    }
+
+    /**
+     * @param array{lockPath:string,edit:ReferenceTransactionEdit,reflog?:array{physicalName:string,previousTarget:?ReferenceTarget,newTarget:ReferenceTarget,committer:?CommitSignature,message:string,forceCreate:bool,algorithm:string,writeMode?:string}|null} $lock
+     */
+    private function commitUpdate(array $lock): void
+    {
+        $lockPath = $lock['lockPath'];
+        $targetPath = $this->targetPathForLock($lockPath);
+
+        if (!is_file($lockPath)) {
+            throw new \RuntimeException("Prepared reference lock is missing: {$lockPath}");
+        }
+
+        $this->appendPreparedReflog($lock['reflog'] ?? null);
+
+        if (!$lock['edit']->updatesReference) {
+            if (is_file($lockPath) && !unlink($lockPath)) {
+                throw new \RuntimeException("Unable to remove prepared reflog-only reference lock: {$lockPath}");
+            }
+            $this->deleteEmptyParents(dirname($lockPath));
+
+            return;
+        }
+
+        if (is_dir($targetPath) && !$this->removeEmptyDirectoryTree($targetPath)) {
+            throw new \RuntimeException("Unable to replace directory blocker with prepared reference: {$lock['edit']->name}");
+        }
+
+        $directory = dirname($targetPath);
+        if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+            throw new \RuntimeException("Unable to create reference directory: {$directory}");
+        }
+
+        if (!rename($lockPath, $targetPath)) {
+            throw new \RuntimeException("Unable to commit prepared reference lock: {$lock['edit']->name}");
+        }
+    }
+
+    /**
+     * @param array{edit:ReferenceTransactionEdit,reflog?:array{physicalName:string,previousTarget:?ReferenceTarget,newTarget:ReferenceTarget,committer:?CommitSignature,message:string,forceCreate:bool,algorithm:string,writeMode?:string}|null} $lock
+     */
+    private function commitPackedUpdate(array $lock): void
+    {
+        $this->appendPreparedReflog($lock['reflog'] ?? null);
+    }
+
+    /**
+     * @param array{lockPath:string,edit:ReferenceTransactionEdit,delete:array{physicalName:string,deleteReference:bool,deleteReflog:bool}} $lock
+     */
+    private function commitDeleteReflog(array $lock): void
+    {
+        $delete = $lock['delete'];
+        if ($delete['deleteReflog']) {
+            $this->deletePreparedReflog($delete['physicalName']);
+        }
+    }
+
+    /**
+     * @param array{lockPath:string,edit:ReferenceTransactionEdit,delete:array{physicalName:string,deleteReference:bool,deleteReflog:bool}} $lock
+     */
+    private function commitDeleteReference(array $lock): void
+    {
+        $lockPath = $lock['lockPath'];
+        if (!is_file($lockPath)) {
+            throw new \RuntimeException("Prepared reference lock is missing: {$lockPath}");
+        }
+
+        $delete = $lock['delete'];
+        if ($delete['deleteReference']) {
+            $targetPath = $this->targetPathForLock($lockPath);
+            if (is_file($targetPath) && !unlink($targetPath)) {
+                throw new \RuntimeException("Unable to delete prepared reference: {$lock['edit']->name}");
+            }
+            $this->deleteEmptyParents(dirname($targetPath));
+        }
+
+        if (is_file($lockPath) && !unlink($lockPath)) {
+            throw new \RuntimeException("Unable to remove prepared reference delete lock: {$lockPath}");
+        }
+        $this->deleteEmptyParents(dirname($lockPath));
+    }
+
+    /**
+     * @param array{physicalName:string,previousTarget:?ReferenceTarget,newTarget:ReferenceTarget,committer:?CommitSignature,message:string,forceCreate:bool,algorithm:string,writeMode?:string}|null $reflog
+     */
+    private function appendPreparedReflog(?array $reflog): void
+    {
+        if ($reflog === null || !$reflog['newTarget']->isObject()) {
+            return;
+        }
+
+        $writeMode = $reflog['writeMode'] ?? ReferenceStore::WRITE_REFLOG_NORMAL;
+        if ($writeMode === ReferenceStore::WRITE_REFLOG_DISABLE) {
+            return;
+        }
+
+        $previous = $reflog['previousTarget'];
+        if ($previous !== null && !$previous->isObject()) {
+            $previous = null;
+        }
+
+        $new = $reflog['newTarget'];
+        if ($previous !== null && $previous->value === $new->value) {
+            return;
+        }
+
+        $physicalName = $reflog['physicalName'];
+        $path = $this->reflogPath($physicalName);
+        $shouldCreate = $reflog['forceCreate']
+            || $writeMode === ReferenceStore::WRITE_REFLOG_ALWAYS
+            || $this->shouldAutoCreateReflog($physicalName);
+        if (!is_file($path) && !$shouldCreate && !is_dir($path)) {
+            return;
+        }
+
+        if ($reflog['committer'] === null) {
+            throw new \InvalidArgumentException('Reflog updates need a committer signature');
+        }
+        if (str_contains($reflog['message'], "\n")) {
+            throw new \InvalidArgumentException('Reflog message must not contain newline bytes');
+        }
+
+        ReferenceTarget::assertValidObjectId($new->value, $reflog['algorithm']);
+        if ($previous !== null) {
+            ReferenceTarget::assertValidObjectId($previous->value, $reflog['algorithm']);
+        }
+
+        if (is_dir($path)) {
+            if (!$shouldCreate || !$this->removeEmptyDirectoryTree($path)) {
+                throw new \RuntimeException("Unable to replace directory blocker with prepared reflog: {$physicalName}");
+            }
+        }
+
+        $directory = dirname($path);
+        if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+            throw new \RuntimeException("Unable to create prepared reflog directory: {$directory}");
+        }
+
+        $old = $previous?->value ?? str_repeat('0', ReferenceTarget::hashHexLength($reflog['algorithm']));
+        $line = $old . ' ' . $new->value . ' ' . $reflog['committer']->trimmed()->storageBytes();
+        $line .= $reflog['message'] === '' ? "\n" : "\t{$reflog['message']}\n";
+
+        if (file_put_contents($path, $line, FILE_APPEND) === false) {
+            throw new \RuntimeException("Unable to append prepared reflog: {$physicalName}");
+        }
+    }
+
+    private function deletePreparedReflog(string $physicalName): void
+    {
+        $path = $this->reflogPath($physicalName);
+        if (is_dir($path)) {
+            throw new \RuntimeException("Unable to delete prepared reflog: {$physicalName}");
+        }
+        if (!is_file($path)) {
+            return;
+        }
+
+        if (!unlink($path)) {
+            throw new \RuntimeException("Unable to delete prepared reflog: {$physicalName}");
+        }
+
+        $this->deleteEmptyParents(dirname($path), rtrim($this->gitDirectory, '/\\') . '/logs');
+    }
+
+    private function reflogPath(string $physicalName): string
+    {
+        ReferenceName::assertValid($physicalName);
+
+        return rtrim($this->gitDirectory, '/\\') . '/logs/' . $physicalName;
+    }
+
+    private function packedRefsPath(): string
+    {
+        return rtrim($this->gitDirectory, '/\\') . '/packed-refs';
+    }
+
+    private function packedRefsLockPath(): string
+    {
+        return $this->packedRefsPath() . '.lock';
+    }
+
+    private function releasePackedRefsLock(): void
+    {
+        if ($this->packedRefsLockPath === null) {
+            return;
+        }
+
+        $lockPath = $this->packedRefsLockPath;
+        if (is_file($lockPath)) {
+            if (!unlink($lockPath)) {
+                throw new \RuntimeException("Unable to remove prepared packed-refs lock: {$lockPath}");
+            }
+        } elseif (is_dir($lockPath)) {
+            throw new \RuntimeException("Unable to remove prepared packed-refs lock directory: {$lockPath}");
+        }
+
+        $this->packedRefsLockPath = null;
+    }
+
+    private function shouldAutoCreateReflog(string $physicalName): bool
+    {
+        $physicalName = $this->reflogAutoCreateName($physicalName);
+
+        return $physicalName === 'HEAD'
+            || str_starts_with($physicalName, 'refs/heads/')
+            || str_starts_with($physicalName, 'refs/remotes/')
+            || str_starts_with($physicalName, 'refs/notes/')
+            || str_starts_with($physicalName, 'refs/worktree/');
+    }
+
+    private function reflogAutoCreateName(string $physicalName): string
+    {
+        $name = $physicalName;
+        while (str_starts_with($name, 'refs/namespaces/')) {
+            $rest = substr($name, strlen('refs/namespaces/'));
+            $slash = strpos($rest, '/');
+            if ($slash === false) {
+                return $physicalName;
+            }
+            $name = substr($rest, $slash + 1);
+        }
+
+        return $name;
+    }
+
+    private function deleteEmptyParents(string $directory, ?string $boundary = null): void
+    {
+        $boundary = str_replace('\\', '/', rtrim($boundary ?? $this->gitDirectory, '/\\'));
+        $current = str_replace('\\', '/', $directory);
+
+        while ($current !== $boundary && str_starts_with($current, $boundary . '/')) {
+            $entries = @scandir($current);
+            if ($entries === false || count(array_diff($entries, ['.', '..'])) !== 0) {
+                break;
+            }
+            @rmdir($current);
+            $current = str_replace('\\', '/', dirname($current));
+        }
+    }
+
+    private function removeEmptyDirectoryTree(string $directory): bool
+    {
+        $entries = @scandir($directory);
+        if ($entries === false) {
+            throw new \RuntimeException("Unable to inspect prepared reference directory blocker: {$directory}");
+        }
+
+        foreach (array_diff($entries, ['.', '..']) as $entry) {
+            $path = $directory . '/' . $entry;
+            if (is_dir($path) && !is_link($path)) {
+                if (!$this->removeEmptyDirectoryTree($path)) {
+                    return false;
+                }
+                continue;
+            }
+
+            return false;
+        }
+
+        return @rmdir($directory) || !is_dir($directory);
+    }
+}

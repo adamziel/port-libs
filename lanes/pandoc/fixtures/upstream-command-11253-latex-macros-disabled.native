@@ -1,0 +1,8 @@
+[ Para
+    [ RawInline
+        (Format "tex") "\\ifstrequal{hello}{hello}{TRUE}{FALSE}"
+    , SoftBreak
+    , RawInline
+        (Format "tex") "\\ifstrequal{hello}{world}{TRUE}{FALSE}"
+    ]
+]

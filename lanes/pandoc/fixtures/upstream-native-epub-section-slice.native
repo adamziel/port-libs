@@ -1,0 +1,48 @@
+Pandoc
+  Meta
+    { unMeta =
+        fromList
+          [ ( "author" , MetaInlines [ Str "T.S. Eliot" ] )
+          , ( "date" , MetaInlines [ Str "2011-09-01" ] )
+          , ( "identifier"
+            , MetaInlines
+                [ Str "code.google.com.epub-samples.wasteland-basic" ]
+            )
+          , ( "language" , MetaInlines [ Str "en-US" ] )
+          , ( "title" , MetaInlines [ Str "The Waste Land" ] )
+          ]
+    }
+  [ Para
+      [ Image ( "" , [] , [] ) [] ( "wasteland-cover.jpg" , "" ) ]
+  , Para [ Span ( "wasteland-content.xhtml" , [] , [] ) [] ]
+  , Div
+      ( "wasteland-content.xhtml_frontmatter"
+      , [ "section" , "frontmatter" ]
+      , []
+      )
+      []
+  , Div
+      ( "wasteland-content.xhtml_bodymatter"
+      , [ "section" , "bodymatter" ]
+      , []
+      )
+      [ Div
+          ( "wasteland-content.xhtml_ch1" , [ "section" ] , [] )
+          [ Header
+              2
+              ( "" , [] , [] )
+              [ Str "I."
+              , Space
+              , Str "THE"
+              , Space
+              , Str "BURIAL"
+              , Space
+              , Str "OF"
+              , Space
+              , Str "THE"
+              , Space
+              , Str "DEAD"
+              ]
+          ]
+      ]
+  ]

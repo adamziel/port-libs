@@ -1,0 +1,3 @@
+[ Plain [ Str "70%" ]
+, Plain [ Str "import" , Space , Str "complete." ]
+]

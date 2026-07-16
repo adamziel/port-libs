@@ -1,0 +1,3 @@
+id,path,note
+1,C:\tmp\file.txt,unquoted backslash
+2,"C:\Program Files\App",quoted backslash

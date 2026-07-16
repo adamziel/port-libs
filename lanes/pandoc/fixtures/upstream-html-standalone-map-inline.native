@@ -1,0 +1,18 @@
+[ Para
+    [ RawInline
+        (Format "html")
+        "<map name=\"legacy-image-map\">"
+    , RawInline
+        (Format "html")
+        "<area shape=\"rect\" coords=\"0,0,80,40\" href=\"/wp-admin/upload.php\" alt=\"Media library\">"
+    , RawInline (Format "html") "</map>"
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "imported"
+    , Space
+    , Str "hotspots"
+    , Space
+    , Str "visible."
+    ]
+]

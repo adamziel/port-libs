@@ -1,0 +1,50 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1 ( "" , [] , [] ) [ Str "Main" , Space , Str "Chapter" ]
+, Para
+    [ Str "NCX-only"
+    , Space
+    , Str "navigation"
+    , Space
+    , Str "drives"
+    , Space
+    , Str "this"
+    , Space
+    , Str "EPUB3"
+    , Space
+    , Str "package."
+    ]
+, Para [ Span ( "appendix.xhtml" , [] , [] ) [] ]
+, Div
+    ( "appendix.xhtml_appendix" , [ "section" ] , [] )
+    [ Header
+        1 ( "" , [] , [] ) [ Str "Appendix" , Space , Str "Entry" ]
+    , Para
+        [ Str "The"
+        , Space
+        , Str "second"
+        , Space
+        , Str "spine"
+        , Space
+        , Str "item"
+        , Space
+        , Str "confirms"
+        , Space
+        , Str "the"
+        , Space
+        , Str "NCX"
+        , Space
+        , Str "fallback"
+        , Space
+        , Str "does"
+        , Space
+        , Str "not"
+        , Space
+        , Str "replace"
+        , Space
+        , Str "reading"
+        , Space
+        , Str "order."
+        ]
+    ]
+]

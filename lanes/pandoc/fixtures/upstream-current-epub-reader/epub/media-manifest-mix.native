@@ -1,0 +1,31 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Media" , Space , Str "Manifest" , Space , Str "Mix" ]
+, Para
+    [ Str "Declared"
+    , Space
+    , Str "PDF"
+    , Space
+    , Str "and"
+    , Space
+    , Str "binary"
+    , Space
+    , Str "resources"
+    , Space
+    , Str "fall"
+    , Space
+    , Str "back"
+    , Space
+    , Str "to"
+    , Space
+    , Str "the"
+    , Space
+    , Str "readable"
+    , Space
+    , Str "spine"
+    , Space
+    , Str "item."
+    ]
+]

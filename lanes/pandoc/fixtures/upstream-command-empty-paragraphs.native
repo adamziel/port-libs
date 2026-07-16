@@ -1,0 +1,31 @@
+[ CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -f native -t docx -o - | pandoc -f docx -t native\n[Para [Str \"hi\"], Para [], Para [], Para [Str \"lo\"]]\n^D\n[ Para [ Str \"hi\" ] , Para [ Str \"lo\" ] ]"
+, CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -f native -t docx+empty_paragraphs -o - | pandoc -f docx -t native\n[Para [Str \"hi\"], Para [], Para [], Para [Str \"lo\"]]\n^D\n[ Para [ Str \"hi\" ] , Para [ Str \"lo\" ] ]"
+, CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -f native -t docx -o - | pandoc -f docx+empty_paragraphs -t native\n[Para [Str \"hi\"], Para [], Para [], Para [Str \"lo\"]]\n^D\n[ Para [ Str \"hi\" ] , Para [ Str \"lo\" ] ]"
+, CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -f native -t docx+empty_paragraphs -o - | pandoc -f docx+empty_paragraphs -t native\n[Para [Str \"hi\"], Para [], Para [], Para [Str \"lo\"]]\n^D\n[ Para [ Str \"hi\" ]\n, Para []\n, Para []\n, Para [ Str \"lo\" ]\n]"
+, CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -f native -t html5\n[Para [Str \"hi\"], Para [], Para [], Para [Str \"lo\"]]\n^D\n<p>hi</p>\n<p>lo</p>"
+, CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -f native -t html5+empty_paragraphs\n[Para [Str \"hi\"], Para [], Para [], Para [Str \"lo\"]]\n^D\n<p>hi</p>\n<p></p>\n<p></p>\n<p>lo</p>"
+, CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -f html+empty_paragraphs -t native\n<p>hi</p>\n<p></p>\n<p></p>\n<p>lo</p>\n^D\n[ Para [ Str \"hi\" ]\n, Para []\n, Para []\n, Para [ Str \"lo\" ]\n]"
+, CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -f html -t native\n<p>hi</p>\n<p></p>\n<p></p>\n<p>lo</p>\n^D\n[ Para [ Str \"hi\" ] , Para [ Str \"lo\" ] ]"
+, CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -f native -t opendocument+empty_paragraphs\n[Para [Str \"hi\"], Para [], Para [], Para [Str \"lo\"]]\n^D\n<text:p text:style-name=\"Text_20_body\">hi</text:p>\n<text:p text:style-name=\"Text_20_body\"></text:p>\n<text:p text:style-name=\"Text_20_body\"></text:p>\n<text:p text:style-name=\"Text_20_body\">lo</text:p>"
+, CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -f native -t opendocument\n[Para [Str \"hi\"], Para [], Para [], Para [Str \"lo\"]]\n^D\n<text:p text:style-name=\"Text_20_body\">hi</text:p>\n<text:p text:style-name=\"Text_20_body\">lo</text:p>"
+]

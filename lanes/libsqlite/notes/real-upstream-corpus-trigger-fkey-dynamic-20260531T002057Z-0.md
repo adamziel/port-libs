@@ -1,0 +1,22 @@
+# Real Upstream Corpus Trigger/FK Dynamic
+
+- Slice: `real-upstream-corpus-trigger-fkey-dynamic-20260531T002057Z-0`
+- Base accepted HEAD: `aab498f11db56174605363e36ca7a662eb3a6384`
+- Upstream source truth:
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/triggerE.test`
+    - `triggerE-1.1.*` variable rejection in CREATE TRIGGER/TEMP TRIGGER
+    - `triggerE-2.2.*` and `triggerE-2.3` stored sqlite_schema trigger variables replaying as NULL
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/fkey8.test`
+    - `fkey8-1.*` FK action statement-journal-sensitive trigger/cascade cases
+    - `fkey8-2.*` deferred FK counter behavior around implicit delete/current source effects
+- Added behavior:
+  - `SQLiteTriggerDynamicVariablePlan` rejects `?`, `?NNN`, `$name`, `$NNN`, `:name`, and `@name` variables in newly created trigger bodies.
+  - Stored trigger SQL loaded from schema replay converts variables to NULL, preserving upstream triggerE behavior.
+  - New generic dynamic FK corpus assertions exercise deferred delete/update cascades, before/after trigger visibility, dynamic current-source child/grandchild changes, `NO ACTION`, and `RESTRICT`.
+- Focused assertion movement: `+51` TestRunner assertions in `SQLiteRealUpstreamTriggerFkeyTriggerEDynamicCorpusTest.php`.
+- Non-overlap: avoids accepted trigger/FK temp-trigger, restrict-action, trigger5 undo, trigger2 broad/current batches, and existing option-shaped current-source tests by using generic setting/entry/detail rows plus the missing triggerE variable semantics.
+- Dependency closure: no new support component needed; this reuses existing PHP array-row FK/trigger planning helpers and adds one bounded native trigger variable parser/replay helper.
+- Verification:
+  - `php -l lanes/libsqlite/src/SQLiteTriggerDynamicVariablePlan.php`
+  - `php -l lanes/libsqlite/tests/SQLiteRealUpstreamTriggerFkeyTriggerEDynamicCorpusTest.php`
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamTriggerFkeyTriggerEDynamicCorpusTest.php` => `1 test files, 51 assertions, 0 failures`

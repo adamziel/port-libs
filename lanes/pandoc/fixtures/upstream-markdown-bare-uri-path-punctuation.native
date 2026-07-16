@@ -1,0 +1,35 @@
+[ Para
+    [ Str "("
+    , Link
+        ( "" , [ "uri" ] , [] )
+        [ Str "http://google.com" ]
+        ( "http://google.com" , "" )
+    , Str ")."
+    ]
+, Para
+    [ Link
+        ( "" , [ "uri" ] , [] )
+        [ Str "http://www.rubyonrails.com/contact;new" ]
+        ( "http://www.rubyonrails.com/contact;new" , "" )
+    ]
+, Para
+    [ Link
+        ( "" , [ "uri" ] , [] )
+        [ Str
+            "http://www.rubyonrails.com/contact;new%20with%20spaces"
+        ]
+        ( "http://www.rubyonrails.com/contact;new%20with%20spaces"
+        , ""
+        )
+    ]
+, Para
+    [ Link
+        ( "" , [ "uri" ] , [] )
+        [ Str
+            "http://manuals.ruby-on-rails.com/read/chapter.need_a-period/103#page281"
+        ]
+        ( "http://manuals.ruby-on-rails.com/read/chapter.need_a-period/103#page281"
+        , ""
+        )
+    ]
+]

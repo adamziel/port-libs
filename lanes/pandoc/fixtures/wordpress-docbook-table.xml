@@ -1,0 +1,35 @@
+<informaltable frame="all" rowsep="1" colsep="1">
+<tgroup cols="4">
+<colspec colname="col_1" colwidth="25*"/>
+<colspec colname="col_2" colwidth="25*"/>
+<colspec colname="col_3" colwidth="25*"/>
+<colspec colname="col_4" colwidth="25*"/>
+<tfoot>
+<row>
+<entry align="right" valign="top" namest="col_1" nameend="col_4"><simpara>Review before publish</simpara></entry>
+</row>
+</tfoot>
+<tbody>
+<row>
+<entry align="center" valign="top" namest="col_1" nameend="col_4"><simpara><emphasis role="strong">Migration Batch 42</emphasis></simpara></entry>
+</row>
+<row>
+<entry align="left" valign="top"><simpara>Posts</simpara></entry>
+<entry align="right" valign="top"><simpara>42</simpara></entry>
+<entry align="center" valign="top"><simpara>ready</simpara></entry>
+<entry align="justify" valign="top"><simpara>editorial</simpara></entry>
+</row>
+<row>
+<entry align="center" valign="top" namest="col_1" nameend="col_2"><simpara>Needs media review</simpara></entry>
+<entry align="center" valign="top" namest="col_3" nameend="col_4"><simpara>Ready for block publish</simpara></entry>
+</row>
+<row>
+<entry align="left" valign="top" morerows="1"><simpara>Media review window</simpara></entry>
+<entry align="center" valign="top" namest="col_2" nameend="col_4"><simpara>Initial sweep</simpara></entry>
+</row>
+<row>
+<entry align="center" valign="top" namest="col_2" nameend="col_4"><simpara>Follow-up attachments</simpara></entry>
+</row>
+</tbody>
+</tgroup>
+</informaltable>

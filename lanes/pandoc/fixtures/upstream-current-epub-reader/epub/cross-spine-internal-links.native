@@ -1,0 +1,33 @@
+[ Para [ Span ( "chapter-one.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "chapter-one.xhtml_start" , [] , [] )
+    [ Str "First" , Space , Str "Chapter" ]
+, Para
+    [ Str "Continue"
+    , Space
+    , Str "to"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "second" , Space , Str "target" ]
+        ( "#chapter-two.xhtml_target" , "" )
+    , Str "."
+    ]
+, Para [ Span ( "chapter-two.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "chapter-two.xhtml_target" , [] , [] )
+    [ Str "Second" , Space , Str "Chapter" ]
+, Para
+    [ Str "Return"
+    , Space
+    , Str "to"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "first" , Space , Str "start" ]
+        ( "#chapter-one.xhtml_start" , "" )
+    , Str "."
+    ]
+]

@@ -1,0 +1,85 @@
+[ Para
+    [ Image ( "" , [] , [] ) [] ( "media/cover.jpg" , "" ) ]
+, Para [ Span ( "chapter-one.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter-one.xhtml_start" , [ "section" ] , [] )
+    [ Header
+        1 ( "" , [] , [] ) [ Str "Nested" , Space , Str "Path" ]
+    , Para
+        [ Str "First"
+        , Space
+        , Str "linear"
+        , Space
+        , Str "spine"
+        , Space
+        , Str "item"
+        , Space
+        , Str "resolves"
+        , Space
+        , Str "content"
+        , Space
+        , Str "and"
+        , Space
+        , Str "media"
+        , Space
+        , Str "from"
+        , Space
+        , Str "a"
+        , Space
+        , Str "nested"
+        , Space
+        , Str "package"
+        , Space
+        , Str "root."
+        ]
+    , Para
+        [ Image
+            ( "chart" , [] , [] )
+            [ Str "Path" , Space , Str "chart" ]
+            ( "media/chart.png" , "Nested media" )
+        ]
+    ]
+, Para [ Span ( "chapter-two.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter-two.xhtml_trail" , [ "section" ] , [] )
+    [ Header
+        1 ( "" , [] , [] ) [ Str "Metadata" , Space , Str "Trail" ]
+    , Para
+        [ Str "Second"
+        , Space
+        , Str "linear"
+        , Space
+        , Str "spine"
+        , Space
+        , Str "item"
+        , Space
+        , Str "keeps"
+        , Space
+        , Str "navigation,"
+        , Space
+        , Str "metadata,"
+        , Space
+        , Str "and"
+        , Space
+        , Str "remote"
+        , Space
+        , Str "media"
+        , Space
+        , Str "declarations"
+        , Space
+        , Str "outside"
+        , Space
+        , Str "the"
+        , Space
+        , Str "reading"
+        , Space
+        , Str "body."
+        ]
+    , Para
+        [ Link
+            ( "" , [] , [] )
+            [ Str "Package" , Space , Str "record" ]
+            ( "../metadata/record.json" , "" )
+        ]
+    ]
+]

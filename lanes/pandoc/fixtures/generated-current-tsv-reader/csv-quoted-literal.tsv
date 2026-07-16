@@ -1,0 +1,4 @@
+id	payload	comment
+1	"alpha, beta"	"outer quotes stay"
+2	"embedded ""quote"""	backslash \" stay
+3	"comma, ""quote"", tail"	plain

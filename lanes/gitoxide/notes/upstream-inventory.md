@@ -1,0 +1,1850 @@
+# Gitoxide Upstream Inventory
+
+Upstream checkout: `GitoxideLabs/gitoxide` at `87433ed33eee9ba974111d20b854f6acb07cd4a6`.
+
+Inventory method: shallow filtered checkout plus `git ls-tree -r --name-only HEAD`. Broad blob scans were stopped because they hydrate too many blobs in this VM; future inventory should either use a non-filtered checkout in a controlled window or target specific crates.
+
+Static tree denominator:
+
+- 93 `Cargo.toml` manifests in the Rust workspace.
+- 472 Rust test/bench source files matching `tests`, `benches`, or root `tests.rs`.
+- 605 files under upstream `tests/fixtures/`.
+- 180 shell fixture scripts under upstream `tests/fixtures/`.
+- 214 files under upstream `tests/fixtures/generated-archives/`.
+- 2,877 files total in the upstream tree listing.
+
+Final denominator audit on 2026-06-26:
+
+- `rg` over the pinned checkout counted 2,922 upstream Rust `#[test]` attributes.
+- The upstream `tests/tools` helper crate contributes 36 of those `#[test]` attributes and is excluded from the Gitoxide behavior denominator.
+- `2,922 - 36 = 2,886`, matching the manifest denominator used for Gitoxide PHP parity.
+
+Targeted object/ref inventory inspected on 2026-05-22:
+
+- The `.upstream-cache/gitoxide` checkout is sparse/no-checkout (`core.sparseCheckout=true`), so crate files were inspected through `git ls-tree`, targeted `git show`, and targeted `git grep` rather than broad working-tree scans.
+- 205 paths under `gix-object` and `gix-ref`.
+- 114 paths under `gix-object/tests` and `gix-ref/tests`.
+- 37 Rust integration test source files under `gix-object/tests` and `gix-ref/tests`.
+- 77 fixture paths under `gix-object/tests/fixtures` and `gix-ref/tests/fixtures`.
+- 296 Rust `#[test]` attributes counted under targeted `gix-object`/`gix-ref` source and test paths.
+- 25 `gix-object` tree behavior `#[test]` attributes counted under `gix-object/tests/object/tree` and `gix-object/src/tree`.
+- 8 committed `gix-object/tests/fixtures/tree` binary tree fixtures.
+
+Focused loose-ref inventory inspected on 2026-05-22:
+
+- 16 selected `gix-ref` loose-reference, loose-store, and fixture paths inspected with targeted `git ls-tree`, `git show`, and `git grep`.
+- 47 Rust `#[test]` attributes counted across `gix-ref/tests/refs/file/reference.rs`, `gix-ref/tests/refs/file/store/access.rs`, `gix-ref/tests/refs/file/store/find.rs`, `gix-ref/tests/refs/file/store/iter.rs`, and `gix-ref/tests/refs/packed/find.rs`.
+- `gix-ref/src/store/file/loose/reference/decode.rs` defines the mapped parser semantics: direct refs read the configured hash length from the start of the file, symbolic refs start with `ref: `, skip additional spaces before the target, and stop the symbolic target at CR/LF.
+- `gix-ref/tests/fixtures/make_ref_repository.sh` and `make_pristine.sh` provide the mapped direct, symbolic, `FETCH_HEAD`, broken-ref, and detached-HEAD scenarios for this slice.
+
+Focused packed-ref inventory inspected on 2026-05-22:
+
+- 10 selected `gix-ref` packed decode, buffer, find, iterator, and fixture paths inspected with targeted `git show`, `git ls-tree`, and `git grep`.
+- 16 Rust `#[test]` attributes counted across `gix-ref/src/store/packed/decode/tests.rs` and `gix-ref/tests/refs/packed/find.rs`.
+- `gix-ref/src/store/packed/decode.rs` defines the mapped parser semantics: optional `# pack-refs with: ` headers, ignored unknown traits, sorted flag detection, direct object IDs, validated full ref names, optional `^` peeled object lines, uppercase hex acceptance, and SHA-256 hash mode support.
+- `gix-ref/src/store/packed/buffer.rs` and `find.rs` define the mapped buffer behavior: no-header and unsorted files are accepted, unsorted references are sorted in memory, and partial lookup tries `refs/`, `refs/tags/`, `refs/heads/`, then `refs/remotes/`.
+- `gix-ref/tests/fixtures/packed-refs/without-header` and `packed-refs/unsorted` are copied into this lane as fixture parity inputs.
+
+Focused reference full-name and namespace inventory inspected on 2026-05-22:
+
+- Selected `gix-ref/src/fullname.rs`, `gix-ref/src/name.rs`, `gix-ref/src/namespace.rs`, `gix-ref/tests/refs/fullname.rs`, and `gix-ref/tests/refs/namespace.rs` with targeted `git show` and `git grep`.
+- 7 `#[test]` attributes were counted in `gix-ref/tests/refs/fullname.rs` and 8 `#[test]` attributes were counted in `gix-ref/tests/refs/namespace.rs`.
+- `FullNameRef::category_and_short_name()` defines the mapped category order for tags, local branches, remote-tracking branches, notes, bisect refs, rewritten refs, worktree-private refs, pseudo refs, main-worktree refs, and linked-worktree refs.
+- `Category::to_full_name()` defines the mapped inverse construction rules, including prefix de-duplication for same-category full names, full names with a different category being nested under the requested category, and linked-worktree categories requiring a worktree name.
+- `namespace::expand()`, `FullName::prefix_namespace()`, and `FullName::strip_namespace()` define the mapped namespace behavior: every namespace path component expands to `refs/namespaces/<component>/`, prefixing is idempotent, and stripping is idempotent when the name is outside the namespace.
+- A bounded upstream runner probe `timeout 120 cargo test -p gix-ref --lib --features sha1,sha256` passed 17/17 gix-ref library unit tests. Earlier direct probes for focused nested integration files failed before the `gix-ref/tests/refs/**` tree was materialized in the sparse cache; exact namespace integration evidence is recorded below, while broader full-name mappings remain static source/test inventory evidence.
+- The PHP slice adds `ReferenceName::fileName()`, `shorten()`, `category()`, `categoryAndShortName()`, `isWorktreePrivate()`, `isRemoteTrackingBranch()`, `toFullName()`, `expandNamespace()`, `prefixNamespace()`, and `stripNamespace()`, plus a WordPress reference classification fixture for active, remote-tracking, tag, pseudo, linked-worktree, and namespaced deployment refs.
+
+Focused namespace prefix runner evidence added on 2026-05-22:
+
+- Materialized only `gix-ref/tests/refs/**` into the sparse upstream cache and ran two exact filtered upstream integration probes: `timeout 120 cargo test -p gix-ref --test refs namespace::into_namespaced_prefix --features sha1,sha256 -- --nocapture` passed 1/1 test, and `timeout 120 cargo test -p gix-ref --test refs namespace::expand:: --features sha1,sha256 -- --nocapture` passed 7/7 tests.
+- A broader substring probe, `timeout 120 cargo test -p gix-ref --test refs namespace --features sha1,sha256 -- --nocapture`, compiled the `refs` integration target but also matched namespaced store-iteration tests and failed 2 fixture-backed tests because the sparse cache did not materialize `gix-ref/tests/fixtures/make_namespaced_packed_ref_repository.sh`. This is a fixture-materialization blocker for the broader store-iteration namespace tests, not a failure of the exact namespace helper tests above.
+- `gix-ref/src/namespace.rs` defines the mapped helper: `Namespace::into_namespaced_prefix()` appends a validated relative path prefix to the expanded namespace bytes while preserving a trailing slash. The PHP slice adds `ReferenceName::intoNamespacedPrefix()` and covers `prefix`, `prefix/`, and a WordPress `refs/heads/review/` iteration prefix.
+
+Focused namespaced reference-store iteration runner evidence added on 2026-05-22:
+
+- Materialized only `gix-ref/tests/fixtures/make_namespaced_packed_ref_repository.sh`, `gix-ref/tests/fixtures/generated-archives/make_namespaced_packed_ref_repository.tar`, and `gix-ref/tests/fixtures/generated-archives/make_namespaced_packed_ref_repository_sha256.tar` into the sparse upstream cache.
+- Re-ran the broader namespace substring probe: `timeout 180 cargo test -p gix-ref --test refs namespace --features sha1,sha256 -- --nocapture` passed 14/14 filtered upstream tests, with 130 tests filtered out.
+- The newly unblocked store-iteration cases are `file::store::iter::with_namespace::iteration_can_trivially_use_namespaces_as_prefixes` and `file::store::iter::with_namespace::iteration_on_store_with_namespace_makes_namespace_transparent`. They define the mapped behavior: a namespace-aware store strips `refs/namespaces/<site>/` from returned reference names, finds store-relative full and partial names inside the namespace, rejects redundant namespaced lookups on the namespace-aware store, filters packed refs through the namespace even though packed buffers themselves are not namespace-aware, and applies the same transparent namespace handling to loose iteration.
+- The PHP slice adds namespace-aware `ReferenceStore` construction, `all()`, `prefixed()`, `looseAll()`, and `loosePrefixed()` overlay iteration, plus store-relative symbolic target stripping for namespace-internal symbolic refs. The WordPress fixture models multisite review refs under `refs/namespaces/site-a/refs/...` without shelling out to `git for-each-ref`.
+
+Focused partial-name join inventory inspected on 2026-05-22:
+
+- Re-inspected `gix-ref/src/name.rs`, `gix-validate/src/reference.rs`, and `gix-validate/tests/validate/reference.rs` with targeted upstream reads.
+- `PartialName::join()` appends one `/` plus the provided component, then validates the full joined partial reference name with `gix_validate::reference::name_partial()`. The component is not pre-split or separately validated; nested components are accepted when the combined path remains valid, and empty, repeated-slash, space/backslash-containing, dot-leading, and `.lock` suffix paths fail through the same partial-name validator.
+- A bounded upstream runner probe materialized `gix-validate/tests/validate/*` in the sparse cache and ran `timeout 120 cargo test -p gix-validate --test validate reference::name_partial -- --nocapture`, passing 50/50 filtered upstream tests with 263 tests filtered out.
+- The PHP slice adds `ReferenceName::joinPartial()` with upstream-shaped validation and extends the WordPress reference-category example to compose local and remote plugin review branch refs from partial components before fetch/push planning.
+
+Focused reference partial-name sanitize and branch-name inventory inspected on 2026-05-22:
+
+- Re-inspected `gix-validate/src/reference.rs`, `gix-validate/src/tag.rs`, and `gix-validate/tests/validate/reference.rs` with targeted upstream reads.
+- `gix_validate::reference::name_partial_or_sanitize()` reuses the tag-name byte sanitizer for partial reference names: empty input becomes `-`, leading/trailing slashes are trimmed, repeated slashes and repeated dots collapse, invalid bytes/control bytes/spaces/asterisks become `-`, leading component dots become `-`, `@{` becomes `@-`, `.lock` suffixes are stripped per component, and non-ASCII bytes are preserved.
+- `gix_validate::reference::branch_name()` validates a complete reference name and then rejects exactly `refs/heads/HEAD` as reserved while allowing similarly cased names such as `refs/heads/HEAd`.
+- Bounded upstream runner probes passed the focused subsets used by this slice: `timeout 120 cargo test -p gix-validate --test validate reference::name_partial::invalid -- --nocapture` passed 22/22 filtered tests, and `timeout 120 cargo test -p gix-validate --test validate reference::branch_name -- --nocapture` passed 4/4 filtered tests.
+- The PHP slice adds `ReferenceName::sanitizePartial()`, `isValidPartial()`, `assertValidBranchName()`, and `isValidBranchName()`, and extends the WordPress reference-category example to sanitize a plugin-derived review branch component before joining it under `refs/heads/review`.
+
+Focused complete reference-name inventory inspected on 2026-05-22:
+
+- Re-inspected `gix-validate/src/reference.rs`, `gix-ref/src/fullname.rs`, `gix-ref/src/name.rs`, `gix-validate/tests/validate/reference.rs`, and `gix-ref/tests/refs/fullname.rs` with targeted upstream reads.
+- `gix_validate::reference::name()` validates Git complete refnames by reusing tag-name byte validation and then rejecting only standalone names that are not all uppercase ASCII or underscores. Slash-containing names such as `hello/world`, `heads/main`, and `this./totally./works` are valid complete names even when they are not categorized under `refs/*`.
+- A bounded upstream runner probe `timeout 120 cargo test -p gix-validate --test validate reference::name:: -- --nocapture` passed 54/54 filtered upstream complete-name tests with 259 tests filtered out.
+- The PHP slice adds `ReferenceName::isValid()` and loosens `ReferenceName::assertValid()` to match upstream complete-name semantics while keeping malformed push/receive-pack guard coverage on truly invalid lowercase standalone names. The WordPress reference-category example now accepts a relative plugin review deployment ref such as `review/plugins/gutenberg` and rejects lowercase standalone `main`.
+
+Focused commit signature/actor inventory inspected on 2026-05-22:
+
+- Selected `gix-object/src/commit/decode.rs`, `gix-object/src/commit/mod.rs`, `gix-object/src/commit/ref_iter.rs`, `gix-object/src/parse.rs`, `gix-object/tests/object/commit/from_bytes.rs`, `gix-object/tests/object/commit/iter.rs`, `gix-actor/src/signature/decode.rs`, `gix-actor/src/signature/mod.rs`, and `gix-actor/tests/actor/signature.rs` with targeted `git show` and `git grep`.
+- 75 commit-focused Rust `#[test]` attributes were counted across selected `gix-object` commit tests and 18 actor/signature `#[test]` attributes were counted across selected `gix-actor` signature tests.
+- `gix-object` validates complete author and committer signatures while storing raw header bytes; accessor methods parse and trim `gix_actor::SignatureRef`.
+- `gix-actor` parses the first `<` and last `>` around actor identity, tolerates nested delimiter bytes inside malformed email fields, consumes only timestamp bytes made from digits, signs, spaces, and tabs, and leaves invalid trailing timestamp bytes to the caller.
+- `gix_object::commit::ExtraHeaders` exposes first-value lookup, first position lookup, all values for a repeated header, raw `mergetag` values that can be parsed as embedded tag objects, and first `gpgsig` lookup for PGP signature access.
+- The PHP slice maps SHA-1/SHA-256 commit object-id lengths, uppercase commit IDs normalized at parse time, author/committer signature accessors, lenient delimiter handling, seconds and timezone-offset helpers, invalid trailing timestamp rejection, `encoding`, multiline and repeated `gpgsig` extra headers, first/all/position extra-header lookup, raw `mergetag` header access, and a WordPress import/deploy commit fixture.
+
+Focused actor identity inventory inspected on 2026-05-22:
+
+- Re-inspected `gix-actor/src/identity.rs`, `gix-actor/src/signature/decode.rs`, `gix-actor/src/signature/mod.rs`, and `gix-actor/tests/actor/identity.rs` with targeted upstream reads.
+- Counted 2 identity-focused `#[test]` attributes in `gix-actor/tests/actor/identity.rs`.
+- Bounded upstream runner evidence for this slice: `timeout 120 cargo test -p gix-actor --test actor identity -- --nocapture` passed 2/2 filtered identity tests with 8 tests filtered out.
+- `gix_actor::IdentityRef::from_bytes()` parses the first `<` plus last `>` before newline, strips one space before the opening delimiter, preserves email whitespace and malformed nested delimiters for borrowed identity access, and leaves trailing timestamp bytes outside the identity. `IdentityRef::write_to()` validates that name and email do not contain `<`, `>`, or newline before writing `name <email>`.
+- The PHP slice adds `CommitIdentity::parse()`, `trimmed()`, `storageBytes()`, and `size()`, plus `CommitSignature::identity()` for actor-only access from parsed signatures. The WordPress import/deploy commit fixture now exposes author and committer identity bytes separately from timestamp parsing.
+
+Focused commit message/trailer/signed-data inventory inspected on 2026-05-22:
+
+- Selected `gix-object/src/commit/message/mod.rs`, `gix-object/src/commit/message/body.rs`, `gix-object/src/commit/message/decode.rs`, `gix-object/src/commit/ref_iter.rs`, and `gix-object/tests/object/commit/message.rs` with targeted `git show`/`git grep`.
+- Counted 38 Rust `#[test]` attributes in `gix-object/tests/object/commit/message.rs`, 6 focused trailer parser unit tests in `gix-object/src/commit/message/body.rs`, plus 4 focused signed-data extraction tests in `gix-object/tests/object/commit/iter.rs`.
+- `MessageRef` splits title/body at two adjacent newline sequences, including CRLF combinations, and its summary folds line breaks in the title while trimming leading/trailing whitespace.
+- `BodyRef` only parses trailers from the bottom body paragraph. It accepts all-trailer blocks or recognized Git-generated prefixes such as `Signed-off-by: ` when the trailer/prose ratio satisfies Gitoxide's 25% heuristic.
+- `TrailerRef` normalizes optional whitespace before `:`, trims values, unfolds continuation lines, and exposes attribution filters for `Signed-off-by`, `Co-authored-by`, `Acked-by`, `Reviewed-by`, and `Tested-by`.
+- `body.rs` uses explicit byte-class rules rather than locale/PHP-style character classes: trailer tokens accept ASCII alphanumeric bytes plus `-`; blank-line and continuation detection use Rust `u8::is_ascii_whitespace`, which includes vertical tab; summary folding still preserves a vertical tab immediately before a folded newline because that internal trim uses Gitoxide's explicit `tab`, LF, form feed, CR, and space byteset.
+- `CommitRefIter::signature()` returns the first `gpgsig` header value and signed data with the entire signature header byte range removed. The PHP slice now maps message summary/title/body parsing, body-without-trailers, trailer extraction and filters, first `pgpSignature()` lookup, and `signedDataForSignature()` for native provenance verification.
+
+Focused commit message BodyRef runner evidence added on 2026-05-22:
+
+- Ran `timeout 180 cargo test -p gix-object --test object commit::message --features sha1,sha256 -- --nocapture` from the sparse upstream cache. It passed 38/38 filtered upstream `gix-object` commit-message integration tests with 94 tests filtered out.
+- The runner covers title/body splitting with LF/CRLF and inconsistent separators, retained title-only trailing newlines, empty bodies after separators, summary whitespace folding, sole-body trailers, folded trailers, windows folded trailers, recognized-prefix trailer/prose heuristics, exact and below-threshold 25% heuristic cases, and generic trailer-looking prose rejection.
+- The PHP slice adds `CommitMessage::bodyWithoutTrailer()` and `CommitMessage::trailersFromBody()` as BodyRef-style direct body helpers, extends focused PHP tests over the upstream message.rs edge cases, and extends the WordPress commit provenance example with a standalone review-trailer body plus a cherry-pick marker that contributes to trailer-block recognition without becoming a parsed trailer.
+
+Focused commit trailer byte-class inventory inspected on 2026-05-22:
+
+- Re-inspected `gix-object/src/commit/message/body.rs`, `gix-object/src/commit/message/mod.rs`, and `gix-object/tests/object/commit/message.rs` with targeted `git show`, plus local `bstr` source for `ByteSlice::trim`.
+- The focused commit message denominator remains 38 Rust `#[test]` attributes in `gix-object/tests/object/commit/message.rs` plus 6 trailer parser unit tests in `gix-object/src/commit/message/body.rs`; this slice maps source-level whitespace semantics covered by those trailer parsing paths.
+- The PHP slice now treats vertical tab as whitespace for trailer blank-line detection, folded trailer continuation lines, and leading/trailing message/trailer value trim, while preserving Gitoxide's narrower summary fold behavior when vertical tab appears immediately before an internal newline. NUL remains ordinary data, matching upstream byte behavior.
+
+Focused commit token iterator inventory inspected on 2026-05-22:
+
+- Re-inspected `gix-object/src/commit/ref_iter.rs`, `gix-object/src/commit/decode.rs`, `gix-object/src/commit/mod.rs`, `gix-object/tests/object/commit/iter.rs`, and `gix-object/tests/object/commit/from_bytes.rs` with targeted `git show`/`git grep`.
+- The focused commit denominator remains 75 commit-focused `gix-object` Rust `#[test]` attributes plus 18 `gix-actor` signature `#[test]` attributes counted under the selected source/test paths. This slice specifically maps 3 already-counted upstream iterator cases: `sha256_with_all_fields_and_signature`, `signed_with_encoding`, and `error_handling`.
+- `CommitRefIter` emits tokens in order: tree, zero or more parents, author, committer, optional encoding, extra headers, then message. It unfolds multi-line extra headers, normalizes parsed object IDs while retaining raw bytes at the parse boundary, and stops after returning one error once a later field fails.
+- The PHP slice adds `Commit::iterateTokens()` with upstream-shaped token order, SHA-1/SHA-256 object ID validation, multi-line extra-header token values, message token preservation, and partial-token error behavior. The WordPress import/deploy provenance example now exposes token types and extra-header names without invoking `git log` or `git cat-file`.
+
+Focused commit decode separator inventory inspected on 2026-05-22:
+
+- Re-inspected `gix-object/src/commit/decode.rs`, `gix-object/src/parse.rs`, and `gix-object/tests/object/commit/mod.rs` with targeted `git show`.
+- This slice maps the already-counted upstream invalid/partial decode behavior where `decode::message()` requires a blank header/message separator before the message token. The native `Commit::parse()` now rejects otherwise complete commit headers that never reach that separator instead of silently treating the message as empty.
+
+Focused commit strict-header-order inventory inspected on 2026-05-22:
+
+- Re-inspected `gix-object/src/commit/decode.rs`, `gix-object/src/parse.rs`, `gix-object/src/commit/mod.rs`, and `gix-object/tests/object/commit/from_bytes.rs` with targeted upstream reads.
+- `decode::commit()` parses commit headers in this order: `tree`, zero or more contiguous `parent` lines, `author`, `committer`, optional `encoding`, arbitrary extra headers, then the required blank-line/message separator. Standard-looking names that appear after the optional encoding position are parsed as extra headers rather than retroactively changing parents or encoding.
+- Bounded upstream runner evidence for this slice: `timeout 120 cargo test -p gix-object --test object commit::from_bytes:: --features sha1,sha256 -- --nocapture` passed 17/17 filtered commit from_bytes tests with 115 tests filtered out.
+- The PHP slice tightens `Commit::parse()` to use the same ordered boundary. Late `parent` and `encoding` lines now surface through `extraHeader()`/`allExtraHeaders()` instead of mutating `$parents` or `$encoding`, and author/committer reordering is rejected. The WordPress commit provenance fixture now models imported commit preflight for malformed header order.
+
+Focused actor timestamp/accessor inventory inspected on 2026-05-22:
+
+- Re-inspected `gix-actor/src/signature/decode.rs`, `gix-actor/src/signature/mod.rs`, `gix-actor/tests/actor/signature.rs`, `gix-date/src/parse/function.rs`, and selected `gix-date/tests/time/parse/mod.rs` cases with targeted upstream reads.
+- Bounded upstream runner evidence for this slice: `timeout 120 cargo test -p gix-actor --lib signature::decode -- --nocapture` passed 8/8 signature decode unit tests, and `timeout 120 cargo test -p gix-actor --test actor signature -- --nocapture` passed 8/8 filtered actor signature integration tests with 2 tests filtered out.
+- `gix_actor::SignatureRef::seconds()` parses only the leading seconds token and defaults to zero on failure, while `SignatureRef::time()` uses `gix_date::parse_header()` to return seconds plus offset, accept 7-character offsets with seconds, and default malformed offsets such as `--700` to UTC. `SignatureRef::write_to()` rejects `<`, `>`, and newline bytes in signature write tokens.
+- The PHP slice adds `CommitSignature::time()` for upstream-shaped raw timestamp access, supports offsets with seconds such as `+051800`, preserves malformed raw offset strings while exposing UTC offset `0`, keeps missing timestamps as an invalid full time with `seconds() === 0`, validates signature write tokens, and extends the WordPress import/deploy commit fixture with legacy timestamp offsets.
+
+Focused commit write inventory inspected on 2026-05-22:
+
+- Inspected `gix-object/src/commit/write.rs`, `gix-object/src/encode.rs`, and the `write_to` roundtrip assertions in `gix-object/tests/object/commit/from_bytes.rs` with targeted `git show`/`git grep`.
+- 2 upstream `commit.write_to` call sites are counted in the already-targeted `from_bytes.rs` test file, covering invalid actor roundtrip and strange multi-`gpgsig` roundtrip behavior.
+- `CommitRef::write_to` writes canonical lowercase object IDs, ordered parents, raw author/committer signatures, optional single-line `encoding`, each extra header through `header_field_multi_line()`, one blank separator, then the message bytes. The same `WriteTo` implementation reports size from exactly those emitted bytes and object kind `Commit`.
+- The PHP slice adds `Commit::storageBytes()`, `size()`, and `object()` with Gitoxide-style multi-line extra-header continuation emission, empty/newline encoding rejection, canonical object bytes, and WordPress commit storage/object hashes without invoking `git cat-file`.
+- A bounded crate-level runner probe was attempted with `timeout 120 cargo test -p gix-object --no-run` from `.upstream-cache/gitoxide`; it failed before dependency resolution because the sparse/no-checkout cache has no `gix-actor/Cargo.toml` workspace member on disk. The probe did not execute upstream tests and did not hydrate the workspace.
+
+Focused annotated tag / mergetag inventory inspected on 2026-05-22:
+
+- Selected `gix-object/src/tag/decode.rs`, `gix-object/src/tag/mod.rs`, `gix-object/src/tag/ref_iter.rs`, `gix-object/src/tag/write/tests.rs`, `gix-object/tests/object/tag.rs`, and committed tag fixtures with targeted `git ls-tree`, `git show`, and `git grep`.
+- 14 tag source/test/fixture paths were listed and 25 tag-focused Rust `#[test]` attributes were counted across `gix-object/tests/object/tag.rs` and `gix-object/src/tag/write/tests.rs`.
+- `TagRef::from_bytes` parses `object`, `type`, `tag`, optional `tagger`, and message fields in order, accepts SHA-1/SHA-256 targets with uppercase hex normalization through object-id access, rejects invalid object kinds and empty names, and allows tags without a tagger.
+- Tag messages split PGP signatures only when `-----BEGIN PGP SIGNATURE-----` begins at a line boundary; trailing text after the end marker remains part of the signature, and an end marker is not required. Empty tag bodies and body-separator-only tags round trip as empty or newline messages.
+- `gix-object/src/tag/write.rs`, `gix-object/src/tag/write/tests.rs`, and `gix-validate/src/tag.rs` define the mapped write boundary: tag bodies write canonical `object`/`type`/`tag`/optional `tagger` headers, preserve all-newline messages without adding an extra separator, write one newline before PGP signature bytes, report size from the exact emitted bytes, reject names that start with `-`, and apply Git tag-name validation before writing.
+- The PHP slice maps these annotated tag semantics into `GitTag`, connects `Commit::mergeTags()` so raw commit `mergetag` headers are parsed into native tag objects for provenance workflows, and now adds `GitTag::storageBytes()`, `size()`, `object()`, and ordered `tokens()` for write/ref-iterator parity. Focused PHP coverage added upstream-shaped signed/empty tag roundtrips, write-name validation, token ordering, object hashing, and a WordPress signed release-tag fixture.
+
+Focused annotated tag raw-target/ref-iterator inventory inspected on 2026-05-22:
+
+- Re-inspected `gix-object/src/tag/decode.rs`, `gix-object/src/tag/ref_iter.rs`, `gix-object/src/tag/write.rs`, `gix-object/tests/object/tag.rs`, and `gix-object/src/tag/write/tests.rs` with targeted `git show`/`git grep`.
+- The focused annotated-tag denominator remains 25 Rust `#[test]` attributes across the selected tag test files. This slice specifically maps 4 already-counted upstream tag/ref-iterator cases: `uppercase_target_id`, `invalid`, `iter::error_handling`, and `iter::no_tagger`.
+- `TagRef::from_bytes` preserves the raw `object` header bytes in `TagRef::target`, while `TagRef::target()` normalizes uppercase hex through `ObjectId::from_hex`. `TagRef::write_to` writes the raw target bytes back out, whereas the owned `Tag` writer emits the normalized object ID.
+- `TagRefIter` advances field by field and returns an error token once a later field fails, leaving earlier target/kind/name tokens available to callers. It also emits a `Tagger(None)` token when the optional tagger header is absent.
+- The PHP slice now keeps `GitTag::$target` normalized while preserving `GitTag::$rawTarget` for storage-byte roundtrips, adds `GitTag::iterateTokens()` for upstream-shaped partial iterator results, and updates the WordPress release-tag fixture/example to prove uppercase raw target bytes survive provenance hashing.
+
+Focused SSH receive-pack delimiter preflight inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` SSH invocation and `gix-url` parse inventory for receive-pack target validation. No live SSH/provider runner was executed.
+- This slice maps the bounded argument-safety edge where decoded SSH host/user components must not contain whitespace, slash, or backslash delimiters before the caller-provided connector receives host/user/port/command arguments. The 2026-05-25 continuous-dev follow-up also rejects decoded `@` and `:` username delimiters in `ssh://` URLs so encoded tenant/user separators cannot reach caller-provided SSH adapters.
+- The PHP slice tightens `SshReceivePackTransport::parseRepositoryUrl()` for both `ssh://` and scp-like targets while preserving quoted repository paths with spaces in `receivePackCommand()`.
+- WordPress receive-pack fixture/example coverage now records rejection for decoded SSH host/user delimiters, including encoded username `@`/`:` separators, before a deployment tool hands target data to an SSH adapter.
+- Dependency closure: no new support component is needed. The existing caller-injected SSH connector boundary is reused; broader SSH authentication/channel integration remains a future bounded support gate with live-provider tests excluded from this isolated lane slice.
+
+Focused annotated tag owned-writer inventory and runner evidence added on 2026-05-22:
+
+- Re-inspected `gix-object/src/tag/write.rs`, `gix-object/src/object/convert.rs`, and `gix-object/tests/object/tag.rs` with targeted upstream reads.
+- Bounded upstream runner probes passed: `timeout 180 cargo test -p gix-object --test object tag --features sha1,sha256 -- --nocapture` ran 25/25 filtered tag and mergetag tests with 107 filtered out, `timeout 180 cargo test -p gix-object --lib tag::write --features sha1,sha256 -- --nocapture` ran 3/3 filtered tag write validation unit tests with 7 filtered out, and `timeout 180 cargo test -p gix-object --test object tag::method::target --features sha1,sha256 -- --exact --nocapture` ran 1/1 exact TagRef target/into_owned test with 131 filtered out.
+- `TryFrom<TagRef> for Tag` parses a borrowed `TagRef::target` into an owned `ObjectId`, and `Tag::write_to()` writes the target through `trusted_header_id()`. That means parsed borrowed tag refs preserve raw target bytes for exact body roundtrips, but newly constructed or owned tags write normalized object IDs.
+- The PHP slice maps this boundary by preserving `GitTag::$rawTarget` only when parsing borrowed tag bytes, normalizing the default raw target for newly constructed tags, and adding `GitTag::toOwned()` for the explicit TagRef-to-owned conversion. The WordPress annotated-tag example now constructs a draft release tag from an uppercase parsed target and converts the parsed release tag to an owned tag, proving both emitted storage forms use the normalized target ID while imported provenance bytes remain available.
+
+Focused tag-name sanitization inventory inspected on 2026-05-22:
+
+- Re-inspected `gix-validate/src/tag.rs`, `gix-validate/tests/validate/tag.rs`, `gix-object/src/tag/write.rs`, and `gix-object/src/tag/write/tests.rs` with targeted `git show`.
+- Counted 4 `gix-object` tag writer validation tests in `gix-object/src/tag/write/tests.rs` plus the existing focused `gix-validate` tag-name table in `gix-validate/tests/validate/tag.rs`.
+- `gix-validate::tag::name_inner` in sanitize mode replaces invalid bytes, control bytes, spaces, `*`, `@{`, and leading component dots with `-`, collapses repeated slashes and repeated dots, strips repeated `.lock` suffixes per path component, trims outer slashes, and preserves valid UTF-8/non-ASCII bytes.
+- The PHP slice adds `GitTag::sanitizeName()` with upstream-shaped table coverage and updates the WordPress annotated-tag example so draft release names such as `WordPress Export: v2026.05? beta.lock` are normalized before constructing writable release tags.
+
+Focused loose object header inventory inspected on 2026-05-22:
+
+- Re-inspected `gix-object/src/lib.rs`, `gix-object/src/encode.rs`, `gix-object/src/object/mod.rs`, `gix-object/tests/object/encode.rs`, and `gix-object/tests/object/object_ref.rs` with targeted reads from the sparse upstream cache.
+- Ran two bounded upstream integration-test probes: `timeout 120 cargo test -p gix-object --test object loose_header::round_trip --features sha1,sha256` and `timeout 120 cargo test -p gix-object --test object object_ref::from_loose::shorter_than_advertised --features sha1,sha256`; both passed their single filtered test.
+- `encode::loose_header()` writes `<kind> <size>\0` for tree/blob/commit/tag objects, and `decode::loose_header()` returns kind, payload size, and consumed header bytes.
+- `ObjectRef::from_loose()` rejects payloads shorter than the advertised size while reading only the advertised object body from a larger buffer. The PHP slice adds `GitObject::looseHeader()`, `GitObject::decodeLooseHeader()`, and `GitObject::fromLooseBytes()` while keeping `GitObject::fromStorageBytes()` strict for exact storage round trips.
+
+Focused reference-store overlay inventory inspected on 2026-05-22:
+
+- 3 selected `gix-ref` file-store find and overlay fixture paths inspected with targeted `git show` and `git grep`.
+- 7 Rust `#[test]` attributes counted in `gix-ref/tests/refs/file/store/find.rs`.
+- `gix-ref/src/store/file/find.rs` defines the mapped lookup behavior: try loose refs first, fall back to packed refs only when a loose candidate is absent, keep `HEAD` and symbolic refs loose, find capitalized packed branches, and resolve `refs/remotes/<name>/HEAD` as a loose-only remote shortcut.
+- `gix-ref/tests/fixtures/make_packed_ref_repository_for_overlay.sh` provides the mapped loose-over-packed branch overlay scenario.
+
+Focused pack-index inventory inspected on 2026-05-22:
+
+- 5 selected `gix-pack` index source/test paths inspected with targeted `git show` and `git grep`.
+- 8 Rust `#[test]` attributes counted in `gix-pack/tests/pack/index.rs`.
+- `gix-pack/src/index/init.rs` defines the mapped v2 parser semantics: `\xfftOc` signature, version validation, 256-entry monotonic fanout table, object count from fanout[255], v2 table size validation, large-offset table validation, and trailing pack/index checksums.
+- `gix-pack/src/index/access.rs` and `verify.rs` define the mapped access semantics: object IDs are fanout-bounded and sorted, lookups use binary search by full object ID, prefix lookups can be missing/ambiguous/found, CRC32 values are available for v2, pack offsets may be 32-bit or large 64-bit offsets, sorted offsets are useful for pack traversal, and index checksums cover all bytes before the trailing checksum.
+
+Focused pack-data/delta inventory inspected on 2026-05-22:
+
+- Selected `gix-pack` data header, entry header, delta application, file decode, input lookup, and test paths inspected with targeted `git show` and `git grep`.
+- 23 Rust `#[test]` attributes counted across `gix-pack/tests/pack/data/header.rs`, `gix-pack/tests/pack/data/file.rs`, `gix-pack/tests/pack/data/input.rs`, and `gix-pack/src/data/entry/header.rs`.
+- `gix-pack/src/data/header.rs` defines the mapped pack file header semantics: `PACK` signature, version 2/3 support, and object count.
+- `gix-pack/src/data/entry/header.rs` and `gix-pack/src/data/file/decode/entry.rs` define the mapped entry semantics: Git's variable-size entry header, type IDs for commit/tree/blob/tag/OFS_DELTA/REF_DELTA, zlib-compressed entry data, object size checks, and explicit delta handling paths.
+- `gix-pack/src/data/delta.rs` defines the mapped delta semantics: 7-bit little-endian source/result size headers, copy instructions with offset/size bytes, zero-size copy expansion to `0x10000`, insert commands, and explicit rejection of reserved command 0/truncated data/out-of-range copies.
+- `gix-pack/tests/pack/data/file.rs` and `gix-pack/tests/pack/data/input.rs` provide the mapped non-delta commit/blob/tree decompression cases plus OFS_DELTA and REF_DELTA resolution paths.
+
+Focused pack generation inventory inspected on 2026-05-22:
+
+- Selected `gix-pack/src/bundle/write/mod.rs`, `gix-pack/src/bundle/write/types.rs`, `gix-pack/src/index/write/mod.rs`, `gix-pack/tests/pack/data/output/count_and_entries.rs`, `gix-pack/tests/pack/data/output/mod.rs`, and `gix-pack/tests/pack/multi_index/write.rs` with targeted `git show`.
+- 5 output/write `#[test]` attributes were counted across the selected pack output and multi-index write tests.
+- `gix-pack` output tests define the wider generation model: count reachable objects, emit base and delta entries, and produce pack data hashes. The PHP slice starts with deterministic non-delta `commit`/`tree`/`blob`/`tag` object packing because that is enough to hand generated pack bytes to a receive-pack request.
+- `gix-pack/src/index/write/mod.rs` defines the mapped generated-index semantics: sort objects by id for the index, write a monotonic fanout table, object IDs, CRC32 values, 32-bit or large offsets, the trailing pack checksum, and the trailing index checksum.
+
+Focused object-database/alternates/replacements inventory inspected on 2026-05-22:
+
+- Selected `gix-odb` dynamic object database find, header, prefix, iteration, linked-store, loose-store, alternate parser/resolver, replacement handling, and test paths inspected with targeted `git show` and `git grep`.
+- 52 Rust `#[test]` attributes counted across `gix-odb/tests/odb/store/dynamic.rs`, `gix-odb/tests/odb/store/linked.rs`, `gix-odb/tests/odb/store/loose.rs`, `gix-odb/tests/odb/alternate.rs`, and `gix-odb/src/store_impls/dynamic/find.rs`, including the dynamic object replacement test.
+- `gix-odb/src/store_impls/dynamic/find.rs` defines the mapped object lookup behavior: search loaded pack indices before loose object stores, read packed data by pack offset, then fall back to loose objects when no pack contains the id.
+- `gix-odb/src/store_impls/dynamic/prefix.rs` defines the mapped prefix semantics: lookup across all pack indices and loose stores, return missing/found/ambiguous, and treat duplicate sightings of the same object id as one candidate.
+- `gix-odb/src/store_impls/dynamic/iter.rs` defines the mapped traversal semantics: iterate packed objects before loose objects, with lexicographic index ordering by default and an optional pack-offset ordering for efficient packed reads.
+- `gix-odb/src/alternate/mod.rs` and `parse.rs` define the mapped alternates semantics: read `objects/info/alternates`, skip blank/comment lines, unquote ANSI-C-style quoted paths, resolve relative paths from the objects directory, recurse into linked object databases, and reject cycles.
+- `gix-odb/src/store_impls/dynamic/find.rs`, `header.rs`, and `init.rs` define the mapped replacement semantics: replacement pairs are sorted by source object id, object reads and headers apply one replacement by default, replacement application can be disabled, and replacement mappings remain inspectable.
+
+Focused multi-pack-index inventory inspected on 2026-05-22:
+
+- 11 selected `gix-pack` multi-index source/test paths inspected with targeted `git ls-tree`, `git show`, and `git grep`.
+- 12 Rust `#[test]` attributes counted across `gix-pack/tests/pack/multi_index/access.rs`, `fuzzed.rs`, `verify.rs`, and `write.rs`.
+- `gix-pack/src/multi_index/init.rs` defines the mapped v1 parser semantics: `MIDX` signature, hash-kind validation, chunk-table decoding with a sentinel, required `PNAM`/`OIDF`/`OIDL`/`OOFF` chunks, optional `LOFF`, sorted null-terminated pack index names, monotonic 256-entry fanout, object counts from fanout[255], exact chunk sizes, and trailing object-hash checksum bytes.
+- `gix-pack/src/multi_index/access.rs` and `verify.rs` define the mapped access semantics: object IDs are fanout-bounded, full lookups binary-search the object-id table, prefix lookups return missing/ambiguous/found, entries map object IDs to pack-index IDs and pack offsets, high-bit 32-bit offsets use `LOFF` when present, and fast verification covers checksum, non-empty object sets, object order, and pack-offset consistency.
+
+Focused protocol v2 inventory inspected on 2026-05-22:
+
+- Selected `gix-protocol` command, `ls_refs`, handshake ref parsing, and `gix-transport` capability files inspected with targeted `git ls-tree`, `git show`, and `git grep`.
+- 15 Rust `#[test]` attributes counted across `gix-protocol/tests/protocol/command.rs`, `gix-protocol/tests/protocol/handshake.rs`, `gix-protocol/src/ls_refs.rs`, and `gix-transport/tests/client/capabilities.rs`.
+- `gix-transport/src/client/capabilities.rs` defines the mapped capability semantics: v1 capabilities are parsed after the NUL delimiter, v2 capabilities require a `version 2` first line, capability names come before `=`, values are space-separated, and callers can test whether a capability value is supported.
+- `gix-protocol/src/command.rs` and `ls_refs.rs` define the mapped `ls-refs` command semantics: default arguments are `symrefs` and `peel`, `unborn` is requested only when the `ls-refs` capability supports it, ref-prefix arguments preserve first-seen order while de-duplicating duplicates, and validation rejects unknown arguments or unsupported non-agent features.
+- `gix-protocol/src/handshake/refs/shared.rs` and `tests/protocol/handshake.rs` define the mapped v2 ref-line semantics: direct refs, symbolic refs, unborn symbolic refs, `(null)` symref targets, peeled refs, and symbolic peeled refs are all normalized into typed remote refs with explicit tag/object/target fields.
+
+Focused fetch negotiation inventory inspected on 2026-05-22:
+
+- Selected `gix-protocol/src/fetch/arguments/mod.rs`, `gix-protocol/tests/protocol/fetch/arguments.rs`, and the fetch sections of `gix-protocol/tests/protocol/command.rs` with targeted `git show` and `git grep`.
+- 13 fetch-focused Rust test attributes counted: 9 async/blocking fetch argument tests plus 4 fetch command default-feature/initial-argument tests.
+- `gix-protocol/src/command.rs` defines the mapped fetch feature selection semantics: protocol v1 chooses the best `multi_ack` and sideband variant, leaves `no-progress` disabled by default, and protocol v2 derives features from the advertised `fetch=` values.
+- `gix-protocol/src/fetch/arguments/mod.rs` defines the mapped argument-builder semantics: protocol v2 begins with `thin-pack` and `ofs-delta`, adds `sideband-all` only when advertised, keeps `packfile-uris` out of default arguments, bakes protocol v1 features into the first `want`, treats protocol v2 as stateless, and exposes support flags for shallow, filter, ref-in-want, deepen, and include-tag behavior.
+
+Focused fetch response and sideband inventory inspected on 2026-05-22:
+
+- Selected `gix-protocol/src/fetch/response/mod.rs`, `gix-protocol/src/fetch/response/blocking_io.rs`, `gix-protocol/tests/protocol/fetch/response.rs`, `gix-packetline/src/lib.rs`, `gix-packetline/src/blocking_io/sidebands.rs`, and `gix-packetline/tests/read/sideband.rs` with targeted `git show` and `git grep`.
+- 14 fetch response reader tests counted across the V1/V2 `from_line_reader` sections of `gix-protocol/tests/protocol/fetch/response.rs`; 6 packetline sideband tests counted in `gix-packetline/tests/read/sideband.rs`.
+- `gix-protocol/src/fetch/response/blocking_io.rs` defines the mapped protocol v2 section semantics: parse `acknowledgments`, `shallow-info`, and `wanted-refs` sections until a delimiter or flush, stop with `has_pack=false` on message end, and stop with `has_pack=true` when the `packfile` section starts.
+- `gix-protocol/src/fetch/response/mod.rs` defines the mapped line semantics: `ACK <id>`, `ACK <id> common`, `ACK <id> ready`, `ready`, `NAK`, `shallow <id>`, `unshallow <id>`, and wanted-ref `<id> <path>` lines are parsed into typed response values.
+- `gix-packetline/src/lib.rs` and `blocking_io/sidebands.rs` define the mapped sideband semantics: sideband channel 1 carries pack bytes, channel 2 carries progress text with one trailing newline trimmed, and channel 3 carries error text with one trailing newline trimmed.
+
+Focused partial clone/promisor inventory inspected on 2026-05-22:
+
+- Selected `gix-protocol/src/fetch/arguments/mod.rs` and `gix-pack/tests/pack/iter.rs` with targeted `git show`/`git grep`; broad partial-clone scans were stopped because they hydrate too much changelog and fixture history in the filtered checkout.
+- 5 `gix-pack` pack iterator tests counted, including `restore_partial_pack`; the 9 fetch argument tests counted in the fetch-negotiation slice also cover the upstream protocol boundary where `filter <spec>` is attached to a fetch request.
+- `gix-protocol/src/fetch/arguments/mod.rs` defines the mapped fetch-filter boundary: a filter is sent as `filter <spec>` when the server advertised `filter`.
+- Local `git rev-list(1)` and `git clone(1)` documentation were used as the filter-spec reference for `blob:none`, `blob:limit=<n>[kmg]`, `tree:<depth>`, and `sparse:oid=<oid>` semantics. This is Git behavior documentation, not a Gitoxide runner result.
+- `gix-pack/tests/pack/iter.rs` includes partial-pack restoration coverage; the PHP slice maps the local object database side by discovering `.promisor` sidecars, reporting promisor-present objects, and distinguishing promised-but-missing object IDs from ordinary missing IDs.
+
+Focused sparse checkout/pathspec inventory inspected on 2026-05-22:
+
+- Selected `gix-index/src/access/sparse.rs`, `gix-index/src/entry/mod.rs`, `gix-index/src/entry/mode.rs`, `gix-pathspec/src/parse.rs`, `gix-pathspec/src/pattern.rs`, `gix-pathspec/tests/parse/valid.rs`, and `gix-pathspec/tests/search/mod.rs` with targeted `git show`; broad `git grep` was stopped once it began hydrating filtered blobs.
+- 47 selected gix-index sparse/index and gix-pathspec source/test/fixture paths were listed for this slice.
+- 23 `gix-pathspec` search tests and 14 valid parse tests were counted in the selected upstream files.
+- `gix-index/src/access/sparse.rs` defines the mapped sparse modes: disabled, cone directory patterns with all entries plus skip-worktree, cone directory patterns with sparse directory entries, and non-cone ignore-pattern matching.
+- `gix-pathspec` search and parse tests informed the bounded non-cone fallback, but the PHP slice intentionally prioritizes Git sparse-checkout cone behavior because Git documents non-cone sparse-checkout as deprecated and performance-hostile.
+- Local `git sparse-checkout check-rules` and `git sparse-checkout(1)` documentation were used to cross-check the cone-mode WordPress examples: root files are included, files immediately under selected-directory ancestors are included, and all paths under selected directories are included.
+
+Focused lazy promisor inventory inspected on 2026-05-22:
+
+- Selected `gix-protocol/src/fetch/function.rs`, `gix-protocol/tests/protocol/fetch/v2.rs`, `gix/src/remote/connection/fetch/mod.rs`, and `gix/src/remote/connection/fetch/receive_pack.rs` with targeted `git show`.
+- 4 protocol v2 fetch tests were counted in `gix-protocol/tests/protocol/fetch/v2.rs`.
+- `gix-protocol/src/fetch/function.rs` defines the mapped fetch pack-consumption seam: negotiation eventually hands the pack stream to a caller-provided consumer.
+- `gix/src/remote/connection/fetch/receive_pack.rs` defines the mapped repository-level side effect: received pack bytes are written into the object database pack directory when not in dry-run mode.
+- The PHP slice maps the local lazy-hydration side for partial clone reads: when the object database has promisor packs and a read misses locally, a `PromisorObjectResolver` can resolve the object, the object ID is verified, and the object is written into loose storage before the read returns.
+
+Focused push/refspec inventory inspected on 2026-05-22:
+
+- Selected `gix-refspec/tests/refspec/parse/push.rs`, `gix-refspec/src/spec.rs`, `gix-transport/tests/fixtures/v1/push.request`, `gix-transport/tests/fixtures/v1/push.response`, and `gix/src/push.rs` with targeted `git show` and `git ls-tree`.
+- 11 push parse `#[test]` attributes were counted in `gix-refspec/tests/refspec/parse/push.rs`.
+- `gix-refspec` push tests define the mapped update shapes: `src:dst` updates, `+src:dst` forced updates, `:` matching-branch updates, `:dst` deletions, and excluded refs.
+- `gix-transport/tests/fixtures/v1/push.request` defines the mapped receive-pack request envelope: first ref update line carries `old new ref\0` followed by requested capabilities such as `report-status-v2`, `side-band-64k`, `object-format=sha1`, and `agent=...`; subsequent update lines omit capabilities; a flush separates commands from optional push-options and pack bytes.
+- `gix-transport/tests/fixtures/v1/push.response` and `gix-transport/tests/client/git.rs::push_v1_simulated` define the mapped receive-pack response envelope: sideband channel 2 carries progress/advisory text, while sideband channel 1 carries nested report-status packet lines such as `unpack ok`, `ok <ref>`, and an inner flush packet.
+- 1 simulated push response test was counted in `gix-transport/tests/client/git.rs`.
+- Local `gitprotocol-pack(5)` documentation was used to cross-check report-status and report-status-v2 grammar: `unpack <result>`, `ok <ref>`, `ng <ref> <error>`, and v2 `option refname`, `option old-oid`, `option new-oid`, and `option forced-update` lines.
+
+Focused send-pack orchestration inventory inspected on 2026-05-22:
+
+- Selected `gix-transport/tests/client/git.rs`, `gix-transport/src/lib.rs`, `gix-transport/src/client/git/mod.rs`, `gix-protocol/CHANGELOG.md`, and local `gitprotocol-pack(5)` documentation with targeted reads.
+- 5 async/blocking client-git tests were counted in `gix-transport/tests/client/git.rs`, including `push_v1_simulated`.
+- `gix-transport/src/lib.rs` defines the mapped receive-pack service selector as `Service::ReceivePack`, while the client-git request path establishes the boundary where command packet lines and pack bytes are written to transport I/O.
+- `gix-protocol` changelog notes were used as a bounded signal that receive-pack handshakes stay constrained by protocol-v1 behavior in this area. The PHP slice maps the local orchestration layer without claiming full remote adapter parity.
+- Local `gitprotocol-pack(5)` documentation remains the grammar cross-check for advertised refs, capability lines, ref update commands, push-options, pack payload separation, and report-status responses.
+
+Focused thin/ref-delta pack generation inventory inspected on 2026-05-22:
+
+- Selected `gix-pack/src/data/output/bytes.rs`, `gix-pack/src/data/output/entry/mod.rs`, `gix-pack/src/data/output/entry/iter_from_counts.rs`, `gix-pack/src/bundle/write/mod.rs`, `gix-pack/src/data/delta.rs`, `gix-pack/tests/pack/data/output/count_and_entries.rs`, `gix-pack/tests/pack/data/input.rs`, `gix-transport/tests/client/git.rs`, `gix-transport/tests/fixtures/v1/push.request`, and local `gitprotocol-pack(5)` receive-pack documentation with targeted reads.
+- 13 selected test attributes were counted across the gix-pack data output/input and gix-transport client-git paths inspected for this slice.
+- `gix-pack/src/data/output/entry/mod.rs` defines the mapped output-entry distinction: object entries can be base objects, offset deltas, or `RefDelta` entries that identify their base by object ID for thin packs in transit.
+- `gix-pack/src/data/output/entry/iter_from_counts.rs` defines the mapped thin-pack guard: `allow_thin_pack` permits ref-delta objects whose base is not included in the pack; otherwise such deltas are repacked as base objects.
+- `gix-pack/src/bundle/write/mod.rs` defines the related at-rest repair boundary: a thin-pack base object lookup is used when writing bundles to an object database, reinforcing that thin packs are transit payloads rather than complete packs at rest.
+- `gitprotocol-pack(5)` receive-pack documentation was used to cross-check that push data sends update commands followed by a packfile containing the objects the server needs, while receive-pack capabilities include `ofs-delta` rather than a separate `thin-pack` capability.
+
+Focused OFS_DELTA pack generation inventory inspected on 2026-05-22:
+
+- Re-inspected `gix-pack/src/data/output/entry/mod.rs`, `gix-pack/src/data/entry/header.rs`, and `gix-pack/tests/pack/data/output/count_and_entries.rs` with targeted upstream reads.
+- The already counted 13 selected thin/ref-delta generation test attributes remain the focused pack-output denominator for this slice; `count_and_entries.rs` explicitly counts `DeltaRef` and `DeltaOid`, while `entry/mod.rs` maps `DeltaRef { object_index }` to a written `OfsDelta { base_distance }` and reserves `DeltaOid { id }` for thin/transit `RefDelta` entries.
+- `gix-pack/src/data/entry/header.rs` defines the mapped OFS_DELTA header encoding: type id 6 plus Git's variable-length base-distance bytes, where `base_pack_offset = current_pack_offset - base_distance`.
+- The PHP slice adds `PackBuilder::buildWithOffsetDeltas()` for same-pack bases already written earlier in the pack. It emits type-6 OFS_DELTA entries when the encoded delta is smaller than the whole object, records base offset/distance metadata for diagnostics, and verifies generated bytes by reading the target object back through the native `PackData`/`PackIndex` resolver.
+- The WordPress fixture `wordpress-send-pack-ofs-delta.php` compacts a pair of related `wp_posts` export blobs inside one non-thin pack, proving deployment payloads can use in-pack offset deltas without shelling out to `git pack-objects`.
+
+Focused receive-pack transport I/O inventory inspected on 2026-05-22:
+
+- Selected `gix-transport/src/client/blocking_io/request.rs`, `gix-transport/src/client/git/blocking_io.rs`, `gix-transport/src/client/non_io_types.rs`, `gix-transport/tests/client/git.rs::push_v1_simulated`, local `gitprotocol-pack(5)` git-transport service request documentation, and local `gitprotocol-http(5)` smart receive-pack documentation with targeted reads.
+- 5 gix-transport client-git async/blocking tests remain the focused transport count for this slice, including `push_v1_simulated`.
+- `gix-transport/src/client/blocking_io/request.rs` defines the mapped request-writer boundary: binary writes are passed through, `into_read()` writes a terminating message and flushes, and `into_parts()` allows direct pack-byte writing before reading the response.
+- `gix-transport/src/client/git/blocking_io.rs` defines the mapped connection behavior: a handshake reads capabilities/refs, while `request(WriteMode::Binary, MessageKind::Flush, ...)` yields a request writer and response reader over the same transport.
+- `gix-transport/tests/client/git.rs::push_v1_simulated` defines the mapped receive-pack transport flow: write the first command, flush command packet-lines, write the remaining request bytes including pack payload, then parse sideband progress plus nested report-status lines.
+- Local `gitprotocol-pack(5)` git-transport documentation defines the mapped git-daemon receive-pack opener: send one pkt-line containing `git-receive-pack`, the repository path, a NUL-delimited `host=` parameter, and optional extra parameters before reading the receive-pack advertisement. The PHP slice now maps that service-request envelope and delegates the rest of the flow through stream-backed receive-pack packet I/O.
+- Local `gitprotocol-http(5)` smart HTTP documentation defines the mapped HTTP receive-pack opener: discover refs with `$GIT_URL/info/refs?service=git-receive-pack`, verify the `application/x-git-receive-pack-advertisement` response and `# service=git-receive-pack` pkt-line, then POST the send-pack request to `$GIT_URL/git-receive-pack` with `application/x-git-receive-pack-request` and parse an `application/x-git-receive-pack-result` body. The PHP slice maps that request/response flow, HTTPS Basic URL userinfo headers, caller-supplied auth headers, managed header validation, URL expansion for gateway-style query URLs, Git-Protocol extra parameters on discovery and POST, and Set-Cookie propagation from discovery to the receive-pack request.
+- `gix-transport/src/client/blocking_io/http/redirect.rs`, the curl/reqwest HTTP transport redirect callers, and `gix-transport/tests/client/blocking_io/http/mod.rs` define the mapped redirect boundary: the initial smart HTTP request may follow a redirect only when the effective URL keeps the same authority or safely upgrades from `http` to `https` on the same host, the redirected URL must preserve the original request tail so the transport can compute an effective repository base URL, and subsequent POSTs reuse that base instead of sending credentials to an unrelated host. The PHP slice maps that safe initial redirect behavior and disables PHP stream auto-following so the transport performs the validation itself.
+- `gix-transport/src/client/blocking_io/http/mod.rs` and `gix/src/config/tree/sections/http.rs` define the mapped `http.followRedirects` values: default/`initial` follows only the first request, boolean true follows all requests, and boolean false follows no redirects. A bounded upstream runner probe `timeout 180 cargo test -p gix-transport --lib blocking_io::http::redirect --features blocking-client,http-client-curl -- --nocapture` passed 5/5 filtered redirect helper tests with 30 filtered out. The PHP slice adds `followRedirects` normalization for `initial`, true/all, and false/none, keeps the same redirect safety checks, rejects initial redirects when disabled, and allows a safe same-host receive-pack POST redirect only when configured for all redirects.
+- `gix-transport/src/client/blocking_io/http/mod.rs` refuses to send URL-derived Basic credentials over cleartext `http://` unless the upstream crate is built with the explicit insecure credentials feature. The PHP slice now rejects cleartext URL credentials before the requester is called, so an HTTP-to-HTTPS redirect cannot leak deployment credentials in the initial discovery request.
+- `gix-transport/src/client/blocking_io/http/mod.rs` and the curl backend's `http::Options` handling define the mapped proxy boundary: `http.proxy` selects a curl-style proxy, `http.noProxy` bypasses selected hosts, proxy credentials are kept separate from origin `Authorization`, and credential callbacks can provide proxy username/password material. The PHP slice maps HTTP/HTTPS proxy selection into stream context options, no-proxy host/domain matching, Basic proxy credentials from proxy URLs or explicit options, a credential-helper callback boundary, proxy credential store/erase callbacks after successful or failed requests, and native default-requester SOCKS4/SOCKS4a/SOCKS5/SOCKS5h CONNECT handshakes. Non-Basic proxy auth method declarations remain normalized for injected requesters; the native SOCKS handshakes support no-auth and username/password authentication only.
+- Local SSH transport URL conventions define the mapped SSH opener boundary: parse `ssh://[user@]host[:port]/path` and scp-like `[user@]host:path`, execute `git-receive-pack <path>` on the remote side, then exchange the ordinary receive-pack pkt-line streams over that channel. The PHP slice maps URL validation, repository-path quoting, and injected stream handoff without shelling out to `ssh`; actual SSH authentication and channel setup remain caller-provided.
+- Focused SSH receive-pack argument-safety inventory added on 2026-05-25:
+  - Re-inspected upstream `gix-transport/src/client/blocking_io/ssh/program_kind.rs`, `gix-transport/src/client/blocking_io/file.rs`, and `gix-url/tests/url/parse/ssh.rs` from the shared upstream cache.
+  - Mapped the upstream boundary that rejects ambiguous SSH usernames/hosts and repository paths whose trimmed bytes begin with `-` before constructing `git-receive-pack` arguments.
+  - The PHP slice adds native preflight checks to `SshReceivePackTransport` while continuing to use the existing caller-injected connector for stream creation; no SSH process, credential store, or live provider is invoked.
+  - Focused PHP evidence: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed 1 file, 209 assertions, 0 failures. The WordPress receive-pack fixture now exposes a safe deploy SSH target/command and proves an unsafe target is rejected before connector handoff.
+
+Focused smart HTTP proxy credential lifecycle inventory inspected on 2026-05-22:
+
+- 9 selected `gix-transport` smart HTTP source/test paths were listed under `gix-transport/src/client/blocking_io/http` and `gix-transport/tests/client/blocking_io/http`.
+- 12 Rust `#[test]` attributes were counted in `gix-transport/tests/client/blocking_io/http/mod.rs`.
+- `gix-transport/src/client/blocking_io/http/mod.rs` defines `Options::proxy_authenticate` as the proxy credential callback boundary.
+- `gix-transport/src/client/blocking_io/http/curl/remote.rs` contains the mapped credential lifecycle: after obtaining proxy credentials, the curl backend calls the next credential action with `store()` when the request finishes with an accepted status such as HTTP 200 or an accepted initial 304 discovery response, and `erase()` when the transfer fails or the final status is not accepted.
+- The PHP slice maps that lifecycle with `proxyCredentialStore` and `proxyCredentialErase` callbacks for credentials returned by `proxyCredentialHelper`, while continuing to keep `Proxy-Authorization` out of origin request headers.
+
+Focused smart HTTP proxy username-helper inventory inspected on 2026-05-31:
+
+- `gix/src/repository/config/transport.rs` sets `Options::proxy_authenticate`
+  when a configured proxy URL parses with a username, and
+  `gix/tests/gix/repository/config/transport_options.rs::http_proxy_with_username`
+  asserts that a `http://user@localhost:9090` proxy triggers credential-helper
+  authentication before connection setup.
+- `gix-transport/src/client/blocking_io/http/curl/remote.rs` then obtains proxy
+  credentials and applies proxy username/password on the curl handle while
+  keeping proxy credentials separate from ordinary origin request headers.
+- The PHP slice now maps username-only proxy URLs to `proxyCredentialHelper`
+  actions, preserving the username in the normalized proxy URL passed to the
+  helper/store callbacks. Explicit `user:password` proxy URLs and accepted SOCKS
+  username handshakes remain supported.
+- Focused PHP evidence: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php`
+  passed 1 file, 471 assertions, 0 failures after a red-first failure for the
+  username-only proxy helper expectation.
+
+Focused default SOCKS handshake inventory inspected on 2026-05-22:
+
+- `gix-transport/src/client/blocking_io/http/curl/remote.rs` maps curl proxy declarations by prefix: `socks5h` uses remote DNS, `socks5` uses SOCKS5, `socks4a` uses SOCKS4a, and `socks`/`socks4` use SOCKS4.
+- The same curl backend wires proxy username/password separately from ordinary HTTP headers. The PHP default requester now opens a TCP connection to the proxy, performs SOCKS4/SOCKS4a/SOCKS5/SOCKS5h CONNECT handshakes, sends smart HTTP receive-pack requests through the established tunnel using origin-form request targets, and keeps proxy credentials out of the tunneled HTTP request headers.
+- Focused PHP tests cover a WordPress receive-pack advertisement over a local SOCKS5h proxy with username/password authentication and over a local SOCKS4a proxy with remote DNS, without shelling out to curl, ssh, or git.
+
+Focused HTTPS-through-SOCKS/TLS inventory inspected on 2026-05-22:
+
+- The same 9 selected `gix-transport` smart HTTP source/test paths remain the focused transport denominator for this slice, with 12 Rust `#[test]` attributes counted in `gix-transport/tests/client/blocking_io/http/mod.rs` plus 5 redirect helper tests in `gix-transport/src/client/blocking_io/http/redirect.rs`.
+- `gix-transport/src/client/blocking_io/http/mod.rs` defines the mapped TLS configuration boundary: `ssl_ca_info` points to a CA certificate file, and `ssl_verify` controls peer and host identity verification.
+- `gix-transport/src/client/blocking_io/http/curl/remote.rs` applies those options before performing the curl request with a SOCKS proxy type. The PHP slice maps the default requester equivalent by opening a SOCKS tunnel first, then enabling TLS to the origin host with the configured peer name and CA file before sending the smart HTTP receive-pack request.
+- Focused PHP tests now cover HTTPS receive-pack advertisement discovery through a local SOCKS5h proxy with a trusted local CA file. This proves TLS is layered after the SOCKS CONNECT, the CONNECT target remains the origin host on port 443, and proxy authorization remains outside the tunneled origin HTTP headers.
+
+Focused merge primitive inventory inspected on 2026-05-22:
+
+- Selected `gix-revision/src/merge_base/function.rs`, `gix-revision/tests/revision/merge_base.rs`, `gix-merge/src/tree/function.rs`, `gix-merge/src/tree/mod.rs`, `gix-merge/tests/merge/tree/mod.rs`, and `gix-merge/tests/merge/tree/baseline.rs` with targeted reads.
+- 5 merge-focused Rust test attributes were counted across the selected merge-base and tree baseline tests.
+- `gix-revision/src/merge_base/function.rs` defines the mapped merge-base shape: paint ancestry from both sides, collect common ancestors, and remove redundant ancestors so the topologically most recent independent bases remain.
+- `gix-merge/src/tree/function.rs` and `gix-merge/src/tree/mod.rs` define the much broader tree-merge model: diff both sides against the ancestor tree, apply clean changes to an editor, keep structured conflict entries, and distinguish unresolved tree/content conflicts.
+- `gix-merge/tests/merge/tree/mod.rs` drives Git baseline cases through commit-level merge and index conflict comparison. `gix-diff` rewrite tracking keeps parent directory rename relations available to tree merge, and the tree baseline includes rename-within-rename and rename/rename-plus-content cases that anchor the broader model. The PHP slice now maps flat tree decisions plus a bounded recursive content-merge path that reads nested tree/blob objects, writes merged blob/tree objects, records full-path content conflicts, exposes ancestor/ours/theirs index stage views, writes blob conflicts into Git index v2 `DIRC` files, expands tree stages into file-level index entries for directory-file conflicts, writes checkout-clean merged worktree files including marker blobs, removes stale files/directories while preserving `.git`, classifies directory-file collisions before generic add-add conflicts, detects exact same-object rename/delete plus rename/rename conflicts with ambiguity guards, detects bounded similar-blob rename/delete plus rename/modify conflicts for text blobs with matching modes and conservative ambiguity filters, merges same-target renamed blobs through the content-merge path at the renamed filename, detects bounded directory renames by descendant similarity so directory rename/modify cases merge at the new directory path, matches unique renamed internal leaves so a plugin directory can be detected after its main plugin file is renamed, chooses a strictly best similar rename candidate while preserving equal-score ambiguity rejection, and maps the upstream `rename-within-rename-2` A-B nested same-target directory rename conflict while preserving the clean reversed direction. Broader directory rename conflict cases, more rename heuristics, and full commit merge orchestration remain unported.
+
+Focused multi-head merge-base inventory inspected on 2026-05-23:
+
+- Re-inspected `gix-revision/src/merge_base/function.rs` and `gix-revision/tests/revision/merge_base.rs` with targeted upstream reads, without broad checkout hydration.
+- Counted 3 upstream octopus test attributes in `gix-revision/tests/revision/merge_base.rs`: `octopus::three_sequential_commits`, `octopus::three_parallel_commits`, and `octopus::three_forked_commits`.
+- `gix_revision::merge_base::octopus()` returns the shared best ancestor for multiple heads. The PHP slice adds `MergeBaseFinder::mergeBasesMany()` and `mergeBaseMany()` by intersecting all head ancestor sets, pruning redundant ancestors, and preserving deterministic ordering for criss-cross bases.
+- No new Cargo runner was attempted for this slice because the sparse/no-checkout cache would need additional fixture hydration for broader `gix-revision` baseline tests. The evidence is targeted static upstream source/test inventory plus focused native PHP tests.
+
+Focused blob merge inventory inspected on 2026-05-22:
+
+- Selected `gix-merge/src/blob/builtin_driver/text/function.rs`, `gix-merge/src/blob/builtin_driver/text/mod.rs`, `gix-merge/src/blob/builtin_driver/binary.rs`, and `gix-merge/tests/merge/blob/builtin_driver.rs` with targeted reads.
+- 22 blob-focused Rust test attributes were counted across selected `gix-merge` blob source and tests.
+- `gix-merge/src/blob/builtin_driver/text/function.rs` defines the mapped text merge shape: compare ours/base/theirs as tokenized lines, render conflict markers, support merge and diff3-style sections, and return a resolution enum.
+- `gix-merge/src/blob/builtin_driver/text/mod.rs` defines conflict style labels and default marker size. The PHP slice maps merge and diff3 markers with labels plus later zealous hunk contraction; broader Gitoxide diff-backend internals remain unported.
+- `gix-merge/tests/merge/blob/builtin_driver.rs` defines same-change clean merges, partially overlapping conflicts, binary default/side-pick behavior, fuzz regressions, and text-baseline corpus checks. The PHP slice maps the first useful subset with line-based independent edit merging, conflict markers, and minimal binary side picks.
+
+Focused blob auto-resolution inventory and runner evidence added on 2026-05-23:
+
+- Re-inspected `gix-merge/src/blob/builtin_driver/text/function.rs`, `gix-merge/src/blob/builtin_driver/text/mod.rs`, `gix-merge/tests/merge/blob/builtin_driver.rs`, and `gix-merge/tests/merge/blob/platform.rs` with targeted reads.
+- Recent bounded upstream runner evidence from `audits/gitoxide-rust-wide4-evidence-20260523T000710Z.md` covers the local merge package: `cargo test --locked --offline --color never -p gix-merge --features gix-merge/sha1,gix-merge/sha256 ...` passed the `gix-merge` integration target with 23/23 tests and 0 failures as part of a clean 148-test local package group.
+- `Conflict::ResolveWithOurs`, `ResolveWithTheirs`, and `ResolveWithUnion` return `Resolution::CompleteWithAutoResolvedConflict` when overlapping hunks differ, while still writing a conflict-free buffer. The platform test also anchors the no-trailing-newline union boundary: `ours` plus `theirs` becomes `ours\ntheirs`.
+- The PHP slice adds `BlobMerge::STYLE_OURS` and `STYLE_THEIRS`, changes union conflict resolution to report `complete-auto-resolved`, and separates no-newline union sides with a line break. The WordPress blob-merge fixture now models a deployment policy that keeps the local `theme.json` layout and a union merge for block-stabilization notes without writing conflict markers.
+
+Focused blob zealous hunk-contraction inventory inspected on 2026-05-23:
+
+- Re-inspected `gix-merge/src/blob/builtin_driver/text/function.rs`, `gix-merge/src/blob/builtin_driver/text/mod.rs`, `gix-merge/src/blob/builtin_driver/text/utils.rs`, `gix-merge/tests/merge/blob/builtin_driver.rs`, and `gix-merge/tests/merge/blob/platform.rs` with targeted `git show` reads.
+- Counted the committed `gix-merge/tests/fixtures/generated-archives/text-baseline.tar` archive without hydrating the sparse checkout: 668 tar entries, 102 `.blob` inputs, 256 physical `.merged` expected-output files, and 512 baseline case lines split evenly across `baseline.cases` and `baseline-reversed.cases`.
+- The inspected baseline case inventory includes 128 `--zdiff3` cases, 128 `--diff3` cases, 64 `--union` cases, 128 `--ours`/`--theirs` cases, and 64 default merge-style cases across the forward and reversed files.
+- `utils::zealously_contract_hunks()` defines the mapped boundary: merge-style and zealous-diff3 conflicts move identical leading/trailing changed lines outside markers, ordinary diff3 keeps non-minimized side hunks, and union resolution also contracts shared edges before writing ours and theirs once. `ConflictStyle::ZealousDiff3` keeps the ancestor section non-minimized even while minimizing the current/other sections.
+- The PHP slice adds `BlobMerge::STYLE_ZEALOUS_DIFF3`, contracts common changed prefixes and suffixes for merge-style, zealous-diff3, and union conflicts, keeps ordinary diff3 non-contracted, and extends the WordPress blob-merge fixture/example with a theme decision that shares changed layout/spacing lines while conflicting on color.
+- A new upstream Cargo run was not attempted for this slice because the sparse/no-checkout cache does not materialize `gix-merge/tests/merge/blob/**` or the text-baseline archive on disk. The full workspace Cargo runner remains out of scope for this VM because it would hydrate and build the large feature-heavy workspace.
+
+Focused blob blank-line false-conflict inventory inspected on 2026-05-23:
+
+- Re-inspected `gix-merge/tests/merge/blob/builtin_driver.rs` and `gix-merge/src/blob/builtin_driver/text/function.rs` with targeted `git show` reads from the sparse/no-checkout cache.
+- The exact upstream regression is `text::false_conflict::myers_false_conflict_with_blank_line_ambiguity`, which records a Myers hunk-splitting case where Gitoxide must resolve cleanly instead of producing conflict markers when an inserted blank context line meets a deletion at the same ancestor position.
+- The PHP slice adds the same bounded behavior to `BlobMerge::mergeText()`: a zero-length insertion hunk that duplicates pending ancestor context can be emitted before an adjacent deletion hunk instead of being treated as an overlap. Ordinary append-vs-modify adjacency still conflicts, preserving existing tree-baseline mappings.
+- The WordPress blob-merge fixture/example now covers a block-spacing cleanup where one side removes an imported heading/trailing spacer and the other removes a separator block; the merged result keeps the shared blank paragraph boundary without conflict markers.
+- No new upstream Cargo runner was attempted for this slice because the sparse/no-checkout cache still does not materialize `gix-merge/tests/merge/blob/**`. This is static focused upstream evidence over the exact committed regression test plus native PHP verification.
+
+Focused blob marker-newline inventory inspected on 2026-05-23:
+
+- Re-inspected `gix-merge/src/blob/builtin_driver/text/function.rs`, `gix-merge/src/blob/builtin_driver/text/utils.rs`, and `gix-merge/tests/merge/blob/builtin_driver.rs` with targeted `git show`/`git grep` reads from the sparse/no-checkout cache.
+- Inspected targeted entries from committed `gix-merge/tests/fixtures/generated-archives/text-baseline.tar` without hydrating the sparse checkout. The marker-newline baseline family contributes 24 case lines across `marker-newline-handling-crlf`, `marker-newline-handling-lf`, and `marker-newline-handling-lf2` forward cases.
+- The exact native mapping is `complex/marker-newline-handling-lf2/merge.merged` plus the related diff3 expected output. Upstream renders the shared changed `2\n` line before merge markers, then uses LF for merge marker lines even though the file begins with CRLF. In diff3 output, the non-contracted conflict keeps CRLF marker lines from the nearby ancestor context while preserving LF inside the side hunks.
+- `utils::write_conflict_marker()` always calls `assure_ends_with_nl()` before writing a marker. `function.rs` chooses marker newlines from contracted front hunks when present, otherwise from nearby ancestor/current hunks, while the diff3 ancestor marker can use the ancestor hunk newline.
+- The PHP slice maps that boundary by selecting marker line endings from contracted front context, nearby ancestor context, or current-side conflict lines, and by inserting the selected newline before `=======`, `|||||||`, and `>>>>>>>` markers when side content lacks a trailing newline. The WordPress fixture/example now covers mixed CRLF/LF block content where the conflict markers follow the shared changed block line ending.
+- No new upstream Cargo runner was attempted for this slice because the sparse/no-checkout cache does not materialize `gix-merge/tests/merge/blob/**` on disk. This is static focused upstream evidence over committed text-baseline archive entries plus native PHP verification.
+
+Focused blob partial-match inventory inspected on 2026-05-23:
+
+- Re-inspected `gix-merge/src/blob/builtin_driver/text/function.rs`, `gix-merge/src/blob/builtin_driver/text/utils.rs`, and `gix-merge/tests/merge/blob/builtin_driver.rs` with targeted upstream reads.
+- Inspected targeted entries from committed `gix-merge/tests/fixtures/generated-archives/text-baseline.tar` without hydrating the sparse checkout. The `partial-match` family contributes 16 case lines across the forward and reversed baseline files, including merge, diff3, zdiff3, union, ours, theirs, and histogram option variants.
+- The exact native mapping is `partial-match/merge.merged`: when one side has a broad hunk and the other side has two nearby hunks inside that same ancestor span, Gitoxide collects the touching hunks into one conflict region, contracts the shared changed `X1`, `X3`, and `X4` lines, and renders only `X2` versus `2` inside conflict markers.
+- The PHP slice updates `BlobMerge::mergeText()` to collect all side hunks that touch the combined conflict range before applying and contracting them. This prevents a later same-side hunk from being replayed after conflict rendering and maps the upstream partial-match output exactly.
+- The WordPress blob-merge fixture/example now covers a shared block refactor where both sides agree on a featured group wrapper and later heading body, while only the block opening line remains in conflict.
+- No new upstream Cargo runner was attempted for this slice because the sparse/no-checkout cache does not materialize `gix-merge/tests/merge/blob/**` on disk. This is static focused upstream evidence over committed text-baseline archive entries plus native PHP verification.
+
+Focused merge conflict-style config alias inventory inspected on 2026-05-23:
+
+- Re-inspected `gix/src/config/tree/sections/merge.rs`, `gix-merge/src/blob/builtin_driver/text/function.rs`, `gix-merge/src/blob/builtin_driver/text/mod.rs`, `gix-merge/src/blob/builtin_driver/text/utils.rs`, `gix-merge/tests/merge/blob/builtin_driver.rs`, and `gix-merge/tests/merge/blob/platform.rs` with targeted `git show`/`git grep` reads from the sparse cache.
+- The focused static inventory found 46 `conflictStyle`/`zdiff3`/`ZealousDiff3` references across those six paths and 17 Rust `#[test]` attributes across the selected blob integration/platform test files. The config boundary is source-level evidence: `merge.conflictStyle` accepts only `merge`, `diff3`, and `zdiff3`, mapping `zdiff3` to `text::ConflictStyle::ZealousDiff3`.
+- The PHP slice adds `BlobMerge::STYLE_ZDIFF3` and normalizes the upstream config literal `zdiff3` to the existing zealous-diff3 implementation. Focused coverage maps the committed `complex/marker-newline-handling-lf2/zdiff3.merged` Gitoxide behavior, where zealous diff3 keeps the shared changed `2\n` line before the marker while preserving mixed CRLF/LF marker choices.
+- The WordPress blob-merge fixture/example now models a deployment tool that reads `merge.conflictStyle=zdiff3` from repository config and passes that upstream literal directly into the native merge layer before rendering `theme.json` conflict markers.
+
+Focused text conflict label and marker-size inventory inspected on 2026-05-23:
+
+- Re-inspected `gix-merge/src/blob/builtin_driver/text/function.rs`, `gix-merge/src/blob/builtin_driver/text/mod.rs`, `gix-merge/src/blob/builtin_driver/text/utils.rs`, and `gix-merge/tests/merge/blob/builtin_driver.rs` with targeted upstream reads.
+- The static inventory counts 11 `Labels` references across the selected text-driver source/test paths, 8 `write_conflict_marker` references, and 7 selected `marker_size` construction/call references in the text merge integration target. `Labels` stores `Option<&BStr>` values and `utils::write_conflict_marker()` appends a space plus label only when the option is present; `Conflict::Keep` stores marker size as `NonZeroU8`.
+- The PHP slice maps that writer boundary by allowing `null` ancestor/current/other labels, rendering unlabeled conflict markers without trailing spaces, preserving existing string-label defaults for current callers, and rejecting marker sizes greater than 255 in addition to zero/negative sizes. This is source-level upstream evidence; no new Cargo run was attempted because the bounded behavior is directly in the text-driver writer path and previous focused `gix-merge` integration evidence already covers the package target.
+- The WordPress blob-merge fixture/example now includes an anonymous editor preview that renders diff3 conflict markers without exposing repository path labels in block-editor review output.
+
+Focused reference transaction update/delete inventory inspected on 2026-05-22:
+
+- Selected `gix-ref/src/transaction/mod.rs`, `gix-ref/src/store/file/transaction/prepare.rs`, `gix-ref/src/store/file/transaction/commit.rs`, `gix-ref/tests/refs/file/transaction/prepare_and_commit/create_or_update/mod.rs`, `gix-ref/tests/refs/file/transaction/prepare_and_commit/create_or_update/collisions.rs`, and `gix-ref/tests/refs/file/transaction/prepare_and_commit/delete.rs` with targeted reads.
+- 38 Rust `#[test]` attributes were counted across the selected create/update, collision, and delete transaction tests: 20 in create/update, 4 in collisions, and 14 in delete.
+- `gix-ref/src/transaction/mod.rs` defines the mapped transaction vocabulary: `PreviousValue::{Any, MustExist, MustNotExist, MustExistAndMatch, ExistingMustMatch}`, `Change::{Update, Delete}`, `RefEdit`, and `RefLog`.
+- `gix-ref/src/store/file/transaction/prepare.rs` defines the mapped guard behavior: `MustExist` rejects missing refs, `MustNotExist` permits a no-op only when the existing target already equals the new target, explicit previous values must match the observed target, and `ExistingMustMatch` permits missing refs while still rejecting mismatched existing refs.
+- `gix-ref/tests/refs/file/transaction/prepare_and_commit/create_or_update/mod.rs::namespaced_updates_or_deletions_are_transparent_and_not_observable` is the exact upstream behavior probe for this slice. `timeout 120 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::create_or_update::namespaced_updates_or_deletions_are_transparent_and_not_observable --features sha1,sha256 -- --exact --nocapture` passed 1/1 with 143 tests filtered out.
+- The PHP slice maps the bounded loose-ref side of that behavior: namespace-aware physical writes are returned as store-relative refs, symbolic targets inside the namespace are stripped on read, delete-missing `Any`/`ExistingMustMatch` succeeds, delete-missing `MustExist` fails, object-target match guards reject stale refs, and empty loose-ref parent directories are pruned. Later native slices extend that boundary to packed-ref transaction rewrites and reflog file effects: default updates of packed refs still write loose refs that shadow stale packed entries, packed deletes remove the matching packed entry, loose deletes also remove stale packed overlays, all-packed deletes remove the `packed-refs` file, explicit packed update modes rewrite sorted `packed-refs`, prune loose source refs when requested, append Git-shaped reflog lines for object updates, delete reflogs with ref deletion, and peel tag objects through the native object database when writing packed update-mode refs. The latest deref transaction slices map symbolic update and delete splitting: symbolic parents are reported as `RefLog::Only`, update leaves receive object writes, delete leaves either remove only reflogs or remove the leaf reference depending on the leaf log mode, and symbolic parents such as `HEAD` remain symbolic. Filesystem lock markers, same-transaction rollback, and full filesystem-lock semantics remain unported.
+
+Focused packed-reference transaction/reflog runner evidence added on 2026-05-22:
+
+- Materialized only the needed `gix-ref` packed/reflog fixture scripts and generated archives in the sparse upstream cache: `make_packed_ref_repository`, `make_packed_ref_repository_for_overlay`, `make_ref_repository`, and `make_repo_for_reflog`.
+- `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::create_or_update::packed_refs --features sha1,sha256 -- --nocapture` passed 5/5 filtered upstream tests with 139 tests filtered out. These cover default packed-ref lookup with loose shadow update, packed-ref update mode with loose source pruning, packed-ref update mode leaving loose refs, packed deletion in deletions-and-updates mode, and the explicit tag-loop non-case.
+- `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::create_or_update::packed_refs_creation_with_packed_refs_mode_prune_removes_original_loose_refs --features sha1,sha256 -- --exact --nocapture` passed 1/1 exact upstream test with 143 tests filtered out. This test compares Gitoxide's packed-ref rewrite output against Git's packed output for the loose object refs, including peeled annotated tag lines produced via object lookup.
+- `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::delete:: --features sha1,sha256 -- --nocapture` passed 14/14 filtered upstream delete tests with 130 tests filtered out. This includes packed-only deletion, loose-plus-stale-packed deletion, all-packed deletion removing `packed-refs`, reflog deletion, missing-ref deletion guards, and broken-ref delete boundaries; the PHP slice maps the packed/ref-log subset, not the entire deref/log-only/broken-ref surface.
+- A broader `packed_refs` substring probe passed the relevant transaction cases but failed one unrelated `packed::find::binary_search_a_name_past_the_end_of_the_packed_refs_file` test because `gix-ref/tests/fixtures/packed-refs/triggers-out-of-bounds` was not materialized. That failure is a sparse-cache fixture gap for a packed lookup fuzz fixture, not a failure of the focused transaction runner above.
+
+Focused deref/log-only reference transaction runner evidence added on 2026-05-22:
+
+- Re-inspected `gix-ref/src/transaction/ext.rs`, `gix-ref/src/store/file/transaction/prepare.rs`, `gix-ref/src/store/file/transaction/commit.rs`, `gix-ref/tests/refs/file/transaction/prepare_and_commit/create_or_update/mod.rs`, and `gix-ref/tests/refs/file/transaction/prepare_and_commit/delete.rs` with targeted reads.
+- `RefEditsExt::extend_with_splits_of_symbolic_refs()` defines the mapped split behavior: an update with `deref=true` turns the symbolic ref edit into a reflog-only edit and appends a child edit for the symbolic referent; delete edits use the same split and move the requested delete log mode onto the leaf while the symbolic parent becomes reflog-only. Commit deletes reflogs for all delete edits first, then deletes only `RefLog::AndReference` leaves, while update reflogs use the leaf referent's previous object ID when available.
+- `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::create_or_update::symbolic_head_missing_referent_then_update_referent --features sha1,sha256 -- --exact --nocapture` passed 1/1 exact upstream test with 143 tests filtered out.
+- `timeout 120 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::delete::delete_reflog_only_of_symbolic_with_deref --features sha1,sha256 -- --exact --nocapture` passed 1/1 exact upstream test with 143 tests filtered out.
+- The PHP slice adds `ReferenceStore::updateWithReport()`, `ReferenceStore::deleteWithReport()`, `ReferenceTransactionEdit`, `ReferenceUpdateResult`, and `ReferenceDeleteResult`. Existing `update()` and `deleteReference()` remain source-compatible and return the final resolved ref, while the report methods expose upstream-shaped edit order for dereferenced object transactions: `HEAD` is log-only, the leaf branch is `and-reference` for updates or the requested delete log mode for deletes, `HEAD` stays symbolic, update reflogs record the object transition, and delete-side reflog-only transactions remove both parent and leaf reflogs without deleting either reference. The WordPress deref transaction example now covers both publishing through symbolic `HEAD` and pruning dereferenced reflogs without invoking `git update-ref`.
+
+Focused loose-reference directory blocker inventory and runner evidence added on 2026-05-23:
+
+- Re-inspected `gix-ref/src/store/file/transaction/commit.rs` and `gix-ref/tests/refs/file/transaction/prepare_and_commit/create_or_update/mod.rs` with targeted upstream reads.
+- The exact upstream test `file::transaction::prepare_and_commit::create_or_update::reference_with_equally_named_empty_or_non_empty_directory_already_in_place_can_potentially_recover` passed with `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::create_or_update::reference_with_equally_named_empty_or_non_empty_directory_already_in_place_can_potentially_recover --features sha1,sha256 -- --exact --nocapture`: 1/1 passed, 143 filtered out.
+- `Transaction::commit()` attempts to recover when a reference lock commit sees a same-name directory: empty directory trees can be removed before committing the loose ref, while non-empty blockers still fail rather than silently replacing data.
+- The PHP slice maps that loose-ref write boundary in `LooseReferenceStore::write()`: same-name empty directory trees are removed before writing the ref file, non-empty directory blockers throw before `file_put_contents()`, and the WordPress tenant HEAD reference transaction example now models recovery from an interrupted deploy that left an empty directory where `HEAD` should be.
+
+Focused prepared reference rollback inventory and runner evidence added on 2026-05-23:
+
+- Re-inspected `gix-ref/src/store/file/transaction/prepare.rs` and `gix-ref/tests/refs/file/transaction/prepare_and_commit/create_or_update/mod.rs` with targeted upstream reads.
+- The exact upstream test `file::transaction::prepare_and_commit::create_or_update::intermediate_directories_are_removed_on_rollback` passed with `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::create_or_update::intermediate_directories_are_removed_on_rollback --features sha1,sha256 -- --exact --nocapture`: 1/1 passed, 143 filtered out.
+- `Transaction::prepare()` creates lock-file parent directories while staging loose-reference writes, and `rollback()` or dropping the prepared transaction removes those intermediate directories all the way back to the Git directory boundary when they are empty. Prepare failure also rolls back locks already acquired before the failure.
+- The PHP slice adds `PreparedReferenceTransaction` plus `ReferenceStore::prepareLooseUpdateTransaction()`. It writes native `.lock` files for loose-reference updates, exposes upstream-shaped update edits, rolls back explicitly or on destruction, prunes empty lock parent directories, and removes already prepared locks if a later stale lock prevents the transaction from being prepared. The WordPress tenant reference transaction example now models staging review-branch refs and rolling them back cleanly before any committed ref write.
+
+Focused prepared reference commit inventory and runner evidence added on 2026-05-23:
+
+- Re-inspected `gix-ref/src/store/file/transaction/commit.rs`, `gix-ref/tests/refs/file/transaction/prepare_and_commit/create_or_update/mod.rs`, and `gix-ref/tests/refs/file/transaction/prepare_and_commit/create_or_update/collisions.rs` with targeted upstream reads.
+- The exact upstream test `file::transaction::prepare_and_commit::create_or_update::reference_with_equally_named_empty_or_non_empty_directory_already_in_place_can_potentially_recover` passed with `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::create_or_update::reference_with_equally_named_empty_or_non_empty_directory_already_in_place_can_potentially_recover --features sha1,sha256 -- --nocapture`: 1/1 passed, 143 filtered out.
+- The exact upstream test `file::transaction::prepare_and_commit::create_or_update::collisions::non_conflicting_creation_without_packed_refs_work` passed with `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::create_or_update::collisions::non_conflicting_creation_without_packed_refs_work --features sha1,sha256 -- --nocapture`: 1/1 passed, 143 filtered out.
+- `Transaction::commit()` publishes prepared loose locks in order, recovers empty same-name directory blockers, fails non-empty blockers, and intentionally makes no rollback attempt after partial multi-file commit failure.
+- The PHP slice adds `PreparedReferenceTransaction::commit()`. It renames prepared `.lock` files into place, keeps committed refs visible after a later non-empty blocker failure, leaves the failed lock for caller recovery instead of rolling back, disables destructor rollback once commit starts, and extends the WordPress tenant reference transaction example with a prepared pair of review refs that are committed without invoking `git update-ref`.
+
+Focused prepared reference reflog inventory and runner evidence added on 2026-05-23:
+
+- Re-inspected `gix-ref/src/store/file/transaction/commit.rs`, `gix-ref/src/store/file/loose/reflog.rs`, `gix-ref/tests/refs/file/transaction/prepare_and_commit/create_or_update/mod.rs`, and `gix-ref/src/store/file/loose/reflog/create_or_update/tests.rs` with targeted upstream reads.
+- The exact upstream test `file::transaction::prepare_and_commit::create_or_update::reference_with_must_exist_constraint_must_exist_already_with_any_value` passed with `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::create_or_update::reference_with_must_exist_constraint_must_exist_already_with_any_value --features sha1,sha256 -- --exact --nocapture`: 1/1 passed, 143 filtered out.
+- The exact upstream test `file::transaction::prepare_and_commit::create_or_update::reference_with_must_not_exist_constraint_may_exist_already_if_the_new_value_matches_the_existing_one` passed with `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::create_or_update::reference_with_must_not_exist_constraint_may_exist_already_if_the_new_value_matches_the_existing_one --features sha1,sha256 -- --exact --nocapture`: 1/1 passed, 143 filtered out.
+- The focused upstream loose-reflog empty-directory probe passed with `timeout 180 cargo test -p gix-ref --lib missing_reflog --features sha1,sha256 -- --nocapture`: 1/1 passed, 16 filtered out.
+- `Transaction::commit()` writes object reflogs before committing each prepared reference lock, skips reflog writes for unchanged object targets, and can fail late for missing committers without rolling back earlier file edits. `reflog_create_or_append()` trims committer identity bytes, auto-creates logs for `HEAD`, local, remote, note, and worktree refs, and recovers empty same-name reflog directory blockers.
+- The PHP slice extends `ReferenceStore::prepareLooseUpdateTransaction()` with optional committer/message/force-create reflog metadata and updates `PreparedReferenceTransaction::commit()` to append object-update reflogs before publishing `.lock` files. It maps missing-committer failure before lock publication, no-log behavior for non-auto-created missing reflogs, empty reflog directory recovery, namespace-transparent branch reflog auto-creation, and WordPress tenant prepared-review audit reflogs without invoking `git update-ref`.
+
+Focused prepared reference delete inventory and runner evidence added on 2026-05-23:
+
+- Re-inspected `gix-ref/src/store/file/transaction/prepare.rs`, `gix-ref/src/store/file/transaction/commit.rs`, `gix-ref/src/transaction/ext.rs`, and `gix-ref/tests/refs/file/transaction/prepare_and_commit/delete.rs` with targeted upstream reads.
+- Counted 14 `#[test]` attributes in the focused upstream prepared delete transaction test file.
+- Exact upstream probes passed from the sparse cache: `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::delete::delete_reflog_only_of_symbolic_no_deref --features sha1,sha256 -- --nocapture`, `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::delete::delete_reflog_only_of_symbolic_with_deref --features sha1,sha256 -- --nocapture`, and `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::delete::delete_ref_and_reflog_on_symbolic_no_deref --features sha1,sha256 -- --nocapture`; each passed 1/1 with 143 filtered out.
+- `RefEditsExt::extend_with_splits_of_symbolic_refs()` defines the mapped delete split: a symbolic parent becomes `RefLog::Only`, while the requested delete mode is carried to the leaf. `Transaction::commit()` deletes reflogs before references, and a `DeleteReflog` error aborts before the reference removal pass.
+- The PHP slice adds `ReferenceStore::prepareLooseDeleteTransaction()` and delete actions in `PreparedReferenceTransaction`. It creates rollbackable `.lock` markers, returns upstream-shaped delete edits, deletes log-only symbolic and dereferenced reflogs while preserving refs, stops on a reflog-directory failure before deleting a ref, cleans successful delete locks, and extends the WordPress tenant reference example with prepared stale-review pruning.
+
+Focused broken loose-reference deletion inventory added on 2026-05-24:
+
+- Reused the existing focused `gix-ref/tests/refs/file/transaction/prepare_and_commit/delete.rs` delete inventory and prior bounded runner evidence: the selected upstream delete target passed 14/14 focused tests with 130 filtered out, including broken-ref delete boundaries.
+- The PHP slice maps the broken loose-reference subset natively: permissive direct and prepared deletes treat an unparsable loose ref file as an existing deletion target, return an upstream-shaped delete edit with an unknown previous target, remove the loose file and stale reflog, keep expected-target constraints strict by reporting the broken ref as out-of-date, and keep prepared broken-ref deletes staged behind rollbackable `.lock` files until commit.
+- WordPress relevance: tenant deployment cleanup can prune a broken stale review ref left by an interrupted deploy without invoking `git update-ref`, while still refusing expected-object pruning if the ref cannot be parsed.
+- Dependency closure: no new support component is needed. The slice reuses the existing bounded native PHP reference-store and loose-reference components; activation/evidence remains limited to focused Gitoxide reference tests and the WordPress reference transaction example.
+
+Focused packed-ref lock collision inventory and runner evidence added on 2026-05-23:
+
+- Re-inspected `gix-ref/src/store/file/packed.rs`, `gix-ref/src/store/packed/transaction.rs`, `gix-ref/src/store/file/transaction/prepare.rs`, and `gix-ref/tests/refs/file/transaction/prepare_and_commit/create_or_update/collisions.rs` with targeted upstream reads.
+- The exact upstream test `file::transaction::prepare_and_commit::create_or_update::collisions::packed_refs_lock_is_mandatory_for_multiple_ongoing_transactions_even_if_one_does_not_need_it` passed with `timeout 180 cargo test --locked --offline --color never -p gix-ref --features gix-ref/sha1,gix-ref/sha256,gix-ref/parallel file::transaction::prepare_and_commit::create_or_update::collisions::packed_refs_lock_is_mandatory_for_multiple_ongoing_transactions_even_if_one_does_not_need_it -- --exact --nocapture`: 1/1 passed, 144 filtered out.
+- `file::Store::packed_transaction()` acquires `packed-refs.lock` before opening the current packed buffer, and `Transaction::prepare()` also tries the packed lock when `packed-refs.lock` already exists so another transaction cannot miss an in-flight packed rewrite. `packed::Transaction::commit()` writes the sorted packed refs through the lock file, commits it into place, removes the packed file when no lines remain, and drops the lock afterward.
+- The PHP slice stages packed-ref rewrites through `packed-refs.lock`, removes the lock after successful packed updates or all-packed deletions, refuses stale packed-lock collisions before loose prepare locks, and proves collision failure leaves the held lock, packed contents, loose refs, and reflogs unchanged. The WordPress packed-reference transaction example now models refusing a concurrent production deployment lock before partial writes.
+
+Focused gix-credentials context inventory and runner evidence added on 2026-05-22:
+
+- Listed 38 paths under `gix-credentials` and counted 50 Rust `#[test]` attributes across `gix-credentials/src` and `gix-credentials/tests`.
+- Inspected `gix-credentials/src/protocol/context/mod.rs`, `gix-credentials/src/protocol/context/serde.rs`, `gix-credentials/tests/protocol/context.rs`, and `gix-credentials/tests/helper/context.rs` with targeted reads after materializing only `gix-credentials/tests/**` into the sparse cache.
+- `timeout 180 cargo test -p gix-credentials --test credentials protocol::context -- --nocapture` passed 13/13 focused upstream URL, prompt, and URL-destructuring context tests with 37 tests filtered out.
+- `timeout 180 cargo test -p gix-credentials --test credentials helper::context -- --nocapture` passed 7/7 focused upstream context serialization tests with 43 tests filtered out.
+- The PHP slice adds `CredentialContext` for Git credential-helper protocol context parsing and writing. It maps upstream field order, blank-line termination, unknown-field skipping, NUL/newline rejection, `quit` boolean parsing, password-free `toUrl()`, prompt strings, URL destructuring with HTTP path significance rules, and secret redaction/clearing for logs. The WordPress fixture models deployment credential-helper exchange for `wp-content.git` without shelling out to `git credential`.
+
+Focused gix-credentials helper cascade inventory and runner evidence added on 2026-05-22:
+
+- Inspected `gix-credentials/src/helper/cascade.rs`, `gix-credentials/src/helper/mod.rs`, `gix-credentials/src/helper/invoke.rs`, `gix-credentials/src/protocol/mod.rs`, `gix-credentials/tests/helper/cascade.rs`, and the focused shell fixtures for username, password, complete helper, failure, URL rewrite, expired password, OAuth token, and quit behavior.
+- `timeout 180 cargo test -p gix-credentials --test credentials helper::cascade -- --nocapture` passed 11/11 focused upstream helper-cascade tests with 39 tests filtered out.
+- The PHP slice adds `CredentialCascade` and `CredentialCascadeResult` for native helper callback cascades. It maps URL destructuring before helper invocation, partial credential fill and overwrite, failed-helper continuation, helper-provided URL destructuring, expired credential clearing, `quit`, query-user-only bogus password behavior, and store/erase payload fan-out to all helpers. The WordPress fixture models deployment credentials that ignore an expired cache entry, merge OAuth refresh metadata, and store/erase the final helper context without invoking `git credential`.
+
+Focused gix-credentials helper program inventory and runner evidence added on 2026-05-22:
+
+- Inspected `gix-credentials/src/program/mod.rs`, `gix-credentials/src/helper/mod.rs`, `gix-credentials/src/helper/invoke.rs`, `gix-credentials/tests/program/from_custom_definition.rs`, and `gix-credentials/tests/helper/invoke.rs` with targeted upstream reads.
+- Counted 8 upstream `program::from_custom_definition` tests and 6 helper invocation tests in the focused credential-helper program boundary.
+- `timeout 180 cargo test -p gix-credentials --test credentials program::from_custom_definition -- --nocapture` passed 8/8 focused upstream helper-definition tests with 42 tests filtered out.
+- The PHP slice adds `CredentialProgram` for Gitoxide-style helper declaration parsing and command construction. It maps builtin `git credential` action names (`fill`/`approve`/`reject`), external helper action names (`get`/`store`/`erase`), `!script`, helper names, absolute helper paths, selected shell-vs-argv boundaries, stderr suppression metadata, and upstream-shaped shell `$@` forwarding. The WordPress fixture models preflighting `credential-cache`, `credential-oauth`, an absolute tenant helper, and builtin helper commands before any helper process is invoked.
+
+Focused gix-credentials prompt fallback inventory and runner evidence added on 2026-05-22:
+
+- Re-inspected `gix-credentials/src/helper/cascade.rs`, `gix-credentials/src/protocol/context/mod.rs`, `gix-credentials/src/protocol/mod.rs`, `gix-credentials/tests/helper/cascade.rs`, and `gix-credentials/tests/protocol/context.rs` with targeted upstream reads.
+- Counted 29 already-materialized `gix-credentials/src` and `gix-credentials/tests` files in the sparse cache, 50 Rust `#[test]` attributes across the `credentials` integration target, and 18 focused prompt/cascade source/test call sites for `gix_prompt::ask`, `to_prompt`, `query_user_only`, and `Mode::Disable`.
+- `timeout 180 cargo test -p gix-credentials --test credentials -- --nocapture` passed the full upstream `gix-credentials` integration target: 50/50 tests, 0 failures.
+- `Cascade::invoke()` defines the mapped prompt fallback boundary: helper responses are merged first, the original URL is restored into the context when prompting is enabled, missing usernames use a visible prompt, missing passwords use a hidden prompt, query-user-only still avoids a password prompt by installing a bogus empty password before helpers run, and an incomplete quit-marked helper context can still become a complete returned identity if prompting supplies the missing field.
+
+Focused credential helper context URL destructuring parity added on 2026-05-31:
+
+- Re-inspected upstream `gix-credentials/src/protocol/context/mod.rs` and `gix-url/src/{lib.rs,parse.rs,simple_url.rs}` plus focused `gix-url/tests/url/parse/{http.rs,ssh.rs}` evidence for `Context::destructure_url_in_place()` delegating to `gix_url::parse()`.
+- The PHP slice maps percent-decoded user/password/path components, lowercase DNS host normalization, default `git://` port elision, SSH IPv6 bracket stripping, scp-like SSH URLs, file URLs without hosts, and UTF-8 validation for credential context fields that are Rust `String`s upstream.
+- Native focused verification passed `CredentialContextTest.php` with 99 assertions, the credential family with 185 assertions, and the full Gitoxide lane with 5050 assertions; full upstream Cargo workspace was not executed for this isolated micro-slice.
+- The PHP slice adds optional username/password prompt callbacks to `CredentialCascade`, including prompt mode metadata, URL-restored prompt text, next-action URL retention after prompting, and a WordPress deployment prompt fixture where helpers return only OAuth metadata and the deploy username/token are obtained without invoking `git credential`.
+
+Focused gix-pack thin-pack repair inventory and runner evidence added on 2026-05-22:
+
+- Re-inspected `gix-pack/src/bundle/write/mod.rs`, `gix-pack/src/data/input/lookup_ref_delta_objects.rs`, `gix-pack/src/data/output/entry/mod.rs`, and `gix-pack/tests/pack/data/input.rs` with targeted upstream reads.
+- Materialized only `gix-pack/tests/pack/**/*.rs` into the sparse upstream cache because Rust's `tests/pack/main.rs` integration target needs sibling modules present at compile time. No gix-pack fixtures or broad workspace paths were hydrated for this probe.
+- `timeout 180 cargo test -p gix-pack --test pack data::input::lookup_ref_delta_objects --features pack-cache-lru-dynamic -- --nocapture` passed 4/4 focused upstream thin-pack input iterator tests with 77 tests filtered out.
+- `LookupRefDeltaObjectsIter` defines the mapped repair boundary: only `RefDelta` entries are handled, missing external bases stop iteration with a not-found error, found external bases are injected before the delta that needs them, later `RefDelta` entries to the same inserted object reuse the inserted base, and existing `OfsDelta` base distances are adjusted when inserted entries shift pack offsets.
+- The PHP slice maps the useful bounded receiver side of that behavior: ordinary `PackData::readObject()` still rejects missing in-pack REF_DELTA bases, `readObjectWithExternalBases()` can resolve a thin target and OFS_DELTA chains whose in-pack base is backed by caller-provided `GitObject` bases, invalid/mismatched external bases are rejected, and `repairThinPack()` injects external bases and rewrites a complete non-thin pack using native OFS_DELTA generation. The WordPress fixture models repairing a thin `wp_posts` content pack before local storage without invoking `git index-pack`.
+
+Focused bounded delta-base window inventory and runner evidence added on 2026-05-22:
+
+- Re-inspected `gix-pack/src/data/output/entry/mod.rs`, `gix-pack/src/data/output/entry/iter_from_counts.rs`, `gix-pack/src/data/output/bytes.rs`, and `gix-pack/tests/pack/data/output/count_and_entries.rs` with targeted upstream reads.
+- Counted 2 `#[test]` attributes across the focused gix-pack output traversal test file. The broader source defines entry kinds and writer behavior: `DeltaRef` uses an object index already encountered by the writer and becomes an OFS_DELTA base distance, `DeltaOid` is reserved for thin transit packs, and `Options::chunk_size` is the bounded unit of output-entry work with an upstream TODO noting it may become a window size.
+- `timeout 180 cargo test -p gix-pack --test pack data::output::count_and_entries::traversals --features pack-cache-lru-dynamic -- --nocapture` initially failed before assertions because the sparse cache lacked `gix-pack/tests/fixtures/make_pack_gen_repo.sh`. Hydrating only that script let fixture generation start, but upstream fixture setup failed at `git repack` with `fatal: unable to add cruft objects`.
+- Hydrating only the committed paired fixture scripts and archives, `gix-pack/tests/fixtures/make_pack_gen_repo.sh`, `make_pack_gen_repo_multi_index.sh`, and `gix-pack/tests/fixtures/generated-archives/make_pack_gen_repo*.tar`, avoided broad checkout hydration. The same focused command then passed 1/1 upstream output traversal test with 80 tests filtered out.
+- The PHP slice maps the bounded local pack-generation side: `PackBuilder::buildWithRefDeltas()` and `buildWithOffsetDeltas()` now accept an optional non-negative candidate limit, filter candidate bases to same-type non-self objects already available to the builder, apply the limit to the most recent same-type candidates, preserve the existing strict smaller-than-whole-object guard, and fall back to whole-object storage when the bounded candidates do not improve the entry. The WordPress fixture models a large `wp_posts` export where a recent scratch blob bounds delta search away from an older good base.
+
+Focused existing-pack output-entry reuse inventory and runner evidence added on 2026-05-22:
+
+- Re-inspected `gix-pack/src/data/output/entry/mod.rs`, `gix-pack/src/data/output/entry/iter_from_counts.rs`, `gix-pack/src/data/output/bytes.rs`, and `gix-pack/tests/pack/data/output/count_and_entries.rs` with targeted upstream reads.
+- The same focused traversal test remains the runner boundary for this slice: `timeout 180 cargo test -p gix-pack --test pack data::output::count_and_entries::traversals --features pack-cache-lru-dynamic -- --nocapture` passed 1/1 upstream output traversal test with 80 tests filtered out on the already-hydrated sparse cache.
+- `Entry::from_pack_entry()` defines the mapped reuse boundary: whole packed commit/tree/blob/tag entries can be copied from existing pack data without object decompression, existing OFS_DELTA entries become `DeltaRef` when their base offset is also in the counted output set, existing OFS_DELTA entries may become `DeltaOid` only for explicitly thin transit packs when the base object is outside the output set, and existing REF_DELTA entries are decompressed/recompressed instead of copied as resting-pack entries.
+- `FromEntriesIter` defines the writer side mapped by the native slice: `DeltaRef` is converted back to an OFS_DELTA distance using the new pack offsets, invalid/missing bases are not accepted as delta bases, and the final pack checksum covers the rewritten entry headers and copied compressed payloads.
+- The PHP slice adds `PackBuilder::buildFromExistingPack()`, plus safe `PackData` helpers for entry/compressed-data reads by index offset. It sorts selected source objects by source pack offset, copies compressed whole-entry payloads, reuses compressed OFS_DELTA payloads while rewriting their new base distances when the base is selected, emits thin REF_DELTA entries only when requested and the omitted base object id can be identified, and recompresses omitted-base deltas as whole objects for valid resting packs. The WordPress fixture models repacking already-stored `wp_posts` export objects and intentionally creating a thin transit pack when the receiver already has the base object.
+
+Focused legacy REF_DELTA existing-pack reuse inventory and runner evidence added on 2026-05-23:
+
+- Re-inspected `gix-pack/src/data/output/entry/mod.rs`, `gix-pack/src/data/output/entry/iter_from_counts.rs`, and `gix-pack/tests/pack/data/output/count_and_entries.rs` with targeted upstream reads. The relevant upstream branch is explicit: `Entry::from_pack_entry()` returns `None` for `RefDelta` entries because those are thin-pack or legacy inputs, so `iter_from_counts()` falls back to `db.try_find()` and `Entry::from_data()` to decode and recompress the object as a base entry.
+- Reran the bounded upstream target from the hydrated sparse cache: `timeout 180 cargo test -p gix-pack --test pack data::output::count_and_entries::traversals --features pack-cache-lru-dynamic -- --nocapture` passed 1/1 focused output traversal test with 80 filtered out.
+- The PHP slice makes the `ref-delta` fallback branch explicit in `PackBuilder::buildFromExistingPack()`. Source REF_DELTA entries are decoded through `PackData::readObject()` and emitted as whole entries with `reused=false`, even when the referenced base object is selected into the new pack or `allowThinPack=true`. Existing whole-entry copy, OFS_DELTA reuse with rewritten base distance, explicit thin REF_DELTA transit output for omitted OFS bases, and omitted-base whole-object fallback remain unchanged.
+- The WordPress pack-reuse fixture now also starts from a legacy in-pack REF_DELTA `wp_posts` export pack and verifies the repacked output is complete and non-delta, which matches Gitoxide's discontinued-legacy-REF_DELTA boundary without shelling out to `git pack-objects`.
+
+Focused built-in merge-driver selection inventory inspected on 2026-05-23:
+
+- Re-inspected `gix-merge/src/blob/mod.rs`, `gix-merge/src/blob/builtin_driver/mod.rs`, `gix-merge/src/blob/platform/prepare_merge.rs`, and `gix-merge/tests/merge/blob/platform.rs` with targeted upstream reads. No broad checkout hydration or full Cargo run was attempted for this narrow source/test boundary.
+- Counted 36 focused `BuiltinDriver`/`DriverChoice::BuiltIn`/`merge.default`/`conflict-marker-size` references across the selected source/test paths and 10 `#[test]` attributes in `gix-merge/tests/merge/blob/platform.rs`.
+- `BuiltinDriver::as_str()` and `BuiltinDriver::by_name()` define the mapped name boundary: built-ins are ordered as `text`, `binary`, `union`, matching is case-sensitive, and unknown names return `None`.
+- `Platform::prepare_merge()` defines the mapped attribute boundary: `merge` set selects text, `-merge` selects binary, `!merge` uses the configured default driver or hardcoded text, unknown built-in names fall back to default text when no custom driver is registered, and `conflict-marker-size` only changes text conflict options when it parses as a non-zero `u8`.
+- The PHP slice adds `BuiltinDriver::all()`, `byName()`, `fromMergeAttribute()`, `markerSizeFromAttribute()`, and a native dispatch wrapper over text, union, and binary blob merges. The WordPress fixture models `.gitattributes` union block notes, binary media, text `theme.json` with configured marker size, and unknown custom-driver fallback without invoking Git or an external merge driver.
+
+Focused built-in merge-driver binary fallback inventory inspected on 2026-05-23:
+
+- Re-inspected `gix-merge/src/blob/platform/merge.rs`, `gix-merge/src/blob/platform/resource.rs`, `gix-merge/src/blob/builtin_driver/binary.rs`, and `gix-merge/tests/merge/blob/platform.rs` with targeted upstream reads. No broad checkout hydration or full Cargo run was attempted for this narrow source/test boundary; prior bounded `gix-merge` package evidence already passed 23/23 integration tests as part of the local package group.
+- Counted 19 focused `Data::Missing`/`Data::TooLarge`/`is_binary_buf`/`builtin_merge`/binary-pick references across the selected source/test paths. The directly mapped platform tests are `builtin_text_uses_binary_if_needed`, `same_binaries_do_not_count_as_conflicted`, and the built-in merge fallback half of `one_buffer_too_large`; external-driver `ResourceTooLarge` errors remain unported.
+- `PlatformRef::builtin_merge()` switches any non-binary built-in driver to binary when a loaded resource buffer contains NUL in the first 8000 bytes or when a resource is `TooLarge`. Missing resources remain empty buffers for merge purposes.
+- `builtin_driver::binary::merge()` picks ours with `Resolution::Conflict` by default, or the configured ancestor/ours/theirs side with `Resolution::CompleteWithAutoResolvedConflict`; identical current/other buffers complete without conflict before that pick logic.
+- The PHP slice makes `BuiltinDriver::merge()` apply the same binary-like/large-buffer fallback before text or union merging. The WordPress built-in driver fixture now covers media bytes marked `merge` in attributes but treated as a binary pick-ours conflict because the content contains NUL.
+
+Focused external merge-driver preparation inventory inspected on 2026-05-23:
+
+- Re-inspected `gix-merge/src/blob/platform/merge.rs`, `gix-merge/src/blob/platform/prepare_merge.rs`, `gix-merge/src/blob/platform/mod.rs`, and `gix-merge/tests/merge/blob/platform.rs` with targeted upstream reads. No broad checkout hydration or full Cargo run was attempted for this narrow source/test boundary.
+- Counted 67 focused `prepare_external_driver`/`configured_driver`/`DriverChoice`/recursive-driver/placeholder references across the selected source/test paths and 10 `#[test]` attributes in `gix-merge/tests/merge/blob/platform.rs`. The directly mapped platform tests are `with_external`, `with_external_mergiraf_like_driver_uses_worktree_tempfiles_from_context`, `missing_buffers_are_empty_buffers`, `one_buffer_too_large`, and `driver_selection`.
+- `Platform::new()` sorts configured drivers by name before binary search. `Platform::prepare_merge()` looks up custom drivers before built-ins, honors `merge.default`, keeps built-in lookup case-sensitive, and for virtual ancestors follows one configured `recursive` driver indirection while setting binary conflict resolution to ours.
+- `PlatformRef::prepare_external_driver()` writes ancestor/current/other buffers to temp files under `worktree_dir`, falling back to `git_dir` and then the current directory. It substitutes `%O`, `%A`, `%B`, `%L`, `%P`, `%S`, `%X`, and `%Y`, quotes path/label substitutions with single-shell quoting, and preserves unknown placeholders such as `%F`.
+- The PHP slice adds `ExternalMergeDriver`, `MergeDriverChoice`, and `ExternalMergeDriverCommand`. It maps sorted custom driver selection, custom-before-built-in precedence, virtual-ancestor recursive selection, non-executing temp-file command preparation, upstream placeholder expansion, single-quote escaping, unknown placeholder preservation, and a WordPress external `theme.json` merge-driver preflight fixture without launching an external process.
+
+Focused external merge-driver status/readback inventory inspected on 2026-05-23:
+
+- Re-inspected `gix-merge/src/blob/platform/merge.rs`, `gix-merge/src/blob/mod.rs`, and `gix-merge/tests/merge/blob/platform.rs` with targeted upstream reads. No broad checkout hydration or full Cargo run was attempted for this narrow source/test boundary; prior bounded `gix-merge` package evidence already passed 23/23 integration tests as part of the local package group.
+- Counted 12 focused `open_result_file`/`read_to_end(out)`/external-driver status/error/readback references across the selected source/test paths and 10 `#[test]` attributes in `gix-merge/tests/merge/blob/platform.rs`. The directly mapped native behavior is the status/readback portion of `with_external` and `with_external_mergiraf_like_driver_uses_worktree_tempfiles_from_context`; actual process spawning is integration-only and excluded from native progress.
+- `PlatformRef::merge()` spawns the prepared external command, treats any non-zero exit status as `ExternalDriverFailure`, and only after a successful status clears the merge output buffer and reads the `%A` current tempfile back through `open_result_file()`. External drivers are responsible for binary content themselves; a successful driver always returns `Pick::Buffer` with `Resolution::Complete`.
+- The PHP slice adds `ExternalMergeDriverCommand::run()` and `readResultFromExitCode()`. It maps caller-injected runner status plus successful `%A` tempfile readback as a complete `BlobMergeResult`, and non-zero status before any result-file read. The native lane no longer launches a shell or owns process execution; external process spawning is an integration boundary and is not counted as native progress. The WordPress `theme.json` external-driver fixture uses an injected approved runner to overwrite the current temp file, and PHP reads the merged buffer without invoking Git or launching a shell.
+
+Focused external merge-driver missing/too-large resource inventory inspected on 2026-05-23:
+
+- Re-inspected `gix-merge/src/blob/platform/merge.rs`, `gix-merge/src/blob/platform/resource.rs`, and `gix-merge/tests/merge/blob/platform.rs` with targeted upstream reads.
+- Counted 26 focused `Data::Missing`/`Data::TooLarge`/`as_slice`/`ResourceTooLarge` references across the selected source/test paths and 10 `#[test]` attributes in `gix-merge/tests/merge/blob/platform.rs`. The directly mapped platform tests are `missing_buffers_are_empty_buffers` and the external-driver `ResourceTooLarge` half of `one_buffer_too_large`.
+- `resource::Data::as_slice()` returns `Some(&[])` for `Missing`, so deleted or absent resources are written as empty `%O`, `%A`, and `%B` tempfiles for external drivers. It returns `None` for `TooLarge`, and `PlatformRef::prepare_external_driver()` checks all three resources before writing tempfiles, returning `prepare_external_driver::Error::ResourceTooLarge` with the failing resource kind.
+- A focused Cargo probe was attempted with `timeout 180 cargo test -p gix-merge --test merge missing_buffers_are_empty_buffers -- --nocapture` and `timeout 180 cargo test -p gix-merge --test merge one_buffer_too_large -- --nocapture`; both exited 101 before test selection because the sparse cache currently has no materialized `gix-merge/tests` integration target named `merge`. Broad test hydration was skipped to stay within the VM cap; the defensible evidence for this slice is targeted static source/test inventory plus the prior bounded gix-merge package evidence.
+- The PHP slice widens `ExternalMergeDriver::prepareCommand()` resources to nullable strings, treats `null` as an empty tempfile, rejects negative thresholds, and rejects any over-threshold resource before creating tempfiles. Focused tests cover missing-resource tempfiles and too-large preflight, and the WordPress external `theme.json` fixture now models a deleted base plus an oversized media-like resource guard before an approved runner is called.
+
+Runner status:
+
+- `cargo` is available locally.
+- Full `cargo test` was not executed because the workspace is large, feature-heavy, and would hydrate/build far beyond the current VM cap.
+- Bounded upstream runner probes now materialized workspace manifests, source paths, and gix-object fixtures needed for focused `gix-object` evidence in `.upstream-cache/gitoxide`, then ran `timeout 120 cargo test -p gix-object --lib --features sha1,sha256`, `timeout 120 cargo test -p gix-object --test object loose_header::round_trip --features sha1,sha256`, and `timeout 120 cargo test -p gix-object --test object object_ref::from_loose::shorter_than_advertised --features sha1,sha256`. They passed 10/10 upstream library unit tests plus 2/2 filtered integration tests. This is bounded crate-level evidence only, not full upstream pass parity.
+- Bounded `gix-object` commit parser runner evidence now includes `timeout 120 cargo test -p gix-object --test object commit::from_bytes:: --features sha1,sha256 -- --nocapture`, which passed 17/17 filtered commit from_bytes tests with 115 tests filtered out.
+- Bounded `gix-object` commit message runner evidence now includes `timeout 180 cargo test -p gix-object --test object commit::message --features sha1,sha256 -- --nocapture`, which passed 38/38 filtered commit-message tests with 94 tests filtered out.
+- Bounded `gix-object` tag runner evidence now includes `timeout 180 cargo test -p gix-object --test object tag --features sha1,sha256 -- --nocapture`, which passed 25/25 filtered tag and mergetag tests with 107 tests filtered out, `timeout 180 cargo test -p gix-object --lib tag::write --features sha1,sha256 -- --nocapture`, which passed 3/3 filtered tag write validation tests with 7 tests filtered out, and `timeout 180 cargo test -p gix-object --test object tag::method::target --features sha1,sha256 -- --exact --nocapture`, which passed 1/1 exact TagRef target/into_owned test with 131 tests filtered out.
+- Bounded `gix-actor` runner evidence now includes `timeout 120 cargo test -p gix-actor --lib signature::decode -- --nocapture`, which passed 8/8 signature decode unit tests, `timeout 120 cargo test -p gix-actor --test actor signature -- --nocapture`, which passed 8/8 filtered actor signature integration tests with 2 tests filtered out, and `timeout 120 cargo test -p gix-actor --test actor identity -- --nocapture`, which passed 2/2 filtered actor identity tests with 8 tests filtered out.
+- Bounded `gix-ref` runner evidence now includes `timeout 120 cargo test -p gix-ref --lib --features sha1,sha256`, which passed 17/17 upstream library unit tests. Broader full-name mappings remain static source/test inventory evidence.
+- Bounded `gix-ref` namespace integration runner evidence now includes `timeout 120 cargo test -p gix-ref --test refs namespace::into_namespaced_prefix --features sha1,sha256 -- --nocapture`, which passed 1/1 filtered test, plus `timeout 120 cargo test -p gix-ref --test refs namespace::expand:: --features sha1,sha256 -- --nocapture`, which passed 7/7 filtered tests. A broader `namespace` substring filter failed 2 fixture-backed namespaced store-iteration tests because `gix-ref/tests/fixtures/make_namespaced_packed_ref_repository.sh` was intentionally not materialized in the sparse cache.
+- Bounded `gix-ref` transaction runner evidence now includes `timeout 120 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::create_or_update::namespaced_updates_or_deletions_are_transparent_and_not_observable --features sha1,sha256 -- --exact --nocapture`, which passed 1/1 exact filtered upstream transaction test with 143 tests filtered out. The latest packed and loose transaction probes add `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::create_or_update::packed_refs --features sha1,sha256 -- --nocapture` passing 5/5 filtered tests, the exact packed prune/peel probe passing 1/1 with 143 filtered out, `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::delete:: --features sha1,sha256 -- --nocapture` passing 14/14 filtered tests, the exact deref update split probe passing 1/1 with 143 filtered out, the exact deref delete reflog-only split probe passing 1/1 with 143 filtered out, the exact same-name directory blocker recovery probe passing 1/1 with 143 filtered out, the exact prepared rollback probe `intermediate_directories_are_removed_on_rollback` passing 1/1 with 143 filtered out, the exact packed-lock collision probe `packed_refs_lock_is_mandatory_for_multiple_ongoing_transactions_even_if_one_does_not_need_it` passing 1/1 with 144 filtered out, the exact prepared commit directory-blocker probe passing 1/1 with 143 filtered out, the exact non-conflicting prepared loose commit probe passing 1/1 with 143 filtered out, and the exact prepared delete probes `delete_reflog_only_of_symbolic_no_deref`, `delete_reflog_only_of_symbolic_with_deref`, and `delete_ref_and_reflog_on_symbolic_no_deref` passing 1/1 each with 143 filtered out each.
+- Bounded `gix-validate` runner evidence now includes `timeout 120 cargo test -p gix-validate --test validate reference::name:: -- --nocapture`, which passed 54/54 filtered upstream complete-name tests, `timeout 120 cargo test -p gix-validate --test validate reference::name_partial::invalid -- --nocapture`, which passed 22/22 filtered upstream partial-name validation/sanitization tests, plus `timeout 120 cargo test -p gix-validate --test validate reference::branch_name -- --nocapture`, which passed 4/4 filtered upstream branch-name tests.
+- Bounded `gix-transport` runner evidence now includes `timeout 180 cargo test -p gix-transport --lib blocking_io::http::redirect --features blocking-client,http-client-curl -- --nocapture`, which passed 5/5 filtered redirect helper tests with 30 tests filtered out.
+- Bounded `gix-credentials` runner evidence now includes `timeout 180 cargo test -p gix-credentials --test credentials protocol::context -- --nocapture`, which passed 13/13 focused context tests with 37 tests filtered out, `timeout 180 cargo test -p gix-credentials --test credentials helper::context -- --nocapture`, which passed 7/7 focused context serialization tests with 43 tests filtered out, `timeout 180 cargo test -p gix-credentials --test credentials helper::cascade -- --nocapture`, which passed 11/11 focused helper-cascade tests with 39 tests filtered out, `timeout 180 cargo test -p gix-credentials --test credentials program::from_custom_definition -- --nocapture`, which passed 8/8 focused helper-definition tests with 42 tests filtered out, and `timeout 180 cargo test -p gix-credentials --test credentials -- --nocapture`, which passed the full focused credentials integration target with 50/50 tests and 0 failures.
+- Bounded `gix-pack` runner evidence now includes `timeout 180 cargo test -p gix-pack --test pack data::input::lookup_ref_delta_objects --features pack-cache-lru-dynamic -- --nocapture`, which passed 4/4 focused thin-pack input iterator tests with 77 tests filtered out.
+- Bounded `gix-pack` output runner evidence now includes `timeout 180 cargo test -p gix-pack --test pack data::output::count_and_entries::traversals --features pack-cache-lru-dynamic -- --nocapture`, which passed 1/1 focused output traversal test with 80 tests filtered out after hydrating only the paired pack-generation fixture scripts and generated archives. The latest 2026-05-23 rerun for the legacy REF_DELTA existing-pack reuse slice passed the same 1/1 traversal test with 80 filtered out from the already-hydrated sparse cache.
+- Focused Gitoxide PHP verification after the latest broken loose-reference delete slice is green: a lane-local run over `lanes/gitoxide/tests` reported 32 test files, 2,678 assertions, and 0 failures.
+- Focused packed-ref buffer refresh inventory added on 2026-05-24: `gix-ref/src/store/packed/buffer.rs` and `gix-ref/src/store/file/find.rs` are the bounded upstream source paths for packed-ref buffer lookup and store lookup. The PHP slice maps the invalidation-facing subset for long-lived WordPress deploy processes: a path-backed `ReferenceStore` refreshes its parsed packed-ref buffer when `packed-refs` is replaced, removed, or created externally, and uses the refreshed buffer for full lookup, prefix iteration, packed-update equality checks, packed deletions, and packed rewrites. This is native PHP metadata/hash-based file invalidation, not mmap parity.
+- Dependency closure for the packed-ref buffer refresh slice: no new support component is needed. The slice reuses existing bounded `PackedReferences` parsing and standard PHP filesystem metadata/hash checks; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the packed-ref buffer refresh slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReferenceStoreTest.php` reported 1 test file, 330 assertions, and 0 failures; `php tools/run-tests.php lanes/gitoxide/tests` reported 32 test files, 2,687 assertions, and 0 failures. The updated WordPress packed-reference transaction example exits 0 and demonstrates external packed-ref replacement/removal refresh.
+- Root PHP verification was not run for the isolated 2026-05-24 micro-slice; root harness status is `not run - isolated micro-slice`.
+- The next inventory slice should materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt, deepen mmap-specific packed-ref race parity beyond metadata/hash invalidation if needed, or map another smaller Gitoxide text-baseline/regression case beyond the built-in driver selection slice.
+
+Focused git-daemon receive-pack path-safety inventory inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` git-daemon service-request mapping. No live git-daemon/provider runner was executed for this isolated micro-slice.
+- The PHP slice requires git-daemon receive-pack repository paths to be absolute URL paths before pkt-line service-request construction or stream writes. This keeps caller-built requests aligned with parsed `git://host/path` targets and rejects relative repository names at the native transport boundary.
+- The WordPress receive-pack transport fixture now records a safe git-daemon deploy service request for `/wp-content.git` plus a relative-path rejection check, without opening a network connection.
+- Dependency closure for the git-daemon path-safety slice: no new support component is needed. The slice reuses existing bounded receive-pack transport/pkt-line construction and PHP string validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the git-daemon path-safety slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 210 assertions, and 0 failures. The updated WordPress receive-pack transport example exits 0 and demonstrates safe git-daemon service-request payload construction.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Focused smart HTTP receive-pack POST redirect preservation inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` smart HTTP redirect safety mapping and prior receive-pack redirect fixture coverage. No live provider, network, or full cargo workspace runner was executed for this isolated rework micro-slice.
+- The PHP slice preserves the accepted stream receive-pack watchdog timeout evidence and adds a POST redirect guard: receive-pack POST redirects are followed only when the status preserves the method and generated pack request body (`307` or `308`), the redirect includes a valid `Location`, the redirect preserves the receive-pack endpoint suffix, and the redirect URL does not carry credentials. Rewriting redirects such as `301`, `302`, and `303` plus wrong-endpoint, credential-bearing, or missing-Location `307` redirects are rejected before a generated WordPress pack body is replayed to the redirected endpoint.
+- The WordPress smart HTTP follow-redirects fixture records safe method-preserving POST replay, including a relative `308` redirect, and rejected `301`/`302`/`303` plus wrong-endpoint, credential-bearing, and missing-Location `307` POST redirects, so deployment tools can distinguish route-preserving maintenance redirects from method-rewriting, endpoint-switching, credential-injecting, or incomplete redirects.
+- Dependency closure for the smart HTTP POST redirect preservation slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling and native status validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the POST redirect preservation rework slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 310 assertions, and 0 failures. Syntax checks passed for changed test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+- Priority rework `priority-rework-20260525T080340Z` reran the same focused evidence on top of accepted HEAD `3cd14b1aec9111fe765bd51d923cd52dc13a32ca` and preserved the accepted stream watchdog timeout plus advertisement ERR packet accounting while keeping the POST redirect evidence additive.
+- Priority keeper rework `priority-keeper-rework-20260525T082739Z` rebased the same smart HTTP POST redirect behavior on accepted HEAD `e1c9dc8786d9a9e573b797656bcb810a8d0d21d8` and added explicit 303 See Other POST rejection evidence without changing accepted stream watchdog timeout or advertisement ERR packet accounting.
+- Priority keeper rework `priority-keeper-rework-20260525T083816Z` rebased the smart HTTP POST redirect behavior on accepted HEAD `47e33b5e41613fc523ba16156d09f4111cbc6f07` and added explicit 301 Moved Permanently POST rejection evidence, keeping 307/308 generated-pack replay and 302/303 rewrite rejection additive to the already accepted stream watchdog timeout and advertisement ERR packet reporting.
+- Priority keeper rework `priority-keeper-rework-20260525T085330Z` rebases the same lane-local smart HTTP POST redirect behavior on accepted HEAD `9828ac923ce0cc62487799769d3aa6859e3669b1`, preserving the accepted stream watchdog timeout, advertisement ERR packet reporting, and explicit 301/302/303 rewrite rejection evidence without changing the native transport API.
+- Priority finisher rework `priority-finisher-20260525T090155Z` rebases the same lane-local smart HTTP POST redirect behavior on accepted HEAD `be0f11039afa45832894f5cd64e9bcdd481c2bbc`. This keeps the status/manifest accounting additive to the already accepted stream watchdog timeout and advertisement ERR packet evidence while preserving 307/308 generated-pack replay and 301/302/303 rewrite rejection before any redirected POST replay.
+- Priority finisher rework `priority-finisher-20260525T091723Z` rebases the same lane-local smart HTTP POST redirect behavior on accepted HEAD `d88c00008a99d81514bb99e91e99ea1b3da24e12`. This preserves the already accepted stream watchdog timeout and advertisement ERR packet evidence, keeps the status/manifest accounting additive, and leaves the 307/308 generated-pack replay plus 301/302/303 rewrite rejection evidence as the current clean lane patch.
+- Priority keeper rework `priority-keeper-rework-20260525T092306Z` keeps the same lane-local smart HTTP POST redirect behavior additive on accepted HEAD `a3fa3df0175bb39daa4296f083898ddc9f5f4f5a`, preserves the accepted stream watchdog timeout and advertisement ERR packet evidence, and adds wrong-endpoint `307` POST redirect rejection before any generated pack body is replayed.
+- Priority keeper rework `priority-keeper-rework-20260525T094007Z` rebases the same smart HTTP receive-pack redirect behavior on accepted HEAD `1186fae48606c2cb3e68face7906541bd05d5be0`, preserving the accepted stream watchdog timeout, advertisement ERR packet reporting, 301/302/303 rewrite rejection, and wrong-endpoint 307 evidence while adding credential-bearing `307` POST redirect rejection before any generated WordPress pack body is replayed.
+- Priority finisher rework `priority-finisher-20260525T101218Z` rebases the same smart HTTP receive-pack redirect behavior on accepted HEAD `a301ac7cf7bb351327f549f663cf3f7d65d6f8b1`, preserving accepted commit-writer, stream watchdog, advertisement ERR, and prior POST redirect evidence while adding missing-Location `307` POST redirect rejection before any generated WordPress pack body can be replayed.
+
+Focused smart HTTP receive-pack redirect cookie carryover inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` smart HTTP redirect safety mapping and prior receive-pack redirect fixture coverage. No live provider, network, or full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice now remembers `Set-Cookie` headers on followed redirect responses and applies the updated `Cookie` header to the redirected GET or method-preserving POST retry. This covers WordPress deployment gates that issue a short-lived session cookie during a route-preserving redirect before accepting the generated receive-pack body.
+- The WordPress smart HTTP follow-redirects fixture records redirect-issued cookie carryover for a safe relative `308` POST redirect while preserving the generated pack body and all prior rejection checks for rewriting, wrong-endpoint, credential-bearing, fragment-bearing, and missing-Location POST redirects.
+- Dependency closure for the redirect cookie carryover slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling and native cookie parsing/header composition; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the redirect cookie carryover slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 322 assertions, and 0 failures. Syntax checks passed for the changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+- Priority keeper rework `priority-keeper-rework-20260525T153232Z` rebases the stale smart HTTP redirect-cookie evidence on accepted HEAD `e39c91a19674111525ef5d76575d8b279c8c3335` and adds redirect-issued default-Path scoping. Redirect response cookies without explicit `Path` now default to the redirect response path directory when composing the redirected retry cookie header, so a cookie issued by `/wp-content.git/git-receive-pack` is not replayed to `/redirected.git/git-receive-pack` unless it opts into `Path=/` or another matching scope. Accepted no-Path discovery-cookie replay from `info/refs` to `git-receive-pack` is preserved for the existing Git session behavior.
+- Dependency closure for the redirect default-Path cookie slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling and native cookie parsing/header composition; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the redirect default-Path cookie slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 342 assertions, and 0 failures. Syntax checks passed for the changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0.
+- Priority keeper rework `priority-keeper-20260525T163425Z` rebases the stale smart HTTP redirect-cookie evidence on accepted HEAD `ef96a451a573a2fdac1ca4eef8f6a2c40571969a` and adds same-name scoped cookie retention. Redirect-issued cookies are now stored by name plus domain/path scope, so a same-name `/wp-admin` gate cookie can be expired without deleting the live `Path=/` receive-pack deployment gate cookie needed for the redirected POST retry.
+- Dependency closure for the same-name scoped redirect cookie slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling and native cookie parsing/header composition; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the same-name scoped redirect cookie slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 347 assertions, and 0 failures. Syntax checks passed for the changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and an example probe returned `sameNameScopedRedirectCookieRetained => true`.
+- Isolated rework `priority-refill-20260525T172249Z` rebases the stale smart HTTP redirect-cookie evidence on accepted HEAD `03deaa9312057d14e792f7e280fe3c7bd43b0335` and adds same-scope redirect cookie replacement coverage. Redirect responses that set the same cookie name for the same Domain/Path scope replace the stale value before the method-preserving receive-pack POST retry, while different Path scopes remain independently retained and ordered by most-specific Path first.
+- Dependency closure for the same-scope redirect cookie replacement slice: no new support component is needed. The slice reuses the existing bounded native smart HTTP receive-pack redirect/cookie scope component; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the same-scope redirect cookie replacement slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 353 assertions, and 0 failures. Syntax checks passed for the changed fixture, example, and test PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Focused smart HTTP receive-pack URL credential safety inventory inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` smart HTTP credential/header boundary mapping. No live HTTP/provider runner was executed for this isolated micro-slice.
+- The PHP slice now validates decoded URL username/password credentials through the same Basic Authorization helper used by proxy credentials, rejecting NUL/CR/LF before any request or Authorization header construction.
+- The WordPress receive-pack transport fixture now records unsafe smart HTTP credential control-byte rejection alongside the existing SSH and git-daemon transport preflight checks.
+- Dependency closure for the smart HTTP URL credential safety slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack URL normalization, Basic auth construction, and PHP string validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the smart HTTP URL credential safety slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 246 assertions, and 0 failures. Syntax checks passed for the changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Focused git-daemon receive-pack IPv6 host-parameter inventory inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` git-daemon service-request mapping. No live git-daemon/provider runner was executed for this isolated micro-slice.
+- The PHP slice normalizes unbracketed IPv6 hosts in the git-daemon `host=` virtual-host parameter before pkt-line construction, while preserving already bracketed parsed URL hosts and explicit ports. This keeps caller-built `git://[v6]/repo.git` and direct service-request targets aligned with Git protocol host-parameter syntax without opening network connections.
+- The WordPress receive-pack transport fixture now records an IPv6 git-daemon deploy service request for `/wp-content.git` with `host=[2001:db8::42]`, plus the existing safe DNS deploy request and relative-path rejection check.
+- Dependency closure for the git-daemon IPv6 host-parameter slice: no new support component is needed. The slice reuses existing bounded receive-pack transport/pkt-line construction and PHP string validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the git-daemon IPv6 host-parameter slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 212 assertions, and 0 failures. Syntax checks passed for the changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Current PHP mapping:
+
+- `GitObjectTest.php` maps canonical object header storage, SHA-1/SHA-256 object IDs, loose header encode/decode round trips, upstream `ObjectRef::from_loose()` short-payload rejection and advertised-prefix body parsing, strict exact storage parsing, loose object zlib storage, invalid object headers, and a WordPress block-content loose-object header fixture.
+- `CommitIdentityTest.php` maps `gix-actor` identity parsing/writing for actor-only bytes, including one-space stripping before `<`, preserved email whitespace, timestamp-tail exclusion, lenient nested delimiter behavior, trim access, write-token validation, and signature-to-identity access.
+- `CommitTest.php` maps basic commit header parsing, parent lists, required header errors, required header/message separator errors, strict upstream commit header order, late standard-looking headers as extra headers, reading a commit body from native Git object bytes, SHA-256 commit object IDs, `encoding`, multiline and repeated extra headers, first/all/position extra-header lookup, raw `mergetag` header access parsed into native annotated tag objects, author/committer signature parsing, actor identity access, lenient actor delimiter handling, timestamp seconds/offset/time helpers including offset seconds, malformed-offset UTC fallback, missing timestamp access, signature-consuming suffix preservation, actor write-token validation, commit token iteration with upstream order and partial-error behavior, commit message summary/title/body parsing, BodyRef-style direct body parsing, trailer block heuristics, folded trailer values, recognized-prefix and exact/below-threshold footer rules, Gitoxide byte-class trimming/token/continuation rules, attribution filters including `Acked-by`, `Reviewed-by`, and `Tested-by`, first `gpgsig` lookup, signed-data extraction with signature header bytes removed, a WordPress import/deploy commit-signature fixture, and a WordPress actor signature-consuming fixture.
+- `CredentialCascadeTest.php` maps `gix-credentials` helper cascade behavior: URL context destructuring before helper calls, partial username/password fill and overwrite, failed helper continuation, helper-provided URL destructuring, expired password clearing while retaining later OAuth metadata, complete and incomplete quit handling, query-user-only bogus password short-circuiting, visible username and hidden password prompt fallback, URL-restored next-action context after prompting, store/erase fan-out, a WordPress deployment credential-cascade fixture, and a WordPress credential-prompt fixture.
+- `CredentialContextTest.php` maps `gix-credentials` context helper protocol encoding/decoding, serialized field order, blank-line termination, unknown-field skipping, `quit` boolean parsing, NUL/newline validation, password-free URL rendering, prompt strings, URL destructuring with HTTP path significance rules, and redaction/clearing of password and OAuth refresh token secrets, plus a WordPress deployment credential-helper fixture.
+- `CredentialProgramTest.php` maps `gix-credentials` helper program declaration parsing and command construction: builtin vs external action arguments, empty helper names, helper names with shell-quoted arguments, shell-required tilde expansion boundaries, absolute helper path handling, shell `$@` forwarding for path/script helpers, stderr suppression metadata, and a WordPress deployment helper preflight fixture.
+- `GitTagTest.php` maps `gix-object` annotated tag semantics for SHA-256 and uppercase object targets, object-kind and empty-name validation, optional taggers including no-timestamp taggers, empty and separator-only messages, PGP signature line-boundary splitting, signature bodies with trailing text or no end marker, malformed tag rejection, write/size/object-byte roundtrips, owned-tag normalized target writes, explicit `TagRef::into_owned`-style conversion through `GitTag::toOwned()`, ordered tag tokens, writer-side tag-name validation through `GitTag::validateName()`/`GitTag::isValidName()`, broader `gix-validate` tag-name sanitization table cases including valid component names, `.lock` component stripping, trailing asterisks, ASCII control bytes, and CR handling, and parsing tag objects from native Git object storage bytes plus a WordPress signed release-tag fixture.
+- `TreeTest.php` maps `gix-object` tree semantics for empty trees, `everything.tree` entry kinds, entry-mode classification, leading-space filenames, truncated object IDs, malformed modes, tree-object roundtrips, and a WordPress deploy tree fixture.
+- `LooseReferenceTest.php` maps `gix-ref` loose direct and symbolic ref parsing, uppercase object ID normalization, SHA-256 object IDs when requested, `FETCH_HEAD` first-OID parsing, trailing hex rejection in SHA-1 mode, symbolic target validation, loose on-disk writes, and a WordPress deploy-branch reference fixture.
+- `ReferenceNameTest.php` maps `gix-ref::FullNameRef` file-name, category, short-name, worktree-private, remote-tracking, category-to-full-name, namespace expansion, namespace prefixing, namespace stripping, namespace iteration prefix construction with trailing-slash preservation, `gix-validate` complete-name slash/standalone validation rules, partial-name joining, `gix-validate` partial-name sanitization, and branch-name reserved `refs/heads/HEAD` rejection behavior, plus a WordPress deployment reference classification fixture that sanitizes plugin-derived review branch components and validates relative plugin review refs before fetch/push planning.
+- `PackedReferencesTest.php` maps `gix-ref` packed-ref header traits, uppercase and SHA-256 object IDs, peeled object lines, invalid headers/lonely peels, upstream `without-header` and `unsorted` fixtures, packed partial lookup disambiguation, and a WordPress packed branch/tag fixture.
+- `ReferenceStoreTest.php` maps loose-over-packed precedence, opening `packed-refs` from a Git directory, path-backed packed-ref buffer refresh after external replacement/removal/creation, loose-only remote `HEAD` shortcuts, capitalized packed branches, namespace-transparent loose+packed iteration, bounded transaction update/delete previous-value guards, namespace-transparent transaction physical writes and store-relative results, prepared loose-reference lock rollback and stale-lock cleanup, prepared loose-reference commit publication, empty directory blocker recovery at commit time, non-atomic partial commit failure with retained failed locks, prepared object-update reflogs, prepared loose-reference delete locks, no-deref symbolic reflog-only deletion, dereferenced reflog-only deletion, reflog-delete failure before reference deletion, direct and prepared broken loose-reference deletion, stale packed-lock refusal before loose prepare locks, loose ref deletion with empty-parent cleanup, same-name empty directory blocker recovery and non-empty directory blocker refusal for loose refs, packed-ref transaction delete/update rewrites through `packed-refs.lock`, packed-lock collision failure atomicity, packed update-mode tag peeling through the object database, loose-over-packed stale overlay deletion, all-packed deletion removing `packed-refs` and its lock, object-update reflog append, reflog deletion, deref update edit splitting with log-only symbolic parents and leaf object updates, deref delete edit splitting where log-only symbolic parents leave references intact while removing parent/leaf reflogs, and WordPress combined loose+packed, tenant-scoped, prepared-review rollback, commit, delete pruning, broken-review cleanup, interrupted-deploy HEAD directory recovery, dereferenced symbolic-HEAD production, packed production-branch, externally refreshed packed production-branch state, packed peeled release-tag, and concurrent packed-lock refusal reference transaction fixtures.
+- `PackIndexTest.php` maps `gix-pack` v2 pack-index fanout parsing, monotonic fanout/size/version validation, pack and index checksum access, checksum verification, full object ID lookup, prefix missing/ambiguous/found outcomes, CRC32 entries, 32-bit and large 64-bit offsets, sorted offsets, and a WordPress compacted object-offset fixture.
+- `PackDataTest.php` maps `gix-pack` pack header parsing, checksum verification, Git variable-size entry headers, non-delta commit/blob decompression by pack-index offset, OFS_DELTA/REF_DELTA resolution, thin REF_DELTA external-base reads and complete-pack repair, Git delta copy/insert application, object ID verification, unsupported/corrupt pack errors, direct delta-entry rejection, a WordPress packed commit/blob/delta fixture, and a WordPress thin content-pack repair fixture.
+- `PackBuilderTest.php` maps deterministic non-delta pack generation for native Git objects, generated v2 pack-index bytes, empty pack generation for already-present push objects, multi-byte entry headers, REF_DELTA generation for similar same-type objects, OFS_DELTA generation against already-written in-pack bases, thin REF_DELTA generation against remote bases, bounded REF_DELTA/OFS_DELTA base-candidate windows with same-type non-self filtering and whole-object fallback, existing-pack output-entry reuse for whole and OFS_DELTA entries, omitted-base recompression for resting packs, explicit thin REF_DELTA reuse for transit packs, legacy in-pack REF_DELTA source recompression as whole entries, generated pack handoff to `PushCommand`, a WordPress receive-pack branch/tag request with native pack bytes, a WordPress compact in-pack OFS_DELTA blob fixture, a WordPress bounded export-pack delta-window fixture, and a WordPress existing-pack repack/thin-transit/legacy-REF_DELTA fixture.
+- `ObjectDatabaseTest.php` maps `gix-odb` pack-before-loose object lookup, packed object counts, prefix lookup across packed and loose objects, duplicate id de-duplication, ambiguous prefix reporting, pack-missing error behavior, pack lexicographic iteration, pack-offset iteration, loose and packed alternates, quoted relative alternate paths, cycle rejection, loose and packed replacement refs, replacement ignore mode, sorted replacement mappings, MIDX-backed pack selection/de-duplication with missing-pack rejection, and WordPress pack+loose+alternate+replacement plus multi-pack object database fixtures.
+- `MultiPackIndexTest.php` maps `gix-pack` multi-index v1 header and chunk-table parsing, SHA-1/SHA-256 hash-kind recognition, sorted pack index names, fanout and chunk size validation, full object ID lookup, prefix missing/ambiguous/found outcomes, high-bit raw offsets without `LOFF`, large 64-bit offsets through `LOFF`, checksum verification, fast object-order and pack-id integrity checks, and a WordPress content/template/media multi-pack-index fixture.
+- `ProtocolV2Test.php` maps `gix-transport` v1/v2 capability parsing and capability value support, `gix-protocol` `ls-refs` default arguments, `unborn` negotiation, first-seen ref-prefix de-duplication, unknown argument/capability validation errors, v2 remote ref parsing for direct/symbolic/unborn/peeled/symbolic-peeled lines, malformed ref-line errors, and a WordPress protocol v2 `ls-refs` fixture for active branch/release tag/unborn staging ref discovery.
+- `FetchNegotiationTest.php` maps `gix-protocol` fetch feature defaults, protocol v2 initial fetch arguments, protocol v1 first-want feature baking, stateless protocol v2 request argument construction, guarded shallow/filter/ref-in-want/deepen/include-tag support, unknown argument/capability validation, and a WordPress shallow blobless ref-in-want fetch fixture.
+- `FetchResponseTest.php` maps `gix-protocol` fetch acknowledgements, shallow updates, wanted-ref response lines, required V1 response features, protocol v2 response section parsing, no-pack responses, unknown section errors, sideband channel decoding for pack/progress/error bytes, and a WordPress protocol v2 fetch response fixture.
+- `PartialCloneTest.php` maps common fetch filter specs (`blob:none`, `blob:limit`, `tree:<depth>`, `sparse:oid`), `FetchCommand` value-object filter emission, `.promisor` pack sidecar discovery, promisor-present object reporting, promised-missing object state, and a WordPress blobless partial-clone tree where an omitted media blob stays promised rather than ordinary-missing.
+- `SparseCheckoutTest.php` maps sparse checkout cone directory matching, cone pattern-file reconstruction, bounded non-cone include/exclude matching, case-insensitive matching, skip-worktree decisions, and WordPress tree-entry filtering for a plugin-focused sparse checkout.
+- `PartialCloneTest.php` also maps lazy promisor hydration: a promised-missing object can be resolved through a native resolver, verified against the requested object ID, persisted into loose storage, and then observed as present by a fresh object database.
+- `PushCommandTest.php` maps protocol v1 receive-pack update commands, create/update/delete ref lines, first-line capability negotiation, `atomic` and `push-options` guards, command packet-line framing before pack bytes, and a WordPress branch/tag deployment push request fixture.
+- `PushResponseTest.php` maps receive-pack report-status parsing, sideband progress/error extraction, nested sideband channel 1 report-status packet lines, accepted and rejected ref statuses, unpack failures, report-status-v2 rewritten-ref options, malformed response guards, and a WordPress branch/tag deployment push status fixture.
+- `SendPackSessionTest.php` maps receive-pack advertisement parsing, advertised-old-object create/update/delete planning, no-op update elision, generated pack request construction, delete-only request behavior, thin REF_DELTA request building from remote bases, session response parsing, a WordPress branch/tag send-pack fixture from advertised refs through status response, and a WordPress thin REF_DELTA send-pack fixture.
+- `ReceivePackTransportTest.php` maps stream-backed receive-pack advertisement/request/response I/O, git-daemon receive-pack service request bytes and URL/input validation, smart HTTP receive-pack discovery/result requests, service advertisement stripping, URL expansion, content-type/status guards, Basic auth header derivation, caller-supplied auth headers, Git-Protocol extra parameters on discovery and POST, Set-Cookie session propagation, safe initial same-authority/http-to-https redirect handling with effective-base reuse for POST, `http.followRedirects` initial/all/none boundaries including safe POST redirects and missing-Location POST redirect refusal, HTTP proxy/no-proxy/basic proxy credential-helper options, proxy credential store/erase callbacks, native default-requester SOCKS5h username/password and SOCKS4a remote-host handshakes through local WordPress receive-pack advertisement servers, HTTPS receive-pack discovery through SOCKS5h with a configured CA file and peer verification, managed header validation, SSH receive-pack URL parsing, remote command quoting, ambiguous SSH username/host/path rejection before connector handoff, injected stream handoff without shelling out to `ssh`, sideband and direct report-status response selection from negotiated features, request write ordering guards, truncated packet stream errors, no-report-status refusal, a WordPress receive-pack transport fixture over native PHP streams, and WordPress smart HTTP proxy credential, follow-redirects, plus SOCKS/TLS fixtures that keep proxy credentials outside origin headers.
+- `MergeBaseTest.php` maps simple commit ancestry merge-base discovery, independent criss-cross merge bases, upstream-shaped multi-head/octopus merge bases for sequential, parallel, forked, and criss-cross heads, unrelated histories, ObjectDatabase commit-object validation, and a WordPress release-baseline fixture for plugin/theme/content review branches.
+- `TreeMergeTest.php` maps flat tree three-way decisions for independent WordPress tree changes, modify/modify conflicts, delete/delete removals, delete/modify conflicts, exact same-object rename/delete and rename/rename conflicts, bounded similar-blob rename/delete and rename/modify conflicts, same-target similar-rename content merges at the renamed path, bounded directory rename/modify merges at the renamed directory path including renamed internal plugin entry file heuristics, directory-rename file-location conflicts where a sibling file rename is replayed under the renamed directory, strict-best similar rename candidate selection for forked plugin directories, ambiguous exact/similar-rename guards, add/add resolution/conflicts, directory-file conflict classification, deterministic path ordering, duplicate-entry guards, recursive tree traversal over nested tree objects, clean nested blob content merges, full-path recursive content conflicts with marker blobs, nested exact rename/delete conflicts, merge-index stage entries, worktree conflict file views, and focused upstream `gix-merge/tests/fixtures/tree-baseline.sh` mappings for `non-tree-to-tree`, `non-tree-to-tree-with-rename`, `tree-to-non-tree`, `tree-to-non-tree-with-rename`, `rename-delete` including `A-similar`/`B-similar` same-side generated shapes, `rename-add`, `rename-add-exe-bit-conflict`, `remove-executable-mode`, `same-rename-different-mode`, `added-file-changed-content-and-mode`, `renamed-symlink-with-conflict`, `rename-add-symlink`, `rename-add-same-symlink`, `symlink-modification`, `symlink-addition`, `type-change-to-symlink`, `type-change-and-renamed` including renamed-side resolve-tree cleanup, `rename-and-modification`, `rename-within-rename-2`, `no-merge-base`, `change-and-delete`, `submodule-both-modify`, `both-modify-binary`, `rename-rename-plus-content`, `rename-add-delete`, and `rename-rename-delete-delete`.
+- `MergeWorktreeWriterTest.php` maps the bounded checkout side of recursive content conflicts: unmerged blob stages are written to a real Git index v2 `DIRC` file with stage bits and checksum, directory/file tree stages are expanded into file-level index entries, merged WordPress worktree files are written from tree objects, stale paths are removed while `.git` metadata is preserved, file/directory blockers are replaced, marker blobs are materialized for conflicted `theme.json`, unsafe checkout paths are rejected, and raw tree stages are explicitly refused unless callers use the result-aware expansion path.
+- `BlobMergeTest.php` maps text same-change and one-sided clean merges, independent line edits, merge-style and diff3 conflict markers, unlabeled upstream marker output, marker-size byte bounds, upstream `zdiff3` conflict-style literal normalization, zealous-diff3 and merge/union common-edge hunk contraction, the upstream blank-line false-conflict regression, marker-newline text-baseline behavior, partial-match conflict-region hunk aggregation, `ResolveWithOurs`/`ResolveWithTheirs`/`ResolveWithUnion` complete-auto-resolved conflicts including newline-separated union output, binary unresolved default picks, binary auto-resolved side picks, and a WordPress metadata/theme/deployment-policy/block-notes/zealous-theme/configured-zdiff3/block-spacing/mixed-line-ending/shared-block-refactor/anonymous-preview merge fixture.
+- `BuiltinDriverTest.php` maps `gix-merge` built-in driver names, case-sensitive lookup, merge attribute state selection (`merge`, `-merge`, `!merge`, value), configured default-driver fallback, non-zero-u8 `conflict-marker-size` parsing, native dispatch to text/union/binary blob merge semantics, and a WordPress `.gitattributes` merge-driver fixture for block notes, media, theme JSON, and unknown custom-driver fallback.
+- `ExternalMergeDriverTest.php` maps `gix-merge` custom merge-driver selection, external-driver command preparation without process execution, and injected-runner readback only: sorted custom drivers, custom-before-built-in precedence, `merge.default` fallback, case-sensitive built-in lookup, virtual-ancestor recursive driver selection with binary-ours resolution, `%O/%A/%B/%L/%P/%S/%X/%Y` placeholder expansion, unknown placeholder preservation, shell single-quoting for paths/labels, temp-file placement under a worktree context, `run()` requiring an injected callable, `%A` readback after a successful injected runner, non-zero status before result-file readback, and a WordPress external `theme.json` merge-driver preflight fixture.
+
+Focused git-daemon receive-pack control-byte preflight inventory inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` git-daemon service-request mapping. No live git-daemon/provider runner was executed for this isolated micro-slice.
+- The PHP slice rejects ASCII control bytes in git-daemon repository paths, host values, and extra service-request parameters before pkt-line construction or stream writes. This extends the earlier NUL-only guard to newline, carriage-return, DEL, and other control-byte cases at the same native transport boundary.
+- The WordPress receive-pack transport fixture now records a control-byte repository path rejection alongside the existing absolute-path, IPv6 virtual-host, and SSH target preflight checks, without opening a network connection.
+- Dependency closure for the git-daemon control-byte preflight slice: no new support component is needed. The slice reuses existing bounded receive-pack transport/pkt-line construction plus native PHP byte validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the git-daemon control-byte preflight slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 215 assertions, and 0 failures. The updated WordPress receive-pack transport example exits 0 and demonstrates safe git-daemon service-request payload construction plus control-byte rejection.
+
+Focused git-daemon receive-pack URL service-request preflight inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` git-daemon service-request and URL target mapping. No live git-daemon/provider runner was executed for this isolated micro-slice.
+- The PHP slice adds `GitDaemonReceivePackTransport::serviceRequestBytesForUrl()` so callers can parse and validate `git://` receive-pack targets, preserve explicit URL ports and bracketed IPv6 hosts in the `host=` parameter, pass bounded extra parameters, and reject user info, query, fragment, missing path, and non-`git` schemes before any socket connection or stream write.
+- The WordPress receive-pack transport fixture now records URL-derived service-request bytes for `git://git.example.test:9418/wp-content.git` plus unsafe URL rejection for credential-bearing git-daemon URLs, without opening a network connection.
+- Dependency closure for the git-daemon URL service-request preflight slice: no new support component is needed. The slice reuses existing bounded receive-pack transport URL parsing, pkt-line construction, and native PHP string validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the git-daemon URL preflight slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 221 assertions, and 0 failures. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exits 0 and demonstrates safe URL-derived git-daemon service-request construction plus unsafe URL rejection.
+
+Focused git-daemon receive-pack decoded URL component preflight inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` git-daemon service-request mapping and the local git-protocol service-request documentation. No live git-daemon/provider runner was executed for this isolated micro-slice.
+- The PHP slice percent-decodes git:// URL host and repository path components before building the receive-pack service-request pkt-line, so encoded WordPress repository paths like `/wp%2Dcontent.git` are normalized before the `git-receive-pack` payload is written.
+- Decoded control bytes remain rejected before pkt-line construction, connector handoff, or socket writes. This preserves the existing raw control-byte guard while covering encoded control bytes in URL inputs.
+- The WordPress receive-pack transport fixture now records decoded encoded-URL service-request bytes and an encoded control-byte rejection check.
+- Dependency closure for the decoded git-daemon URL component slice: no new support component is needed. The slice reuses existing bounded receive-pack transport/pkt-line construction and PHP `rawurldecode()` validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the decoded git-daemon URL component slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 226 assertions, and 0 failures. Syntax checks passed for the changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+
+Focused git-daemon receive-pack host delimiter preflight inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` git-daemon service-request mapping and prior decoded URL component slice. No live git-daemon/provider runner was executed for this isolated micro-slice.
+- The PHP slice rejects whitespace, slash, and backslash delimiters in explicit or decoded git-daemon host values before service-request pkt-line construction, connector handoff, or socket writes. Bracketed and unbracketed IPv6 host values remain accepted through the existing virtual-host normalization path.
+- The WordPress receive-pack transport fixture now records an encoded host-delimiter rejection check alongside decoded URL service-request bytes and encoded control-byte rejection.
+- Dependency closure for the git-daemon host delimiter preflight slice: no new support component is needed. The slice reuses existing bounded receive-pack transport/pkt-line construction and native PHP string validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the host delimiter slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 231 assertions, and 0 failures. Syntax checks passed for changed PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+
+Focused git-daemon receive-pack extra-parameter preflight inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` git-daemon service-request mapping and prior decoded URL/host preflight slices. No live git-daemon/provider runner was executed for this isolated micro-slice.
+- The PHP slice rejects malformed NUL-delimited git-daemon extra parameters before service-request pkt-line construction, connector handoff, or socket writes. Accepted parameters must be protocol-shaped `key=value` pairs with non-empty keys and values, so `version=2` remains valid while bare, empty-key, and whitespace-delimited parameter strings are refused.
+- The WordPress receive-pack transport fixture now records malformed extra-parameter rejection alongside the existing encoded URL-derived service-request, encoded control-byte, absolute-path, IPv6, raw control-byte, and host-delimiter checks.
+- Dependency closure for the git-daemon extra-parameter preflight slice: no new support component is needed. The slice reuses existing bounded receive-pack transport/pkt-line construction and native PHP string validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the extra-parameter slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 237 assertions, and 0 failures. Syntax checks passed for changed PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0.
+
+Focused smart HTTP receive-pack credential ASCII control-byte preflight inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` smart HTTP credential/header safety mapping. No live provider, network, or full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice tightens `SmartHttpReceivePackTransport::basicAuthorization()` so decoded URL username/password credentials, proxy URL credentials, explicit proxy credentials, and proxy-helper returned credentials reject any ASCII control byte, not only NUL/CR/LF, before a Basic `Authorization` or `Proxy-Authorization` value is constructed.
+- The WordPress receive-pack transport fixture now records encoded tab rejection for deployment URL credentials alongside the existing encoded smart HTTP newline rejection, SSH target checks, and git-daemon service-request preflight checks.
+- Dependency closure for the smart HTTP credential ASCII control-byte slice: no new support component is needed. The slice reuses existing bounded receive-pack transport credential normalization and native PHP byte validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the credential ASCII-control slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 252 assertions, and 0 failures. Syntax checks passed for changed PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+
+Focused smart HTTP receive-pack URL/proxy host delimiter preflight inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` smart HTTP URL/header safety mapping. No live provider, network, or full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice validates decoded smart HTTP repository URL hosts and configured proxy hosts before URL normalization, requester handoff, proxy connection setup, or HTTP header construction. Decoded whitespace, slash, and backslash delimiters are rejected while existing bracketed IPv6 authority handling remains available.
+- The WordPress receive-pack transport fixture now records unsafe smart HTTP origin-host and proxy-host delimiter rejection alongside the existing credential control-byte, SSH target, and git-daemon service-request preflight checks.
+- Dependency closure for the smart HTTP host delimiter slice: no new support component is needed. The slice reuses existing bounded receive-pack transport URL/proxy normalization and native PHP byte/string validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the host delimiter slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 257 assertions, and 0 failures. Syntax checks passed for changed PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+
+Focused smart HTTP receive-pack decoded URL path/query preflight inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` smart HTTP URL/header safety mapping and prior URL/proxy host delimiter slice. No live provider, network, or full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice validates percent-decoded smart HTTP repository URL paths and queries before URL normalization/requester handoff, and validates redirect `Location` paths and queries before effective-base reuse. Encoded ASCII control bytes are rejected while ordinary encoded path characters remain preserved for the request URL.
+- The WordPress receive-pack transport fixture now records unsafe encoded smart HTTP path control-byte rejection alongside the existing credential control-byte, origin/proxy host delimiter, SSH target, and git-daemon service-request preflight checks.
+- Dependency closure for the smart HTTP decoded URL path/query slice: no new support component is needed. The slice reuses existing bounded receive-pack transport URL normalization, redirect handling, and native PHP `rawurldecode()` plus byte validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the decoded URL path/query slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 261 assertions, and 0 failures. Syntax checks passed for changed PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+
+Focused smart HTTP receive-pack Git-Protocol/header/noProxy ASCII-control preflight inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` smart HTTP header/transport option safety mapping and prior smart HTTP URL/credential preflight slices. No live provider, network, or full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice rejects ASCII control bytes in `Git-Protocol` extra parameters, caller-supplied header values, and `noProxy` entries before request-header construction, requester handoff, proxy matching, or proxy setup. This extends the earlier NUL/CR/LF-only guard to tabs, DEL, and the rest of the ASCII control range.
+- The WordPress receive-pack transport fixture now records unsafe smart HTTP extra-parameter and caller-header tab rejection alongside the existing credential control-byte, origin/proxy host delimiter, encoded path, SSH target, and git-daemon service-request preflight checks.
+- Dependency closure for the smart HTTP Git-Protocol/header/noProxy ASCII-control slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack header normalization, proxy option normalization, and native PHP byte validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the Git-Protocol/header/noProxy ASCII-control slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 266 assertions, and 0 failures. Syntax checks passed for changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Focused smart HTTP receive-pack noProxy delimiter preflight inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` smart HTTP proxy/no-proxy option mapping and prior smart HTTP URL/proxy host delimiter slice. No live provider, network, or full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice rejects whitespace, slash, and backslash delimiters in `noProxy` entries before proxy bypass matching. This keeps no-proxy host patterns aligned with the existing decoded smart HTTP URL/proxy host delimiter guards while preserving `*`, exact host, suffix, and dot-domain bypass patterns.
+- The WordPress receive-pack transport fixture now records unsafe smart HTTP noProxy delimiter rejection alongside the existing credential control-byte, origin/proxy host delimiter, encoded path, Git-Protocol, caller-header, SSH target, and git-daemon service-request preflight checks.
+- Dependency closure for the smart HTTP noProxy delimiter slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack proxy option normalization and native PHP string validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the noProxy delimiter slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 270 assertions, and 0 failures. Syntax checks passed for changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Focused smart HTTP receive-pack raw URL/proxy/redirect control-byte preflight inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` smart HTTP URL/header safety mapping and prior decoded URL/proxy/header preflight slices. No live provider, network, or full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice rejects raw ASCII control bytes in repository URL strings, redirect `Location` header values, proxy option strings, and `sslCaInfo` path options before parsing, redirect reuse, requester handoff, proxy matching, or proxy setup. This closes the gap between earlier NUL/CR/LF raw guards and the already-mapped decoded component/header ASCII-control guards.
+- The WordPress receive-pack transport fixture now records unsafe raw smart HTTP URL and proxy control-byte rejection alongside the existing credential, origin/proxy host, noProxy, encoded path, Git-Protocol, caller-header, SSH target, and git-daemon service-request preflight checks.
+- Dependency closure for the smart HTTP raw control-byte slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack URL/proxy option normalization and native PHP byte validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the raw control-byte slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 277 assertions, and 0 failures. Syntax checks passed for changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Focused stream receive-pack watchdog timeout reporting inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` packet-stream/error-boundary mapping and native receive-pack stream transport. No live provider, network, or full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice distinguishes watchdog timeout expiry from EOF and generic read failure while reading receive-pack packet lengths and packet payloads. This covers the PHP stream paths where a timed-out read returns either `false` or an empty string with `stream_get_meta_data($stream)['timed_out']` set.
+- The WordPress receive-pack transport fixture now records stream watchdog timeout reporting alongside existing smart HTTP credential/URL/proxy/header preflights, SSH target preflights, and git-daemon service-request checks.
+- Dependency closure for the stream watchdog timeout slice: no new support component is needed. The slice reuses existing bounded receive-pack stream transport plus native PHP stream metadata; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the watchdog slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 279 assertions, and 0 failures. Syntax checks passed for changed source, test, fixture, example, manifest, and status PHP/JSON files where applicable. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Focused receive-pack advertisement ERR packet reporting inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` receive-pack packet-stream/error-boundary mapping and native receive-pack advertisement parser. No live provider, network, or full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice reports `ERR ...` pkt-lines in receive-pack advertisements as runtime receive-pack errors before capability or ref parsing. This keeps authorization/repository-denied responses distinct from malformed ref advertisements.
+- The WordPress receive-pack transport fixture now records advertisement error reporting alongside existing stream watchdog timeout reporting, smart HTTP credential/URL/proxy/header preflights, SSH target preflights, and git-daemon service-request checks.
+- Dependency closure for the advertisement ERR packet slice: no new support component is needed. The slice reuses existing bounded receive-pack stream transport and advertisement pkt-line parsing; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the advertisement ERR slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 281 assertions, and 0 failures. Syntax checks passed for changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Focused commit writer object-id guard inspected on 2026-05-25:
+
+- Reused the existing static `gix-object` commit write/storage inventory and native `Commit::storageBytes()` writer path. No full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice rejects malformed tree and parent object IDs while serializing commits, before object wrapping or oid calculation. Writable commits now require lowercase sha1 or sha256 hex IDs, matching the normalized IDs emitted by the parser and preventing invalid WordPress deployment commits from being stored as native Git objects.
+- The WordPress commit-signature fixture/example now records a malformed deployment tree rejection alongside the existing import actor, signature, trailer, mergetag, and storage/object hash evidence.
+- Dependency closure for the commit writer object-id guard slice: no new support component is needed. The slice reuses existing bounded commit writer/parser behavior and native PHP regex validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the object-id guard slice is green: `php tools/run-tests.php lanes/gitoxide/tests/CommitTest.php` reported 1 test file, 207 assertions, and 0 failures. Syntax checks passed for changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-commit-signature.php` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Focused commit writer mixed-hash object-format guard inspected on 2026-05-25:
+
+- Reused the existing static `gix-object` commit write/storage inventory and native `Commit::storageBytes()` writer path. No full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice rejects constructed commits whose parent object IDs use a different hash length than the tree object ID before object wrapping or oid calculation. This mirrors the parser's single-algorithm boundary for manually constructed writable commits and prevents mixed sha1/sha256 WordPress deployment commits from being stored as native Git objects.
+- The WordPress commit-signature fixture/example now records mixed-hash deployment parent rejection alongside the malformed deployment tree rejection and existing import actor, signature, trailer, mergetag, and storage/object hash evidence.
+- Dependency closure for the commit writer mixed-hash object-format guard slice: no new support component is needed. The slice reuses existing bounded commit writer/parser behavior and native PHP string-length validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the mixed-hash object-format guard slice is green: `php tools/run-tests.php lanes/gitoxide/tests/CommitTest.php` reported 1 test file, 209 assertions, and 0 failures. Syntax checks passed for changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-commit-signature.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Priority keeper rework for smart HTTP receive-pack POST redirect preservation inspected on 2026-05-25:
+
+- Rebased the stale smart HTTP POST redirect preservation handoff evidence onto accepted HEAD `42152e74735277a38cc98fd4fa53316ee7b4d2f4` without changing the native transport API or overwriting accepted commit writer tree/parent and mixed-hash guard evidence.
+- The current accepted tree already contains the POST redirect behavior required by the rework notes: 307/308 receive-pack POST redirects preserve generated pack request bodies, while 301/302/303 rewriting redirects, wrong-endpoint 307 redirects, credential-bearing 307 redirects, and missing-Location 307 redirects fail before replaying generated WordPress pack bytes.
+- Dependency closure for this rework slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling, packet/request builders, and native PHP status/header validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification for `priority-keeper-20260525T103126Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 319 assertions, and 0 failures. Syntax checks passed for changed PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Priority finisher rework for smart HTTP receive-pack POST redirect preservation inspected on 2026-05-25:
+
+- Rebased the stale smart HTTP POST redirect preservation handoff evidence onto accepted HEAD `5690d6f1dc3c11c016e4940a385d1915cd527dd1` without changing native transport code or overwriting accepted commit writer object-format guards, stream watchdog timeout reporting, advertisement ERR packet reporting, git-daemon URL preflight, SSH target preflight, or prior smart HTTP redirect evidence.
+- The current accepted tree already contains the required receive-pack redirect behavior: absolute 307 and relative 308 POST redirects preserve generated pack request bodies, while 301/302/303 rewriting redirects, wrong-endpoint 307 redirects, credential-bearing 307 redirects, fragment-bearing 307 redirects, and missing-Location 307 redirects fail before replaying generated WordPress pack bytes.
+- Dependency closure for this rework slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling, packet/request builders, URL validation, and native PHP status/header validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification for `priority-finisher-20260525T104248Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 319 assertions, and 0 failures. Syntax checks passed for changed lane PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Priority finisher rework for smart HTTP receive-pack POST redirect preservation inspected on 2026-05-25:
+
+- Rebased the stale smart HTTP POST redirect preservation handoff evidence onto accepted HEAD `186a26414555453f0c884599844bde1910ff7d55` without changing native transport code or overwriting accepted commit writer object-format guards, stream watchdog timeout reporting, advertisement ERR packet reporting, git-daemon URL preflight, SSH target preflight, or prior smart HTTP redirect evidence.
+- The current accepted tree already contains the required receive-pack redirect behavior: absolute `307` and relative `308` POST redirects preserve generated pack request bodies, while `301`/`302`/`303` rewriting redirects, wrong-endpoint `307` redirects, credential-bearing `307` redirects, fragment-bearing `307` redirects, and missing-Location `307` redirects fail before replaying generated WordPress pack bytes.
+- Dependency closure for this rework slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling, packet/request builders, URL validation, and native PHP status/header validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification for `priority-finisher-20260525T104912Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 319 assertions, and 0 failures. Syntax checks passed for changed lane PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Priority finisher rework for smart HTTP receive-pack POST redirect preservation inspected on 2026-05-25:
+
+- Rebased the stale smart HTTP POST redirect preservation handoff evidence onto accepted HEAD `3c3c4d3aa423591a516e2926be9d6a7e146e73b6` without changing native transport code or overwriting accepted commit writer object-format guards, stream watchdog timeout reporting, advertisement ERR packet reporting, git-daemon URL preflight, SSH target preflight, or prior smart HTTP redirect evidence.
+- The current accepted tree already contains the required receive-pack redirect behavior: absolute `307` and relative `308` POST redirects preserve generated pack request bodies, while `301`/`302`/`303` rewriting redirects, wrong-endpoint `307` redirects, credential-bearing `307` redirects, fragment-bearing `307` redirects, and missing-Location `307` redirects fail before replaying generated WordPress pack bytes. The WordPress follow-redirects smoke fixture now includes fragment-bearing redirects in its user-visible scenario note.
+- Dependency closure for this rework slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling, packet/request builders, URL validation, and native PHP status/header validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification for `priority-finisher-20260525T110406Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 319 assertions, and 0 failures. Syntax checks passed for changed lane PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Priority refill rework for smart HTTP receive-pack redirect cookie expiration inspected on 2026-05-25:
+
+- Rebased the stale smart HTTP receive-pack redirect handoff evidence onto accepted HEAD `5e5f4b8a8cee8f293edce2fe5babf78962017851` without overwriting accepted commit writer object-format guards, stream watchdog timeout reporting, advertisement ERR packet reporting, git-daemon URL preflight, SSH target preflight, or prior smart HTTP redirect evidence.
+- The PHP slice preserves redirect-issued cookie carryover and now honors redirect-issued cookie expiration attributes (`Max-Age=0` or past `Expires`) before composing the redirected retry `Cookie` header. The WordPress follow-redirects fixture confirms a stale deployment gate cookie is removed while the valid redirect-issued gate cookie is replayed with the generated receive-pack POST body.
+- Dependency closure for this rework slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling, native cookie parsing/header composition, packet/request builders, URL validation, and native PHP status/header validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification for `priority-refill-20260525T120348Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 323 assertions, and 0 failures. Syntax checks passed for changed lane PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Priority refill rework for smart HTTP receive-pack redirect cookie Max-Age precedence inspected on 2026-05-25:
+
+- Rebased the stale smart HTTP receive-pack redirect handoff evidence onto accepted HEAD `db5bdd8e4250f8521401888aaf85f61ca875905f` without overwriting accepted commit writer object-format guards, stream watchdog timeout reporting, advertisement ERR packet reporting, git-daemon URL preflight, SSH target preflight, or prior smart HTTP redirect evidence.
+- The PHP slice preserves redirect-issued cookie carryover and expiration handling while honoring `Max-Age` precedence over a legacy past `Expires` attribute. The WordPress follow-redirects fixture confirms an expired deployment gate cookie is removed, a positive `Max-Age` redirect gate survives, and the generated receive-pack POST body is replayed only to a method-preserving same-host receive-pack endpoint.
+- Dependency closure for this rework slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling, native cookie parsing/header composition, packet/request builders, URL validation, and native PHP status/header validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification for `priority-refill-20260525T122817Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 328 assertions, and 0 failures. Syntax checks passed for changed lane PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Priority refill rework for smart HTTP receive-pack redirect cookie Max-Age precedence inspected on 2026-05-25:
+
+- Rebased the stale smart HTTP receive-pack redirect handoff evidence onto accepted HEAD `4e56f0933aa75c92aaba71372795fdea7ff4c524` without changing native transport code or overwriting accepted commit writer object-format guards, stream watchdog timeout reporting, advertisement ERR packet reporting, git-daemon URL preflight, SSH target preflight, or prior smart HTTP redirect evidence.
+- The current accepted tree already contains the required receive-pack redirect behavior: redirect-issued cookies are carried into followed GET and method-preserving POST redirects, expired redirect-issued cookies are omitted, and positive `Max-Age` takes precedence over a legacy past `Expires` attribute. Generated receive-pack POST bytes are replayed only to method-preserving same-host receive-pack endpoints.
+- Dependency closure for this rework slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling, native cookie parsing/header composition, packet/request builders, URL validation, and native PHP status/header validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification for `priority-refill-20260525T131347Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 328 assertions, and 0 failures. Syntax checks passed for changed lane PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Priority refill slice for smart HTTP receive-pack redirect cookie scope inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` HTTP redirect safety mapping and the accepted smart HTTP receive-pack POST redirect/cookie behavior on accepted HEAD `1d54aa4acbb217aadfdadc373c6036c65d907aa0`. No live provider, network, or full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice now remembers redirect-issued cookies with explicit `Domain`, `Path`, and `Secure` scope and omits cookies whose explicit scope does not match the redirected receive-pack endpoint before composing the retry `Cookie` header. Existing no-`Path` Git session cookies remain repository-wide for the `/info/refs` to `/git-receive-pack` smart HTTP flow.
+- The WordPress follow-redirects fixture/example now records expired-cookie omission, positive `Max-Age` precedence, path-scoped cookie omission, foreign-domain cookie omission, and method-preserving generated pack replay for a same-host redirected deployment receive-pack endpoint.
+- Dependency closure for this scope slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling, native cookie parsing/header composition, packet/request builders, URL validation, and native PHP string validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification for `priority-refill-20260525T145057Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 332 assertions, and 0 failures. Syntax checks passed for changed lane PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Priority refill slice for smart HTTP receive-pack redirect Secure-cookie scope inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` HTTP redirect safety mapping and the accepted smart HTTP receive-pack POST redirect/cookie behavior on accepted HEAD `44b566c053126f02f4b41042b18a66f67d0a2faf`. No live provider, network, or full cargo workspace runner was executed for this isolated micro-slice.
+- The current PHP transport already records redirect-issued cookies with explicit `Secure` scope and omits those cookies from non-HTTPS retry URLs. This refill adds focused native evidence for a same-host plain HTTP method-preserving receive-pack redirect: the non-Secure redirect cookie is replayed with the generated POST body, while the Secure redirect cookie is omitted.
+- The WordPress follow-redirects fixture/example now records Secure-cookie omission on plain HTTP redirected receive-pack retries alongside expired-cookie omission, positive `Max-Age` precedence, path-scoped cookie omission, foreign-domain cookie omission, and method-preserving generated pack replay.
+- Dependency closure for this Secure-cookie scope slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling, native cookie parsing/header composition, packet/request builders, URL validation, and native PHP string validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification for `priority-refill-20260525T151524Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 337 assertions, and 0 failures. Syntax checks passed for changed lane PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Priority refill slice for smart HTTP receive-pack redirect cookie ordering inspected on 2026-05-25:
+
+- Rebased the stale smart HTTP receive-pack redirect handoff evidence onto accepted HEAD `12a83ba87c9e0bd62f2c9a79f407ea421c58d926` without overwriting accepted commit writer object-format guards, stream watchdog timeout reporting, advertisement ERR packet reporting, git-daemon URL preflight, SSH target preflight, or prior smart HTTP redirect cookie scope evidence.
+- The PHP slice now emits matching remembered cookies in descending `Path` length order while preserving original order for equal scopes. This keeps redirect-issued root cookies available but sends a path-specific WordPress receive-pack deployment gate before broader `/redirected.git` and `/` gate cookies on the replayed generated POST request.
+- The WordPress follow-redirects fixture/example now records path-specific redirect cookie ordering alongside expired-cookie omission, positive `Max-Age` precedence, default-Path scoping, same-name scoped retention, explicit Domain/Path/Secure omission, and method-preserving generated pack replay.
+- Dependency closure for this ordering slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling, native cookie parsing/header composition, packet/request builders, URL validation, and native PHP string validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification for `priority-refill-20260525T165123Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 351 assertions, and 0 failures. Syntax checks passed for changed lane PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0.
+- Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Continuous dev rework for smart HTTP receive-pack caller cookies across POST redirects inspected on 2026-05-25:
+
+- Rebased the stale smart HTTP receive-pack redirect handoff evidence onto accepted HEAD `19839676507182f275931a5139d498cbde6b1c83` without overwriting accepted redirect cookie Domain/Path/Secure/default-Path/same-name scope/same-scope replacement/path-specific ordering, commit writer object-format guards, stream watchdog timeout reporting, advertisement ERR packet reporting, git-daemon URL preflight, or SSH target preflight evidence.
+- The PHP transport already composes redirected retry cookies from the caller-supplied `Cookie` header plus remembered redirect-issued cookies. This slice adds focused native evidence that a WordPress deployment session cookie and nonce remain first on a method-preserving receive-pack POST redirect while the redirect-issued gate cookie is appended and the generated pack body is replayed only to the validated same-host receive-pack endpoint.
+- The WordPress follow-redirects fixture/example now records caller-cookie preservation alongside redirect cookie expiration, Max-Age precedence, default-Path scoping, explicit Domain/Path/Secure omission, same-name scoped retention, same-scope replacement, path-specific ordering, and generated pack replay.
+- Dependency closure for this caller-cookie redirect slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling, native cookie parsing/header composition, packet/request builders, URL validation, and native PHP header validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification for `continuous-dev-20260525T225824Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 358 assertions, and 0 failures. Syntax checks passed for changed lane PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0.
+- Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Continuous dev slice for SSH receive-pack encoded username delimiters inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` SSH invocation and `gix-url` SSH parsing inventory plus the native caller-injected `SshReceivePackTransport` stream boundary. No live SSH process, credential store, provider connection, or full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice now rejects decoded `@` and `:` delimiters in `ssh://` usernames before the caller-provided connector receives host/user/port/command arguments. This closes the gap with scp-like URL parsing, which already structurally rejects those username delimiters, and keeps encoded WordPress tenant/user separators out of caller-approved SSH adapters.
+- The WordPress receive-pack transport fixture/example now records encoded SSH username delimiter rejection alongside decoded host/user whitespace, slash, backslash, and ambiguous target preflights.
+- Dependency closure for this SSH argument-safety slice: no new support component is needed. The slice reuses the existing bounded SSH receive-pack URL parser, command quoting, and caller-injected stream adapter boundary; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification for `continuous-dev-20260525T232816Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 361 assertions, and 0 failures. Syntax checks passed for changed lane PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0.
+- Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Continuous dev rework for smart HTTP receive-pack redirect malformed cookie Path inspected on 2026-05-25:
+
+- Rebased the stale smart HTTP receive-pack redirect handoff evidence onto accepted HEAD `bc2efa421097da8d08096f6b7271cfeb982817f2` without overwriting accepted redirect cookie Domain/Path/Secure/default-Path/same-name scope/same-scope replacement/path-specific ordering/caller-cookie evidence, SSH encoded username delimiter rejection, commit writer object-format guards, stream watchdog timeout reporting, advertisement ERR packet reporting, git-daemon URL preflight, or prior transport evidence.
+- The PHP transport now quarantines redirect-issued cookies with malformed explicit `Path` attributes, including relative paths and control-byte paths, instead of silently downgrading them to a default path before composing the redirected retry `Cookie` header. Valid redirect-issued cookies, caller cookies, expiration, Max-Age precedence, default-Path scoping, same-name scoped retention, same-scope replacement, path-specific ordering, and Secure-cookie omission are preserved.
+- The WordPress smart HTTP follow-redirects fixture/example now records malformed Path cookie omission alongside generated POST body replay to safe method-preserving receive-pack redirects and rejection of rewriting, wrong-endpoint, credential-bearing, fragment-bearing, or missing-Location redirects.
+- Dependency closure for this malformed Path cookie slice: no new support component is needed. The slice reuses the existing bounded smart HTTP receive-pack redirect/cookie scope parser and native header composition boundary; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification for `continuous-dev-20260525T234623Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 362 assertions, and 0 failures. Syntax checks passed for changed lane PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0.
+- Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Isolated follow-up for smart HTTP Set-Cookie default Path scoping inspected on 2026-05-27:
+
+- Reused the existing static `gix-transport` HTTP redirect/cookie boundary and accepted smart HTTP receive-pack redirect behavior on accepted HEAD `935cd3d461b26e738415d5f6a5fef04434c2e43b`. No live provider, network, or full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP transport now applies RFC-style default cookie Path scoping to Set-Cookie values that omit an explicit Path on both discovery and receive-pack responses. This prevents no-Path cookies learned from `/info/refs` or a redirected POST endpoint from being promoted to repository-root cookies before a generated receive-pack request is replayed.
+- The WordPress smart HTTP follow-redirects fixture/example now records omission of a no-Path redirected POST cookie whose default Path does not match the replay endpoint, while preserving accepted caller-cookie preservation, redirect-issued explicit Path/Secure/Domain behavior, malformed explicit Path quarantine, path-specific ordering, expiration, Max-Age precedence, and generated POST body replay.
+- Dependency closure for this default-Path follow-up: no new support component is needed. The slice reuses the existing bounded smart HTTP receive-pack redirect/cookie scope parser and native header composition boundary; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification for `port-impl-gitoxide-cookie-followup-20260527T101340Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 365 assertions, and 0 failures. Syntax checks passed for changed lane PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0.
+- Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Combined Gitoxide batch accepted on 2026-05-31:
+
+- Source commit `ac468c29fbc15270b3521495abfb078f30270ac4` integrates six current-base handoffs without taking the conflicting shared metadata edits from the worker worktrees. The accepted source slices cover object database commit writes, recursive tree merge multiple-merge-base fixture shape, pack and multi-pack-index validation, packed-reference peeled transactions, smart HTTP chained redirect cookie recomputation, and SSH receive-pack protocol-v2/auth boundary context through caller-injected connectors.
+- Native PHP verification in the integration worktree is green: `php -l` over 22 changed PHP files, `git diff --check -- lanes/gitoxide`, focused tests `7 files / 1582 assertions / 0 failures`, full Gitoxide lane tests `32 files / 2963 assertions / 0 failures`, and six touched examples exiting 0.
+- The mapped denominator moves from `1485 / 2886` to `1491 / 2886` for the six distinct upstream-backed behavior slices. This is not full workspace parity: full Cargo workspace tests were not run because they would hydrate and build the large feature-heavy workspace beyond the current VM cap.
+
+Protocol batch accepted on 2026-05-31:
+
+- Source commit `e5a23effae900e9187f890104ede8f77a0d81319` adds protocol v2 sideband-all fetch response parsing and send-pack report-status-v2 SHA-256/proc-receive status handling without taking stale worker metadata edits.
+- Native PHP verification in the integration worktree is green: `php -l` over changed Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused protocol/transport tests `4 files / 557 assertions / 0 failures`, full Gitoxide lane tests `32 files / 2989 assertions / 0 failures`, and two touched protocol examples exiting 0.
+- The mapped denominator moves from `1491 / 2886` to `1493 / 2886` for the two distinct protocol slices. Full Cargo workspace tests were not run for this slice.
+
+Pack/config/pathspec/protocol batch accepted on 2026-05-31:
+
+- Source commit `6d9f6effa53c12f844dc454fdad15307fa8e550d` integrates five
+  Gitoxide handoffs without taking their stale shared metadata edits. The
+  accepted source slices cover pack delta declared-size guards, protocol v2
+  `ls-refs` packet advertisements and request bytes, sparse checkout pathspec
+  rules, config `include`/`includeIf` ordering, and attribute-driven pathspec
+  matching.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused
+  batch tests `6 files / 414 assertions / 0 failures`, full Gitoxide lane tests
+  `34 files / 3124 assertions / 0 failures`, and five touched examples exiting
+  0.
+- The mapped denominator moves from `1493 / 2886` to `1498 / 2886` for the five
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.
+
+Loose-integrity/packed-peeling batch accepted on 2026-05-31:
+
+- Source commit `d47dc133c424b595a26aa0ce415c78f1aa11abeb` integrates two
+  Gitoxide handoffs without taking their stale shared metadata edits. The
+  accepted source slices cover loose object integrity verification across
+  primary/alternate stores and packed/loose reference peeling through symbolic
+  refs and tag chains.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused
+  object/ref tests `4 files / 512 assertions / 0 failures`, full Gitoxide lane
+  tests `34 files / 3161 assertions / 0 failures`, and two touched examples
+  exiting 0.
+- The mapped denominator moves from `1498 / 2886` to `1500 / 2886` for the two
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.
+
+Gpgsig/reflog/index batch accepted on 2026-05-31:
+
+- Source commit `377ff7d844d678bb02008f1be07734052779cde3` integrates three
+  Gitoxide handoffs without taking their stale shared metadata edits. The
+  accepted source slices cover commit `gpgsig` signed-data range stripping,
+  reflog append/parse parity including SHA-256 entries, and index/cache-tree
+  round-trip plus sparse checkout skip-worktree flags.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused
+  commit/reflog/index tests `4 files / 695 assertions / 0 failures`, full
+  Gitoxide lane tests `36 files / 3273 assertions / 0 failures`, and three
+  touched examples exiting 0.
+- The mapped denominator moves from `1500 / 2886` to `1503 / 2886` for the
+  three distinct upstream-backed behavior slices. Full Cargo workspace tests
+  were not run for this slice.
+
+Tree pathspec walk batch accepted on 2026-05-31:
+
+- Source commit `a80a16449590e0719bef41033208bbe7721c7898` integrates the
+  Gitoxide tree/pathspec handoff without taking its stale shared metadata edits.
+  The accepted source slice covers native pathspec parsing/search for nil,
+  `top`, `exclude`, `icase`, `literal`, `glob`, directory-only, and
+  all-excluded cases plus breadth-first tree traversal with conservative
+  subtree pruning and excluded-subtree skipping.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused
+  pathspec/tree tests `3 files / 140 assertions / 0 failures`, full Gitoxide
+  lane tests `37 files / 3324 assertions / 0 failures`, and the tree pathspec
+  walk example exiting 0.
+- The mapped denominator moves from `1503 / 2886` to `1504 / 2886` for the
+  distinct upstream-backed tree pathspec slice. Full Cargo workspace tests were
+  not run for this slice.
+
+URL/merge/fetch/push batch accepted on 2026-05-31:
+
+- Source commit `acedf069fc6ff0fa5939ee93f9ce6bed3624c9cd` integrates four
+  Gitoxide handoffs without taking their stale shared metadata edits. The
+  accepted source slices cover URL/refspec parse-normalize behavior, merge-base
+  graph walking against other heads, protocol v2 fetch sideband fixture and
+  remote-progress parsing, and send-pack receive-status packet-line length
+  bounds.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused
+  URL/merge/fetch/push tests `6 files / 781 assertions / 0 failures`, full
+  Gitoxide lane tests `38 files / 3739 assertions / 0 failures`, and four
+  touched examples exiting 0.
+- The mapped denominator moves from `1504 / 2886` to `1508 / 2886` for the four
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.
+
+Config/sparse pathspec batch accepted on 2026-05-31:
+
+- Source commit `bec764c0e27c53d87a483ad69672081477855aa3` integrates two
+  Gitoxide handoffs without taking their stale shared metadata edits. The
+  accepted source slices cover quoted config subsection backslash escape parity,
+  escaped `gitdir`/`hasconfig` conditional globs, authoritative sparse checkout
+  excludes, bracket/range/POSIX wildmatch classes, escaped literal pathspecs,
+  recursive `**` matching, and path-aware slash handling.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused
+  config/sparse/pathspec tests `3 files / 190 assertions / 0 failures`, full
+  Gitoxide lane tests `38 files / 3776 assertions / 0 failures`, and two
+  touched examples exiting 0.
+- The mapped denominator moves from `1508 / 2886` to `1510 / 2886` for the two
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.
+
+ls-refs/pack-delta batch accepted on 2026-05-31:
+
+- Source commit `22c4c1189a72bc4f6d6235f61cc5854402c4c449` integrates two
+  Gitoxide handoffs without taking their stale shared metadata edits. The
+  accepted source slices cover protocol v2 `ls-refs` SHA-256 remote-reference
+  advertisements and pack delta base/result size varints that exceed the PHP
+  integer range.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused
+  protocol/pack tests `3 files / 285 assertions / 0 failures`, full Gitoxide
+  lane tests `38 files / 3789 assertions / 0 failures`, and two touched
+  examples exiting 0.
+- The mapped denominator moves from `1510 / 2886` to `1512 / 2886` for the two
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.
+
+Attributes/pathspec state adjustment batch accepted on 2026-05-31:
+
+- Source commit `7539b4c34ec18c41ea9b795e0b7e353988f15922` integrates one
+  Gitoxide handoff without taking stale shared metadata edits. The accepted
+  source slice covers Git attributes/pathspec state filters that validate
+  value-qualified suffixes while matching set/unset state like Gitoxide.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused AttributesPathspec/PathspecTreeWalk tests `2 files / 98 assertions /
+  0 failures`, full Gitoxide lane tests `38 files / 3796 assertions / 0
+  failures`, and the touched example exiting 0.
+- The mapped denominator moves from `1512 / 2886` to `1513 / 2886` for the
+  distinct upstream-backed attributes/pathspec state slice. Full Cargo
+  workspace tests were not run for this slice.
+
+Commit gpgsig and URL/refspec batch accepted on 2026-05-31:
+
+- Source commit `e319fe192cd0103ff34e7b509ead36237f4955fd` integrates two
+  Gitoxide handoffs without taking stale shared metadata edits. The accepted
+  source slices cover raw multiline commit `gpgsig` extraction with old-git
+  header preservation and URL/refspec parse-normalize parity for
+  file-authority/SCP IPv6 URLs plus forced fetch-only instructions.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused Commit/UrlRefSpec tests `2 files / 654 assertions / 0 failures`,
+  full Gitoxide lane tests `38 files / 3855 assertions / 0 failures`, and two
+  touched examples exiting 0.
+- The mapped denominator moves from `1513 / 2886` to `1515 / 2886` for the two
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.
+
+Protocol/refs/pathspec/object batch accepted on 2026-05-31:
+
+- Source commit `0b6a219b7c763ad377900409213186a796e2aeb4` integrates ten
+  Gitoxide handoffs without taking stale shared metadata edits. The accepted
+  source slices cover sparse-checkout prefix pathspec matching, protocol v2
+  `ls-refs` refspec-prefix handling, send-pack fatal receive-status parsing,
+  fetch sideband packet-length bounds, tree pathspec prefix/case matching,
+  merge-base SHA-256 graph walking, reflog direct append and reverse
+  iteration, index cache-tree object-backed children, loose-object headers,
+  and packed-refs prefixed peeled lookups.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused Gitoxide tests `12 files / 1116 assertions / 0 failures`, full
+  Gitoxide lane tests `38 files / 3989 assertions / 0 failures`, and ten
+  touched examples exiting 0.
+- The mapped denominator moves from `1515 / 2886` to `1525 / 2886` for the ten
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.
+
+Config/pack-delta batch accepted on 2026-05-31:
+
+- Source commit `652a839d40a7f0fe140f7a77e5c45e4f8765e909` integrates two
+  Gitoxide handoffs without taking stale shared metadata edits. The accepted
+  source slices cover config `includeIf` double-star parity where `**/`
+  matches zero or more path components for `gitdir`, `onbranch`, and
+  `hasconfig:remote.*.url` conditions, plus pack delta result-buffer guards
+  that reject copy/insert overruns and short applications before trusting the
+  reconstructed object.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused Gitoxide tests `3 files / 280 assertions / 0 failures`, full
+  Gitoxide lane tests `38 files / 3998 assertions / 0 failures`, and two
+  touched examples exiting 0.
+- The mapped denominator moves from `1525 / 2886` to `1527 / 2886` for the two
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.
+
+URL/refspec and tree/pathspec batch accepted on 2026-05-31:
+
+- Source commit `973514d312c3ffcd8a66f07624e3b5dedad814ae` integrates two
+  Gitoxide handoffs without taking stale shared metadata edits. The accepted
+  source slices cover URL/refspec one-sided push writer normalization with
+  implicit destination handling, plus tree/pathspec empty-search parity where
+  empty pathspecs match full-tree walks and prefix-constrained walks.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused Gitoxide tests `2 files / 510 assertions / 0 failures`, full
+  Gitoxide lane tests `38 files / 4028 assertions / 0 failures`, and two
+  touched examples exiting 0.
+- The mapped denominator moves from `1527 / 2886` to `1529 / 2886` for the two
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.
+
+Commit, push-status, and sparse-checkout batch accepted on 2026-05-31:
+
+- Source commit `e97166a7f62f8b380688e16da83baf2271f246d5` integrates three
+  Gitoxide handoffs without taking stale shared metadata edits. The accepted
+  source slices cover commit gpgsig writer parity for appending detached
+  signatures and preserving already-signed commits, send-pack proc-receive
+  fall-through status parsing, and sparse-checkout absolute-root pathspec
+  normalization under the worktree root.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused Gitoxide tests `3 files / 472 assertions / 0 failures`, full
+  Gitoxide lane tests `38 files / 4085 assertions / 0 failures`, and three
+  touched examples exiting 0.
+- The mapped denominator moves from `1529 / 2886` to `1532 / 2886` for the
+  three distinct upstream-backed behavior slices. Full Cargo workspace tests
+  were not run for this slice.
+
+Protocol, merge-base, and ls-refs service announcement batch accepted on 2026-05-31:
+
+- Source commit `0d5385bf389d0db83bc44bd9e6369eded628c4ef` integrates three
+  Gitoxide handoffs without taking stale shared metadata edits. The accepted
+  source slices cover protocol v2 fetch section sideband fixture parity,
+  merge-base priority graph-walk ordering for independent bases, and protocol
+  v2 ls-refs smart HTTP service announcement parsing.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused Gitoxide tests `3 files / 262 assertions / 0 failures`, full
+  Gitoxide lane tests `38 files / 4132 assertions / 0 failures`, and three
+  touched examples exiting 0.
+- The mapped denominator moves from `1532 / 2886` to `1535 / 2886` for the
+  three distinct upstream-backed behavior slices. Full Cargo workspace tests
+  were not run for this slice.
+
+Object, pack, attributes, and config batch accepted on 2026-05-31:
+
+- Source commit `c2ea3c3042dcbd9a2ad7f67af733cd60e70ffad4` integrates four
+  Gitoxide handoffs without taking stale shared metadata edits. The accepted
+  source slices cover loose-object SHA-256 object-hash integrity across paths,
+  headers, writes, and verification; attributes/pathspec selected-assignment
+  semantics for absent versus explicitly unspecified attributes; pack delta
+  entry metadata canonical size-header and OFS_DELTA base-distance guards; and
+  config include bracket-class slash-boundary matching.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused Gitoxide tests `6 files / 505 assertions / 0 failures`, full
+  Gitoxide lane tests `38 files / 4183 assertions / 0 failures`, and four
+  touched examples exiting 0.
+- The mapped denominator moves from `1535 / 2886` to `1539 / 2886` for the
+  four distinct upstream-backed behavior slices. Full Cargo workspace tests
+  were not run for this slice.
+
+Config include double-star component-boundary handoff pending on 2026-05-31:
+
+- Pending handoff on accepted base `ab384a0d481bd4acef6592a38a3540df9d0cc3f2`
+  adds one Gitoxide config include slice. The source truth is
+  `gix-config/src/file/includes/mod.rs` using `gix_glob::wildmatch` with
+  `NO_MATCH_SLASH_LITERAL`, plus `gix-glob/src/wildmatch.rs` where `**` only
+  crosses slash separators when the star run is a full path component
+  boundary.
+- Native PHP verification in the isolated worktree is green: `php -l` on the
+  changed Gitoxide PHP files, focused `GitConfigTest.php` `1 file / 89
+  assertions / 0 failures`, full Gitoxide lane tests `39 files / 4456
+  assertions / 0 failures`, `wordpress-config-include-conditional.php`
+  exiting 0, and `git diff --check -- lanes/gitoxide`.
+- The mapped denominator moves from `1561 / 2886` to `1562 / 2886` for the
+  distinct upstream-backed config include double-star component-boundary
+  behavior. Full Cargo workspace tests were not run for this slice.
+
+Attributes/pathspec glob character-class slice prepared on 2026-05-31:
+
+- Pending worker slice `gitoxide-attributes-pathspec-match-parity-20260531T115757Z`
+  on accepted base `ab384a0d481bd4acef6592a38a3540df9d0cc3f2` maps the
+  `gix-attributes` provider side of path-aware gix-glob character classes used
+  by `:(attr:...)` pathspec filters.
+- Source truth: `gix-attributes/src/search/attributes.rs` calls
+  `matches_repo_relative_path()` with `Mode::NO_MATCH_SLASH_LITERAL`, and
+  `gix-pathspec/src/search/matching.rs` applies selected attribute outcomes
+  after the pathspec path match.
+- Native PHP delta: `GitAttributes::globRegex()` now handles POSIX character
+  classes such as `[[:digit:]]` without malformed PCRE warnings and keeps
+  bracket classes path-aware, so `[/]` does not match a directory separator
+  while evaluating attributes.
+- Verification: `php -l` on the changed Gitoxide PHP/example/test files,
+  `php tools/run-tests.php lanes/gitoxide/tests/AttributesPathspecTest.php`
+  passed `1 test files, 79 assertions, 0 failures`,
+  `php tools/run-tests.php lanes/gitoxide/tests` passed
+  `39 test files, 4460 assertions, 0 failures`,
+  `php lanes/gitoxide/examples/wordpress-attributes-pathspec.php` exited `0`,
+  and `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace tests
+  were not run for this slice.
+- Expected mapped denominator movement: `1561 / 2886` to `1562 / 2886`.
+
+Send-pack receive-status unrequested-option slice prepared on 2026-05-31:
+
+- Pending worker slice `gitoxide-send-pack-receive-status-parity-20260531T175851Z`
+  on accepted base `b1feedb755e93656cf717884940e8c64724c26f1` maps the
+  send-pack status application boundary where unrequested remote status refs
+  are ignored but report-status-v2 options after an unrequested ref are
+  rejected.
+- Source truth: upstream Gitoxide `gix-transport/tests/client/git.rs::push_v1_simulated`
+  and `gix-transport/tests/fixtures/v1/push.response` provide the nested
+  receive-status sideband boundary; Git `send-pack.c::receive_status()` at
+  source `866e6a391f466baeeb98bc585845ea638322c04b` only accepts `option`
+  directives after a matched requested `ok/ng` status.
+- Native PHP delta: `PushRefStatus` now records option-line presence even for
+  ignored future options, and `PushResponse::forExpectedRefNames()` rejects
+  option-bearing statuses for refs absent from the outgoing send-pack command
+  while still ignoring plain unrequested status refs.
+- Verification: red-first probe printed `accepted` before implementation for
+  an unrequested `refs/heads/ghost` status followed by `option refname
+  refs/heads/other`; after implementation,
+  `php tools/run-tests.php lanes/gitoxide/tests/PushResponseTest.php` passed
+  `1 test files, 122 assertions, 0 failures`, and
+  `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php`
+  passed `1 test files, 457 assertions, 0 failures`. Full lane verification
+  passed with `php tools/run-tests.php lanes/gitoxide/tests` reporting `39
+  test files, 5025 assertions, 0 failures`; PHP lint, JSON validation, the
+  touched example smoke, and `git diff --check -- lanes/gitoxide` also passed.
+- Expected mapped denominator movement: `1602 / 2886` to `1603 / 2886`.
+
+SSH receive-pack ProgramKind boundary slice prepared on 2026-05-31:
+
+- Pending worker slice `gitoxide-receive-pack-transport-boundary-parity-20260531T183708Z`
+  on accepted base `1d7de15e4e85a2b8dbfd1c80922d2921091d0371` maps the
+  upstream SSH invocation program-kind boundary for receive-pack connector
+  contexts.
+- Source truth: `gix-transport/src/client/blocking_io/ssh/program_kind.rs`
+  and `gix-transport/src/client/blocking_io/ssh/tests.rs` define the
+  `ProgramKind::prepare_invocation()` behavior: standard `ssh` uses
+  `SendEnv=GIT_PROTOCOL` and `-p<port>`, plink/putty/tortoiseplink use
+  `-P <port>`, tortoiseplink adds `-batch`, and simple clients reject ported
+  invocations.
+- Native PHP delta: `SshReceivePackTransport::connectorContext()` now records
+  `programKind`, `sshCommand`, `disallowShell`, and upstream-shaped
+  `sshArguments` for caller-owned connectors without shelling out. Command
+  basename inference maps known clients and leaves unknown commands as
+  `simple`.
+- Verification: `php -l` on changed Gitoxide PHP files passed; focused
+  `ReceivePackTransportTest.php` passed `1 test files, 507 assertions, 0
+  failures`; full Gitoxide lane tests passed `39 test files, 5075 assertions,
+  0 failures`; `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
+  exited `0`; and `git diff --check -- lanes/gitoxide` passed. Full Cargo
+  workspace runner was not executed.
+- Expected mapped denominator movement: `1605 / 2886` to `1606 / 2886`.
+
+Smart HTTP noProxy CIDR cookie-parity slice prepared on 2026-05-31:
+
+- Pending worker slice `gitoxide-smart-http-transport-cookie-proxy-parity-20260531T203750Z`
+  on accepted base `91b42fe7029899440b4b46f38b3f903a76f3b322` maps the smart
+  HTTP transport boundary where Gitoxide forwards configured `noProxy` values
+  into curl's `noproxy` handling without config-layer validation.
+- Source truth: `gix/src/repository/config/transport.rs` reads
+  `gitoxide.http.noProxy` and environment-derived `no_proxy` into
+  `http::Options::no_proxy`; `gix-transport/src/client/blocking_io/http/curl/remote.rs`
+  passes that string to `handle.noproxy(&no_proxy)?` next to proxy URL and
+  proxy-auth setup; `gix/tests/gix/repository/config/transport_options.rs`
+  asserts the config layer does not validate the value.
+- Native PHP delta: `SmartHttpReceivePackTransport` now accepts IPv4 and IPv6
+  CIDR `noProxy` entries, bypasses stream proxy options and proxy credential
+  helper callbacks for matching origins, preserves origin `Set-Cookie` state
+  into the bypassed receive-pack POST, and still rejects invalid slash entries
+  before requester handoff.
+- Verification: red-first `ReceivePackTransportTest.php` failed with `1 test
+  files, 479 assertions, 2 failures`; after implementation, focused
+  `ReceivePackTransportTest.php` passed `1 test files, 582 assertions, 0
+  failures`; full Gitoxide lane verification passed `39 test files, 5430
+  assertions, 0 failures`. PHP lint, the touched example smoke, JSON
+  validation, and `git diff --check -- lanes/gitoxide` also passed. Full Cargo
+  workspace runner was not executed.
+- Expected mapped denominator movement: `1632 / 2886` to `1633 / 2886`.
+
+Pack-index/MIDX prefix candidate collection slice prepared on 2026-05-31:
+
+- Pending worker slice `gitoxide-pack-index-midx-prefix-parity-20260531T215647Z`
+  on accepted base `9ef60eb910c3006c081a236c1ec05f4d0e7024c4` maps the
+  upstream dynamic object database prefix lookup boundary where callers can
+  request the full candidate object-id set without changing the missing,
+  found, or ambiguous outcome.
+- Source truth: upstream Gitoxide
+  `gix-odb/src/store_impls/dynamic/prefix.rs::lookup_prefix()` continues
+  through all indexes and loose stores when a candidate set is requested;
+  `gix-odb/src/store_impls/dynamic/handle.rs::lookup_prefix()` converts
+  pack-index and multi-pack-index candidate entry ranges into object ids; and
+  `gix-pack/src/multi_index/access.rs::lookup_prefix()` delegates to
+  `gix-pack/src/index/access.rs::lookup_prefix()`.
+- Native PHP delta: `ObjectDatabase::lookupPrefix()` keeps its default return
+  shape but accepts an opt-in candidate flag, refreshes object storage for a
+  complete candidate pass, and returns de-duplicated sorted candidates across
+  MIDX entries, standalone pack indexes, and loose objects.
+- Verification: focused `ObjectDatabaseTest.php` passed `1 file / 173
+  assertions / 0 failures`; focused pack/MIDX/object database gate passed
+  `3 files / 299 assertions / 0 failures`; full Gitoxide lane passed `39
+  files / 5848 assertions / 0 failures`; the touched WordPress MIDX example,
+  PHP lint, and `git diff --check -- lanes/gitoxide` passed. Full upstream
+  Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1644 / 2886` to `1645 / 2886`.
+
+Send-pack receive-status object-option trailing text slice prepared on 2026-05-31:
+
+- Pending worker slice `gitoxide-send-pack-receive-status-parity-20260531T223228Z`
+  on accepted base `457d8df75c82fef3de304d8652d979a0fd3d1346` maps the
+  send-pack report-status-v2 boundary where `old-oid` and `new-oid` options
+  can carry a valid object id followed by remote hook diagnostics.
+- Source truth: upstream Gitoxide `gix-transport/tests/client/git.rs::push_v1_simulated`
+  and `gix-transport/tests/fixtures/v1/push.response` provide the nested
+  sideband receive-status transport boundary; Git
+  `send-pack.c::receive_status()` at source
+  `866e6a391f466baeeb98bc585845ea638322c04b` parses object-id option values
+  with `parse_oid_hex_algop()` before any trailing text.
+- Native PHP delta: `PushRefStatus` now normalizes a leading 40- or 64-hex
+  object id before trailing whitespace-delimited diagnostics for `old-oid` and
+  `new-oid`, while preserving the existing contiguous malformed-hex rejection.
+- Verification: focused `PushResponseTest.php` passed `1 file / 172
+  assertions / 0 failures`; focused `ReceivePackTransportTest.php` passed `1
+  file / 623 assertions / 0 failures`; full Gitoxide lane verification passed
+  `39 files / 6022 assertions / 0 failures`; the touched push-response
+  example, PHP lint, and `git diff --check -- lanes/gitoxide` passed. Full
+  upstream Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1653 / 2886` to `1654 / 2886`.
+
+Partial-clone promisor refresh-never slice prepared on 2026-05-31:
+
+- Pending worker slice `gitoxide-partial-clone-promisor-hydration-parity-20260531T230148Z`
+  on accepted base `292ada6b86cc431f7b1537075eacedfb4e905cf4` maps the
+  upstream dynamic object database refresh-mode boundary for partial clones.
+- Source truth: `gix-odb/src/store_impls/dynamic/mod.rs` defines
+  `RefreshMode::Never`; `gix-odb/src/store_impls/dynamic/handle.rs` exposes
+  `refresh_never()`; `gix-odb/src/store_impls/dynamic/find.rs` returns false
+  instead of refreshing when no cached object matches and refresh is disabled;
+  `gix-odb/src/store_impls/dynamic/prefix.rs` documents the same prefix lookup
+  boundary; and `gix-protocol/src/fetch/types.rs` requires fetch negotiation
+  `exists()` probes not to trigger ODB pack refreshes.
+- Native PHP delta: `ObjectDatabase` now exposes refresh-disabled and
+  refresh-enabled clone handles, applies that mode to contains, prefix lookup,
+  iteration/counting, object/header reads, and external ref-delta base refresh,
+  and the WordPress lazy-promisor example records the stale promised-missing
+  view beside the default hydrated view.
+- Verification: red-first focused `PartialCloneTest.php` failed with the
+  missing refresh-disabled API; after implementation, focused
+  `PartialCloneTest.php` passed `1 file / 149 assertions / 0 failures`;
+  adjacent object/pack gate passed `4 files / 563 assertions / 0 failures`;
+  full Gitoxide lane passed `39 files / 6107 assertions / 0 failures`. PHP
+  lint, JSON validation, the touched example smoke, and
+  `git diff --check -- lanes/gitoxide` also passed. Full upstream Cargo
+  workspace runner was not executed.
+- Expected mapped denominator movement: `1657 / 2886` to `1658 / 2886`.
+
+Merge-base graph reuse hydration slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-merge-base-graph-walk-parity-20260601T015217Z` on
+  accepted base `d422a4f583db5c682fa3bc6c48dc5ce9f8a1bae6` maps the
+  `gix_revwalk::Graph::get_or_insert_full_commit()` miss boundary used by
+  `gix_revision::merge_base::paint_down_to_common()`: missing commits are
+  skipped without being inserted into the reusable graph, so a later graph
+  walk can observe a shallow/promisor ancestor after hydration.
+- Native PHP delta: `MergeBaseFinder` keeps caching successful `Commit`
+  objects but no longer pins `null` commit lookups in a permanent missing-id
+  cache. The WordPress merge-base fixture/example now covers a hydrated
+  promisor release baseline that is absent for the first walk and visible to
+  the same finder after hydration.
+- Verification: red-first focused `MergeBaseTest.php` failed with the hydrated
+  release ancestor still missing; after implementation focused
+  `MergeBaseTest.php` passed `1 file / 378 assertions / 0 failures`, full
+  Gitoxide lane passed `40 files / 6770 assertions / 0 failures`, and the
+  touched WordPress merge-base example, PHP lint, and
+  `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace runner was
+  not executed.
+- Expected mapped denominator movement: `1697 / 2886` to `1698 / 2886`.
+
+Tree-merge super-2 resolve-tree parity slice prepared on 2026-06-01:
+
+- Pending worker slice `gitoxide-tree-merge-conflict-fixture-parity-20260601T022247Z`
+  on accepted base `28ec15ab9aa5188bc23d7c22caf22b5083cf6e4e` maps the
+  upstream `gix-merge` `tree-baseline.sh` `super-2` resolve-tree fixture.
+- Source truth: upstream Gitoxide
+  `gix-merge/tests/fixtures/tree-baseline.sh` at commit
+  `87433ed33eee9ba974111d20b854f6acb07cd4a6`, specifically the
+  `make_resolve_tree ancestor A B`, `ancestor B A`, `ours A B`, and
+  `ours B A` expectations after the directory rename/file conflict.
+- Native PHP delta: `TreeMerge` now tags directory-rename/add-leaf
+  directory-file conflicts with the dropped source path when the added leaf is
+  the strict best match for a source blob deleted by both sides, and
+  `TreeMergeResult` applies those ancestor entries for tree-conflict ancestor
+  resolution. This restores the changed `foo` blob for ancestor resolution
+  while preserving the existing side-choice results.
+- Verification: red-first focused `TreeMergeTest.php` failed with the missing
+  resolved `foo` ancestor path; after implementation, focused
+  `TreeMergeTest.php` passed `1 file / 668 assertions / 0 failures`, full
+  Gitoxide lane passed `40 files / 6861 assertions / 0 failures`, PHP lint on
+  changed Gitoxide PHP files passed, and `git diff --check -- lanes/gitoxide`
+  passed. Full Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1703 / 2886` to `1704 / 2886`.
+
+Tree-merge same-rename different-mode reversed fixture parity slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-tree-merge-conflict-fixture-parity-20260601T142514Z`
+  on accepted base `a5614704e60ea0cab87726a10629a257ac3e49fd` maps the
+  upstream `gix-merge` `tree-baseline.sh` `same-rename-different-mode`
+  reversed generated row.
+- Source truth: upstream Gitoxide
+  `gix-merge/tests/fixtures/tree-baseline.sh` and generated
+  `gix-merge/tests/fixtures/generated-archives/tree-baseline.tar` at commit
+  `87433ed33eee9ba974111d20b854f6acb07cd4a6`, specifically
+  `baseline.cases`, `same-rename-different-mode/A-B.merge-info`, and
+  `same-rename-different-mode/A-B-reversed.merge-info`.
+- Native PHP delta: `TreeMergeTest.php` now verifies the reversed side order
+  where the merged tree keeps the custom expected executable bit on
+  `a-renamed/w`, merges `a-renamed/x.f` to `1..6` with executable mode, and
+  swaps stage 2/3 mode entries in the conflict index. The WordPress tree-merge
+  fixture/example adds the same plugin-directory rename executable-mode
+  conflict smoke.
+- Verification: focused `TreeMergeTest.php` passed `1 file / 887 assertions /
+  0 failures`, full Gitoxide lane passed `40 files / 9716 assertions / 0
+  failures`, changed PHP lint passed, `wordpress-tree-merge.php` example smoke
+  passed, and `git diff --check -- lanes/gitoxide` passed. Full Cargo
+  workspace runner was not executed.
+- Expected mapped denominator movement: `1799 / 2886` to `1800 / 2886`.
+
+Tree-merge rename-delete same-side fixture parity slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-tree-merge-conflict-fixture-parity-20260601T182130Z`
+  on accepted base `46132b002aae86d77139b7f5e361edf24e0035ba` maps the
+  upstream `gix-merge` `tree-baseline.sh` `rename-delete` `A-similar` and
+  `B-similar` generated same-side fixture shapes.
+- Source truth: upstream Gitoxide
+  `gix-merge/tests/fixtures/tree-baseline.sh` and generated
+  `gix-merge/tests/fixtures/generated-archives/tree-baseline.tar` at commit
+  `87433ed33eee9ba974111d20b854f6acb07cd4a6`, specifically the
+  `rename-delete` shell setup plus `rename-delete/A-similar.merge-info` and
+  `rename-delete/B-similar.merge-info` no-conflict merge results.
+- Native PHP delta: `TreeMergeTest.php` now proves same-side merge recursion
+  stays clean for both similar rename/delete generated shapes: the A side keeps
+  modified `foo` with renamed `newdir/{a,b,c}`, while the B side keeps
+  `olddir/{a,bar,b,c}` with no conflict/index/worktree conflict entries. The
+  WordPress tree-merge fixture/example adds the same plugin-directory
+  deployment smoke.
+- Verification: focused `TreeMergeTest.php` passed `1 file / 907 assertions /
+  0 failures`, full Gitoxide lane passed `40 files / 10454 assertions / 0
+  failures`, changed PHP lint passed, `wordpress-tree-merge.php` example smoke
+  passed, and `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace
+  runner was not executed.
+- Expected mapped denominator movement: `1810 / 2886` to `1811 / 2886`.
+
+URL/refspec credential mutation parity slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-url-refspec-parse-normalize-parity-20260601T025320Z`
+  on accepted base `515fa94ece8af5512b4751f4654c8d7fe66ba5ec` maps the
+  upstream `gix-url` access/mutation boundary where changed username and
+  password values serialize to canonical URL bytes, reparse cleanly, and redact
+  the password through display formatting.
+- Source truth: upstream Gitoxide
+  `gix-url/tests/url/access.rs::{user,password,mutation_roundtrip}` and
+  `gix-url/src/lib.rs::{set_user,set_password,write_canonical_form_to}` at
+  commit `87433ed33eee9ba974111d20b854f6acb07cd4a6`.
+- Native PHP delta: `GitUrl` now exposes immutable `withUser()` and
+  `withPassword()` helpers that validate UTF-8 credential strings, reuse the
+  existing userinfo percent-encoding/redaction boundary, and preserve canonical
+  round-trip parsing. The WordPress URL/refspec fixture/example now verifies
+  parsed deployment credentials injected after parse without reading any live
+  credential store.
+- Verification: the focused URL/refspec check before this patch passed `1 file
+  / 581 assertions / 0 failures`; after implementation it passed `1 file / 608
+  assertions / 0 failures`, and full Gitoxide lane verification passed `40
+  files / 7086 assertions / 0 failures`. PHP lint passed for changed Gitoxide
+  PHP files, and
+  `php lanes/gitoxide/examples/wordpress-url-refspec-normalize.php --self-test`
+  exited 0. Full Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1711 / 2886` to `1712 / 2886`.
+
+Reference transaction packed-delete parity slice prepared on 2026-06-01:
+
+- Worker slice
+  `gitoxide-reference-transaction-lock-reflog-parity-20260601T032258Z` on
+  accepted base `639880c48c54d40c3ed0188758af6aee8d8d2712` maps the prepared
+  delete transaction behavior where packed refs are consulted for previous
+  values, packed-only deletes remove packed entries, loose-over-packed deletes
+  remove both stores, and all-contained deletes remove `packed-refs`.
+- Source truth: upstream Gitoxide
+  `gix-ref/src/store/file/transaction/{prepare.rs,commit.rs}` and
+  `gix-ref/tests/refs/file/transaction/prepare_and_commit/delete.rs` at commit
+  `87433ed33eee9ba974111d20b854f6acb07cd4a6`, specifically
+  `packed_refs_are_consulted_when_determining_previous_value_of_ref_to_be_deleted_and_are_deleted_from_packed_ref_file`,
+  `a_loose_ref_with_old_value_check_and_outdated_packed_refs_value_deletes_both_refs`,
+  and `all_contained_references_deletes_the_packed_ref_file_too`.
+- Native PHP delta: `ReferenceStore::prepareLooseDeleteTransaction()` now
+  records packed refs affected by prepared `RefLog::AndReference` deletes, and
+  `PreparedReferenceTransaction::commit()` deletes reflogs, commits packed-ref
+  deletions, then removes loose refs and locks. The WordPress reference
+  transaction fixture/example now covers prepared packed review-ref pruning.
+- Verification: red-first focused `ReferenceStoreTest.php` failed because a
+  prepared delete left `refs/heads/main` resolved from `packed-refs`. After
+  implementation, focused `ReferenceStoreTest.php` passed `1 file / 615
+  assertions / 0 failures`, full Gitoxide lane verification passed `40 files /
+  7158 assertions / 0 failures`, changed PHP lints passed, and
+  `php lanes/gitoxide/examples/wordpress-reference-transaction.php` exited 0.
+  Full Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1716 / 2886` to `1717 / 2886`.
+
+URL/refspec alternate serialization parity slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-url-refspec-parse-normalize-parity-20260601T040657Z`
+  on accepted base `431362468a9b0d67073256297cf9e0acadb56383` maps the
+  upstream `gix-url` writer/access boundary where canonical file and SSH URLs
+  can be rendered in alternate path/SCP-like form, while passwords, ports, and
+  non-file/non-SSH schemes retain canonical URL bytes.
+- Source truth: upstream Gitoxide `gix-url/src/lib.rs` serialization logic and
+  focused `gix-url/tests/url/parse/{file.rs,ssh.rs}` alternate-form
+  boundaries at commit `87433ed33eee9ba974111d20b854f6acb07cd4a6`.
+- Native PHP delta: `GitUrl` now exposes immutable `withAlternativeForm()`;
+  the URL/refspec fixture/example records alternate deployment remote bytes
+  and canonical local mirror path rendering without invoking Git.
+- Verification: red-first focused `UrlRefSpecTest.php` failed with missing
+  `GitUrl::withAlternativeForm()` and reported `1 file / 608 assertions / 1
+  failure`; after implementation, focused `UrlRefSpecTest.php` passed `1 file
+  / 629 assertions / 0 failures`, and full Gitoxide lane verification passed
+  `40 files / 7323 assertions / 0 failures`. PHP lint passed for changed
+  Gitoxide PHP files, and
+  `php lanes/gitoxide/examples/wordpress-url-refspec-normalize.php --self-test`
+  exited 0. Full Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1729 / 2886` to `1730 / 2886`.
+
+URL/refspec from-bytes parity slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-url-refspec-parse-normalize-parity-20260601T051230Z`
+  on accepted base `b6e9f0ce57867f58750508c9437be4ae03b4d9e1` maps the
+  upstream `gix-url` byte deserialization boundary where serialized URL bytes
+  can be turned back into `Url` values without losing canonical URL fields or
+  non-UTF-8 local path bytes.
+- Source truth: upstream Gitoxide `gix-url/src/lib.rs::Url::from_bytes` and
+  `gix-url/tests/url/access.rs::{from_bytes_roundtrip,from_bytes_with_non_utf8_path}`
+  at commit `87433ed33eee9ba974111d20b854f6acb07cd4a6`.
+- Native PHP delta: `GitUrl::fromBytes()` now exposes the explicit byte
+  deserialization API, with focused assertions proving canonical HTTPS bytes
+  match normal parse output and non-UTF-8 local path bytes remain byte-for-byte
+  stable. The WordPress URL/refspec fixture/example now round-trips a
+  deployment remote supplied as serialized URL bytes without invoking Git.
+- Verification: focused `UrlRefSpecTest.php` moved from `1 file / 629
+  assertions / 0 failures` before the slice to `1 file / 637 assertions / 0
+  failures` after implementation. Full Gitoxide lane passed `40 files / 7546
+  assertions / 0 failures`; changed PHP lint, touched example smoke, and
+  `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace runner was
+  not executed.
+- Expected mapped denominator movement: `1743 / 2886` to `1744 / 2886`.
+
+Smart HTTP upgrade redirect proxy/cookie parity slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-smart-http-transport-cookie-proxy-parity-20260601T053137Z`
+  on accepted base `f21524404044b11f3b8895597ad5fc6ac48001c6` maps the
+  upstream `gix`/`gix-transport` boundary where proxy fallback selection is
+  derived from the original smart HTTP request configuration, while libcurl
+  follows safe redirects under that selected option set.
+- Source truth: upstream Gitoxide
+  `gix/src/repository/config/transport.rs` chooses `gitoxide.https.proxy` only
+  for original HTTPS remote URLs, and
+  `gix-transport/src/client/blocking_io/http/curl/remote.rs` applies redirect
+  effective URLs without reselecting proxy fallback options.
+- Native PHP delta: `SmartHttpReceivePackTransport` now uses the effective
+  redirected URL for cookies, TLS, and no-proxy host checks, but uses the
+  original logical request URL for `proxy`/`httpsProxy`/`allProxy` fallback
+  selection. The WordPress proxy credential fixture/example proves an
+  HTTP-origin discovery request that safely upgrades to HTTPS stays direct when
+  only `httpsProxy` is configured, while preserving the redirect cookie into
+  discovery retry and receive-pack POST.
+- Verification: red-first focused `ReceivePackTransportTest.php` failed with
+  `1 file / 727 assertions / 1 failure` because the proxy helper was called
+  twice after the HTTPS upgrade. After implementation, focused
+  `ReceivePackTransportTest.php` passed `1 file / 814 assertions / 0
+  failures`, and full Gitoxide lane verification passed `40 files / 7610
+  assertions / 0 failures`. Changed PHP lint, example smoke, JSON parse, and
+  `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace runner was
+  not executed.
+- Expected mapped denominator movement: `1748 / 2886` to `1749 / 2886`.
+
+Partial-clone promisor numeric config boolean hydration slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-partial-clone-promisor-hydration-parity-20260601T055415Z`
+  on accepted base `7db0bee1b6d6b17fcc1ae3a0e1b10ac7a87ade2d` maps the
+  upstream `gix-config-value` boolean boundary used by
+  `remote.<name>.promisor`.
+- Source truth: upstream Gitoxide `gix-config-value/src/boolean.rs` treats
+  `yes`, `on`, and `true` as true, `no`, `off`, `false`, and empty values as
+  false, and numeric values as nonzero/zero booleans. Upstream
+  `src/plumbing/progress.rs` lists `remote.<name>.promisor` and
+  `remote.<name>.partialCloneFilter` as planned/required partial-clone config.
+- Native PHP delta: `ObjectDatabase::configBooleanIsTrue()` now treats
+  nonzero numeric promisor values as true and zero as false. The focused
+  `PartialCloneTest.php` case proves `promisor = 2` produces a promisor remote
+  and resolver hydration, while `promisor = 0` remains ordinary missing. The
+  WordPress lazy-promisor example now uses numeric promisor config.
+- Verification: red-first focused `PartialCloneTest.php` failed with 2
+  failures and `1 test files, 186 assertions`; after implementation, focused
+  `PartialCloneTest.php` passed `1 test files, 241 assertions, 0 failures`;
+  full Gitoxide lane passed `40 test files, 7682 assertions, 0 failures`;
+  changed PHP lint and example smoke passed; `git diff --check -- lanes/gitoxide`
+  passed. Full Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1749 / 2886` to `1750 / 2886`.
+
+URL/refspec from-parts parity slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-url-refspec-parse-normalize-parity-20260601T061645Z`
+  on accepted base `cc1b0ff669a7347b4e43610b8425ed481a9b7e5c` maps the
+  upstream `gix-url` validating constructor boundary where supplied URL parts
+  are serialized with canonical or alternate form and parsed back before use.
+- Source truth: upstream Gitoxide `gix-url/src/lib.rs::Url::from_parts`,
+  `Url::write_to`, `Url::write_canonical_form_to`,
+  `Url::write_alternative_form_to`, and focused parse/access tests in
+  `gix-url/tests/url/access.rs` plus `gix-url/tests/url/parse/{file.rs,ssh.rs}`
+  at commit `87433ed33eee9ba974111d20b854f6acb07cd4a6`.
+- Native PHP delta: `GitUrl::fromParts()` now validates constructed URL fields
+  by serializing and reparsing, including HTTPS host normalization and
+  credential percent-encoding, local file alternate byte preservation,
+  SSH alternate serialization, SSH password/port canonical fallback, and
+  invalid constructed URL rejection. The WordPress URL/refspec fixture/example
+  now normalizes stored deployment URL parts before fetch/push refspec handling.
+- Verification: baseline focused `UrlRefSpecTest.php` passed `1 test files,
+  637 assertions, 0 failures`; after implementation, focused
+  `UrlRefSpecTest.php` passed `1 test files, 670 assertions, 0 failures`.
+  Changed PHP lint, example smoke, lane-status/manifest JSON parse, and
+  `git diff --check -- lanes/gitoxide` passed. Full Gitoxide lane, root
+  harness, and upstream Cargo workspace were not executed.
+- Expected mapped denominator movement: `1749 / 2886` to `1750 / 2886`.
+
+Merge-base stable shallow intersection slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-merge-base-graph-walk-parity-20260601T084859Z` on
+  accepted base `6c5f68290192c5bf57e0f3c2cca80b604bf38511` deepens the
+  represented `gix_revision::merge_base` missing-parent graph-walk behavior
+  for the PHP stable all-head helper.
+- Source truth: upstream Gitoxide
+  `gix-revision/src/merge_base/function.rs` only queues parents when
+  `Graph::get_or_insert_full_commit()` returns an inserted/existing commit;
+  `gix-revwalk/src/graph/mod.rs` documents missing parent commits being skipped
+  for shallow repositories.
+- Native PHP delta: `MergeBaseFinder::ancestorsWithDistance()` now confirms a
+  parent commit exists before recording it as reachable, so `mergeBasesMany()`
+  does not pin absent shallow/promisor parents into the all-head intersection.
+  The WordPress merge-base example now exposes the shallow plugin/theme stable
+  intersection and keeps the release baseline.
+- Verification: red-first one-line PHP probe failed with
+  `RuntimeException: Missing commit object: e0e0...`; after implementation,
+  focused `MergeBaseTest.php` passed `1 test files, 421 assertions, 0
+  failures`, full Gitoxide lane passed `40 test files, 8330 assertions, 0
+  failures`, changed PHP lint and example smoke passed, and
+  `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace runner was
+  not executed.
+- Expected mapped denominator movement: conservative mapped coverage remains
+  `1773 / 2886`; this deepens the already represented merge-base shallow graph
+  walk cluster.
+
+Partial-clone promisor index-resume keep-sidecar slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-partial-clone-promisor-hydration-parity-20260601T182619Z`
+  on accepted base `95f3bf329230b45b13b590174fa3414e2f5a9eab` maps the
+  upstream keep-sidecar boundary for interrupted promisor pack-bundle resumes.
+- Source truth: upstream Gitoxide
+  `gix-pack/src/bundle/write/mod.rs::inner_write()` writes a `.keep` sidecar
+  only when the final `pack-<hash>.pack` data path is not already present, and
+  then separately persists a missing `pack-<hash>.idx`. Upstream
+  `gix/src/remote/connection/fetch/receive_pack.rs` documents keep sidecars as
+  fetch protection for newly written packs during ref updates.
+- Native PHP delta: `ObjectDatabase::writePromisorPackBundle()` now creates
+  and returns a `.keep` only when pack data is newly materialized. Existing
+  pack data with a missing index/promisor sidecar resumes by rebuilding those
+  sidecars without creating or reporting a stale keep file. The WordPress lazy
+  promisor example now reports `resumedPromisorKeep` as null for that resume.
+- Verification: focused `PartialCloneTest.php` passed `1 test files, 448
+  assertions, 0 failures`; focused `ObjectDatabaseTest.php` passed `1 test
+  files, 396 assertions, 0 failures`; full Gitoxide lane passed `40 test
+  files, 10435 assertions, 0 failures`; changed PHP lint, changed example
+  smoke, lane-status/manifest JSON parse, and `git diff --check --
+  lanes/gitoxide` passed. Full Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1810 / 2886` to `1811 / 2886`.
+
+Git index v4 path-compression slice prepared on 2026-06-02:
+
+- Worker slice `gitoxide-index-v2-v4-path-compression-current-base-20260602T0307Z`
+  on accepted base `29e9ab42c95695ff6b56a669158a7bac3a86e971` maps the
+  upstream `gix-index` decode boundary for version 4 DIRC files whose entry
+  paths are stored as deltas against the previous expanded path.
+- Source truth: upstream Gitoxide commit
+  `87433ed33eee9ba974111d20b854f6acb07cd4a6`:
+  `gix-index/src/decode/header.rs` accepts index versions 2, 3, and 4;
+  `gix-index/src/decode/entries.rs::load_one()` enables delta paths for
+  `Version::V4`, reads a Gitoxide LEB64 strip length, copies
+  `previous_path[..len-strip]`, then appends the NUL-terminated suffix; and
+  `gix-features/src/decode.rs::leb64_from_read()` defines the continuation
+  byte arithmetic. The exact upstream fixture test is
+  `gix-index/tests/index/file/read.rs::v4_with_delta_paths_and_ieot_ext()`,
+  generated by `gix-index/tests/fixtures/make_index/v4_more_files_IEOT.sh`.
+- Native PHP delta: `IndexFile::entriesFromBytes()` now accepts version 4,
+  decodes the compressed path varint, expands each path against the previous
+  decoded entry, leaves v2/v3 full-path padding behavior intact, and rejects
+  impossible strip lengths, truncated varints, and missing compressed suffix
+  terminators. The new WordPress smoke reads compact deployment index paths
+  without invoking `git`.
+- Verification: focused `IndexFileTest.php` passed `1 test files, 90
+  assertions, 0 failures`; adjacent index gate
+  `IndexFileTest.php IndexCacheTreeTest.php` passed `2 test files, 144
+  assertions, 0 failures`; full Gitoxide PHP lane passed `42 test files,
+  11183 assertions, 0 failures`; `wordpress-index-v4-path-compression.php
+  --self-test` exited `0`. Full upstream Cargo workspace was not executed.
+- Expected mapped denominator movement: `1820 / 2886` to `1821 / 2886`.
+- Dependency closure: no new support component is needed. The slice reuses
+  existing native PHP binary string parsing and checksum verification; no
+  shared support-library row or activation gate is proposed.

@@ -1,0 +1,3 @@
+[ DefinitionList [ ( [ Str "Packet" , Space , Str "source" ] , [ [ Para [ Str "Definition" , Space , Strong [ Str "primary" ] , Str "." ] ] , [ Plain [ Str "Secondary" , Space , Emph [ Str "note" ] , Str "." ] ] ] ) ]
+, Para [ Str "After" , Space , Str "glossary." ]
+]

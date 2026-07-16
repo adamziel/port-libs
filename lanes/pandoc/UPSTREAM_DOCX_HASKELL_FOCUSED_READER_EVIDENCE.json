@@ -1,0 +1,1456 @@
+{
+    "schemaVersion": 1,
+    "tool": "pandoc-docx-focused-reader-evidence",
+    "status": "reported-focused-docx-reader-evidence",
+    "generatedAt": "2026-07-11",
+    "upstream": {
+        "name": "jgm/pandoc",
+        "commit": "612e143fbe6d735b612c4800d21e61b7d44e4dca",
+        "expectedCommit": "612e143fbe6d735b612c4800d21e61b7d44e4dca",
+        "sourceFile": "test/Tests/Readers/Docx.hs",
+        "entryPoint": "Tests.Readers.Docx.tests"
+    },
+    "denominator": {
+        "inventoryPath": "lanes/pandoc/UPSTREAM_DOCX_HASKELL_INVENTORY.json",
+        "denominatorField": "haskellReaderInventory.notCoveredCases",
+        "totalCasesNotCoveredByLocal74GateSemantics": 36,
+        "denominatorCaseRows": 36
+    },
+    "evidenceKind": "focused-native-php-and-mapped-reader-evidence",
+    "claim": "Maps the 36 upstream DOCX Haskell reader cases outside the local 74/74 parser-acceptance gate to additional focused native PHP checks or mapped native evidence where available.",
+    "claimBoundaries": {
+        "doesAssert": [
+            "the denominator is the 36-case haskellReaderInventory.notCoveredCases list from UPSTREAM_DOCX_HASKELL_INVENTORY.json",
+            "which denominator cases have additional focused native PHP checks or mapped upstream native evidence",
+            "optional targeted DOCX fixture checks when a hydrated upstream test/docx cache is supplied",
+            "the listed focused DOCX warning metadata checks only, without executing upstream testForWarningsWithOpts"
+        ],
+        "doesNotAssert": [
+            "that upstream Haskell/Cabal/Tasty tests were executed",
+            "that local DOCX reader output equals upstream native expectations for mapped-native-only cases",
+            "that upstream testForWarningsWithOpts itself was executed locally",
+            "that full DOCX/OpenXML parity is achieved"
+        ]
+    },
+    "focusedCoverage": {
+        "coveredCaseCount": 36,
+        "remainingOpenCaseCount": 0,
+        "coverageKindCounts": {
+            "focused-citation-addin-native-php-check": 4,
+            "focused-comments-native-php-check": 3,
+            "focused-docx-warning-native-php-check": 4,
+            "focused-media-bag-native-php-check": 5,
+            "focused-metadata-native-php-check": 2,
+            "focused-revision-mode-native-ast-php-check": 3,
+            "focused-revision-mode-native-php-check": 12,
+            "focused-style-default-native-php-check": 2,
+            "focused-style-native-ast-php-check": 1
+        },
+        "coveredPercentOf36CaseDenominator": 100,
+        "remainingOpenLabels": []
+    },
+    "targetedFixtureChecks": {
+        "status": "completed-targeted-docx-reader-checks",
+        "sourceDirectoryPresent": true,
+        "upstreamDocxDirectory": ".upstream-cache/pandoc-current/test/docx",
+        "passedTargetedCaseCount": 36,
+        "failedTargetedCaseCount": 0,
+        "skippedTargetedCaseCount": 0,
+        "mappedOnlyCaseCount": 0,
+        "caseCheckRows": [
+            {
+                "caseKey": "testCompare|inline image|docx/image.docx|docx/image_no_embed.native",
+                "label": "inline image",
+                "targetedCheckId": "media:image",
+                "status": "passed",
+                "fixture": "image.docx",
+                "details": {
+                    "imageUrls": [
+                        "media/image1.jpg"
+                    ],
+                    "mediaBagPaths": [
+                        "media/image1.jpg"
+                    ],
+                    "mediaBagByteLengths": [
+                        22975
+                    ]
+                }
+            },
+            {
+                "caseKey": "testCompare|zotero with -citations|docx/zotero_citations.docx|docx/zotero_citations_minus.native",
+                "label": "zotero with -citations",
+                "targetedCheckId": "citation:zotero",
+                "status": "passed",
+                "fixture": "zotero_citations.docx",
+                "details": {
+                    "provider": "zotero",
+                    "providerSpanCount": 4,
+                    "classes": [
+                        "docx-field",
+                        "docx-field-addin",
+                        "docx-addin-field",
+                        "docx-addin-csl-citation",
+                        "docx-addin-provider-zotero",
+                        "docx-addin-csl-bibliography"
+                    ]
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|zotero with +citations|docx/zotero_citations.docx|docx/zotero_citations_plus.native",
+                "label": "zotero with +citations",
+                "targetedCheckId": "citation:zotero",
+                "status": "passed",
+                "fixture": "zotero_citations.docx",
+                "details": {
+                    "provider": "zotero",
+                    "providerSpanCount": 4,
+                    "classes": [
+                        "docx-field",
+                        "docx-field-addin",
+                        "docx-addin-field",
+                        "docx-addin-csl-citation",
+                        "docx-addin-provider-zotero",
+                        "docx-addin-csl-bibliography"
+                    ]
+                }
+            },
+            {
+                "caseKey": "testCompare|mendeley with -citations|docx/mendeley_citations.docx|docx/mendeley_citations_minus.native",
+                "label": "mendeley with -citations",
+                "targetedCheckId": "citation:mendeley",
+                "status": "passed",
+                "fixture": "mendeley_citations.docx",
+                "details": {
+                    "provider": "mendeley",
+                    "providerSpanCount": 4,
+                    "classes": [
+                        "docx-field",
+                        "docx-field-addin",
+                        "docx-addin-field",
+                        "docx-addin-csl-citation",
+                        "docx-addin-provider-mendeley",
+                        "docx-addin-csl-bibliography"
+                    ]
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|mendeley with +citations|docx/mendeley_citations.docx|docx/mendeley_citations_plus.native",
+                "label": "mendeley with +citations",
+                "targetedCheckId": "citation:mendeley",
+                "status": "passed",
+                "fixture": "mendeley_citations.docx",
+                "details": {
+                    "provider": "mendeley",
+                    "providerSpanCount": 4,
+                    "classes": [
+                        "docx-field",
+                        "docx-field-addin",
+                        "docx-addin-field",
+                        "docx-addin-csl-citation",
+                        "docx-addin-provider-mendeley",
+                        "docx-addin-csl-bibliography"
+                    ]
+                }
+            },
+            {
+                "caseKey": "testCompare|insertion (default)|docx/track_changes_insertion.docx|docx/track_changes_insertion_accept.native",
+                "label": "insertion (default)",
+                "targetedCheckId": "revision:track_changes_insertion:accept",
+                "status": "passed",
+                "fixture": "track_changes_insertion.docx",
+                "details": {
+                    "revisionMode": "accept",
+                    "blockTexts": [
+                        "This is a text with two exciting insertions."
+                    ],
+                    "classes": []
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|insert insertion (accept)|docx/track_changes_insertion.docx|docx/track_changes_insertion_accept.native",
+                "label": "insert insertion (accept)",
+                "targetedCheckId": "revision:track_changes_insertion:accept",
+                "status": "passed",
+                "fixture": "track_changes_insertion.docx",
+                "details": {
+                    "revisionMode": "accept",
+                    "blockTexts": [
+                        "This is a text with two exciting insertions."
+                    ],
+                    "classes": []
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|remove insertion (reject)|docx/track_changes_insertion.docx|docx/track_changes_insertion_reject.native",
+                "label": "remove insertion (reject)",
+                "targetedCheckId": "revision:track_changes_insertion:reject",
+                "status": "passed",
+                "fixture": "track_changes_insertion.docx",
+                "details": {
+                    "revisionMode": "reject",
+                    "blockTexts": [
+                        "This is a text with insertions."
+                    ],
+                    "classes": []
+                }
+            },
+            {
+                "caseKey": "testCompare|deletion (default)|docx/track_changes_deletion.docx|docx/track_changes_deletion_accept.native",
+                "label": "deletion (default)",
+                "targetedCheckId": "revision:track_changes_deletion:accept",
+                "status": "passed",
+                "fixture": "track_changes_deletion.docx",
+                "details": {
+                    "revisionMode": "accept",
+                    "blockTexts": [
+                        "This is a text with a deletion."
+                    ],
+                    "classes": []
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|remove deletion (accept)|docx/track_changes_deletion.docx|docx/track_changes_deletion_accept.native",
+                "label": "remove deletion (accept)",
+                "targetedCheckId": "revision:track_changes_deletion:accept",
+                "status": "passed",
+                "fixture": "track_changes_deletion.docx",
+                "details": {
+                    "revisionMode": "accept",
+                    "blockTexts": [
+                        "This is a text with a deletion."
+                    ],
+                    "classes": []
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|insert deletion (reject)|docx/track_changes_deletion.docx|docx/track_changes_deletion_reject.native",
+                "label": "insert deletion (reject)",
+                "targetedCheckId": "revision:track_changes_deletion:reject",
+                "status": "passed",
+                "fixture": "track_changes_deletion.docx",
+                "details": {
+                    "revisionMode": "reject",
+                    "blockTexts": [
+                        "This is a text with an excessively modified deletion."
+                    ],
+                    "classes": []
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|keep insertion (all)|docx/track_changes_deletion.docx|docx/track_changes_deletion_all.native",
+                "label": "keep insertion (all)",
+                "targetedCheckId": "revision:track_changes_deletion:preserve",
+                "status": "passed",
+                "fixture": "track_changes_deletion.docx",
+                "details": {
+                    "revisionMode": "preserve",
+                    "blockTexts": [
+                        "This is a text with an excessively modified deletion."
+                    ],
+                    "classes": [
+                        "deletion"
+                    ]
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|keep deletion (all)|docx/track_changes_deletion.docx|docx/track_changes_deletion_all.native",
+                "label": "keep deletion (all)",
+                "targetedCheckId": "revision:track_changes_deletion:preserve",
+                "status": "passed",
+                "fixture": "track_changes_deletion.docx",
+                "details": {
+                    "revisionMode": "preserve",
+                    "blockTexts": [
+                        "This is a text with an excessively modified deletion."
+                    ],
+                    "classes": [
+                        "deletion"
+                    ]
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|move text (accept)|docx/track_changes_move.docx|docx/track_changes_move_accept.native",
+                "label": "move text (accept)",
+                "targetedCheckId": "revision:track_changes_move:accept",
+                "status": "passed",
+                "fixture": "track_changes_move.docx",
+                "details": {
+                    "revisionMode": "accept",
+                    "blockTexts": [
+                        "Here is some text.",
+                        "Here is the text to be moved.",
+                        "Here is some more text."
+                    ],
+                    "classes": []
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|move text (reject)|docx/track_changes_move.docx|docx/track_changes_move_reject.native",
+                "label": "move text (reject)",
+                "targetedCheckId": "revision:track_changes_move:reject",
+                "status": "passed",
+                "fixture": "track_changes_move.docx",
+                "details": {
+                    "revisionMode": "reject",
+                    "blockTexts": [
+                        "Here is some text.",
+                        "Here is some more text.",
+                        "Here is the text to be moved."
+                    ],
+                    "classes": []
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|move text (all)|docx/track_changes_move.docx|docx/track_changes_move_all.native",
+                "label": "move text (all)",
+                "targetedCheckId": "revision:track_changes_move:preserve",
+                "status": "passed",
+                "fixture": "track_changes_move.docx",
+                "details": {
+                    "revisionMode": "preserve",
+                    "blockTexts": [
+                        "Here is some text.",
+                        "Here is the text to be moved.",
+                        "Here is some more text.",
+                        "Here is the text to be moved."
+                    ],
+                    "classes": [
+                        "insertion.move-to",
+                        "deletion.move-from"
+                    ]
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|comments (accept -- no comments)|docx/comments.docx|docx/comments_no_comments.native",
+                "label": "comments (accept -- no comments)",
+                "targetedCheckId": "comments:accept-no-comments",
+                "status": "passed",
+                "fixture": "comments.docx",
+                "nativeFixture": "comments_no_comments.native",
+                "details": {
+                    "revisionMode": "accept",
+                    "commentsMode": "omit",
+                    "blockTexts": [
+                        "I want some text to have a comment on it.",
+                        "This is a new paragraph.",
+                        "And so is this.",
+                        "One more. And this is one with a comment in a comment."
+                    ],
+                    "classes": [],
+                    "noteCount": 0
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|comments (reject -- comments)|docx/comments.docx|docx/comments_no_comments.native",
+                "label": "comments (reject -- comments)",
+                "targetedCheckId": "comments:reject-no-comments",
+                "status": "passed",
+                "fixture": "comments.docx",
+                "nativeFixture": "comments_no_comments.native",
+                "details": {
+                    "revisionMode": "reject",
+                    "commentsMode": "omit",
+                    "blockTexts": [
+                        "I want some text to have a comment on it.",
+                        "This is a new paragraph.",
+                        "And so is this.",
+                        "One more. And this is one with a comment in a comment."
+                    ],
+                    "classes": [],
+                    "noteCount": 0
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|comments (all comments)|docx/comments.docx|docx/comments.native",
+                "label": "comments (all comments)",
+                "targetedCheckId": "comments:all",
+                "status": "passed",
+                "fixture": "comments.docx",
+                "details": {
+                    "docxComments": 5,
+                    "classes": [
+                        "comment-start",
+                        "comment-end"
+                    ]
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|paragraph insertion/deletion (accept)|docx/paragraph_insertion_deletion.docx|docx/paragraph_insertion_deletion_accept.native",
+                "label": "paragraph insertion/deletion (accept)",
+                "targetedCheckId": "revision:paragraph_insertion_deletion:accept",
+                "status": "passed",
+                "fixture": "paragraph_insertion_deletion.docx",
+                "nativeFixture": "paragraph_insertion_deletion_accept.native",
+                "details": {
+                    "readerOptions": {
+                        "revisionMode": "accept"
+                    },
+                    "blockTexts": [
+                        "This is a",
+                        "split Paragraph."
+                    ],
+                    "normalizedAstFirstDifference": null
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|paragraph insertion/deletion (reject)|docx/paragraph_insertion_deletion.docx|docx/paragraph_insertion_deletion_reject.native",
+                "label": "paragraph insertion/deletion (reject)",
+                "targetedCheckId": "revision:paragraph_insertion_deletion:reject",
+                "status": "passed",
+                "fixture": "paragraph_insertion_deletion.docx",
+                "nativeFixture": "paragraph_insertion_deletion_reject.native",
+                "details": {
+                    "readerOptions": {
+                        "revisionMode": "reject"
+                    },
+                    "blockTexts": [
+                        "This is a split",
+                        "Paragraph."
+                    ],
+                    "normalizedAstFirstDifference": null
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|paragraph insertion/deletion (all)|docx/paragraph_insertion_deletion.docx|docx/paragraph_insertion_deletion_all.native",
+                "label": "paragraph insertion/deletion (all)",
+                "targetedCheckId": "revision:paragraph_insertion_deletion:preserve",
+                "status": "passed",
+                "fixture": "paragraph_insertion_deletion.docx",
+                "nativeFixture": "paragraph_insertion_deletion_all.native",
+                "details": {
+                    "readerOptions": {
+                        "revisionMode": "preserve"
+                    },
+                    "blockTexts": [
+                        "This is a",
+                        "split",
+                        "Paragraph."
+                    ],
+                    "normalizedAstFirstDifference": null
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|paragraph insertion/deletion (all)|docx/track_changes_scrubbed_metadata.docx|docx/track_changes_scrubbed_metadata.native",
+                "label": "paragraph insertion/deletion (all)",
+                "targetedCheckId": "revision:track_changes_scrubbed_metadata:preserve",
+                "status": "passed",
+                "fixture": "track_changes_scrubbed_metadata.docx",
+                "details": {
+                    "classes": [
+                        "deletion",
+                        "insertion",
+                        "comment-start",
+                        "comment-end"
+                    ]
+                }
+            },
+            {
+                "caseKey": "testCompare|custom styles (`+styles`) not enabled (default)|docx/custom-style-reference.docx|docx/custom-style-no-styles.native",
+                "label": "custom styles (`+styles`) not enabled (default)",
+                "targetedCheckId": "custom-style-reference:default",
+                "status": "passed",
+                "fixture": "custom-style-reference.docx",
+                "details": {
+                    "blockTexts": [
+                        "This is some text.",
+                        "This is text with an emphasized text style. And this is text with a strengthened text style.",
+                        ""
+                    ]
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|custom styles (`+styles`) enabled|docx/custom-style-reference.docx|docx/custom-style-with-styles.native",
+                "label": "custom styles (`+styles`) enabled",
+                "targetedCheckId": "custom-style-reference:styles",
+                "status": "passed",
+                "fixture": "custom-style-reference.docx",
+                "nativeFixture": "custom-style-with-styles.native",
+                "details": {
+                    "readerOptions": {
+                        "stylesExtension": true
+                    },
+                    "blockTexts": [
+                        "",
+                        "",
+                        ""
+                    ],
+                    "normalizedAstFirstDifference": null
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|custom styles (`+styles`): Compact style is removed from output|docx/compact-style-removal.docx|docx/compact-style-removal.native",
+                "label": "custom styles (`+styles`): Compact style is removed from output",
+                "targetedCheckId": "compact-style-removal:styles",
+                "status": "passed",
+                "fixture": "compact-style-removal.docx",
+                "details": {
+                    "topType": "ordered_list"
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|metadata fields|docx/metadata.docx|docx/metadata.native",
+                "label": "metadata fields",
+                "targetedCheckId": "metadata:styles",
+                "status": "passed",
+                "fixture": "metadata.docx",
+                "details": {
+                    "title": "This Is the Title",
+                    "authorCount": 2,
+                    "bodyBlockCount": 1
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|stop recording metadata with normal text|docx/metadata_after_normal.docx|docx/metadata_after_normal.native",
+                "label": "stop recording metadata with normal text",
+                "targetedCheckId": "metadata_after_normal:styles",
+                "status": "passed",
+                "fixture": "metadata_after_normal.docx",
+                "details": {
+                    "title": "This Is the Title",
+                    "authorCount": 2,
+                    "bodyBlockCount": 6
+                }
+            },
+            {
+                "caseKey": "testForWarningsWithOpts|comment warnings (accept -- no warnings)|docx/comments_warning.docx|",
+                "label": "comment warnings (accept -- no warnings)",
+                "targetedCheckId": "warning:comments_warning:accept",
+                "status": "passed",
+                "fixture": "comments_warning.docx",
+                "details": {
+                    "revisionMode": "accept",
+                    "docxWarningCount": 0,
+                    "docxWarnings": [],
+                    "docxComments": 1
+                }
+            },
+            {
+                "caseKey": "testForWarningsWithOpts|comment warnings (reject -- no warnings)|docx/comments_warning.docx|",
+                "label": "comment warnings (reject -- no warnings)",
+                "targetedCheckId": "warning:comments_warning:reject",
+                "status": "passed",
+                "fixture": "comments_warning.docx",
+                "details": {
+                    "revisionMode": "reject",
+                    "docxWarningCount": 0,
+                    "docxWarnings": [],
+                    "docxComments": 1
+                }
+            },
+            {
+                "caseKey": "testForWarningsWithOpts|comment warnings (all)|docx/comments_warning.docx|",
+                "label": "comment warnings (all)",
+                "targetedCheckId": "warning:comments_warning:all",
+                "status": "passed",
+                "fixture": "comments_warning.docx",
+                "details": {
+                    "revisionMode": "preserve",
+                    "docxWarnings": [
+                        "Docx comment 1 will not retain formatting"
+                    ],
+                    "docxWarningCount": 1
+                }
+            },
+            {
+                "caseKey": "testForWarningsWithOpts|comments (with styles extension)|docx/comments.docx|",
+                "label": "comments (with styles extension)",
+                "targetedCheckId": "warning:comments-with-styles",
+                "status": "passed",
+                "fixture": "comments.docx",
+                "details": {
+                    "stylesExtension": true,
+                    "docxWarnings": [],
+                    "docxWarningCount": 0,
+                    "docxComments": 5
+                }
+            },
+            {
+                "caseKey": "testMediaBag|image extraction|docx/image.docx|",
+                "label": "image extraction",
+                "targetedCheckId": "media:image",
+                "status": "passed",
+                "fixture": "image.docx",
+                "details": {
+                    "imageUrls": [
+                        "media/image1.jpg"
+                    ],
+                    "mediaBagPaths": [
+                        "media/image1.jpg"
+                    ],
+                    "mediaBagByteLengths": [
+                        22975
+                    ]
+                }
+            },
+            {
+                "caseKey": "testMediaBag|image inside textbox content populates media bag|docx/textbox_image.docx|",
+                "label": "image inside textbox content populates media bag",
+                "targetedCheckId": "media:textbox_image",
+                "status": "passed",
+                "fixture": "textbox_image.docx",
+                "details": {
+                    "imageUrls": [
+                        "media/image1.png"
+                    ],
+                    "mediaBagPaths": [
+                        "media/image1.png"
+                    ],
+                    "mediaBagByteLengths": [
+                        2810
+                    ]
+                }
+            },
+            {
+                "caseKey": "testMediaBag|image inside textbox content with duplicate encoding populates media bag|docx/textbox_image_duplicate_encoding.docx|",
+                "label": "image inside textbox content with duplicate encoding populates media bag",
+                "targetedCheckId": "media:textbox_image_duplicate_encoding",
+                "status": "passed",
+                "fixture": "textbox_image_duplicate_encoding.docx",
+                "details": {
+                    "imageUrls": [
+                        "media/image1.png"
+                    ],
+                    "mediaBagPaths": [
+                        "media/image1.png"
+                    ],
+                    "mediaBagByteLengths": [
+                        2810
+                    ]
+                }
+            },
+            {
+                "caseKey": "testMediaBag|image with textbox caption in same paragraph populates media bag|docx/image_with_textbox_caption.docx|",
+                "label": "image with textbox caption in same paragraph populates media bag",
+                "targetedCheckId": "media:image_with_textbox_caption",
+                "status": "passed",
+                "fixture": "image_with_textbox_caption.docx",
+                "details": {
+                    "imageUrls": [
+                        "media/image1.emf"
+                    ],
+                    "mediaBagPaths": [
+                        "media/image1.emf"
+                    ],
+                    "mediaBagByteLengths": [
+                        82876
+                    ]
+                }
+            }
+        ]
+    },
+    "mappingValidation": {
+        "status": "valid-denominator-map",
+        "issues": []
+    },
+    "caseRows": [
+        {
+            "caseKey": "testCompare|inline image|docx/image.docx|docx/image_no_embed.native",
+            "call": "testCompare",
+            "label": "inline image",
+            "docx": "docx/image.docx",
+            "native": "docx/image_no_embed.native",
+            "inventoryReason": "different-native-expectation-stem",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-media-bag-native-php-check",
+            "focusedEvidence": [
+                "DocxReader image/media metadata plus MediaBag extraction from package media parts"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/src/MediaBag.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "media:image",
+            "limitations": [
+                "does not compare Haskell MediaBag byte map equality",
+                "does not execute upstream testMediaBag"
+            ]
+        },
+        {
+            "caseKey": "testCompare|zotero with -citations|docx/zotero_citations.docx|docx/zotero_citations_minus.native",
+            "call": "testCompare",
+            "label": "zotero with -citations",
+            "docx": "docx/zotero_citations.docx",
+            "native": "docx/zotero_citations_minus.native",
+            "inventoryReason": "different-native-expectation-stem",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-citation-addin-native-php-check",
+            "focusedEvidence": [
+                "visible citation text and Zotero add-in provenance are parsed from DOCX fields"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxGeneratedFieldMetadataTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "citation:zotero",
+            "limitations": [
+                "does not run citeproc",
+                "does not compare Haskell citation extension AST equality"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|zotero with +citations|docx/zotero_citations.docx|docx/zotero_citations_plus.native",
+            "call": "testCompareWithOpts",
+            "label": "zotero with +citations",
+            "docx": "docx/zotero_citations.docx",
+            "native": "docx/zotero_citations_plus.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-citation-addin-native-php-check",
+            "focusedEvidence": [
+                "Zotero CSL citation add-in spans preserve payload metadata"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxGeneratedFieldMetadataTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "citation:zotero",
+            "limitations": [
+                "does not run citeproc",
+                "does not compare Haskell citation extension AST equality"
+            ]
+        },
+        {
+            "caseKey": "testCompare|mendeley with -citations|docx/mendeley_citations.docx|docx/mendeley_citations_minus.native",
+            "call": "testCompare",
+            "label": "mendeley with -citations",
+            "docx": "docx/mendeley_citations.docx",
+            "native": "docx/mendeley_citations_minus.native",
+            "inventoryReason": "different-native-expectation-stem",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-citation-addin-native-php-check",
+            "focusedEvidence": [
+                "visible citation text and Mendeley add-in provenance are parsed from generic CSL_CITATION fields"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxGeneratedFieldMetadataTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "citation:mendeley",
+            "limitations": [
+                "does not run citeproc",
+                "does not compare Haskell citation extension AST equality"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|mendeley with +citations|docx/mendeley_citations.docx|docx/mendeley_citations_plus.native",
+            "call": "testCompareWithOpts",
+            "label": "mendeley with +citations",
+            "docx": "docx/mendeley_citations.docx",
+            "native": "docx/mendeley_citations_plus.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-citation-addin-native-php-check",
+            "focusedEvidence": [
+                "Mendeley CSL citation add-in spans preserve payload metadata"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxGeneratedFieldMetadataTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "citation:mendeley",
+            "limitations": [
+                "does not run citeproc",
+                "does not compare Haskell citation extension AST equality"
+            ]
+        },
+        {
+            "caseKey": "testCompare|insertion (default)|docx/track_changes_insertion.docx|docx/track_changes_insertion_accept.native",
+            "call": "testCompare",
+            "label": "insertion (default)",
+            "docx": "docx/track_changes_insertion.docx",
+            "native": "docx/track_changes_insertion_accept.native",
+            "inventoryReason": "different-native-expectation-stem",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-revision-mode-native-php-check",
+            "focusedEvidence": [
+                "explicit local revisionMode=accept produces the upstream accept text for insertion changes"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "revision:track_changes_insertion:accept",
+            "limitations": [
+                "does not prove local default revisionMode equals Haskell default"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|insert insertion (accept)|docx/track_changes_insertion.docx|docx/track_changes_insertion_accept.native",
+            "call": "testCompareWithOpts",
+            "label": "insert insertion (accept)",
+            "docx": "docx/track_changes_insertion.docx",
+            "native": "docx/track_changes_insertion_accept.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-revision-mode-native-php-check",
+            "focusedEvidence": [
+                "local revisionMode=accept keeps inserted text without residual change spans"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "revision:track_changes_insertion:accept",
+            "limitations": [
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|remove insertion (reject)|docx/track_changes_insertion.docx|docx/track_changes_insertion_reject.native",
+            "call": "testCompareWithOpts",
+            "label": "remove insertion (reject)",
+            "docx": "docx/track_changes_insertion.docx",
+            "native": "docx/track_changes_insertion_reject.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-revision-mode-native-php-check",
+            "focusedEvidence": [
+                "local revisionMode=reject removes inserted text without residual change spans"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "revision:track_changes_insertion:reject",
+            "limitations": [
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompare|deletion (default)|docx/track_changes_deletion.docx|docx/track_changes_deletion_accept.native",
+            "call": "testCompare",
+            "label": "deletion (default)",
+            "docx": "docx/track_changes_deletion.docx",
+            "native": "docx/track_changes_deletion_accept.native",
+            "inventoryReason": "different-native-expectation-stem",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-revision-mode-native-php-check",
+            "focusedEvidence": [
+                "explicit local revisionMode=accept produces the upstream accept text for deletion changes"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "revision:track_changes_deletion:accept",
+            "limitations": [
+                "does not prove local default revisionMode equals Haskell default"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|remove deletion (accept)|docx/track_changes_deletion.docx|docx/track_changes_deletion_accept.native",
+            "call": "testCompareWithOpts",
+            "label": "remove deletion (accept)",
+            "docx": "docx/track_changes_deletion.docx",
+            "native": "docx/track_changes_deletion_accept.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-revision-mode-native-php-check",
+            "focusedEvidence": [
+                "local revisionMode=accept removes deleted text without residual change spans"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "revision:track_changes_deletion:accept",
+            "limitations": [
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|insert deletion (reject)|docx/track_changes_deletion.docx|docx/track_changes_deletion_reject.native",
+            "call": "testCompareWithOpts",
+            "label": "insert deletion (reject)",
+            "docx": "docx/track_changes_deletion.docx",
+            "native": "docx/track_changes_deletion_reject.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-revision-mode-native-php-check",
+            "focusedEvidence": [
+                "local revisionMode=reject keeps deleted text without residual change spans"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "revision:track_changes_deletion:reject",
+            "limitations": [
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|keep insertion (all)|docx/track_changes_deletion.docx|docx/track_changes_deletion_all.native",
+            "call": "testCompareWithOpts",
+            "label": "keep insertion (all)",
+            "docx": "docx/track_changes_deletion.docx",
+            "native": "docx/track_changes_deletion_all.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-revision-mode-native-php-check",
+            "focusedEvidence": [
+                "local revisionMode=preserve keeps tracked deletion provenance for all-changes output"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "revision:track_changes_deletion:preserve",
+            "limitations": [
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|keep deletion (all)|docx/track_changes_deletion.docx|docx/track_changes_deletion_all.native",
+            "call": "testCompareWithOpts",
+            "label": "keep deletion (all)",
+            "docx": "docx/track_changes_deletion.docx",
+            "native": "docx/track_changes_deletion_all.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-revision-mode-native-php-check",
+            "focusedEvidence": [
+                "local revisionMode=preserve keeps tracked deletion provenance for all-changes output"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "revision:track_changes_deletion:preserve",
+            "limitations": [
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|move text (accept)|docx/track_changes_move.docx|docx/track_changes_move_accept.native",
+            "call": "testCompareWithOpts",
+            "label": "move text (accept)",
+            "docx": "docx/track_changes_move.docx",
+            "native": "docx/track_changes_move_accept.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-revision-mode-native-php-check",
+            "focusedEvidence": [
+                "local revisionMode=accept keeps moved-to text at the accepted position"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "revision:track_changes_move:accept",
+            "limitations": [
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|move text (reject)|docx/track_changes_move.docx|docx/track_changes_move_reject.native",
+            "call": "testCompareWithOpts",
+            "label": "move text (reject)",
+            "docx": "docx/track_changes_move.docx",
+            "native": "docx/track_changes_move_reject.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-revision-mode-native-php-check",
+            "focusedEvidence": [
+                "local revisionMode=reject keeps moved-from text at the rejected position"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "revision:track_changes_move:reject",
+            "limitations": [
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|move text (all)|docx/track_changes_move.docx|docx/track_changes_move_all.native",
+            "call": "testCompareWithOpts",
+            "label": "move text (all)",
+            "docx": "docx/track_changes_move.docx",
+            "native": "docx/track_changes_move_all.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-revision-mode-native-php-check",
+            "focusedEvidence": [
+                "local revisionMode=preserve keeps paired move-from and move-to provenance"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "revision:track_changes_move:preserve",
+            "limitations": [
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|comments (accept -- no comments)|docx/comments.docx|docx/comments_no_comments.native",
+            "call": "testCompareWithOpts",
+            "label": "comments (accept -- no comments)",
+            "docx": "docx/comments.docx",
+            "native": "docx/comments_no_comments.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-comments-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader revisionMode=accept plus commentsMode=omit matches upstream no-comments native block text"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/MarkdownReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "comments:accept-no-comments",
+            "limitations": [
+                "local explicit commentsMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|comments (reject -- comments)|docx/comments.docx|docx/comments_no_comments.native",
+            "call": "testCompareWithOpts",
+            "label": "comments (reject -- comments)",
+            "docx": "docx/comments.docx",
+            "native": "docx/comments_no_comments.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-comments-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader revisionMode=reject plus commentsMode=omit matches upstream no-comments native block text"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/MarkdownReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "comments:reject-no-comments",
+            "limitations": [
+                "local explicit commentsMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|comments (all comments)|docx/comments.docx|docx/comments.native",
+            "call": "testCompareWithOpts",
+            "label": "comments (all comments)",
+            "docx": "docx/comments.docx",
+            "native": "docx/comments.native",
+            "inventoryReason": "non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-comments-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader loads comments.xml records and exposes comment-start/comment-end spans"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/MarkdownReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "comments:all",
+            "limitations": [
+                "does not cover accept/reject no-comment ReaderOptions"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|paragraph insertion/deletion (accept)|docx/paragraph_insertion_deletion.docx|docx/paragraph_insertion_deletion_accept.native",
+            "call": "testCompareWithOpts",
+            "label": "paragraph insertion/deletion (accept)",
+            "docx": "docx/paragraph_insertion_deletion.docx",
+            "native": "docx/paragraph_insertion_deletion_accept.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-revision-mode-native-ast-php-check",
+            "focusedEvidence": [
+                "local DOCX revisionMode=accept matches the upstream native paragraph-break expectation"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "revision:paragraph_insertion_deletion:accept",
+            "limitations": [
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|paragraph insertion/deletion (reject)|docx/paragraph_insertion_deletion.docx|docx/paragraph_insertion_deletion_reject.native",
+            "call": "testCompareWithOpts",
+            "label": "paragraph insertion/deletion (reject)",
+            "docx": "docx/paragraph_insertion_deletion.docx",
+            "native": "docx/paragraph_insertion_deletion_reject.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-revision-mode-native-ast-php-check",
+            "focusedEvidence": [
+                "local DOCX revisionMode=reject matches the upstream native paragraph-break expectation"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "revision:paragraph_insertion_deletion:reject",
+            "limitations": [
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|paragraph insertion/deletion (all)|docx/paragraph_insertion_deletion.docx|docx/paragraph_insertion_deletion_all.native",
+            "call": "testCompareWithOpts",
+            "label": "paragraph insertion/deletion (all)",
+            "docx": "docx/paragraph_insertion_deletion.docx",
+            "native": "docx/paragraph_insertion_deletion_all.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-revision-mode-native-ast-php-check",
+            "focusedEvidence": [
+                "local DOCX revisionMode=preserve matches the upstream native paragraph-break expectation"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "revision:paragraph_insertion_deletion:preserve",
+            "limitations": [
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|paragraph insertion/deletion (all)|docx/track_changes_scrubbed_metadata.docx|docx/track_changes_scrubbed_metadata.native",
+            "call": "testCompareWithOpts",
+            "label": "paragraph insertion/deletion (all)",
+            "docx": "docx/track_changes_scrubbed_metadata.docx",
+            "native": "docx/track_changes_scrubbed_metadata.native",
+            "inventoryReason": "non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-revision-mode-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader preserves scrubbed review authors without inventing dates"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "revision:track_changes_scrubbed_metadata:preserve",
+            "limitations": [
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompare|custom styles (`+styles`) not enabled (default)|docx/custom-style-reference.docx|docx/custom-style-no-styles.native",
+            "call": "testCompare",
+            "label": "custom styles (`+styles`) not enabled (default)",
+            "docx": "docx/custom-style-reference.docx",
+            "native": "docx/custom-style-no-styles.native",
+            "inventoryReason": "different-native-expectation-stem",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-style-default-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader default output does not leak custom-style attributes"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/MarkdownReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "custom-style-reference:default",
+            "limitations": [
+                "does not prove Haskell default AST equality"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|custom styles (`+styles`) enabled|docx/custom-style-reference.docx|docx/custom-style-with-styles.native",
+            "call": "testCompareWithOpts",
+            "label": "custom styles (`+styles`) enabled",
+            "docx": "docx/custom-style-reference.docx",
+            "native": "docx/custom-style-with-styles.native",
+            "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-style-native-ast-php-check",
+            "focusedEvidence": [
+                "local DOCX stylesExtension output matches the upstream native custom-style expectation"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/MarkdownReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "custom-style-reference:styles",
+            "limitations": [
+                "local stylesExtension evidence is not an upstream Haskell ReaderOptions run"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|custom styles (`+styles`): Compact style is removed from output|docx/compact-style-removal.docx|docx/compact-style-removal.native",
+            "call": "testCompareWithOpts",
+            "label": "custom styles (`+styles`): Compact style is removed from output",
+            "docx": "docx/compact-style-removal.docx",
+            "native": "docx/compact-style-removal.native",
+            "inventoryReason": "non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-style-default-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader parses Compact-style list output without leaking Compact as a class"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/MarkdownReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "compact-style-removal:styles",
+            "limitations": [
+                "does not prove Haskell +styles AST equality"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|metadata fields|docx/metadata.docx|docx/metadata.native",
+            "call": "testCompareWithOpts",
+            "label": "metadata fields",
+            "docx": "docx/metadata.docx",
+            "native": "docx/metadata.native",
+            "inventoryReason": "non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-metadata-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader collects leading Title/Author/Date/Abstract style paragraphs as metadata"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/MarkdownReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "metadata:styles",
+            "limitations": [
+                "does not prove Haskell +styles AST equality"
+            ]
+        },
+        {
+            "caseKey": "testCompareWithOpts|stop recording metadata with normal text|docx/metadata_after_normal.docx|docx/metadata_after_normal.native",
+            "call": "testCompareWithOpts",
+            "label": "stop recording metadata with normal text",
+            "docx": "docx/metadata_after_normal.docx",
+            "native": "docx/metadata_after_normal.native",
+            "inventoryReason": "non-default-reader-options",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-metadata-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader stops metadata collection after normal text and keeps later metadata-styled paragraphs visible"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/MarkdownReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "metadata_after_normal:styles",
+            "limitations": [
+                "does not prove Haskell +styles AST equality"
+            ]
+        },
+        {
+            "caseKey": "testForWarningsWithOpts|comment warnings (accept -- no warnings)|docx/comments_warning.docx|",
+            "call": "testForWarningsWithOpts",
+            "label": "comment warnings (accept -- no warnings)",
+            "docx": "docx/comments_warning.docx",
+            "native": null,
+            "inventoryReason": "warning-only-no-native-comparison",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-docx-warning-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader revisionMode=accept exposes an empty bounded docxWarnings metadata list for comments_warning.docx"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "warning:comments_warning:accept",
+            "limitations": [
+                "focused warning metadata check; does not execute upstream testForWarningsWithOpts"
+            ]
+        },
+        {
+            "caseKey": "testForWarningsWithOpts|comment warnings (reject -- no warnings)|docx/comments_warning.docx|",
+            "call": "testForWarningsWithOpts",
+            "label": "comment warnings (reject -- no warnings)",
+            "docx": "docx/comments_warning.docx",
+            "native": null,
+            "inventoryReason": "warning-only-no-native-comparison",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-docx-warning-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader revisionMode=reject exposes an empty bounded docxWarnings metadata list for comments_warning.docx"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "warning:comments_warning:reject",
+            "limitations": [
+                "focused warning metadata check; does not execute upstream testForWarningsWithOpts"
+            ]
+        },
+        {
+            "caseKey": "testForWarningsWithOpts|comment warnings (all)|docx/comments_warning.docx|",
+            "call": "testForWarningsWithOpts",
+            "label": "comment warnings (all)",
+            "docx": "docx/comments_warning.docx",
+            "native": null,
+            "inventoryReason": "warning-only-no-native-comparison",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-docx-warning-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader exposes the upstream all-comments DocxParserWarning text for non-inline comment body formatting loss"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "warning:comments_warning:all",
+            "limitations": [
+                "focused warning metadata check; does not execute upstream testForWarningsWithOpts"
+            ]
+        },
+        {
+            "caseKey": "testForWarningsWithOpts|comments (with styles extension)|docx/comments.docx|",
+            "call": "testForWarningsWithOpts",
+            "label": "comments (with styles extension)",
+            "docx": "docx/comments.docx",
+            "native": null,
+            "inventoryReason": "warning-only-no-native-comparison",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-docx-warning-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader verifies comments.docx +styles has no comment-formatting-loss warnings"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "warning:comments-with-styles",
+            "limitations": [
+                "focused warning metadata check; does not execute upstream testForWarningsWithOpts"
+            ]
+        },
+        {
+            "caseKey": "testMediaBag|image extraction|docx/image.docx|",
+            "call": "testMediaBag",
+            "label": "image extraction",
+            "docx": "docx/image.docx",
+            "native": null,
+            "inventoryReason": "media-bag-only-no-native-comparison",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-media-bag-native-php-check",
+            "focusedEvidence": [
+                "DocxReader image/media metadata plus MediaBag extraction from package media parts"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/src/MediaBag.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "media:image",
+            "limitations": [
+                "does not compare Haskell MediaBag byte map equality",
+                "does not execute upstream testMediaBag"
+            ]
+        },
+        {
+            "caseKey": "testMediaBag|image inside textbox content populates media bag|docx/textbox_image.docx|",
+            "call": "testMediaBag",
+            "label": "image inside textbox content populates media bag",
+            "docx": "docx/textbox_image.docx",
+            "native": null,
+            "inventoryReason": "media-bag-only-no-native-comparison",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-media-bag-native-php-check",
+            "focusedEvidence": [
+                "DocxReader image/media metadata plus MediaBag extraction from package media parts"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/src/MediaBag.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "media:textbox_image",
+            "limitations": [
+                "does not compare Haskell MediaBag byte map equality",
+                "does not execute upstream testMediaBag"
+            ]
+        },
+        {
+            "caseKey": "testMediaBag|image inside textbox content with duplicate encoding populates media bag|docx/textbox_image_duplicate_encoding.docx|",
+            "call": "testMediaBag",
+            "label": "image inside textbox content with duplicate encoding populates media bag",
+            "docx": "docx/textbox_image_duplicate_encoding.docx",
+            "native": null,
+            "inventoryReason": "media-bag-only-no-native-comparison",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-media-bag-native-php-check",
+            "focusedEvidence": [
+                "DocxReader image/media metadata plus MediaBag extraction from package media parts"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/src/MediaBag.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "media:textbox_image_duplicate_encoding",
+            "limitations": [
+                "does not compare Haskell MediaBag byte map equality",
+                "does not execute upstream testMediaBag"
+            ]
+        },
+        {
+            "caseKey": "testMediaBag|image with textbox caption in same paragraph populates media bag|docx/image_with_textbox_caption.docx|",
+            "call": "testMediaBag",
+            "label": "image with textbox caption in same paragraph populates media bag",
+            "docx": "docx/image_with_textbox_caption.docx",
+            "native": null,
+            "inventoryReason": "media-bag-only-no-native-comparison",
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-media-bag-native-php-check",
+            "focusedEvidence": [
+                "DocxReader image/media metadata plus MediaBag extraction from package media parts"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/src/MediaBag.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "media:image_with_textbox_caption",
+            "limitations": [
+                "does not compare Haskell MediaBag byte map equality",
+                "does not execute upstream testMediaBag"
+            ]
+        }
+    ]
+}

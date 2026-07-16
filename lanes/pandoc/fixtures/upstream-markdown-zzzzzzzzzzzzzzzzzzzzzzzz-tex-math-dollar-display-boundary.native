@@ -1,0 +1,4 @@
+[ Para [ Str "Before" , Space , Str "display:" ]
+, Para [ Math DisplayMath "x^2 + y^2 = z^2" ]
+, Para [ Str "After." ]
+]

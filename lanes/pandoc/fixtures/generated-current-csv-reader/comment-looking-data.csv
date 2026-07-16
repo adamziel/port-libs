@@ -1,0 +1,4 @@
+marker,value,note
+#not-a-comment,1,# stays data
+;also-data,2,"# quoted, comma"
+//literal,3,done

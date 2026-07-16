@@ -1,0 +1,23 @@
+# Real upstream corpus: UPSERT RETURNING dynamic extension
+
+- Micro-slice: `real-upstream-corpus-upsert-returning-dynamic-20260530T170314Z-0`
+- Accepted base: `45c7c0b7038266bad342ad051199ea41c2a0cb28`
+- Upstream source truth:
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/upsert4.test`
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/upsert5.test`
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/returning1.test`
+- Ported scenarios:
+  - Existing file retained the prior real `upsert5.test` generalized UPSERT and `returning1.test` coverage.
+  - Added non-overlapping `upsert4.test` sections `6.2.2` through `6.2.5`: `INSERT OR REPLACE` conflict processing is preempted by explicit `ON CONFLICT ... DO NOTHING` or `DO UPDATE`, preserving table/index integrity and RETURNING only changed rows.
+  - Added `upsert4.test` section `7.1` through `7.4`: `excluded` values, reversed composite conflict-target order, qualified target-row references, and target aliases over rowid and WITHOUT ROWID layouts.
+  - Added `upsert4.test` section `8.1` through `8.4`: a table named `excluded`, quoted `[a b]` conflict targets, table-alias disambiguation, and `WHERE` predicates over current vs incoming rows.
+  - Added `upsert4.test` section `9.1`: repeated trigger-style UPSERT histogram aggregation.
+- Behavior fix: `SQLiteUpsertDoUpdateWherePlan` now accepts generic non-empty row keys as conflict-target column names, allowing quoted SQLite identifiers such as upstream `[a b]` after dequoting while still rejecting empty or non-string names.
+- Focused assertion count: `2655` in `SQLiteRealUpstreamUpsertReturningDynamicTest.php`, up from the prior `1601`, for a focused delta of `+1054`.
+- Non-overlap: this does not repeat the prior accepted `upsert5.test` multi-arm section `1.$tn.100` through `1.$tn.505`, `returning1.test` projection checks, trigger/savepoint RETURNING, recursive view UPSERT, or row-value RETURNING coverage. The new assertions are specifically `upsert4.test` conflict-target, quoted-identifier, `excluded`, REPLACE-precedence, and trigger-style aggregation behavior.
+- Dependency closure: no new support component is needed; the batch reuses the lane-local `SQLiteUpsertDoUpdateWherePlan` row-array model and focused TestRunner.
+- Verification:
+  - `php -l lanes/libsqlite/src/SQLiteUpsertDoUpdateWherePlan.php`
+  - `php -l lanes/libsqlite/tests/SQLiteRealUpstreamUpsertReturningDynamicTest.php`
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamUpsertReturningDynamicTest.php`
+  - Result: `1 test files, 2655 assertions, 0 failures`

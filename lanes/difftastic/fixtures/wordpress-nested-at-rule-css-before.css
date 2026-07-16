@@ -1,0 +1,17 @@
+@media (min-width: 782px) {
+  .wp-block-image {
+    margin: 0;
+  }
+
+  .wp-block-acme-card {
+    padding: 16px;
+    color: var(--wp--preset--color--primary);
+  }
+}
+
+@supports (display: grid) {
+  .wp-block-acme-card {
+    display: grid;
+    gap: 1rem;
+  }
+}

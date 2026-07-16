@@ -1,0 +1,9 @@
+[ Table ( "" , [  ] , [  ] ) (Caption Nothing []) [ ( AlignDefault , ColWidthDefault ) , ( AlignDefault , ColWidthDefault ) , ( AlignDefault , ColWidthDefault ) ] (TableHead ( "" , [  ] , [  ] ) [  ]) [ TableBody ( "" , [  ] , [  ] ) (RowHeadColumns 0) [  ] [ Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "A-1" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "10" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "ready" ]
+  ] ] , Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "B-2" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "needs" , Space , Str "review" ]
+  ] ] , Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "C-3" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "5" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [] ] ] ] (TableFoot ( "" , [  ] , [  ] ) [  ])
+]

@@ -1,0 +1,10 @@
+[ Para
+    [ Str "Before"
+    , Space
+    , Span
+        ( "" , [ "mark" ] , [] )
+        [ Str "flagged" , Space , Strong [ Str "claim" ] ]
+    , Space
+    , Str "after."
+    ]
+]

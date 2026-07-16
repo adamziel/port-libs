@@ -1,0 +1,84 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter.xhtml_start" , [ "section" ] , [] )
+    [ Header
+        1
+        ( "" , [] , [] )
+        [ Str "Metadata"
+        , Space
+        , Str "Search"
+        , Space
+        , Str "Link"
+        , Space
+        , Str "Semantics"
+        ]
+    , Para
+        [ Span
+            ( ""
+            , [ "abbr" ]
+            , [ ( "title" , "Electronic Publication" ) ]
+            )
+            [ Str "EPUB" ]
+        , Space
+        , Quoted
+            DoubleQuote
+            [ Span
+                ( ""
+                , []
+                , [ ( "cite" , "https://example.invalid/quote" ) ]
+                )
+                [ Str "search" ]
+            ]
+        , Space
+        , Str "metadata"
+        , Space
+        , Str "points"
+        , Space
+        , Str "at"
+        , Space
+        , Code ( "" , [] , [] ) "search.xml"
+        , Str "."
+        ]
+    , Div
+        ( "" , [ "aside" , "sidebar" ] , [] )
+        [ Para
+            [ Str "Sidebar"
+            , Space
+            , Str "note"
+            , Space
+            , Str "keeps"
+            , Space
+            , Str "package-link"
+            , Space
+            , Str "evidence"
+            , Space
+            , Str "adjacent"
+            , Space
+            , Str "to"
+            , Space
+            , Str "reader"
+            , Space
+            , Str "output."
+            ]
+        ]
+    , OrderedList
+        ( 3 , DefaultStyle , DefaultDelim )
+        [ [ Plain
+              [ Str "Third"
+              , Space
+              , Str "indexed"
+              , Space
+              , Str "item"
+              ]
+          ]
+        , [ Plain
+              [ Str "Fourth"
+              , Space
+              , Str "indexed"
+              , Space
+              , Str "item"
+              ]
+          ]
+        ]
+    ]
+]

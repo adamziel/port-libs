@@ -1,0 +1,18 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Raw" , Space , Str "media" , Space , Str "source" ]
+, RawBlock
+    (Format "html")
+    "<video controls=\"controls\" src=\"video/main.mp4\" poster=\"images/poster.png\">"
+, RawBlock
+    (Format "html")
+    "<source src=\"video/fallback.mp4\" type=\"video/mp4\">"
+, RawBlock (Format "html") "</source>"
+, RawBlock
+    (Format "html")
+    "<track default=\"default\" kind=\"captions\" src=\"captions/en.vtt\" srclang=\"en\" label=\"English\">"
+, RawBlock (Format "html") "</track>"
+, RawBlock (Format "html") "</video>"
+]

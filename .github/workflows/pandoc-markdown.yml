@@ -1,0 +1,165 @@
+name: Pandoc Markdown parity
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pandoc-markdown.yml'
+      - 'lanes/pandoc/**'
+      - 'tools/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/pandoc-markdown.yml'
+      - 'lanes/pandoc/**'
+      - 'tools/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PANDOC_MARKDOWN_UPSTREAM_PINNED_COMMIT: 4f5226df4faa0d66dd2c089465b13886360ab3c2
+
+jobs:
+  focused-markdown:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, intl, mbstring, zip
+          coverage: none
+
+      - name: Lint Markdown parity files
+        run: |
+          php -l lanes/pandoc/src/AstNode.php
+          php -l lanes/pandoc/src/CssDeclarationScanner.php
+          php -l lanes/pandoc/src/HtmlSourceScanner.php
+          php -l lanes/pandoc/src/MarkdownFormatProfile.php
+          php -l lanes/pandoc/src/MarkdownNativeAstComparisonHarness.php
+          php -l lanes/pandoc/src/MarkdownReader.php
+          php -l lanes/pandoc/src/MarkdownUpstreamReaderEvidence.php
+          php -l lanes/pandoc/src/NativeReader.php
+          php -l lanes/pandoc/src/NativeWriter.php
+          php -l lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderFancyListFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderBareUriGitFileSchemesFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderBareUriPathPunctuationFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderBareUriRawHtmlAnchorFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderBlankBeforeBlockBoundaryProfileTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderDefinitionListFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderDestinationValidationCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderGfmDefinitionListProfileFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderGfmMathFenceProfileCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderGithubYamlProfileCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderImplicitHeaderReferenceFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderInlineCodeListMarkerCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderMmdReferenceImageAttributeFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderMultipleMetadataBlockFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderNestedInlineLinkBoundaryFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderNumberedExampleRawBlockBoundarySurgeTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderPathologicalInputHardeningTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderRawHtmlBlockSurgeTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderTableAttributeProfileFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderTwoSpaceLineBreakFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownUpstreamReaderEvidenceTest.php
+          php -l tools/pandoc-markdown-native-ast.php
+          php -l tools/pandoc-markdown-reader-evidence.php
+          php -l tools/pandoc-reader-runner-artifact.php
+
+      - name: Restore pinned Pandoc Markdown upstream cache
+        id: pandoc-markdown-upstream-cache
+        uses: actions/cache@v4
+        with:
+          path: .upstream-cache/pandoc-current
+          key: pandoc-markdown-upstream-sparse-v1-${{ runner.os }}-${{ env.PANDOC_MARKDOWN_UPSTREAM_PINNED_COMMIT }}
+
+      - name: Hydrate pinned Pandoc Markdown upstream cache
+        if: steps.pandoc-markdown-upstream-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          target=.upstream-cache/pandoc-current
+          mkdir -p "$(dirname "$target")"
+          git init "$target"
+          git -C "$target" remote add origin https://github.com/jgm/pandoc.git
+          git -C "$target" sparse-checkout init --no-cone
+          git -C "$target" sparse-checkout set \
+            /test/Tests/Readers/Markdown.hs \
+            /src/Text/Pandoc/Readers/Markdown.hs
+          git -C "$target" fetch --depth=1 --filter=blob:none origin "$PANDOC_MARKDOWN_UPSTREAM_PINNED_COMMIT"
+          git -C "$target" switch --detach FETCH_HEAD
+
+      - name: Verify pinned Pandoc Markdown upstream cache
+        run: |
+          set -euo pipefail
+          target=.upstream-cache/pandoc-current
+          test "$(git -C "$target" rev-parse HEAD)" = "$PANDOC_MARKDOWN_UPSTREAM_PINNED_COMMIT"
+          test -f "$target/test/Tests/Readers/Markdown.hs"
+          test -f "$target/src/Text/Pandoc/Readers/Markdown.hs"
+
+      - name: Require upstream Markdown reader evidence
+        run: |
+          php tools/pandoc-markdown-reader-evidence.php \
+            --upstream-root=.upstream-cache/pandoc-current \
+            --json \
+            --require-selected-fixture-count=137 \
+            --require-static-current-evidence \
+            --require-native-mapped-parity=137 \
+            --require-runner-not-run \
+            --require-runner-plan \
+            --require-no-validation-issues
+
+      - name: Require checked-in Markdown native AST parity
+        run: |
+          php tools/pandoc-markdown-native-ast.php \
+            --markdown-dir=lanes/pandoc/fixtures \
+            --json \
+            summary \
+            --require-mapped-parity=137
+
+      - name: Run focused Markdown parity tests
+        run: |
+          php tools/run-tests.php \
+            lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php \
+            lanes/pandoc/tests/MarkdownReaderAngleAutolinkResidualTest.php \
+            lanes/pandoc/tests/MarkdownReaderAttributedSuperscriptFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderAtxHeadingSpaceProfileSurgeTest.php \
+            lanes/pandoc/tests/MarkdownReaderBareUriGitFileSchemesFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderBareUriPathPunctuationFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderBareUriRawHtmlAnchorFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderBareUriQueryBoundaryFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderBareUriSchemeBoundaryFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderBlankBeforeBlockBoundaryProfileTest.php \
+            lanes/pandoc/tests/MarkdownReaderCodeSpanFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderDefinitionListBodyFinalHarvestTest.php \
+            lanes/pandoc/tests/MarkdownReaderDefinitionListFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderDestinationValidationCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderFancyListFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderGfmDefinitionListProfileFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderGfmMathFenceProfileCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderGithubYamlProfileCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderGfmNestedListContinuationFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderGfmRawHtmlSplitAngleBoundaryFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderGridTableSpanFixtureTest.php \
+            lanes/pandoc/tests/MarkdownReaderImplicitHeaderReferenceFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderInlineCodeListMarkerCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderInlineMathFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderMarkExtensionProfileCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderMmdReferenceImageAttributeFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderMultipleMetadataBlockFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderNestedInlineLinkBoundaryFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderNumberedExampleRawBlockBoundarySurgeTest.php \
+            lanes/pandoc/tests/MarkdownReaderOldDashesProfileFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderPathologicalInputHardeningTest.php \
+            lanes/pandoc/tests/MarkdownReaderRawHtmlBlockSurgeTest.php \
+            lanes/pandoc/tests/MarkdownReaderRawCodeProfileOverrideSurgeTest.php \
+            lanes/pandoc/tests/MarkdownReaderStartnumProfileFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderTableAttributeProfileFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderTaskListProfileSurgeTest.php \
+            lanes/pandoc/tests/MarkdownReaderTwoSpaceLineBreakFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownUpstreamReaderEvidenceTest.php

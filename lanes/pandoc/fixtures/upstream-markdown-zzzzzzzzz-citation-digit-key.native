@@ -1,0 +1,14 @@
+[ Para
+    [ Cite
+        [ Citation
+            { citationId = "1657:huyghens"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = AuthorInText
+            , citationNoteNum = 1
+            , citationHash = 0
+            }
+        ]
+        [ Str "@1657:huyghens" ]
+    ]
+]

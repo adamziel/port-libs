@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+<title>HTML MathML Annotation Import</title>
+</head>
+<body>
+<p>Inline equation:
+<math>
+  <semantics>
+    <mrow><msup><mi>x</mi><mn>2</mn></msup></mrow>
+    <annotation encoding="application/x-tex">x^2</annotation>
+  </semantics>
+</math>
+and fallback:
+<math data-source="mathml-only"><mrow><mi>y</mi><mo>+</mo><mn>1</mn></mrow></math>.</p>
+<p>Assistive source:
+<span class="MJX_Assistive_MathML">
+  <math display="block">
+    <semantics>
+      <mrow><mi>E</mi><mo>=</mo><mi>m</mi><msup><mi>c</mi><mn>2</mn></msup></mrow>
+      <annotation encoding="application/x-tex">E=mc^2</annotation>
+    </semantics>
+  </math>
+</span>
+</p>
+</body>
+</html>

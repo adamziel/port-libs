@@ -1,0 +1,31 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Figure"
+    , Space
+    , Str "Caption"
+    , Space
+    , Str "Spine"
+    ]
+, Figure
+    ( "chart-figure" , [] , [] )
+    (Caption
+       Nothing
+       [ Plain
+           [ Str "Quarterly"
+           , Space
+           , Str "chart"
+           , Space
+           , Str "caption."
+           ]
+       ])
+    [ Plain
+        [ Image
+            ( "" , [] , [] )
+            [ Str "Quarterly" , Space , Str "chart" ]
+            ( "images/chart.png" , "" )
+        ]
+    ]
+, Para [ Str "After" , Space , Str "figure." ]
+]

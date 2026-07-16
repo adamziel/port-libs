@@ -1,0 +1,24 @@
+[ Para
+    [ Str "Revision"
+    , Space
+    , Str "del"
+    , Space
+    , Str "lote:"
+    , Space
+    , Str "conservar"
+    , Space
+    , Str "idioma"
+    , Space
+    , Str "de"
+    , Space
+    , Str "origen"
+    , Space
+    , Str "para"
+    , Space
+    , Str "la"
+    , Space
+    , Str "revision"
+    , Space
+    , Str "editorial."
+    ]
+]

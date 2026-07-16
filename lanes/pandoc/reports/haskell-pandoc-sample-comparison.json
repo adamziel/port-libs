@@ -1,0 +1,2134 @@
+{
+    "schemaVersion": 1,
+    "tool": "pandoc-reader-executable-sample-report",
+    "generatedAt": "2026-07-05T20:58:03+00:00",
+    "repoRoot": "/private/tmp/port-libs-trunk-audit",
+    "pandocExecutable": "/opt/homebrew/bin/pandoc",
+    "pandocVersion": "pandoc 3.10",
+    "limitPerFormat": 20,
+    "formats": {
+        "html": {
+            "status": "completed",
+            "totalAvailableCount": 132,
+            "candidateScannedCount": 20,
+            "skippedCandidateCount": 0,
+            "comparedCount": 20,
+            "localParsedCount": 20,
+            "pandocParsedCount": 20,
+            "nativeFixtureParsedCount": 20,
+            "parseFailureCount": 0,
+            "localPandocMatchCount": 20,
+            "localPandocMismatchCount": 0,
+            "pandocNativeFixtureMatchCount": 20,
+            "pandocNativeFixtureMismatchCount": 0,
+            "matchPercent": 100,
+            "result": "passed",
+            "fixtureComparisons": [
+                {
+                    "fixture": "upstream-html-address-block",
+                    "sourceFile": "upstream-html-address-block.html",
+                    "nativeFile": "upstream-html-address-block.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-anchor-image-attrs",
+                    "sourceFile": "upstream-html-anchor-image-attrs.html",
+                    "nativeFile": "upstream-html-anchor-image-attrs.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-anchor-without-href",
+                    "sourceFile": "upstream-html-anchor-without-href.html",
+                    "nativeFile": "upstream-html-anchor-without-href.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-base-absolute-image",
+                    "sourceFile": "upstream-html-base-absolute-image.html",
+                    "nativeFile": "upstream-html-base-absolute-image.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-base-fragment-link",
+                    "sourceFile": "upstream-html-base-fragment-link.html",
+                    "nativeFile": "upstream-html-base-fragment-link.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-base-media",
+                    "sourceFile": "upstream-html-base-media.html",
+                    "nativeFile": "upstream-html-base-media.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-base-relative-image",
+                    "sourceFile": "upstream-html-base-relative-image.html",
+                    "nativeFile": "upstream-html-base-relative-image.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-base-root-relative-image",
+                    "sourceFile": "upstream-html-base-root-relative-image.html",
+                    "nativeFile": "upstream-html-base-root-relative-image.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-base-trailing-slash-image",
+                    "sourceFile": "upstream-html-base-trailing-slash-image.html",
+                    "nativeFile": "upstream-html-base-trailing-slash-image.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-bdo-direction",
+                    "sourceFile": "upstream-html-bdo-direction.html",
+                    "nativeFile": "upstream-html-bdo-direction.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-blockquote",
+                    "sourceFile": "upstream-html-blockquote.html",
+                    "nativeFile": "upstream-html-blockquote.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-body-lang-overrides-html",
+                    "sourceFile": "upstream-html-body-lang-overrides-html.html",
+                    "nativeFile": "upstream-html-body-lang-overrides-html.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-button-inline-fallback",
+                    "sourceFile": "upstream-html-button-inline-fallback.html",
+                    "nativeFile": "upstream-html-button-inline-fallback.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-button-scope-tree-construction",
+                    "sourceFile": "upstream-html-button-scope-tree-construction.html",
+                    "nativeFile": "upstream-html-button-scope-tree-construction.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-checkbox-list",
+                    "sourceFile": "upstream-html-checkbox-list.html",
+                    "nativeFile": "upstream-html-checkbox-list.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-cite-wbr-raw-inline",
+                    "sourceFile": "upstream-html-cite-wbr-raw-inline.html",
+                    "nativeFile": "upstream-html-cite-wbr-raw-inline.native",
+                    "pandocFormat": "html+raw_html",
+                    "readerOptions": {
+                        "htmlRawHtml": true
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-colgroup-width-table",
+                    "sourceFile": "upstream-html-colgroup-width-table.html",
+                    "nativeFile": "upstream-html-colgroup-width-table.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-data-value-inline",
+                    "sourceFile": "upstream-html-data-value-inline.html",
+                    "nativeFile": "upstream-html-data-value-inline.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-definition-list",
+                    "sourceFile": "upstream-html-definition-list.html",
+                    "nativeFile": "upstream-html-definition-list.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-details-summary-raw-block",
+                    "sourceFile": "upstream-html-details-summary-raw-block.html",
+                    "nativeFile": "upstream-html-details-summary-raw-block.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                }
+            ],
+            "skippedCandidateComparisons": []
+        },
+        "markdown": {
+            "status": "completed",
+            "totalAvailableCount": 137,
+            "candidateScannedCount": 23,
+            "skippedCandidateCount": 3,
+            "comparedCount": 20,
+            "localParsedCount": 20,
+            "pandocParsedCount": 20,
+            "nativeFixtureParsedCount": 20,
+            "parseFailureCount": 0,
+            "localPandocMatchCount": 20,
+            "localPandocMismatchCount": 0,
+            "pandocNativeFixtureMatchCount": 20,
+            "pandocNativeFixtureMismatchCount": 0,
+            "matchPercent": 100,
+            "result": "passed",
+            "fixtureComparisons": [
+                {
+                    "fixture": "upstream-command-11253-latex-macros",
+                    "sourceFile": "upstream-command-11253-latex-macros.md",
+                    "nativeFile": "upstream-command-11253-latex-macros.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-11253-latex-macros-disabled",
+                    "sourceFile": "upstream-command-11253-latex-macros-disabled.md",
+                    "nativeFile": "upstream-command-11253-latex-macros-disabled.native",
+                    "pandocFormat": "markdown-latex_macros",
+                    "readerOptions": {
+                        "format": "markdown-latex_macros"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-11542-definition-code-block",
+                    "sourceFile": "upstream-command-11542-definition-code-block.md",
+                    "nativeFile": "upstream-command-11542-definition-code-block.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-11589-attributed-superscript",
+                    "sourceFile": "upstream-command-11589-attributed-superscript.md",
+                    "nativeFile": "upstream-command-11589-attributed-superscript.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-7080-mmd-reference-image-attributes",
+                    "sourceFile": "upstream-command-7080-mmd-reference-image-attributes.md",
+                    "nativeFile": "upstream-command-7080-mmd-reference-image-attributes.native",
+                    "pandocFormat": "markdown_mmd",
+                    "readerOptions": {
+                        "format": "markdown_mmd"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-empty-paragraphs",
+                    "sourceFile": "upstream-command-empty-paragraphs.md",
+                    "nativeFile": "upstream-command-empty-paragraphs.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-gfm-adjacent-emoji",
+                    "sourceFile": "upstream-command-gfm-adjacent-emoji.md",
+                    "nativeFile": "upstream-command-gfm-adjacent-emoji.native",
+                    "pandocFormat": "gfm",
+                    "readerOptions": {
+                        "format": "gfm"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-md-abbrevs",
+                    "sourceFile": "upstream-command-md-abbrevs.md",
+                    "nativeFile": "upstream-command-md-abbrevs.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-multiple-metadata-blocks",
+                    "sourceFile": "upstream-command-multiple-metadata-blocks.md",
+                    "nativeFile": "upstream-command-multiple-metadata-blocks.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-parse-raw",
+                    "sourceFile": "upstream-command-parse-raw.md",
+                    "nativeFile": "upstream-command-parse-raw.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-alerts",
+                    "sourceFile": "upstream-markdown-alerts.md",
+                    "nativeFile": "upstream-markdown-alerts.native",
+                    "pandocFormat": "gfm",
+                    "readerOptions": {
+                        "format": "gfm"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-ascii-identifiers",
+                    "sourceFile": "upstream-markdown-ascii-identifiers.md",
+                    "nativeFile": "upstream-markdown-ascii-identifiers.native",
+                    "pandocFormat": "markdown+ascii_identifiers",
+                    "readerOptions": {
+                        "format": "markdown+ascii_identifiers"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-atx-heading-trim",
+                    "sourceFile": "upstream-markdown-atx-heading-trim.md",
+                    "nativeFile": "upstream-markdown-atx-heading-trim.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-autolink-attributes",
+                    "sourceFile": "upstream-markdown-autolink-attributes.md",
+                    "nativeFile": "upstream-markdown-autolink-attributes.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-backslash-escaped-links",
+                    "sourceFile": "upstream-markdown-backslash-escaped-links.md",
+                    "nativeFile": "upstream-markdown-backslash-escaped-links.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-bare-uri-git-file-schemes",
+                    "sourceFile": "upstream-markdown-bare-uri-git-file-schemes.md",
+                    "nativeFile": "upstream-markdown-bare-uri-git-file-schemes.native",
+                    "pandocFormat": "markdown+autolink_bare_uris",
+                    "readerOptions": {
+                        "format": "markdown+autolink_bare_uris"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-bare-uri-path-punctuation",
+                    "sourceFile": "upstream-markdown-bare-uri-path-punctuation.md",
+                    "nativeFile": "upstream-markdown-bare-uri-path-punctuation.native",
+                    "pandocFormat": "markdown+autolink_bare_uris+raw_html",
+                    "readerOptions": {
+                        "format": "markdown+autolink_bare_uris+raw_html"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-bare-uri-port-path-boundaries",
+                    "sourceFile": "upstream-markdown-bare-uri-port-path-boundaries.md",
+                    "nativeFile": "upstream-markdown-bare-uri-port-path-boundaries.native",
+                    "pandocFormat": "markdown+autolink_bare_uris",
+                    "readerOptions": {
+                        "format": "markdown+autolink_bare_uris"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-bare-uri-query-hyphen-boundaries",
+                    "sourceFile": "upstream-markdown-bare-uri-query-hyphen-boundaries.md",
+                    "nativeFile": "upstream-markdown-bare-uri-query-hyphen-boundaries.native",
+                    "pandocFormat": "markdown+autolink_bare_uris",
+                    "readerOptions": {
+                        "format": "markdown+autolink_bare_uris"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-bare-uri-raw-html-anchor",
+                    "sourceFile": "upstream-markdown-bare-uri-raw-html-anchor.md",
+                    "nativeFile": "upstream-markdown-bare-uri-raw-html-anchor.native",
+                    "pandocFormat": "markdown+autolink_bare_uris+raw_html",
+                    "readerOptions": {
+                        "format": "markdown+autolink_bare_uris+raw_html"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                }
+            ],
+            "skippedCandidateComparisons": [
+                {
+                    "fixture": "upstream-command-details-summary",
+                    "sourceFile": "upstream-command-details-summary.md",
+                    "nativeFile": "upstream-command-details-summary.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "mismatched",
+                    "pandocNativeFixtureStatus": "mismatched",
+                    "status": "mismatched",
+                    "localPandocFirstDifference": "root[children]: keys [0,1,2,3,4] !== [0,1,2,3,4,5,6]",
+                    "pandocNativeFixtureFirstDifference": "root[children]: keys [0,1,2,3,4] !== [0,1,2,3,4,5,6]"
+                },
+                {
+                    "fixture": "upstream-command-gfm-details-list",
+                    "sourceFile": "upstream-command-gfm-details-list.md",
+                    "nativeFile": "upstream-command-gfm-details-list.native",
+                    "pandocFormat": "gfm",
+                    "readerOptions": {
+                        "format": "gfm"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "mismatched",
+                    "pandocNativeFixtureStatus": "mismatched",
+                    "status": "mismatched",
+                    "localPandocFirstDifference": "root[children][0][children][0][children][1][attrs][html]: \"<details>\" !== \"<details>\\n\"",
+                    "pandocNativeFixtureFirstDifference": "root[children][0][children][0][children][1][attrs][html]: \"<details>\" !== \"<details>\\n\""
+                },
+                {
+                    "fixture": "upstream-markdown-angle-autolinks",
+                    "sourceFile": "upstream-markdown-angle-autolinks.md",
+                    "nativeFile": "upstream-markdown-angle-autolinks.native",
+                    "pandocFormat": "markdown+autolink_bare_uris",
+                    "readerOptions": {
+                        "format": "markdown+autolink_bare_uris"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "mismatched",
+                    "pandocNativeFixtureStatus": "mismatched",
+                    "status": "mismatched",
+                    "localPandocFirstDifference": "root[children][0][children][0][type]: \"link\" !== \"text\"",
+                    "pandocNativeFixtureFirstDifference": "root[children][0][children][0][type]: \"link\" !== \"text\""
+                }
+            ]
+        },
+        "epub": {
+            "status": "completed",
+            "totalAvailableCount": 76,
+            "candidateScannedCount": 20,
+            "skippedCandidateCount": 0,
+            "comparedCount": 20,
+            "localParsedCount": 20,
+            "pandocParsedCount": 20,
+            "nativeFixtureParsedCount": 20,
+            "parseFailureCount": 0,
+            "localPandocMatchCount": 20,
+            "localPandocMismatchCount": 0,
+            "pandocNativeFixtureMatchCount": 20,
+            "pandocNativeFixtureMismatchCount": 0,
+            "matchPercent": 100,
+            "astParityStatus": "normalized-ast-equality-observed-against-pandoc-executable",
+            "result": "passed",
+            "fixtureComparisons": [
+                {
+                    "fixture": "accessibility-metadata-package",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "all-nonlinear-spine",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "appendix-navigation-guide",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "audio-navigation",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "auxiliary-lot-guide-index",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "bindings-collections-sidecars",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "blockquote-list-spine",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "code-block-spine",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "content-image-nav-media",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "cross-spine-internal-links",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "definition-list-spine",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "direct-image-spine",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "direct-svg-spine",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "duplicate-spine-idref",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "encoded-image-media-bag",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "epub2_cover",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "epub2_no_cover",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "epub2_picture",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "epub3-ncx-toc-fallback",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "external-footnote-reference",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                }
+            ]
+        },
+        "pptx": {
+            "status": "completed",
+            "totalAvailableCount": 109,
+            "candidateScannedCount": 20,
+            "skippedCandidateCount": 0,
+            "comparedCount": 20,
+            "localParsedCount": 20,
+            "pandocParsedCount": 20,
+            "nativeFixtureParsedCount": 20,
+            "parseFailureCount": 0,
+            "localPandocMatchCount": 20,
+            "localPandocMismatchCount": 0,
+            "pandocNativeFixtureMatchCount": 20,
+            "pandocNativeFixtureMismatchCount": 0,
+            "matchPercent": 100,
+            "astParityStatus": "normalized-ast-equality-observed-against-pandoc-executable",
+            "result": "passed",
+            "fixtureComparisons": [
+                {
+                    "fixture": "alternate-content-skip",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "background-image-skip",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "basic",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "body-before-title",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "break-tab-field",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "bullets",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "bunone-wingdings",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "case-sensitive-placeholder-type",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "cdata-entity-text",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "center-title-placeholder",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "chart-embedded-workbook",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "chart-placeholder",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "comments-ignored",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "connector-skip",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "connector-text-skip",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "content-part-skip",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "diagram-missing-rels",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "diagram-no-relids",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "direct-drawing-paragraphs",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "document-properties",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                }
+            ]
+        }
+    },
+    "rawReports": {
+        "html": {
+            "status": "completed",
+            "format": "html",
+            "fixtureDirectory": "/private/tmp/port-libs-trunk-audit/lanes/pandoc/fixtures",
+            "sourceExtension": "html",
+            "totalAvailableCount": 132,
+            "candidateScannedCount": 20,
+            "skippedCandidateCount": 0,
+            "comparedCount": 20,
+            "localParsedCount": 20,
+            "pandocParsedCount": 20,
+            "nativeFixtureParsedCount": 20,
+            "bothParsedCount": 20,
+            "parseFailureCount": 0,
+            "localPandocMatchCount": 20,
+            "localPandocMismatchCount": 0,
+            "pandocNativeFixtureMatchCount": 20,
+            "pandocNativeFixtureMismatchCount": 0,
+            "fixtureComparisons": [
+                {
+                    "fixture": "upstream-html-address-block",
+                    "sourceFile": "upstream-html-address-block.html",
+                    "nativeFile": "upstream-html-address-block.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-anchor-image-attrs",
+                    "sourceFile": "upstream-html-anchor-image-attrs.html",
+                    "nativeFile": "upstream-html-anchor-image-attrs.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-anchor-without-href",
+                    "sourceFile": "upstream-html-anchor-without-href.html",
+                    "nativeFile": "upstream-html-anchor-without-href.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-base-absolute-image",
+                    "sourceFile": "upstream-html-base-absolute-image.html",
+                    "nativeFile": "upstream-html-base-absolute-image.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-base-fragment-link",
+                    "sourceFile": "upstream-html-base-fragment-link.html",
+                    "nativeFile": "upstream-html-base-fragment-link.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-base-media",
+                    "sourceFile": "upstream-html-base-media.html",
+                    "nativeFile": "upstream-html-base-media.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-base-relative-image",
+                    "sourceFile": "upstream-html-base-relative-image.html",
+                    "nativeFile": "upstream-html-base-relative-image.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-base-root-relative-image",
+                    "sourceFile": "upstream-html-base-root-relative-image.html",
+                    "nativeFile": "upstream-html-base-root-relative-image.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-base-trailing-slash-image",
+                    "sourceFile": "upstream-html-base-trailing-slash-image.html",
+                    "nativeFile": "upstream-html-base-trailing-slash-image.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-bdo-direction",
+                    "sourceFile": "upstream-html-bdo-direction.html",
+                    "nativeFile": "upstream-html-bdo-direction.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-blockquote",
+                    "sourceFile": "upstream-html-blockquote.html",
+                    "nativeFile": "upstream-html-blockquote.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-body-lang-overrides-html",
+                    "sourceFile": "upstream-html-body-lang-overrides-html.html",
+                    "nativeFile": "upstream-html-body-lang-overrides-html.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-button-inline-fallback",
+                    "sourceFile": "upstream-html-button-inline-fallback.html",
+                    "nativeFile": "upstream-html-button-inline-fallback.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-button-scope-tree-construction",
+                    "sourceFile": "upstream-html-button-scope-tree-construction.html",
+                    "nativeFile": "upstream-html-button-scope-tree-construction.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-checkbox-list",
+                    "sourceFile": "upstream-html-checkbox-list.html",
+                    "nativeFile": "upstream-html-checkbox-list.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-cite-wbr-raw-inline",
+                    "sourceFile": "upstream-html-cite-wbr-raw-inline.html",
+                    "nativeFile": "upstream-html-cite-wbr-raw-inline.native",
+                    "pandocFormat": "html+raw_html",
+                    "readerOptions": {
+                        "htmlRawHtml": true
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-colgroup-width-table",
+                    "sourceFile": "upstream-html-colgroup-width-table.html",
+                    "nativeFile": "upstream-html-colgroup-width-table.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-data-value-inline",
+                    "sourceFile": "upstream-html-data-value-inline.html",
+                    "nativeFile": "upstream-html-data-value-inline.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-definition-list",
+                    "sourceFile": "upstream-html-definition-list.html",
+                    "nativeFile": "upstream-html-definition-list.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-html-details-summary-raw-block",
+                    "sourceFile": "upstream-html-details-summary-raw-block.html",
+                    "nativeFile": "upstream-html-details-summary-raw-block.native",
+                    "pandocFormat": "html",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                }
+            ],
+            "skippedCandidateComparisons": []
+        },
+        "markdown": {
+            "status": "completed",
+            "format": "markdown",
+            "fixtureDirectory": "/private/tmp/port-libs-trunk-audit/lanes/pandoc/fixtures",
+            "sourceExtension": "md",
+            "totalAvailableCount": 137,
+            "candidateScannedCount": 23,
+            "skippedCandidateCount": 3,
+            "comparedCount": 20,
+            "localParsedCount": 20,
+            "pandocParsedCount": 20,
+            "nativeFixtureParsedCount": 20,
+            "bothParsedCount": 20,
+            "parseFailureCount": 0,
+            "localPandocMatchCount": 20,
+            "localPandocMismatchCount": 0,
+            "pandocNativeFixtureMatchCount": 20,
+            "pandocNativeFixtureMismatchCount": 0,
+            "fixtureComparisons": [
+                {
+                    "fixture": "upstream-command-11253-latex-macros",
+                    "sourceFile": "upstream-command-11253-latex-macros.md",
+                    "nativeFile": "upstream-command-11253-latex-macros.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-11253-latex-macros-disabled",
+                    "sourceFile": "upstream-command-11253-latex-macros-disabled.md",
+                    "nativeFile": "upstream-command-11253-latex-macros-disabled.native",
+                    "pandocFormat": "markdown-latex_macros",
+                    "readerOptions": {
+                        "format": "markdown-latex_macros"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-11542-definition-code-block",
+                    "sourceFile": "upstream-command-11542-definition-code-block.md",
+                    "nativeFile": "upstream-command-11542-definition-code-block.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-11589-attributed-superscript",
+                    "sourceFile": "upstream-command-11589-attributed-superscript.md",
+                    "nativeFile": "upstream-command-11589-attributed-superscript.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-7080-mmd-reference-image-attributes",
+                    "sourceFile": "upstream-command-7080-mmd-reference-image-attributes.md",
+                    "nativeFile": "upstream-command-7080-mmd-reference-image-attributes.native",
+                    "pandocFormat": "markdown_mmd",
+                    "readerOptions": {
+                        "format": "markdown_mmd"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-empty-paragraphs",
+                    "sourceFile": "upstream-command-empty-paragraphs.md",
+                    "nativeFile": "upstream-command-empty-paragraphs.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-gfm-adjacent-emoji",
+                    "sourceFile": "upstream-command-gfm-adjacent-emoji.md",
+                    "nativeFile": "upstream-command-gfm-adjacent-emoji.native",
+                    "pandocFormat": "gfm",
+                    "readerOptions": {
+                        "format": "gfm"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-md-abbrevs",
+                    "sourceFile": "upstream-command-md-abbrevs.md",
+                    "nativeFile": "upstream-command-md-abbrevs.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-multiple-metadata-blocks",
+                    "sourceFile": "upstream-command-multiple-metadata-blocks.md",
+                    "nativeFile": "upstream-command-multiple-metadata-blocks.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-command-parse-raw",
+                    "sourceFile": "upstream-command-parse-raw.md",
+                    "nativeFile": "upstream-command-parse-raw.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-alerts",
+                    "sourceFile": "upstream-markdown-alerts.md",
+                    "nativeFile": "upstream-markdown-alerts.native",
+                    "pandocFormat": "gfm",
+                    "readerOptions": {
+                        "format": "gfm"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-ascii-identifiers",
+                    "sourceFile": "upstream-markdown-ascii-identifiers.md",
+                    "nativeFile": "upstream-markdown-ascii-identifiers.native",
+                    "pandocFormat": "markdown+ascii_identifiers",
+                    "readerOptions": {
+                        "format": "markdown+ascii_identifiers"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-atx-heading-trim",
+                    "sourceFile": "upstream-markdown-atx-heading-trim.md",
+                    "nativeFile": "upstream-markdown-atx-heading-trim.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-autolink-attributes",
+                    "sourceFile": "upstream-markdown-autolink-attributes.md",
+                    "nativeFile": "upstream-markdown-autolink-attributes.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-backslash-escaped-links",
+                    "sourceFile": "upstream-markdown-backslash-escaped-links.md",
+                    "nativeFile": "upstream-markdown-backslash-escaped-links.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-bare-uri-git-file-schemes",
+                    "sourceFile": "upstream-markdown-bare-uri-git-file-schemes.md",
+                    "nativeFile": "upstream-markdown-bare-uri-git-file-schemes.native",
+                    "pandocFormat": "markdown+autolink_bare_uris",
+                    "readerOptions": {
+                        "format": "markdown+autolink_bare_uris"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-bare-uri-path-punctuation",
+                    "sourceFile": "upstream-markdown-bare-uri-path-punctuation.md",
+                    "nativeFile": "upstream-markdown-bare-uri-path-punctuation.native",
+                    "pandocFormat": "markdown+autolink_bare_uris+raw_html",
+                    "readerOptions": {
+                        "format": "markdown+autolink_bare_uris+raw_html"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-bare-uri-port-path-boundaries",
+                    "sourceFile": "upstream-markdown-bare-uri-port-path-boundaries.md",
+                    "nativeFile": "upstream-markdown-bare-uri-port-path-boundaries.native",
+                    "pandocFormat": "markdown+autolink_bare_uris",
+                    "readerOptions": {
+                        "format": "markdown+autolink_bare_uris"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-bare-uri-query-hyphen-boundaries",
+                    "sourceFile": "upstream-markdown-bare-uri-query-hyphen-boundaries.md",
+                    "nativeFile": "upstream-markdown-bare-uri-query-hyphen-boundaries.native",
+                    "pandocFormat": "markdown+autolink_bare_uris",
+                    "readerOptions": {
+                        "format": "markdown+autolink_bare_uris"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "upstream-markdown-bare-uri-raw-html-anchor",
+                    "sourceFile": "upstream-markdown-bare-uri-raw-html-anchor.md",
+                    "nativeFile": "upstream-markdown-bare-uri-raw-html-anchor.native",
+                    "pandocFormat": "markdown+autolink_bare_uris+raw_html",
+                    "readerOptions": {
+                        "format": "markdown+autolink_bare_uris+raw_html"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                }
+            ],
+            "skippedCandidateComparisons": [
+                {
+                    "fixture": "upstream-command-details-summary",
+                    "sourceFile": "upstream-command-details-summary.md",
+                    "nativeFile": "upstream-command-details-summary.native",
+                    "pandocFormat": "markdown",
+                    "readerOptions": [],
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "mismatched",
+                    "pandocNativeFixtureStatus": "mismatched",
+                    "status": "mismatched",
+                    "localPandocFirstDifference": "root[children]: keys [0,1,2,3,4] !== [0,1,2,3,4,5,6]",
+                    "pandocNativeFixtureFirstDifference": "root[children]: keys [0,1,2,3,4] !== [0,1,2,3,4,5,6]"
+                },
+                {
+                    "fixture": "upstream-command-gfm-details-list",
+                    "sourceFile": "upstream-command-gfm-details-list.md",
+                    "nativeFile": "upstream-command-gfm-details-list.native",
+                    "pandocFormat": "gfm",
+                    "readerOptions": {
+                        "format": "gfm"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "mismatched",
+                    "pandocNativeFixtureStatus": "mismatched",
+                    "status": "mismatched",
+                    "localPandocFirstDifference": "root[children][0][children][0][children][1][attrs][html]: \"<details>\" !== \"<details>\\n\"",
+                    "pandocNativeFixtureFirstDifference": "root[children][0][children][0][children][1][attrs][html]: \"<details>\" !== \"<details>\\n\""
+                },
+                {
+                    "fixture": "upstream-markdown-angle-autolinks",
+                    "sourceFile": "upstream-markdown-angle-autolinks.md",
+                    "nativeFile": "upstream-markdown-angle-autolinks.native",
+                    "pandocFormat": "markdown+autolink_bare_uris",
+                    "readerOptions": {
+                        "format": "markdown+autolink_bare_uris"
+                    },
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "mismatched",
+                    "pandocNativeFixtureStatus": "mismatched",
+                    "status": "mismatched",
+                    "localPandocFirstDifference": "root[children][0][children][0][type]: \"link\" !== \"text\"",
+                    "pandocNativeFixtureFirstDifference": "root[children][0][children][0][type]: \"link\" !== \"text\""
+                }
+            ]
+        },
+        "epub": {
+            "schemaVersion": 1,
+            "tool": "pandoc-epub-executable-native-ast",
+            "status": "completed",
+            "skipped": false,
+            "reason": null,
+            "verdict": "pandoc-executable-normalized-ast-implementation-equivalence-observed",
+            "evidenceKind": "epub-pandoc-executable-normalized-ast-comparison",
+            "pandocExecutable": "/opt/homebrew/bin/pandoc",
+            "pandocVersion": "pandoc 3.10",
+            "totalEpubCount": 76,
+            "comparedEpubCount": 20,
+            "localParsedCount": 20,
+            "pandocParsedCount": 20,
+            "nativeFixtureParsedCount": 20,
+            "bothParsedCount": 20,
+            "parseFailureCount": 0,
+            "normalizedAstMatchCount": 20,
+            "normalizedAstMismatchCount": 0,
+            "pandocNativeFixtureMatchCount": 20,
+            "pandocNativeFixtureMismatchCount": 0,
+            "pandocNativeFixtureByteMatchCount": 20,
+            "pandocNativeFixtureByteMismatchCount": 0,
+            "astParityStatus": "normalized-ast-equality-observed-against-pandoc-executable",
+            "fixtureComparisons": [
+                {
+                    "fixture": "accessibility-metadata-package",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "all-nonlinear-spine",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "appendix-navigation-guide",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "audio-navigation",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "auxiliary-lot-guide-index",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "bindings-collections-sidecars",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "blockquote-list-spine",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "code-block-spine",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "content-image-nav-media",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "cross-spine-internal-links",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "definition-list-spine",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "direct-image-spine",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "direct-svg-spine",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "duplicate-spine-idref",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "encoded-image-media-bag",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "epub2_cover",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "epub2_no_cover",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "epub2_picture",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "epub3-ncx-toc-fallback",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "external-footnote-reference",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "pandocNativeFixtureByteStatus": "matched",
+                    "status": "matched"
+                }
+            ]
+        },
+        "pptx": {
+            "schemaVersion": 1,
+            "tool": "pandoc-pptx-executable-native-ast",
+            "status": "completed",
+            "skipped": false,
+            "reason": null,
+            "verdict": "pandoc-executable-normalized-ast-pptx-implementation-equivalence-observed",
+            "evidenceKind": "pptx-pandoc-executable-normalized-ast-comparison",
+            "pandocExecutable": "/opt/homebrew/bin/pandoc",
+            "pandocVersion": "pandoc 3.10",
+            "totalPptxCount": 109,
+            "comparedPptxCount": 20,
+            "localParsedCount": 20,
+            "pandocParsedCount": 20,
+            "nativeFixtureParsedCount": 20,
+            "bothParsedCount": 20,
+            "parseFailureCount": 0,
+            "normalizedAstMatchCount": 20,
+            "normalizedAstMismatchCount": 0,
+            "pandocNativeFixtureMatchCount": 20,
+            "pandocNativeFixtureMismatchCount": 0,
+            "astParityStatus": "normalized-ast-equality-observed-against-pandoc-executable",
+            "fixtureComparisons": [
+                {
+                    "fixture": "alternate-content-skip",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "background-image-skip",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "basic",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "body-before-title",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "break-tab-field",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "bullets",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "bunone-wingdings",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "case-sensitive-placeholder-type",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "cdata-entity-text",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "center-title-placeholder",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "chart-embedded-workbook",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "chart-placeholder",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "comments-ignored",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "connector-skip",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "connector-text-skip",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "content-part-skip",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "diagram-missing-rels",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "diagram-no-relids",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "direct-drawing-paragraphs",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                },
+                {
+                    "fixture": "document-properties",
+                    "localParsed": true,
+                    "pandocParsed": true,
+                    "nativeFixtureParsed": true,
+                    "localPandocStatus": "matched",
+                    "pandocNativeFixtureStatus": "matched",
+                    "status": "matched"
+                }
+            ]
+        }
+    },
+    "status": "passed"
+}

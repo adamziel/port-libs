@@ -1,0 +1,21 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter.xhtml_start" , [ "section" ] , [] )
+    [ Header
+        1 ( "" , [] , [] ) [ Str "MathML" , Space , Str "Spine" ]
+    , Para
+        [ Str "Inline"
+        , Space
+        , Str "equation"
+        , Space
+        , Math InlineMath "x^2"
+        , Space
+        , Str "stays"
+        , Space
+        , Str "in"
+        , Space
+        , Str "text."
+        ]
+    , Para [ Math DisplayMath "\\frac{1}{2}" ]
+    ]
+]

@@ -1,0 +1,101 @@
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
+use PortLibs\LibSqlite\SQLiteIndexLeafPage;
+use PortLibs\LibSqlite\SQLitePointerMapEntry;
+use PortLibs\LibSqlite\SQLitePragmaIndexListIntegrityRootpageCurrentSourceNext;
+use PortLibs\LibSqlite\SQLiteRecord;
+use PortLibs\LibSqlite\SQLiteSchemaRecord;
+use PortLibs\LibSqlite\SQLiteTableLeafCell;
+use PortLibs\LibSqlite\SQLiteTableLeafPage;
+
+$pageSize = 1024;
+$header = str_repeat("\0", $pageSize);
+$header = substr_replace($header, "SQLite format 3\0", 0, 16);
+$header = substr_replace($header, pack('n', $pageSize), 16, 2);
+$header[18] = "\x01";
+$header[19] = "\x01";
+$header = substr_replace($header, pack('N', 7), 28, 4);
+$header = substr_replace($header, pack('N', 7), 52, 4);
+$header = substr_replace($header, pack('N', 1), 56, 4);
+
+$schemaRows = [
+    ['table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'],
+    ['index', 'wp_options_name', 'wp_options', 5, 'CREATE UNIQUE INDEX wp_options_name ON wp_options(option_name COLLATE NOCASE)'],
+    ['index', 'wp_options_autoload_partial', 'wp_options', 6, "CREATE INDEX wp_options_autoload_partial ON wp_options(autoload, option_name) WHERE autoload = 'yes'"],
+    ['index', 'sqlite_autoindex_wp_options_1', 'wp_options', 7, null],
+];
+$cells = array_map(
+    static fn (array $row, int $index): string => SQLiteTableLeafCell::encode($index + 1, SQLiteRecord::encode($row)),
+    $schemaRows,
+    array_keys($schemaRows),
+);
+
+$writePointer = static fn (string $page, int $pageNumber, int $type, int $parent): string => substr_replace($page, chr($type) . pack('N', $parent), 5 * ($pageNumber - 3), 5);
+$pointerMap = static function (bool $repaired) use ($pageSize, $writePointer): string {
+    $page = str_repeat("\0", $pageSize);
+    $page = $writePointer($page, 3, SQLitePointerMapEntry::BTREE_PAGE, 4);
+    $page = $writePointer($page, 4, SQLitePointerMapEntry::ROOT_PAGE, 0);
+    $page = $writePointer($page, 5, SQLitePointerMapEntry::ROOT_PAGE, 0);
+    $page = $writePointer($page, 6, $repaired ? SQLitePointerMapEntry::ROOT_PAGE : SQLitePointerMapEntry::BTREE_PAGE, $repaired ? 0 : 4);
+    $page = $writePointer($page, 7, SQLitePointerMapEntry::ROOT_PAGE, 0);
+
+    return $page;
+};
+
+$database = static fn (bool $repaired): string => implode('', [
+    SQLiteTableLeafPage::assemble($cells, $pageSize, 100, $header),
+    $pointerMap($repaired),
+    SQLiteTableLeafPage::assemble([], $pageSize),
+    SQLiteTableLeafPage::assemble([], $pageSize),
+    SQLiteIndexLeafPage::assemble([], $pageSize),
+    SQLiteIndexLeafPage::assemble([], $pageSize),
+    SQLiteIndexLeafPage::assemble([], $pageSize),
+]);
+
+$record = static fn (string $type, string $name, string $table, int $root, ?string $sql): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $root);
+$catalog = new SQLiteAttachedSchemaCatalog([
+    $record('table', 'wp_options', 'wp_options', 4, $schemaRows[0][4]),
+    $record('index', 'wp_options_name', 'wp_options', 5, $schemaRows[1][4]),
+    $record('index', 'wp_options_autoload_partial', 'wp_options', 6, $schemaRows[2][4]),
+    $record('index', 'sqlite_autoindex_wp_options_1', 'wp_options', 7, null),
+]);
+
+$page = SQLitePragmaIndexListIntegrityRootpageCurrentSourceNext::currentNextPage(
+    $catalog,
+    $database(false),
+    $catalog,
+    $database(true),
+    'PRAGMA main.index_list(wp_options)',
+);
+
+if (($argv[1] ?? null) === '--self-test') {
+    if (
+        $page['status'] !== 'ok'
+        || $page['current']['rootpage_errors'] !== 1
+        || $page['next_counts']['rootpage_errors'] !== 0
+        || $page['delta']['rootpage_errors'] !== -1
+        || $page['delta']['cleared'] !== true
+    ) {
+        fwrite(STDERR, "application-pragma-index-list-integrity-rootpage-current-source-next self-test failed\n");
+        exit(1);
+    }
+
+    fwrite(STDOUT, "application-pragma-index-list-integrity-rootpage-current-source-next self-test passed\n");
+    exit(0);
+}
+
+echo json_encode([
+    'scenario' => 'application-pragma-index-list-integrity-rootpage-current-source-next',
+    'applicationUse' => 'Resume copied wp_options index repair only when PRAGMA index_list metadata and repaired sqlite_schema rootpage integrity belong to the same current and next database images.',
+    'status' => $page['status'],
+    'source_id' => $page['source_id'],
+    'current' => $page['current'],
+    'next_counts' => $page['next_counts'],
+    'delta' => $page['delta'],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

@@ -1,0 +1,34 @@
+[ Para
+    [ Str "Try"
+    , Space
+    , Str "this"
+    , Space
+    , Str "query:"
+    , Space
+    , Link
+        ( "" , [ "uri" ] , [] )
+        [ Str "http://google.com?search=fish&time=hour" ]
+        ( "http://google.com?search=fish&time=hour" , "" )
+    , Str "."
+    ]
+, Para
+    [ Link
+        ( "" , [ "uri" ] , [] )
+        [ Str
+            "http://en.wikipedia.org/wiki/Sprite_(computer_graphics)"
+        ]
+        ( "http://en.wikipedia.org/wiki/Sprite_(computer_graphics)"
+        , ""
+        )
+    ]
+, Para
+    [ Link
+        ( "" , [ "uri" ] , [] )
+        [ Str
+            "http://foo.example.com/controller/action?parm=value&p2=v2#anchor123"
+        ]
+        ( "http://foo.example.com/controller/action?parm=value&p2=v2#anchor123"
+        , ""
+        )
+    ]
+]

@@ -1,0 +1,4 @@
+[ BlockQuote [ Para [ Str "Quoted" , Space , Strong [ Str "source" ] , Space , Str "paragraph." ]
+  ]
+, Para [ Str "After" , Space , Str "quote." ]
+]

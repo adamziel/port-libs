@@ -1,0 +1,7 @@
+[ Header 2 ( "slide-1" , [] , [] ) [ Str "Alpha agenda" ]
+, Para [ Str "Visible alpha body" ]
+, Header 2 ( "slide-2" , [] , [] ) [ Str "Beta update" ]
+, Para [ Str "Visible beta body" ]
+, Header 2 ( "slide-3" , [] , [] ) [ Str "Gamma appendix" ]
+, Para [ Str "Visible gamma body" ]
+]

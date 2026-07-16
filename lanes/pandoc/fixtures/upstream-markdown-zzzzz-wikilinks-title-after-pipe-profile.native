@@ -1,0 +1,11 @@
+[ Para
+    [ Str "See"
+    , Space
+    , Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "Migration" , Space , Str "runbook" ]
+        ( "/docs/runbook" , "" )
+    , Space
+    , Str "now."
+    ]
+]

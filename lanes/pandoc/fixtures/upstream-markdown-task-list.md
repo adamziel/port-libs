@@ -1,0 +1,4 @@
+- [ ] Review imported media
+- [x] Confirm source links
+  - [ ] Attach follow-up
+- [x] Mark ready to publish

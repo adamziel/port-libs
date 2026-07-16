@@ -1,0 +1,7 @@
+[ Para [ Str "foo" , Note [ Para [ Str "bar" , Space , Cite [ Citation { citationId = "doe" , citationPrefix = [] , citationSuffix = [] , citationMode = NormalCitation , citationNoteNum = 1 , citationHash = 0 } ] [ Str "[@doe]" ] ]
+] ]
+, Para [ Str "alpha" , Note [ Para [ Str "note" , Space , Link ( "" , [  ] , [  ] ) [ Str "packet" ] ( "https://example.test/source" , "source title" ) , Space , Str "and" , Space , Cite [ Citation { citationId = "roe" , citationPrefix = [] , citationSuffix = [ Str "p." , Space , Str "9" ] , citationMode = AuthorInText , citationNoteNum = 1 , citationHash = 0 } ] [ Str "@roe" , Space , Str "[p." , Space , Str "9]" ] ]
+] ]
+, Para [ Str "trail" , Note [ Para [ Str "code" , Space , Code ( "" , [  ] , [  ] ) "]" , Space , Str "and" , Space , Cite [ Citation { citationId = "smith" , citationPrefix = [] , citationSuffix = [] , citationMode = NormalCitation , citationNoteNum = 1 , citationHash = 0 } , Citation { citationId = "doe" , citationPrefix = [ Str "see" ] , citationSuffix = [] , citationMode = SuppressAuthor , citationNoteNum = 1 , citationHash = 0 } ] [  ] ]
+] ]
+]

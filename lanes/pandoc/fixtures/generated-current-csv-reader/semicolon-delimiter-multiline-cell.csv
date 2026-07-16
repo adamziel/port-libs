@@ -1,0 +1,5 @@
+id;title;note;status
+1;"Alpha; Beta";"first
+second";ok
+2;plain;"uses, comma";done
+3;"semi; ""quoted""";tail;end

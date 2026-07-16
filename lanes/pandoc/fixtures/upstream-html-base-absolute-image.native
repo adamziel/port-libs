@@ -1,0 +1,7 @@
+[ Para
+    [ Image
+        ( "" , [] , [] )
+        [ Str "Stickman" ]
+        ( "http://example.com/stickman.gif" , "The title" )
+    ]
+]

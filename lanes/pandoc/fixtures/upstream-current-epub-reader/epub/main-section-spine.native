@@ -1,0 +1,14 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter.xhtml_reader-main"
+    , [ "bodymatter" ]
+    , [ ( "role" , "main" ) ]
+    )
+    [ Header
+        1
+        ( "" , [] , [] )
+        [ Str "Main" , Space , Str "Section" , Space , Str "Spine" ]
+    , Para
+        [ Str "Main" , Space , Str "element" , Space , Str "body." ]
+    ]
+]

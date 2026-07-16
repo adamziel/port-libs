@@ -1,0 +1,12 @@
+[ Para
+    [ Str "foo"
+    , Emph [ Str "bar" ]
+    , Str "baz"
+    , Space
+    , Str "and"
+    , Space
+    , Str "foo"
+    , Strong [ Str "bar" ]
+    , Str "baz"
+    ]
+]

@@ -1,0 +1,70 @@
+[ DefinitionList
+    [ ( [ Emph [ Str "apple" ] ]
+      , [ [ Para [ Str "red" , Space , Str "fruit" ]
+          , CodeBlock ( "" , [] , [] ) "{ orange code block }"
+          , BlockQuote [ Para [ Str "orange" , Space , Str "block" , Space , Str "quote" ] ]
+          ]
+        ]
+      )
+    , ( [ Str "orange" ]
+      , [ [ Plain [ Str "orange" , Space , Str "fruit" ] ]
+        , [ Plain [ Str "bank" ] ]
+        ]
+      )
+    ]
+, Div
+    ( "review-wrapper" , [ "wp-import-review" ] , [ ( "data-source" , "batch-42" ) ] )
+    [ Div
+        ( "" , [] , [] )
+        [ Div ( "" , [] , [] ) [ Para [ Str "foo" ] ] ]
+    , Div ( "" , [] , [] ) [ Plain [ Str "bar" ] ]
+    , RawBlock (Format "html") "<!-- Comment -->"
+    ]
+, RawBlock (Format "openxml") "<w:p><w:r><w:t>Raw Word boundary</w:t></w:r></w:p>"
+, Table
+    ( "review-table" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault )
+    , ( AlignDefault , ColWidthDefault )
+    ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Field" ] ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Status" ] ]
+           ]
+       ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Media" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Ready" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]

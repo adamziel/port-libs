@@ -1,0 +1,191 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\LibSqlite\SQLiteBlobValue;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
+
+$tests = [];
+
+$current232 = [
+    ['setting_id' => 1, 'key_name' => 'legacy_plugin_payload', 'key_value' => "Plugin_\xe2legacy"],
+    ['setting_id' => 2, 'key_name' => 'legacy_plugin_prefix', 'key_value' => "plugin_\xe2"],
+    ['setting_id' => 3, 'key_name' => 'legacy_plugin_bad_pair', 'key_value' => "plugin_\xe2("],
+    ['setting_id' => 4, 'key_name' => 'legacy_plugin_valid_euro', 'key_value' => "plugin_\xe2\x82\xac"],
+    ['setting_id' => 5, 'key_name' => 'legacy_plugin_other_bad', 'key_value' => "plugin_\xc3("],
+    ['setting_id' => 6, 'key_name' => 'legacy_plugin_valid_hiragana', 'key_value' => "plugin_\xe3\x81\x82"],
+    ['setting_id' => 7, 'key_name' => 'numeric_retry', 'key_value' => 123],
+    ['setting_id' => 8, 'key_name' => 'blob_payload', 'key_value' => new SQLiteBlobValue("plugin_\xe2blob")],
+    ['setting_id' => 9, 'key_name' => 'ascii_plugin', 'key_value' => 'plugin_X'],
+    ['setting_id' => 10, 'key_name' => 'uppercase_plugin', 'key_value' => "PLUGIN_\xe2TAIL"],
+];
+
+$nextTwoThreeTwo = [
+    ['setting_id' => 1, 'key_name' => 'legacy_plugin_payload', 'key_value' => "Plugin_\xe2legacy2"],
+    ['setting_id' => 3, 'key_name' => 'legacy_plugin_bad_pair', 'key_value' => "plugin_\xe2("],
+    ['setting_id' => 4, 'key_name' => 'legacy_plugin_valid_euro_now_truncated', 'key_value' => "plugin_\xe2\x82"],
+    ['setting_id' => 5, 'key_name' => 'legacy_plugin_other_bad', 'key_value' => "plugin_\xc3("],
+    ['setting_id' => 6, 'key_name' => 'legacy_plugin_valid_hiragana', 'key_value' => "plugin_\xe3\x81\x82"],
+    ['setting_id' => 7, 'key_name' => 'numeric_retry', 'key_value' => 123],
+    ['setting_id' => 8, 'key_name' => 'blob_payload', 'key_value' => new SQLiteBlobValue("plugin_\xe2blob")],
+    ['setting_id' => 9, 'key_name' => 'ascii_plugin', 'key_value' => 'plugin_X'],
+    ['setting_id' => 10, 'key_name' => 'uppercase_plugin', 'key_value' => "PLUGIN_\xe2TAIL"],
+    ['setting_id' => 11, 'key_name' => 'new_legacy_plugin', 'key_value' => "plugin_\xe2new"],
+];
+
+$plan232 = static fn (
+    ?array $current = null,
+    ?array $next = null,
+    string $pattern = "plugin!_\xe2%",
+    ?string $escape = '!',
+    bool $caseSensitive = false,
+    string $currentSource = 'main.app_settings@231',
+    string $nextSource = 'main.app_settings@232',
+    int $currentCookie = 231,
+    int $nextCookie = 232,
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueMalformedByteLikePlan(
+    $current ?? $current232,
+    $next ?? $nextTwoThreeTwo,
+    $pattern,
+    $escape,
+    $caseSensitive,
+    $currentSource,
+    $nextSource,
+    $currentCookie,
+    $nextCookie,
+);
+
+$valueAt232 = static function (array $value, string $path): mixed {
+    foreach (explode('.', $path) as $part) {
+        if (!is_array($value) || !array_key_exists($part, $value)) {
+            return null;
+        }
+        $value = $value[$part];
+    }
+
+    return $value;
+};
+
+$cases232 = [
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoThreeTwo'],
+    'operator' => ['operator', 'LIKE'],
+    'expression' => ['expression', 'CAST(key_value AS TEXT) COLLATE NOCASE LIKE ? ESCAPE ? /* malformed-byte current-source fence */'],
+    'pattern hex' => ['patternBytesHex', '706c7567696e215fe225'],
+    'pattern characters' => ['patternCharacterCount', 10],
+    'escape' => ['escape', '!'],
+    'escape hex' => ['escapeBytesHex', '21'],
+    'case flag' => ['caseSensitiveLike', false],
+    'collation' => ['collation', 'NOCASE'],
+    'prefix' => ['prefix', "plugin_\xe2"],
+    'prefix hex' => ['prefixBytesHex', '706c7567696e5fe2'],
+    'prefix characters' => ['prefixCharacters', 8],
+    'prefix ascii flag' => ['prefixIsAscii', false],
+    'range lower' => ['rangeLowerInclusive', "plugin_\xe2"],
+    'range upper' => ['rangeUpperBound', "plugin_\xe3"],
+    'current source' => ['currentSource', 'main.app_settings@231'],
+    'next source' => ['nextSource', 'main.app_settings@232'],
+    'current cookie' => ['currentSchemaCookie', 231],
+    'next cookie' => ['nextSchemaCookie', 232],
+    'current rowids' => ['currentRowids', [10, 1, 2, 3]],
+    'next rowids' => ['nextRowids', [10, 1, 3, 11, 4]],
+    'retained rowids' => ['retainedRowids', [10, 1, 3]],
+    'exited rowids' => ['exitedRowids', [2]],
+    'entered rowids' => ['enteredRowids', [11, 4]],
+    'changed bytes' => ['changedBytesRowids', [1]],
+    'changed storage' => ['changedStorageRowids', []],
+    'current malformed rowids' => ['currentMalformedRowids', [10, 1, 2, 3]],
+    'next malformed rowids' => ['nextMalformedRowids', [10, 1, 3, 11, 4]],
+    'current uppercase hex' => ['currentTextsHex.10', '504c5547494e5fe25441494c'],
+    'current bad pair hex' => ['currentTextsHex.3', '706c7567696e5fe228'],
+    'next truncated euro hex' => ['nextTextsHex.4', '706c7567696e5fe282'],
+    'next new hex' => ['nextTextsHex.11', '706c7567696e5fe26e6577'],
+    'current uppercase tokens' => ['currentPatternTokens.10', ['50', '4c', '55', '47', '49', '4e', '5f', 'e2', '54', '41', '49', '4c']],
+    'current bad pair tokens' => ['currentPatternTokens.3', ['70', '6c', '75', '67', '69', '6e', '5f', 'e2', '28']],
+    'next truncated tokens' => ['nextPatternTokens.4', ['70', '6c', '75', '67', '69', '6e', '5f', 'e2', '82']],
+    'current token count uppercase' => ['currentTokenCounts.10', 12],
+    'next token count truncated' => ['nextTokenCounts.4', 9],
+    'current storage string' => ['currentStorage.1', 'text'],
+    'next storage string' => ['nextStorage.11', 'text'],
+    'cursor invalidated' => ['cursorInvalidated', true],
+    'cursor not reusable' => ['cursorReusable', false],
+    'invalid reason source' => ['invalidationReasons.0', 'source-name'],
+    'invalid reason cookie' => ['invalidationReasons.1', 'schema-cookie'],
+    'invalid reason rowset' => ['invalidationReasons.2', 'matched-rowset'],
+    'invalid reason malformed bytes' => ['invalidationReasons.3', 'malformed-byte-text'],
+    'malformed byte flag' => ['malformedBytesAreSingleCharacters', true],
+    'valid codepoint flag' => ['validUtf8CodepointsStayIntact', true],
+    'nocase flag' => ['nocaseFoldsAsciiOnly', true],
+    'dependency tokenizer' => ['dependencies.0', 'sqlite-like-malformed-utf8-byte-tokenizer'],
+    'dependency affinity' => ['dependencies.1', 'sqlite-text-affinity'],
+    'dependency collation' => ['dependencies.2', 'sqlite-nocase-ascii-collation'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoThreeTwo'],
+];
+
+foreach ($cases232 as $name => [$path, $expected]) {
+    $tests['encoding collation affinity like current source nextTwoThreeTwo ' . $name] = static function (TestRunner $t) use ($plan232, $valueAt232, $path, $expected): void {
+        $t->same($expected, $valueAt232($plan232(), $path));
+    };
+}
+
+$tests['encoding collation affinity like current source nextTwoThreeTwo valid euro does not match malformed byte prefix'] = static function (TestRunner $t) use ($current232, $nextTwoThreeTwo): void {
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueMalformedByteLikePlan($current232, $nextTwoThreeTwo, "plugin!_\xe2%", '!');
+    $t->same(false, array_key_exists(4, $plan['currentTextsHex']));
+};
+
+$tests['encoding collation affinity like current source nextTwoThreeTwo case sensitive excludes uppercase plugin'] = static function (TestRunner $t) use ($plan232): void {
+    $case = $plan232(caseSensitive: true);
+    $t->same([2, 3], $case['currentRowids']);
+    $t->same(false, array_key_exists(10, $case['currentTextsHex']));
+};
+
+$tests['encoding collation affinity like current source nextTwoThreeTwo stable cursor reusable'] = static function (TestRunner $t) use ($current232, $plan232): void {
+    $stable = $plan232(current: $current232, next: $current232, currentSource: 'stable', nextSource: 'stable', currentCookie: 232, nextCookie: 232);
+    $t->same(false, $stable['cursorInvalidated']);
+    $t->same(true, $stable['cursorReusable']);
+    $t->same([], $stable['invalidationReasons']);
+};
+
+$tests['encoding collation affinity like current source nextTwoThreeTwo underscore consumes one malformed byte'] = static function (TestRunner $t): void {
+    $rows = [
+        ['setting_id' => 1, 'key_value' => "legacy_\xe2_tail"],
+        ['setting_id' => 2, 'key_value' => "legacy_\xe2\x82_tail"],
+        ['setting_id' => 3, 'key_value' => "legacy_\xe2\x82\xac_tail"],
+    ];
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueMalformedByteLikePlan($rows, $rows, "legacy!___tail", '!', false, 'same', 'same', 1, 1);
+    $t->same([1, 3], $plan['currentRowids']);
+};
+
+$tests['encoding collation affinity like current source nextTwoThreeTwo numeric affinity participates'] = static function (TestRunner $t): void {
+    $rows = [
+        ['setting_id' => 1, 'key_value' => 123],
+        ['setting_id' => 2, 'key_value' => 12.5],
+        ['setting_id' => 3, 'key_value' => true],
+        ['setting_id' => 4, 'key_value' => null],
+    ];
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueMalformedByteLikePlan($rows, $rows, '12%', null, false, 'same', 'same', 1, 1);
+    $t->same([2, 1], $plan['currentRowids']);
+    $t->same(['31322e35', '313233'], array_values($plan['currentTextsHex']));
+};
+
+$tests['encoding collation affinity like current source nextTwoThreeTwo blob and null remain sql null for like'] = static function (TestRunner $t): void {
+    $rows = [
+        ['setting_id' => 1, 'key_value' => new SQLiteBlobValue("plugin_\xe2blob")],
+        ['setting_id' => 2, 'key_value' => null],
+    ];
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueMalformedByteLikePlan($rows, $rows, "plugin!_\xe2%", '!', false, 'same', 'same', 1, 1);
+    $t->same([], $plan['currentRowids']);
+};
+
+$tests['encoding collation affinity like current source nextTwoThreeTwo rejects multi character escape'] = static function (TestRunner $t) use ($current232, $nextTwoThreeTwo): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueMalformedByteLikePlan($current232, $nextTwoThreeTwo, "plugin!_\xe2%", '!!'));
+};
+
+$tests['encoding collation affinity like current source nextTwoThreeTwo rejects missing key value'] = static function (TestRunner $t) use ($nextTwoThreeTwo): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueMalformedByteLikePlan([['setting_id' => 1]], $nextTwoThreeTwo, "plugin!_\xe2%", '!'));
+};
+
+$tests['encoding collation affinity like current source nextTwoThreeTwo rejects non scalar value'] = static function (TestRunner $t) use ($nextTwoThreeTwo): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueMalformedByteLikePlan([['setting_id' => 1, 'key_value' => ['x']]], $nextTwoThreeTwo, "plugin!_\xe2%", '!'));
+};
+
+return $tests;

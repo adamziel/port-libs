@@ -1,0 +1,27 @@
+[ Para
+    [ Span ( "legacy-section" , [] , [] ) []
+    , Str "Legacy"
+    , Space
+    , Str "source"
+    , Space
+    , Str "section"
+    , Space
+    , Str "anchor."
+    ]
+, Para
+    [ Image
+        ( "" , [] , [ ( "external" , "1" ) ] )
+        [ Str "External" , Space , Str "cover" ]
+        ( "https://cdn.example.test/original/cover.jpg"
+        , "External cover title"
+        )
+    ]
+, Para
+    [ Span ( "review-anchor" , [] , [] ) []
+    , Str "Reviewer"
+    , Space
+    , Str "jump"
+    , Space
+    , Str "target."
+    ]
+]

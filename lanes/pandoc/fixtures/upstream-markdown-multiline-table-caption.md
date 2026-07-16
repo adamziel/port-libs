@@ -1,0 +1,13 @@
+  ---------------------------------------------------------------
+   Centered   Left              Right Default aligned
+    Header    Aligned         Aligned 
+  ----------- ---------- ------------ ---------------------------
+     First    row                12.0 Example of a row that spans
+                                      multiple lines.
+
+    Second    row                 5.0 Here's another one. Note
+                                      the blank line between
+                                      rows.
+  ---------------------------------------------------------------
+
+  : Here's the caption. It may span multiple lines.

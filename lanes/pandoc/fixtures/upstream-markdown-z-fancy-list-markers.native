@@ -1,0 +1,12 @@
+[ OrderedList
+    ( 1 , UpperAlpha , Period )
+    [ [ Plain [ Str "alpha" ] ] , [ Plain [ Str "beta" ] ] ]
+, OrderedList
+    ( 4 , UpperRoman , Period )
+    [ [ Plain [ Str "roman" , Space , Str "four" ] ]
+    , [ Plain [ Str "roman" , Space , Str "five" ] ]
+    ]
+, OrderedList
+    ( 3 , Decimal , TwoParens )
+    [ [ Plain [ Str "three" ] ] , [ Plain [ Str "four" ] ] ]
+]

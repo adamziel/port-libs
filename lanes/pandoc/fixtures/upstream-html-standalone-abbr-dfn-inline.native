@@ -1,0 +1,10 @@
+[ Plain
+    [ Span
+        ( "" , [ "abbr" ] , [ ( "title" , "Hypertext" ) ] )
+        [ Str "HTML" ]
+    , Space
+    , Str "and"
+    , Space
+    , Span ( "" , [ "dfn" ] , [] ) [ Str "term" ]
+    ]
+]

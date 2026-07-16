@@ -1,0 +1,9 @@
+[ Header
+    2
+    ( "slide-1" , [] , [] )
+    [ Str "Paragraph descendant text" ]
+, Para
+    [ Str
+        "Property text Nested property text Run text Foreign paragraph text"
+    ]
+]

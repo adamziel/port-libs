@@ -1,0 +1,3 @@
+id	payload	note
+1	"escaped\	separator"	escaped tab
+2	"escaped\\slash"	escaped slash

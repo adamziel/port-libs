@@ -1,0 +1,43 @@
+{
+    "extractor": "macOS PDFKit",
+    "pageCount": 1,
+    "pages": [
+        {
+            "height": 842,
+            "lines": [
+                {
+                    "height": 12.289,
+                    "text": "I Am A Header",
+                    "width": 72.091,
+                    "x": 72,
+                    "y": 793.351
+                },
+                {
+                    "height": 12.289,
+                    "text": "Title",
+                    "width": 22.402,
+                    "x": 72,
+                    "y": 757.351
+                },
+                {
+                    "height": 12.289,
+                    "text": "Here is a lovely sentences.",
+                    "width": 131.361,
+                    "x": 72,
+                    "y": 728.259
+                },
+                {
+                    "height": 12.289,
+                    "text": "I Am A Footer",
+                    "width": 67.807,
+                    "x": 72,
+                    "y": 37.647
+                }
+            ],
+            "number": 1,
+            "rotation": 0,
+            "text": "I Am A Header\nTitle\nHere is a lovely sentences.\nI Am A Footer",
+            "width": 596
+        }
+    ]
+}

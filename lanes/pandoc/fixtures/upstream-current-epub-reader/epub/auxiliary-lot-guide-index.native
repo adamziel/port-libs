@@ -1,0 +1,22 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Auxiliary"
+    , Space
+    , Str "LOT"
+    , Space
+    , Str "Guide"
+    , Space
+    , Str "Index"
+    ]
+, Para
+    [ Str "Index"
+    , Space
+    , Str "target"
+    , Space
+    , Str "package"
+    , Space
+    , Str "coverage."
+    ]
+]

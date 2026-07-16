@@ -1,0 +1,12 @@
+[[plugins]]
+slug = "gutenberg"
+status = "required"
+config = { autoload = false, review = "manual" }
+
+[[plugins]]
+slug = "wordpress-importer"
+status = "required"
+config = { autoload = true, review = "migration" }
+
+[playground]
+blueprint = { php = "8.3", wp = "6.6", plugins = [ "gutenberg", "wordpress-importer" ] }

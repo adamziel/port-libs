@@ -1,0 +1,53 @@
+[ Header 1 ( "isik" , [] , [] ) [ Str "I\351\305k" ]
+, Header
+    1
+    ( "non-ascii-warning-raksmorgas" , [] , [] )
+    [ Str "non"
+    , Space
+    , Str "ascii"
+    , Space
+    , Str "\9888\65039"
+    , Space
+    , Str "r\228ksm\246rg\229s"
+    ]
+, Header
+    1
+    ( "section" , [] , [] )
+    [ Str "\1055\1088\1080\1074\1077\1090"
+    , Space
+    , Str "\1084\1080\1088"
+    ]
+, Header
+    1
+    ( "section-1" , [] , [] )
+    [ Str "\1055\1088\1080\1074\1077\1090"
+    , Space
+    , Str "\1084\1080\1088"
+    ]
+, Para
+    [ Link
+        ( "" , [] , [] ) [ Str "I\351\305k" ] ( "#isik" , "" )
+    ]
+, Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "non"
+        , Space
+        , Str "ascii"
+        , Space
+        , Str "\9888\65039"
+        , Space
+        , Str "r\228ksm\246rg\229s"
+        ]
+        ( "#non-ascii-warning-raksmorgas" , "" )
+    ]
+, Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "\1055\1088\1080\1074\1077\1090"
+        , Space
+        , Str "\1084\1080\1088"
+        ]
+        ( "#section" , "" )
+    ]
+]

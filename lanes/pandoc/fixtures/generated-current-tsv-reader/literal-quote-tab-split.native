@@ -1,0 +1,11 @@
+[ Table ( "" , [  ] , [  ] ) (Caption Nothing []) [ ( AlignDefault , ColWidthDefault ) , ( AlignDefault , ColWidthDefault ) , ( AlignDefault , ColWidthDefault ) ] (TableHead ( "" , [  ] , [  ] ) [ Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "id" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "payload" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "status" ]
+  ] ] ]) [ TableBody ( "" , [  ] , [  ] ) (RowHeadColumns 0) [  ] [ Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "1" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "\"left" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "right\"" ]
+  ] ] , Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "2" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "plain" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "ok" ]
+  ] ] ] ] (TableFoot ( "" , [  ] , [  ] ) [  ])
+]

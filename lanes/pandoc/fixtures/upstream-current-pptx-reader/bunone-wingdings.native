@@ -1,0 +1,8 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "BuNone symbol slide" ]
+, BulletList
+    [ [ Plain [ Str "Wingdings still wins" ] ]
+    , [ Plain [ Str "Explicit bullet still wins" ] ]
+    ]
+, Para [ Str "Plain buNone stays plain" ]
+]

@@ -1,0 +1,75 @@
+[ Header
+    1
+    ( "section-1" , [] , [] )
+    [ Str "Section" , Space , Str "1" ]
+, Para
+    [ Str "hello"
+    , Note [ Para [ Str "doc" , Space , Str "footnote" ] ]
+    ]
+, Table
+    ( "" , [] , [ ( "style" , "width:17%;" ) ] )
+    (Caption
+       Nothing
+       [ Plain
+           [ Str "Sample"
+           , Space
+           , Str "table."
+           , Note [ Para [ Str "caption" , Space , Str "footnote" ] ]
+           ]
+       ])
+    [ ( AlignCenter , ColWidth 0.16 ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignCenter
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain
+                   [ Str "Fruit"
+                   , Note
+                       [ Para [ Str "header" , Space , Str "footnote" ]
+                       ]
+                   ]
+               ]
+           ]
+       ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignCenter
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain
+                    [ Str "Bans"
+                    , Note
+                        [ Para
+                            [ Str "table"
+                            , Space
+                            , Str "cell"
+                            , Space
+                            , Str "footnote"
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+, Header
+    1
+    ( "section-2" , [] , [] )
+    [ Str "Section" , Space , Str "2" ]
+, Para
+    [ Str "dolly"
+    , Note [ Para [ Str "doc" , Space , Str "footnote" ] ]
+    ]
+]

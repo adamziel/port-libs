@@ -1,0 +1,22 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Missing"
+    , Space
+    , Str "Media"
+    , Space
+    , Str "Overlay"
+    ]
+, Para
+    [ Str "Overlay"
+    , Space
+    , Str "reference"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "package"
+    , Space
+    , Str "only."
+    ]
+]

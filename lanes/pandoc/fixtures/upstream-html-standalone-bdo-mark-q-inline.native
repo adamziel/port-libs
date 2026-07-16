@@ -1,0 +1,10 @@
+[ Plain
+    [ Span ( "" , [] , [ ( "dir" , "rtl" ) ] ) [ Str "abc" ]
+    , Span ( "" , [ "mark" ] , [] ) [ Str "hi" ]
+    , Quoted
+        DoubleQuote
+        [ Span
+            ( "" , [] , [ ( "cite" , "/source" ) ] ) [ Str "quote" ]
+        ]
+    ]
+]

@@ -1,0 +1,10 @@
+@mixin acme-card($radius:4px, $shadow:small){
+  .wp-block-acme-card{
+    border:1px solid var(--wp--preset--color--primary);
+    box-shadow:var(--wp--preset--shadow--$shadow);
+    &.is-style-featured{
+      border-radius:$radius;
+      color:var(--wp--preset--color--primary);
+    }
+  }
+}

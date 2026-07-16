@@ -1,0 +1,7 @@
+# B-tree Vacuum Pointer-map Freeblock Current Source Next169
+
+- Behavior: adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext169Plan`, a current-source write gate over the accepted delete/vacuum/freeblock replacement path. It admits replacement page writes only when the observed current page hash still matches the source image, rejects vacuum-truncated overflow pages, and separately reports stale current-source pages before applying replacement overflow bytes.
+- Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext169Test.php` -> `1 test files / 180 assertions / 0 failures` with 48 PASS lines.
+- Application smoke: `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next169.php --self-test`.
+- Non-overlap: avoids accepted next165 source/next row imaging, next163 fence rows, next160 replacement chain validation, overflow freelist release, bulk overflow freeblocks, page relocation, root collapse, index-interior merge, freelist trunk reuse, and pointer-map vacuum/freeblock slices. The new surface is stale current-source hash rejection before applying the vacuum/freeblock replacement writes.
+- Dependency closure: no new support component is needed; this reuses existing native PHP b-tree delete, vacuum, freelist allocation, pointer-map, overflow encoding, and page-hash primitives.

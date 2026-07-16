@@ -1,0 +1,7 @@
+[ OrderedList
+    ( 1 , Decimal , Period )
+    [ [ Plain [ Str "four" ] ] , [ Plain [ Str "five" ] ] ]
+, OrderedList
+    ( 1 , UpperAlpha , Period )
+    [ [ Plain [ Str "beta" ] ] , [ Plain [ Str "gamma" ] ] ]
+]

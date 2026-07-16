@@ -1,0 +1,11 @@
+[ Para
+    [ Strikeout
+        [ Str "This"
+        , Space
+        , Str "is"
+        , Space
+        , Emph [ Str "strikeout" ]
+        , Str "."
+        ]
+    ]
+]

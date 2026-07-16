@@ -1,0 +1,4 @@
+id	note	status	
+1	  literal "quotes" stay	comma, pipe | stay	
+2	ragged row	no trailing cell
+3		final	

@@ -1,0 +1,17 @@
+[ Div
+    ( "review-block"
+    , [ "outer" ]
+    , [ ( "data-kind" , "fenced-div" ) ]
+    )
+    [ Para
+        [ Str "Intro"
+        , Space
+        , Strong [ Str "strong" ]
+        , Space
+        , Str "text."
+        ]
+    , Div
+        ( "" , [ "note" ] , [] )
+        [ Para [ Str "Nested" , Space , Str "body." ] ]
+    ]
+]

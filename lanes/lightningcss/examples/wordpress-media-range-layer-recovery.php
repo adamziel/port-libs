@@ -1,0 +1,92 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\LightningCSS\CssMinifier;
+
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+$css = <<<'CSS'
+@layer theme.blocks {
+  @media (not unknown(foo)) {
+    .wp-block-query.is-experimental {
+      color: red;
+    }
+  }
+
+  @media n\6f t(color) {
+    .wp-block-query.is-compact-not {
+      color: red;
+    }
+  }
+
+  @media (hover: 1) {
+    .wp-block-query.is-invalid-value {
+      color: chartreuse;
+    }
+  }
+
+  @media (width >= 50%) {
+    .wp-block-query.is-percentage-breakpoint {
+      color: turquoise;
+    }
+  }
+
+  @media (width >= calc(1px + 2px)) {
+    .wp-block-query {
+      color: yellow;
+    }
+  }
+}
+CSS;
+
+$result = (new CssMinifier())->minifyWithErrorRecovery($css, 'wp-block-theme.css');
+$actual = [
+    'code' => $result['code'],
+    'warnings' => array_map(
+        static fn (array $warning): array => [
+            'message' => $warning['message'],
+            'line' => $warning['loc']['line'],
+            'column' => $warning['loc']['column'],
+        ],
+        $result['warnings']
+    ),
+];
+
+$expected = [
+    'code' => '@layer theme.blocks{@media (hover:1){.wp-block-query.is-invalid-value{color:#7fff00}}@media (width>=50%){.wp-block-query.is-percentage-breakpoint{color:turquoise}}@media (width>=3px){.wp-block-query{color:#ff0}}}',
+    'warnings' => [
+        [
+            'message' => 'Unexpected token Function("unknown")',
+            'line' => 2,
+            'column' => 14,
+        ],
+        [
+            'message' => 'Unexpected token Function("not")',
+            'line' => 8,
+            'column' => 9,
+        ],
+        [
+            'message' => 'Invalid media query',
+            'line' => 14,
+            'column' => 9,
+        ],
+        [
+            'message' => 'Invalid media query',
+            'line' => 20,
+            'column' => 9,
+        ],
+    ],
+];
+
+if (($argv[1] ?? null) === '--self-test') {
+    if ($actual !== $expected) {
+        fwrite(STDERR, "Unexpected media range layer recovery output:\n" . var_export($actual, true) . "\n");
+        exit(1);
+    }
+
+    echo "OK\n";
+    exit(0);
+}
+
+echo json_encode($actual, JSON_PRETTY_PRINT) . PHP_EOL;

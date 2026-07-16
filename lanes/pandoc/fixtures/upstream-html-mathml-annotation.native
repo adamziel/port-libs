@@ -1,0 +1,3 @@
+[ Para [ Str "Inline" , Space , Str "equation:" , Space , Math InlineMath "x^2" , Space , Str "and" , Space , Str "fallback:" , Space , Math InlineMath "y + 1" , Str "." ]
+, Para [ Str "Assistive" , Space , Str "source:" , Space , Math DisplayMath "E=mc^2" ]
+]

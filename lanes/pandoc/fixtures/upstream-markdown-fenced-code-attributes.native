@@ -1,0 +1,7 @@
+[ CodeBlock
+    ( "reader-fixture"
+    , [ "php" ]
+    , [ ( "data-phase" , "selected" ) ]
+    )
+    "echo \"markdown fixture\";"
+]

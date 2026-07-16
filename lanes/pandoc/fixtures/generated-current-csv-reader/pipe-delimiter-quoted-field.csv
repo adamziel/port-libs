@@ -1,0 +1,4 @@
+id| title|note
+1| "Alpha | Beta"|"pipe stays inside quotes"
+2|"quote ""inside"""|comma, semicolon; stay
+3|plain|final

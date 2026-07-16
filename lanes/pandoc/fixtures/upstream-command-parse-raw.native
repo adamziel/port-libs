@@ -1,0 +1,13 @@
+[ CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -f latex+raw_tex -t markdown\n\\emph{Hi \\foo{there}}\n^D\n*Hi `\\foo{there}`{=latex}*"
+, CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -f latex -t markdown\n\\emph{Hi \\foo{there}}\n^D\n*Hi*"
+, CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -f html+raw_html -t markdown\n<em>Hi <blink>there</blink></em>\n^D\n*Hi `<blink>`{=html}there`</blink>`{=html}*"
+, CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -f html -t markdown\n<em>Hi <blink>there</blink></em>\n^D\n*Hi there*"
+]

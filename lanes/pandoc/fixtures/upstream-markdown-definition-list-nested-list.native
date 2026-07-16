@@ -1,0 +1,6 @@
+[ DefinitionList
+    [ ( [ Str "foo" ]
+      , [ [ BulletList [ [ Plain [ Str "bar" ] ] ] ] ]
+      )
+    ]
+]

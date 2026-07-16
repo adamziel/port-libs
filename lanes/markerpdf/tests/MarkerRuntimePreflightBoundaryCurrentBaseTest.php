@@ -1,0 +1,2831 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\MarkerPDF\OutputWriter;
+use PortLibs\MarkerPDF\BatchConverter;
+use PortLibs\MarkerPDF\SingleDocumentConverter;
+
+$makeTempDir = static function (): string {
+    $path = sys_get_temp_dir() . '/markerpdf-runtime-preflight-' . bin2hex(random_bytes(4));
+    if (!mkdir($path, 0777, true) && !is_dir($path)) {
+        throw new RuntimeException('Unable to create temporary markerpdf runtime preflight folder.');
+    }
+
+    return $path;
+};
+
+$removeTree = static function (string $path) use (&$removeTree): void {
+    if (!is_dir($path)) {
+        return;
+    }
+
+    foreach (scandir($path) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+
+        $child = $path . DIRECTORY_SEPARATOR . $entry;
+        if (is_link($child) || !is_dir($child)) {
+            unlink($child);
+        } else {
+            $removeTree($child);
+        }
+    }
+
+    rmdir($path);
+};
+
+$runtimeDirectoryOrder = static function (string $path, bool $filesOnly = false): array {
+    $handle = opendir($path);
+    if ($handle === false) {
+        throw new RuntimeException('Unable to inspect temporary runtime preflight directory order.');
+    }
+
+    $entries = [];
+    try {
+        while (($entry = readdir($handle)) !== false) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            if ($filesOnly && !is_file($path . DIRECTORY_SEPARATOR . $entry)) {
+                continue;
+            }
+
+            $entries[] = $entry;
+        }
+    } finally {
+        closedir($handle);
+    }
+
+    return $entries;
+};
+
+return [
+    'records convert_single runtime preflight before model loading without executing models' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $output = $makeTempDir();
+        try {
+            (new OutputWriter())->saveMarkdown(
+                $output,
+                'annual.report.pdf',
+                '<!-- wp:paragraph --><p>Existing import.</p><!-- /wp:paragraph -->',
+                [],
+                ['title' => 'Existing Import']
+            );
+
+            $filename = '/wp/uploads/2026/annual.report.pdf';
+            $plan = (new SingleDocumentConverter())->runtimePreflightPlan(
+                $filename,
+                $output,
+                maxPages: 3,
+                startPage: 1,
+                languages: 'English, Spanish,de',
+                batchMultiplier: 4
+            );
+
+            $t->same('markerpdf.convert_single_runtime_preflight.v1', $plan['schema']);
+            $t->contains('convert_single.py::main', $plan['source']);
+            $t->contains('load_all_models', $plan['source']);
+            $t->same('annual.report.pdf', $plan['filename']);
+            $t->same($filename, $plan['filepath']);
+            $t->same($output, $plan['output_folder']);
+            $t->same($output . DIRECTORY_SEPARATOR . 'annual.report', $plan['subfolder']);
+            $t->same($output . DIRECTORY_SEPARATOR . 'annual.report' . DIRECTORY_SEPARATOR . 'annual.report.md', $plan['markdown_path']);
+            $t->same(['PYTORCH_ENABLE_MPS_FALLBACK' => '1'], $plan['environment']);
+            $t->same([
+                'configure_logging',
+                'parse_args',
+                'parse_langs',
+                'load_all_models',
+                'convert_single_pdf',
+                'save_markdown',
+                'print_saved_folder',
+                'print_total_time',
+            ], $plan['preflight_order']);
+
+            $t->same(3, $plan['options']['max_pages']);
+            $t->same(1, $plan['options']['start_page']);
+            $t->same(['English', ' Spanish', 'de'], $plan['options']['langs']);
+            $t->same(4, $plan['options']['batch_multiplier']);
+            $t->same('load_all_models', $plan['model_boundary']['load_function']);
+            $t->same(true, $plan['model_boundary']['loads_all_models_before_conversion']);
+            $t->same(true, $plan['model_boundary']['passes_model_list_to_convert_single_pdf']);
+            $t->same(false, $plan['model_boundary']['native_plan_loads_models']);
+            $t->same(true, $plan['model_boundary']['upstream_model_execution_required']);
+            $t->same('convert_single_pdf', $plan['conversion_call']['function']);
+            $t->same($filename, $plan['conversion_call']['receives_filename']);
+            $t->same([
+                'max_pages' => 3,
+                'langs' => ['English', ' Spanish', 'de'],
+                'batch_multiplier' => 4,
+                'start_page' => 1,
+            ], $plan['conversion_call']['receives_options']);
+            $t->same(null, $plan['conversion_call']['metadata_argument_source']);
+            $t->contains('settings.OCR_ALL_PAGES', $plan['conversion_call']['ocr_all_pages_argument_source']);
+
+            $outputPolicy = $plan['output_policy'];
+            $t->same('save_markdown', $outputPolicy['function']);
+            $t->same(true, $outputPolicy['uses_basename_after_conversion']);
+            $t->same(true, $outputPolicy['existing_markdown']);
+            $t->same(false, $outputPolicy['skips_existing_markdown']);
+            $t->same(false, $outputPolicy['min_length_preflight']);
+            $t->same(false, $outputPolicy['filetype_preflight_before_model_load']);
+            $t->same(true, $outputPolicy['saves_empty_output']);
+            $t->same('Saved markdown to the {subfolder_path} folder', $outputPolicy['saved_folder_message']);
+            $t->same('Total time: ', $outputPolicy['elapsed_message_prefix']);
+            $t->same(true, $plan['review_only']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_streamlit']);
+            $t->same(false, $plan['executes_fastapi']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($output);
+        }
+    },
+    'keeps convert_single defaults distinct from batch process preflight gates' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $output = $makeTempDir();
+        try {
+            $plan = (new SingleDocumentConverter())->runtimePreflightPlan(
+                '/wp/uploads/editor-checklist.pdf',
+                $output
+            );
+
+            $t->same(['max_pages' => null, 'start_page' => null, 'langs' => null, 'batch_multiplier' => 2], $plan['options']);
+            $t->same(false, $plan['output_policy']['existing_markdown']);
+            $t->same(false, $plan['output_policy']['skips_existing_markdown']);
+            $t->same(false, $plan['output_policy']['min_length_preflight']);
+            $t->same(false, $plan['output_policy']['filetype_preflight_before_model_load']);
+            $t->same(true, $plan['output_policy']['saves_empty_output']);
+            $t->same(false, $plan['executes_python_or_models']);
+
+            $single = new SingleDocumentConverter();
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn (): array => $single->runtimePreflightPlan('', $output)
+            );
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn (): array => $single->runtimePreflightPlan('/wp/uploads/report.pdf', '')
+            );
+        } finally {
+            $removeTree($output);
+        }
+    },
+    'records convert.py main runtime admission before task pool launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf', 'gamma.pdf', 'omega.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $expectedSelected = array_slice($fileOrder, 2, 2);
+            $metadataFilename = $expectedSelected[0];
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata.json';
+            file_put_contents($metadataFile, json_encode([
+                $metadataFilename => ['title' => 'Selected Import', 'languages' => ['English']],
+                'unselected.pdf' => ['title' => 'Unselected Import'],
+            ], JSON_THROW_ON_ERROR));
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                chunkIndex: 1,
+                numChunks: 2,
+                maxFiles: 2,
+                metadataByFilename: ['ignored.pdf' => ['title' => 'Ignored when metadata_file is present']],
+                minLength: 80,
+                workers: 5,
+                metadataFile: $metadataFile
+            );
+
+            $t->same('markerpdf.convert_main_runtime_preflight.v1', $plan['schema']);
+            $t->contains('convert.py::main', $plan['source']);
+            $t->contains('os.makedirs', $plan['source']);
+            $t->same([
+                'configure_logging',
+                'parse_args',
+                'abspath_input_output',
+                'list_input_files',
+                'makedirs_output_exist_ok',
+                'chunk_files',
+                'load_metadata_file',
+                'set_spawn_start_method',
+                'prepare_model_handoff',
+                'print_conversion_summary',
+                'build_task_args',
+                'pool_imap_process_single_pdf',
+            ], $plan['preflight_order']);
+            $t->same(['PYTORCH_ENABLE_MPS_FALLBACK' => '1', 'IN_STREAMLIT' => 'true', 'PDFTEXT_CPU_WORKERS' => '1'], $plan['environment']);
+            $t->same($input, $plan['paths']['absolute_input_folder']);
+            $t->same($output, $plan['paths']['absolute_output_folder']);
+            $t->same(true, $plan['paths']['output_folder_exists']);
+            $t->same(true, $plan['paths']['upstream_creates_output_folder']);
+            $t->same(false, $plan['paths']['native_plan_creates_output_folder']);
+            $t->same(false, $plan['paths']['output_folder_creation_required']);
+            $t->same(4, $plan['chunking']['input_file_count']);
+            $t->same(2, $plan['chunking']['chunk_size']);
+            $t->same(2, $plan['chunking']['start_index']);
+            $t->same(4, $plan['chunking']['end_index']);
+            $t->same(2, $plan['chunking']['selected_count']);
+            $t->same($expectedSelected, $plan['chunking']['selected_filenames']);
+            $t->same('metadata_file json.load keyed by basename', $plan['metadata']['source']);
+            $t->same($metadataFile, $plan['metadata']['metadata_file']);
+            $t->same([$metadataFilename, 'unselected.pdf'], $plan['metadata']['metadata_filenames']);
+            $t->same([$metadataFilename], $plan['metadata']['selected_metadata_filenames']);
+            $t->same(array_values(array_diff($expectedSelected, [$metadataFilename])), $plan['metadata']['missing_metadata_filenames']);
+            $t->same(5, $plan['worker_pool']['requested_workers']);
+            $t->same(2, $plan['worker_pool']['total_processes']);
+            $t->same(true, $plan['worker_pool']['pool_launchable']);
+            $t->same(null, $plan['worker_pool']['pool_error_boundary']);
+            $t->same('spawn', $plan['worker_pool']['start_method']);
+            $t->same('process_single_pdf', $plan['worker_pool']['process_function']);
+            $t->same(2, $plan['worker_pool']['task_args_count']);
+            $t->same($expectedSelected[0], basename($plan['worker_pool']['task_args'][0]['filepath']));
+            $t->same($output, $plan['worker_pool']['task_args'][0]['out_folder']);
+            $t->same(['title' => 'Selected Import', 'languages' => ['English']], $plan['worker_pool']['task_args'][0]['metadata']);
+            $t->same(null, $plan['worker_pool']['task_args'][1]['metadata']);
+            $t->same(80, $plan['worker_pool']['task_args'][1]['min_length']);
+            $t->same('tqdm(pool.imap(process_single_pdf, task_args), total=len(task_args), desc="Processing PDFs", unit="pdf")', $plan['worker_pool']['progress_iterator']);
+            $t->same('process_single_pdf', $plan['conversion_boundary']['per_file_preflight_function']);
+            $t->same('convert_single_pdf', $plan['conversion_boundary']['converter_function']);
+            $t->same('metadata.get(os.path.basename(f))', $plan['conversion_boundary']['metadata_lookup']);
+            $t->same('print_empty_file_without_save_markdown', $plan['conversion_boundary']['empty_output_policy']);
+            $t->same(true, $plan['console_summary']['summary_reached']);
+            $t->same(
+                'Converting 2 pdfs in chunk 2/2 with 2 processes, and storing in ' . $output,
+                $plan['console_summary']['message_line']
+            );
+            $t->same('after_model_handoff_before_task_args', $plan['console_summary']['emission_order']);
+            $t->same(true, $plan['review_only']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records input and output os.path.abspath resolution before listdir and makedirs' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $root = $makeTempDir();
+        $previousCwd = getcwd();
+        if (!is_string($previousCwd)) {
+            throw new RuntimeException('Unable to capture cwd for markerPDF runtime abspath boundary test.');
+        }
+
+        try {
+            $input = $root . DIRECTORY_SEPARATOR . 'wp-content' . DIRECTORY_SEPARATOR . 'uploads';
+            $output = $root . DIRECTORY_SEPARATOR . 'marker-output';
+            mkdir($input, 0777, true);
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'relative-report.pdf', "%PDF-1.4\n% relative report\n%%EOF");
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'sidecar.txt', 'WordPress upload sidecar');
+
+            if (!chdir($root)) {
+                throw new RuntimeException('Unable to enter markerPDF runtime abspath fixture root.');
+            }
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                './wp-content/../wp-content/uploads',
+                './runtime/../marker-output',
+                workers: 3
+            );
+
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $resolution = $plan['paths']['path_resolution'];
+            $taskArgs = $plan['worker_pool']['task_args'];
+
+            $t->same('convert.py os.path.abspath input/output boundary', $resolution['source']);
+            $t->same('after_parse_args_before_list_input_files', $resolution['order']);
+            $t->same('./wp-content/../wp-content/uploads', $resolution['input_folder_argument']);
+            $t->same('./runtime/../marker-output', $resolution['output_folder_argument']);
+            $t->same('os.path.abspath(args.in_folder)', $resolution['input_folder_abspath_call']);
+            $t->same('os.path.abspath(args.out_folder)', $resolution['output_folder_abspath_call']);
+            $t->same(false, $resolution['input_folder_was_absolute']);
+            $t->same(false, $resolution['output_folder_was_absolute']);
+            $t->same('process_cwd', $resolution['input_folder_abspath_base']);
+            $t->same('process_cwd', $resolution['output_folder_abspath_base']);
+            $t->same($root, $resolution['process_cwd']);
+            $t->same($input, $resolution['absolute_input_folder']);
+            $t->same($output, $resolution['absolute_output_folder']);
+            $t->same(true, $resolution['input_folder_relative_to_process_cwd']);
+            $t->same(true, $resolution['output_folder_relative_to_process_cwd']);
+            $t->same(false, $resolution['input_folder_relative_to_output_folder']);
+            $t->same(false, $resolution['output_folder_relative_to_input_folder']);
+            $t->same(true, $resolution['input_listing_uses_absolute_input_folder']);
+            $t->same(true, $resolution['output_creation_uses_absolute_output_folder']);
+            $t->same(false, $resolution['filesystem_touched_by_abspath']);
+            $t->same(false, file_exists($output));
+            $t->same($input, $plan['paths']['absolute_input_folder']);
+            $t->same($output, $plan['paths']['absolute_output_folder']);
+            $t->same(false, $plan['paths']['output_folder_exists']);
+            $t->same(true, $plan['paths']['output_folder_creation_required']);
+            $t->same(false, $plan['paths']['native_plan_creates_output_folder']);
+            $t->same($fileOrder, $plan['input_listing']['file_basenames']);
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+            $t->same($input . DIRECTORY_SEPARATOR . $fileOrder[0], $taskArgs[0]['filepath']);
+            $t->same($output, $taskArgs[0]['out_folder']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            chdir($previousCwd);
+            $removeTree($root);
+        }
+    },
+    'records symlinked input folders as abspath-preserved listdir targets before task args' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $root = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            $realInput = $root . DIRECTORY_SEPARATOR . 'real-uploads';
+            mkdir($realInput);
+            foreach (['linked-a.pdf', 'linked-b.pdf', 'linked-notes.txt'] as $filename) {
+                file_put_contents($realInput . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% {$filename}\n%%EOF");
+            }
+
+            $inputLink = $root . DIRECTORY_SEPARATOR . 'uploads-link';
+            if (!@symlink($realInput, $inputLink)) {
+                throw new RuntimeException('Unable to create symlinked input folder fixture.');
+            }
+
+            $fileOrder = $runtimeDirectoryOrder($inputLink, filesOnly: true);
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $inputLink,
+                $output,
+                workers: 4,
+                metadataByFilename: [
+                    'linked-a.pdf' => ['title' => 'Symlinked Upload A'],
+                    'linked-b.pdf' => ['title' => 'Symlinked Upload B'],
+                ],
+                minLength: null
+            );
+
+            $resolution = $plan['paths']['path_resolution'];
+            $t->same('convert.py os.path.abspath input/output boundary', $resolution['source']);
+            $t->same($inputLink, $resolution['input_folder_argument']);
+            $t->same($inputLink, $resolution['absolute_input_folder']);
+            $t->same(true, $resolution['input_folder_is_symlink']);
+            $t->same(true, $resolution['input_folder_symlink_target_exists']);
+            $t->same('directory', $resolution['input_folder_symlink_target_type']);
+            $t->same(false, $resolution['input_folder_broken_symlink']);
+            $t->same(true, $resolution['input_folder_listdir_follows_symlink']);
+            $t->same($realInput, $resolution['input_folder_realpath']);
+            $t->same(true, $resolution['input_folder_realpath_differs_from_absolute']);
+            $t->same(true, $resolution['input_folder_abspath_does_not_resolve_symlink']);
+            $t->same(true, $resolution['task_filepaths_preserve_input_folder_prefix']);
+            $t->same(false, $resolution['filesystem_touched_by_abspath']);
+
+            $t->same($fileOrder, $plan['input_listing']['file_basenames']);
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+            $t->same(['linked-notes.txt'], $plan['input_listing']['selected_non_pdf_filenames']);
+            $t->same(3, $plan['worker_pool']['task_args_count']);
+            $t->same($inputLink . DIRECTORY_SEPARATOR . $fileOrder[0], $plan['worker_pool']['task_args'][0]['filepath']);
+            $t->same($inputLink . DIRECTORY_SEPARATOR . $fileOrder[1], $plan['worker_pool']['task_args'][1]['filepath']);
+            $t->same($inputLink . DIRECTORY_SEPARATOR . $fileOrder[2], $plan['worker_pool']['task_args'][2]['filepath']);
+
+            $identity = $plan['worker_pool']['task_arg_identity_review'];
+            $t->same(true, $identity['review_reached']);
+            $t->same(false, $identity['target_basename_metadata_fallback']);
+            $t->same(true, str_starts_with($identity['task_arg_tuple_rows'][0][0], $inputLink . DIRECTORY_SEPARATOR));
+            $t->same($realInput . DIRECTORY_SEPARATOR . $fileOrder[0], $identity['task_arg_identity_rows'][0]['resolved_target']);
+            $t->same(true, $identity['task_arg_identity_rows'][0]['resolved_target_available']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($root);
+            $removeTree($output);
+        }
+    },
+    'records convert.py model handoff branch before summary task args and pool launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        $blockedRoot = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+
+            $batch = new BatchConverter();
+            $cuda = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+            $mps = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                torchDevice: 'cpu',
+                torchDeviceModel: 'mps'
+            );
+            $blockedOutput = $blockedRoot . DIRECTORY_SEPARATOR . 'marker-output';
+            file_put_contents($blockedOutput, 'not a directory');
+            $blocked = $batch->runtimeMainPreflightPlan(
+                $input,
+                $blockedOutput,
+                workers: 4,
+                torchDevice: 'mps',
+                torchDeviceModel: 'mps'
+            );
+
+            $handoff = $cuda['model_handoff'];
+            $t->same('convert.py settings.TORCH_DEVICE model handoff', $handoff['source']);
+            $t->same(true, $handoff['model_handoff_reached']);
+            $t->same('after_spawn_start_method_before_conversion_summary', $handoff['order']);
+            $t->same('cuda', $handoff['torch_device']);
+            $t->same('cpu', $handoff['torch_device_model']);
+            $t->same(false, $handoff['uses_mps_no_shared_memory_branch']);
+            $t->same(true, $handoff['main_load_all_models']);
+            $t->same(true, $handoff['share_memory_before_pool']);
+            $t->same(true, $handoff['model_share_memory_loop_reached']);
+            $t->same('model_lst', $handoff['worker_init_argument']);
+            $t->same(false, $handoff['worker_loads_models_when_init_arg_null']);
+            $t->same(null, $handoff['warning']);
+            $t->same(true, $handoff['upstream_model_execution_required']);
+            $t->same(false, $handoff['native_plan_loads_models']);
+            $t->same(false, $handoff['executes_python_or_models']);
+            $t->same('after_model_handoff_before_task_args', $cuda['console_summary']['emission_order']);
+            $t->same(2, $cuda['worker_pool']['total_processes']);
+
+            $mpsHandoff = $mps['model_handoff'];
+            $t->same(true, $mpsHandoff['model_handoff_reached']);
+            $t->same(true, $mpsHandoff['uses_mps_no_shared_memory_branch']);
+            $t->same(false, $mpsHandoff['main_load_all_models']);
+            $t->same(false, $mpsHandoff['share_memory_before_pool']);
+            $t->same(false, $mpsHandoff['model_share_memory_loop_reached']);
+            $t->same(null, $mpsHandoff['worker_init_argument']);
+            $t->same(true, $mpsHandoff['worker_loads_models_when_init_arg_null']);
+            $t->contains('Cannot use MPS with torch multiprocessing share_memory', (string) $mpsHandoff['warning']);
+            $t->same(true, $mps['console_summary']['summary_reached']);
+            $t->same(false, $mps['executes_python_or_models']);
+
+            $blockedHandoff = $blocked['model_handoff'];
+            $t->same(false, $blockedHandoff['model_handoff_reached']);
+            $t->same('output-folder-create-failed', $blockedHandoff['blocked_by']);
+            $t->same(false, $blockedHandoff['upstream_model_execution_required']);
+            $t->same(false, $blockedHandoff['main_load_all_models']);
+            $t->same(false, $blockedHandoff['executes_python_or_models']);
+            $t->same(false, $blocked['console_summary']['summary_reached']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+            $removeTree($blockedRoot);
+        }
+    },
+    'records convert.py model share_memory slot skip boundary before task args' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+
+            $modelSlots = ['layout-detector', null, 'ocr-recognizer', 'table-recognizer', null];
+            $batch = new BatchConverter();
+            $cuda = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu',
+                modelSlots: $modelSlots
+            );
+            $mps = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                torchDevice: 'mps',
+                torchDeviceModel: 'cpu',
+                modelSlots: $modelSlots
+            );
+            $spawnBlocked = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu',
+                spawnStartMethodAlreadySet: true,
+                modelSlots: $modelSlots
+            );
+
+            $review = $cuda['model_handoff']['model_share_memory_review'];
+            $t->same('convert.py load_all_models share_memory slot boundary', $review['source']);
+            $t->same('after_load_all_models_before_conversion_summary', $review['order']);
+            $t->same(true, $review['review_reached']);
+            $t->same(null, $review['blocked_by']);
+            $t->same('load_all_models()', $review['model_list_source']);
+            $t->same('model_lst', $review['model_list_value']);
+            $t->same(true, $review['model_slot_fixture_used']);
+            $t->same(5, $review['model_slot_count']);
+            $t->same([
+                ['index' => 0, 'label' => 'layout-detector', 'is_none' => false, 'share_memory_called' => true],
+                ['index' => 1, 'label' => null, 'is_none' => true, 'share_memory_called' => false],
+                ['index' => 2, 'label' => 'ocr-recognizer', 'is_none' => false, 'share_memory_called' => true],
+                ['index' => 3, 'label' => 'table-recognizer', 'is_none' => false, 'share_memory_called' => true],
+                ['index' => 4, 'label' => null, 'is_none' => true, 'share_memory_called' => false],
+            ], $review['model_slots']);
+            $t->same([1, 4], $review['none_model_slot_indexes']);
+            $t->same([0, 2, 3], $review['share_memory_model_slot_indexes']);
+            $t->same(3, $review['share_memory_call_count']);
+            $t->same(true, $review['none_slots_skipped_before_share_memory']);
+            $t->same('if model is None: continue', $review['none_skip_condition']);
+            $t->same('model.share_memory()', $review['share_memory_call']);
+            $t->same(true, $review['share_memory_loop_reached']);
+            $t->same(false, $review['blocks_conversion_summary']);
+            $t->same(false, $review['blocks_task_args']);
+            $t->same(false, $review['executes_python_or_models']);
+            $t->same(false, $cuda['executes_python_or_models']);
+
+            $mpsReview = $mps['model_handoff']['model_share_memory_review'];
+            $t->same(false, $mpsReview['review_reached']);
+            $t->same('mps-worker-loads-models', $mpsReview['blocked_by']);
+            $t->same('None', $mpsReview['model_list_value']);
+            $t->same(false, $mpsReview['model_slot_fixture_used']);
+            $t->same(null, $mpsReview['model_slot_count']);
+            $t->same([], $mpsReview['model_slots']);
+            $t->same([], $mpsReview['share_memory_model_slot_indexes']);
+            $t->same(null, $mpsReview['share_memory_call_count']);
+            $t->same(false, $mpsReview['share_memory_loop_reached']);
+            $t->same(false, $mpsReview['executes_python_or_models']);
+
+            $blockedReview = $spawnBlocked['model_handoff']['model_share_memory_review'];
+            $t->same(false, $blockedReview['review_reached']);
+            $t->same('spawn-start-method-failed', $blockedReview['blocked_by']);
+            $t->same(false, $blockedReview['share_memory_loop_reached']);
+            $t->same(false, $spawnBlocked['executes_python_or_models']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records repeated spawn start method failure after metadata and before model handoff' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['first.pdf', 'second.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $metadataFilename = $fileOrder[0];
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata.json';
+            file_put_contents($metadataFile, json_encode([
+                $metadataFilename => ['title' => 'Selected Import'],
+            ], JSON_THROW_ON_ERROR));
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 5,
+                metadataFile: $metadataFile,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu',
+                spawnStartMethodAlreadySet: true
+            );
+
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+            $t->same(true, $plan['metadata']['metadata_load_reached']);
+            $t->same(true, $plan['metadata']['metadata_load_success']);
+            $t->same([$metadataFilename], $plan['metadata']['metadata_filenames']);
+            $t->same([$metadataFilename], $plan['metadata']['selected_metadata_filenames']);
+            $t->same(array_values(array_diff($fileOrder, [$metadataFilename])), $plan['metadata']['missing_metadata_filenames']);
+
+            $spawn = $plan['spawn_start_method'];
+            $t->same('convert.py torch.multiprocessing set_start_method boundary', $spawn['source']);
+            $t->same('after_metadata_before_model_handoff', $spawn['order']);
+            $t->same('spawn', $spawn['requested_start_method']);
+            $t->same(true, $spawn['start_method_reached']);
+            $t->same(false, $spawn['start_method_success']);
+            $t->same(true, $spawn['start_method_already_set']);
+            $t->same(2, $spawn['total_processes_computed_before_spawn']);
+            $t->same('spawn-start-method-failed', $spawn['error_boundary']);
+            $t->same('RuntimeError', $spawn['error_class']);
+            $t->contains('Set start method to spawn twice', (string) $spawn['error_message']);
+            $t->same(true, $spawn['blocks_model_handoff']);
+            $t->same(true, $spawn['blocks_conversion_summary']);
+            $t->same(true, $spawn['blocks_task_args']);
+            $t->same(true, $spawn['blocks_pool_launch']);
+            $t->same(false, $spawn['executes_multiprocessing']);
+
+            $t->same(false, $plan['model_handoff']['model_handoff_reached']);
+            $t->same('spawn-start-method-failed', $plan['model_handoff']['blocked_by']);
+            $t->same(false, $plan['model_handoff']['main_load_all_models']);
+            $t->same(false, $plan['model_handoff']['upstream_model_execution_required']);
+            $t->same(false, $plan['model_handoff']['executes_python_or_models']);
+            $t->same(0, $plan['worker_pool']['task_args_count']);
+            $t->same([], $plan['worker_pool']['task_args']);
+            $t->same(0, $plan['worker_pool']['total_processes']);
+            $t->same(false, $plan['worker_pool']['pool_launchable']);
+            $t->same('spawn-start-method-failed', $plan['worker_pool']['pool_error_boundary']);
+            $t->same(false, $plan['console_summary']['summary_reached']);
+            $t->same('spawn-start-method-failed', $plan['console_summary']['blocked_by']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'keeps convert.py input and chunk errors ahead of metadata loading and records missing metadata files' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'queued.pdf', "%PDF-1.4\n% queued pdf\n%%EOF");
+            $missingInput = $input . DIRECTORY_SEPARATOR . 'missing-input';
+            $missingMetadata = $input . DIRECTORY_SEPARATOR . 'missing-metadata.json';
+            $batch = new BatchConverter();
+
+            $captureMessage = static function (callable $callback): string {
+                try {
+                    $callback();
+                } catch (InvalidArgumentException $exception) {
+                    return $exception->getMessage();
+                }
+
+                return '';
+            };
+
+            $missingInputMessage = $captureMessage(
+                static fn (): array => $batch->runtimeMainPreflightPlan($missingInput, $output, metadataFile: $missingMetadata)
+            );
+            $invalidChunkMessage = $captureMessage(
+                static fn (): array => $batch->runtimeMainPreflightPlan($input, $output, numChunks: 0, metadataFile: $missingMetadata)
+            );
+            $missingMetadataPlan = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                metadataFile: $missingMetadata,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $t->contains('Batch input folder does not exist', $missingInputMessage);
+            $t->same(false, str_contains($missingInputMessage, 'metadata file'));
+            $t->contains('Batch chunk count must be at least one', $invalidChunkMessage);
+            $t->same(false, str_contains($invalidChunkMessage, 'metadata file'));
+
+            $t->same(true, $missingMetadataPlan['chunking']['chunking_reached']);
+            $t->same(null, $missingMetadataPlan['chunking']['chunk_error_boundary']);
+            $t->same(['queued.pdf'], $missingMetadataPlan['chunking']['selected_filenames']);
+            $t->same(true, $missingMetadataPlan['metadata']['metadata_load_reached']);
+            $t->same(false, $missingMetadataPlan['metadata']['metadata_load_success']);
+            $t->same('metadata-file-load-failed', $missingMetadataPlan['metadata']['metadata_error_boundary']);
+            $t->same('FileNotFoundError', $missingMetadataPlan['metadata']['metadata_error_class']);
+            $t->contains('No such file or directory', $missingMetadataPlan['metadata']['metadata_error_message']);
+            $t->same(false, $missingMetadataPlan['spawn_start_method']['start_method_reached']);
+            $t->same('metadata-file-load-failed', $missingMetadataPlan['spawn_start_method']['blocked_by']);
+            $t->same(false, $missingMetadataPlan['model_handoff']['model_handoff_reached']);
+            $t->same(false, $missingMetadataPlan['model_handoff']['upstream_model_execution_required']);
+            $t->same(0, $missingMetadataPlan['worker_pool']['task_args_count']);
+            $t->same('metadata-file-load-failed', $missingMetadataPlan['worker_pool']['pool_error_boundary']);
+            $t->same(false, $missingMetadataPlan['console_summary']['summary_reached']);
+            $t->same('metadata-file-load-failed', $missingMetadataPlan['console_summary']['blocked_by']);
+            $t->same(false, $missingMetadataPlan['executes_python_or_models']);
+            $t->same(false, $batch->runtimeMainPreflightPlan($input, $output)['executes_python_or_models']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records input-folder list failures as WordPress-safe runtime preflight errors' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $root = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            $batch = new BatchConverter();
+            $inputFile = $root . DIRECTORY_SEPARATOR . 'not-a-folder.pdf';
+            $blockedOutput = $root . DIRECTORY_SEPARATOR . 'blocked-output';
+            $metadataFile = $root . DIRECTORY_SEPARATOR . 'metadata.json';
+            file_put_contents($inputFile, '%PDF input folder collision');
+            file_put_contents($blockedOutput, 'output file conflict should not be inspected');
+            file_put_contents($metadataFile, json_encode([
+                'not-a-folder.pdf' => ['title' => 'Should not load'],
+            ], JSON_THROW_ON_ERROR));
+
+            $missing = $batch->runtimeMainPreflightErrorBoundary(
+                $root . DIRECTORY_SEPARATOR . 'missing-input',
+                $blockedOutput,
+                metadataFile: $metadataFile,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+            $fileInput = $batch->runtimeMainPreflightErrorBoundary(
+                $inputFile,
+                $blockedOutput,
+                metadataFile: $metadataFile,
+                workers: 4,
+                torchDevice: 'mps',
+                torchDeviceModel: 'cpu'
+            );
+            $success = $batch->runtimeMainPreflightErrorBoundary($root, $output, workers: 2);
+
+            $t->same('markerpdf.convert_main_runtime_preflight_error_boundary.v1', $missing['schema']);
+            $t->contains('convert.py::main', $missing['source']);
+            $t->same(false, $missing['success']);
+            $t->same(null, $missing['plan']);
+            $t->same('input-folder-list-failed', $missing['error_boundary']);
+            $t->same('FileNotFoundError', $missing['error_class']);
+            $t->contains('No such file or directory', $missing['upstream_error_message']);
+            $t->contains('Batch input folder does not exist', $missing['error']);
+            $t->same(false, $missing['paths']['input_path_exists']);
+            $t->same('missing', $missing['paths']['input_path_type']);
+            $t->same(false, $missing['paths']['output_folder_creation_reached']);
+            $t->same($metadataFile, $missing['paths']['metadata_file']);
+            $t->same(true, $missing['input_listing']['listing_reached']);
+            $t->same(false, $missing['input_listing']['listing_success']);
+            $t->same(0, $missing['input_listing']['entry_count']);
+            $t->same([], $missing['input_listing']['file_basenames']);
+            $t->same(false, $missing['metadata']['metadata_load_reached']);
+            $t->same(false, $missing['spawn_start_method']['start_method_reached']);
+            $t->same('input-folder-list-failed', $missing['spawn_start_method']['blocked_by']);
+            $t->same(false, $missing['model_handoff']['model_handoff_reached']);
+            $t->same(false, $missing['model_handoff']['upstream_model_execution_required']);
+            $t->same(false, $missing['worker_pool']['pool_launchable']);
+            $t->same('input-folder-list-failed', $missing['worker_pool']['pool_error_boundary']);
+            $t->same(false, $missing['console_summary']['summary_reached']);
+            $t->same([
+                'makedirs_output_exist_ok',
+                'chunk_files',
+                'load_metadata_file',
+                'set_spawn_start_method',
+                'prepare_model_handoff',
+                'print_conversion_summary',
+                'build_task_args',
+                'pool_imap_process_single_pdf',
+            ], $missing['blocked_stages']);
+            $t->same(false, $missing['executes_python_or_models']);
+            $t->same(false, $missing['executes_multiprocessing']);
+            $t->same(false, $missing['executes_external_pdf_tools']);
+
+            $t->same(false, $fileInput['success']);
+            $t->same('input-folder-list-failed', $fileInput['error_boundary']);
+            $t->same('NotADirectoryError', $fileInput['error_class']);
+            $t->contains('Not a directory', $fileInput['upstream_error_message']);
+            $t->contains('Batch input folder is not a directory', $fileInput['error']);
+            $t->same(true, $fileInput['paths']['input_path_exists']);
+            $t->same('file', $fileInput['paths']['input_path_type']);
+            $t->same(false, $fileInput['paths']['output_folder_creation_reached']);
+            $t->same(false, $fileInput['metadata']['metadata_load_reached']);
+            $t->same(false, $fileInput['model_handoff']['main_load_all_models']);
+            $t->same(false, $fileInput['model_handoff']['worker_loads_models_when_init_arg_null']);
+            $t->same(false, $fileInput['executes_python_or_models']);
+
+            $t->same(true, $success['success']);
+            $t->same(null, $success['error_boundary']);
+            $t->same(null, $success['error']);
+            $t->same('markerpdf.convert_main_runtime_preflight.v1', $success['plan']['schema']);
+            $t->same(true, $success['input_listing']['listing_success']);
+            $t->same('directory', $success['paths']['input_path_type']);
+            $t->same(true, $success['paths']['output_folder_creation_reached']);
+            $t->same([], $success['blocked_stages']);
+            $t->same(false, $success['executes_python_or_models']);
+        } finally {
+            $removeTree($root);
+            $removeTree($output);
+        }
+    },
+    'records unreadable input folders as upstream PermissionError preflight failures' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $root = $makeTempDir();
+        $output = $makeTempDir();
+        $unreadableInput = $root . DIRECTORY_SEPARATOR . 'unreadable-input';
+        try {
+            mkdir($unreadableInput);
+            file_put_contents($unreadableInput . DIRECTORY_SEPARATOR . 'queued.pdf', "%PDF-1.4\n% queued pdf\n%%EOF");
+            chmod($unreadableInput, 0000);
+            $metadataFile = $root . DIRECTORY_SEPARATOR . 'metadata.json';
+            file_put_contents($metadataFile, json_encode([
+                'queued.pdf' => ['title' => 'Should not load'],
+            ], JSON_THROW_ON_ERROR));
+
+            $batch = new BatchConverter();
+            $boundary = $batch->runtimeMainPreflightErrorBoundary(
+                $unreadableInput,
+                $output,
+                metadataFile: $metadataFile,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $captureMessage = static function (callable $callback): string {
+                try {
+                    $callback();
+                } catch (InvalidArgumentException $exception) {
+                    return $exception->getMessage();
+                }
+
+                return '';
+            };
+            $directMessage = $captureMessage(
+                static fn (): array => $batch->runtimeMainPreflightPlan($unreadableInput, $output, metadataFile: $metadataFile)
+            );
+
+            $t->same(false, $boundary['success']);
+            $t->same(null, $boundary['plan']);
+            $t->same('input-folder-list-failed', $boundary['error_boundary']);
+            $t->same('PermissionError', $boundary['error_class']);
+            $t->contains('Permission denied', $boundary['upstream_error_message']);
+            $t->contains('Batch input folder is not readable', $boundary['error']);
+            $t->contains('Batch input folder is not readable', $directMessage);
+            $t->same(true, $boundary['paths']['input_path_exists']);
+            $t->same('directory', $boundary['paths']['input_path_type']);
+            $t->same(false, $boundary['paths']['output_folder_creation_reached']);
+            $t->same($metadataFile, $boundary['paths']['metadata_file']);
+            $t->same(true, $boundary['input_listing']['listing_reached']);
+            $t->same(false, $boundary['input_listing']['listing_success']);
+            $t->same(0, $boundary['input_listing']['entry_count']);
+            $t->same([], $boundary['input_listing']['entry_basenames']);
+            $t->same(false, $boundary['metadata']['metadata_load_reached']);
+            $t->same(false, $boundary['spawn_start_method']['start_method_reached']);
+            $t->same('input-folder-list-failed', $boundary['spawn_start_method']['blocked_by']);
+            $t->same(false, $boundary['model_handoff']['model_handoff_reached']);
+            $t->same(false, $boundary['model_handoff']['upstream_model_execution_required']);
+            $t->same(false, $boundary['worker_pool']['pool_launchable']);
+            $t->same(0, $boundary['worker_pool']['task_args_count']);
+            $t->same('input-folder-list-failed', $boundary['worker_pool']['pool_error_boundary']);
+            $t->same(false, $boundary['console_summary']['summary_reached']);
+            $t->same('input-folder-list-failed', $boundary['console_summary']['blocked_by']);
+            $t->same([
+                'makedirs_output_exist_ok',
+                'chunk_files',
+                'load_metadata_file',
+                'set_spawn_start_method',
+                'prepare_model_handoff',
+                'print_conversion_summary',
+                'build_task_args',
+                'pool_imap_process_single_pdf',
+            ], $boundary['blocked_stages']);
+            $t->same(false, $boundary['executes_python_or_models']);
+            $t->same(false, $boundary['executes_multiprocessing']);
+            $t->same(false, $boundary['executes_external_pdf_tools']);
+        } finally {
+            if (is_dir($unreadableInput)) {
+                chmod($unreadableInput, 0700);
+            }
+            $removeTree($root);
+            $removeTree($output);
+        }
+    },
+    'matches convert.py integer truthiness for max and min_length gates' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf', 'gamma.pdf', 'omega.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'archive.pdf', "PK\x03\x04not really a pdf");
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+
+            $batch = new BatchConverter();
+            $zeroMax = $batch->runtimeMainPreflightPlan($input, $output, maxFiles: 0);
+            $negativeMax = $batch->runtimeMainPreflightPlan($input, $output, maxFiles: -1);
+            $zeroMinLength = $batch->processFilePreflightPlan(
+                $input . DIRECTORY_SEPARATOR . 'archive.pdf',
+                $output,
+                null,
+                0,
+                static fn (): int => 0
+            );
+            $negativeMinLengthSpoof = $batch->processFilePreflightPlan(
+                $input . DIRECTORY_SEPARATOR . 'archive.pdf',
+                $output,
+                null,
+                -1,
+                static fn (): int => 0
+            );
+            $negativeMinLengthPdf = $batch->processFilePreflightPlan(
+                $input . DIRECTORY_SEPARATOR . 'alpha.pdf',
+                $output,
+                ['title' => 'Alpha'],
+                -1,
+                static fn (): int => 0
+            );
+
+            $t->same(false, $zeroMax['chunking']['max_files_limit_active']);
+            $t->same(5, $zeroMax['chunking']['selected_count']);
+            $t->same($fileOrder, $zeroMax['chunking']['selected_filenames']);
+            $t->same(true, $negativeMax['chunking']['max_files_limit_active']);
+            $t->same(4, $negativeMax['chunking']['selected_count']);
+            $t->same(array_slice($fileOrder, 0, -1), $negativeMax['chunking']['selected_filenames']);
+
+            $t->same(false, $zeroMinLength['min_length_gate_active']);
+            $t->same(false, $zeroMinLength['filetype_checked']);
+            $t->same('ready-for-conversion', $zeroMinLength['status']);
+            $t->same(true, $negativeMinLengthSpoof['min_length_gate_active']);
+            $t->same(true, $negativeMinLengthSpoof['filetype_checked']);
+            $t->same('other', $negativeMinLengthSpoof['filetype']);
+            $t->same(false, $negativeMinLengthSpoof['text_length_checked']);
+            $t->same('skipped-unsupported-filetype', $negativeMinLengthSpoof['status']);
+            $t->same(true, $negativeMinLengthPdf['min_length_gate_active']);
+            $t->same(true, $negativeMinLengthPdf['filetype_checked']);
+            $t->same(true, $negativeMinLengthPdf['text_length_checked']);
+            $t->same(0, $negativeMinLengthPdf['text_length']);
+            $t->same('ready-for-conversion', $negativeMinLengthPdf['status']);
+            $t->same(false, $negativeMinLengthPdf['executes_python_or_models']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'matches convert.py negative chunk index slicing before metadata and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'archive.pdf', 'beta.pdf', 'gamma.pdf', 'omega.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $expectedHead = array_slice($fileOrder, 0, 2);
+            $metadataByFilename = [
+                'alpha.pdf' => ['title' => 'Alpha Import'],
+                'beta.pdf' => ['title' => 'Beta Import'],
+                'omega.pdf' => ['title' => 'Omega Import'],
+            ];
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata.json';
+            file_put_contents($metadataFile, json_encode($metadataByFilename, JSON_THROW_ON_ERROR));
+
+            $batch = new BatchConverter();
+            $negativeHead = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                chunkIndex: -2,
+                numChunks: 2,
+                workers: 4,
+                metadataFile: $metadataFile
+            );
+            $negativeEmpty = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                chunkIndex: -1,
+                numChunks: 2,
+                workers: 4,
+                metadataFile: $metadataFile
+            );
+
+            $t->same($expectedHead, $negativeHead['chunking']['selected_filenames']);
+            $t->same(true, $negativeHead['chunking']['negative_chunk_index_active']);
+            $t->same(3, $negativeHead['chunking']['chunk_size']);
+            $t->same(-6, $negativeHead['chunking']['start_index']);
+            $t->same(-3, $negativeHead['chunking']['end_index']);
+            $t->same(0, $negativeHead['chunking']['python_slice_start_index']);
+            $t->same(2, $negativeHead['chunking']['python_slice_end_index']);
+            $t->same(2, $negativeHead['worker_pool']['task_args_count']);
+            $t->same(2, $negativeHead['worker_pool']['total_processes']);
+            $t->same(true, $negativeHead['worker_pool']['pool_launchable']);
+            $t->same(array_values(array_filter(
+                $expectedHead,
+                static fn (string $filename): bool => array_key_exists($filename, $metadataByFilename)
+            )), $negativeHead['metadata']['selected_metadata_filenames']);
+            $t->same(array_values(array_filter(
+                $expectedHead,
+                static fn (string $filename): bool => !array_key_exists($filename, $metadataByFilename)
+            )), $negativeHead['metadata']['missing_metadata_filenames']);
+            $t->same(false, $negativeHead['executes_python_or_models']);
+
+            $t->same([], $negativeEmpty['chunking']['selected_filenames']);
+            $t->same(-3, $negativeEmpty['chunking']['start_index']);
+            $t->same(0, $negativeEmpty['chunking']['end_index']);
+            $t->same(2, $negativeEmpty['chunking']['python_slice_start_index']);
+            $t->same(0, $negativeEmpty['chunking']['python_slice_end_index']);
+            $t->same(0, $negativeEmpty['worker_pool']['task_args_count']);
+            $t->same(0, $negativeEmpty['worker_pool']['total_processes']);
+            $t->same(false, $negativeEmpty['worker_pool']['pool_launchable']);
+            $t->same('empty-task-queue', $negativeEmpty['worker_pool']['pool_error_boundary']);
+            $t->same(false, $negativeEmpty['executes_multiprocessing']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'matches convert.py negative num_chunks slicing before metadata and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'archive.pdf', 'beta.pdf', 'gamma.pdf', 'omega.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $expectedHead = array_slice($fileOrder, 0, -2);
+            $metadataByFilename = [
+                'alpha.pdf' => ['title' => 'Alpha Import'],
+                'beta.pdf' => ['title' => 'Beta Import'],
+                'omega.pdf' => ['title' => 'Tail Decoy'],
+            ];
+            $expectedSelectedMetadata = array_values(array_filter(
+                $expectedHead,
+                static fn (string $filename): bool => array_key_exists($filename, $metadataByFilename)
+            ));
+            $expectedMissingMetadata = array_values(array_filter(
+                $expectedHead,
+                static fn (string $filename): bool => !array_key_exists($filename, $metadataByFilename)
+            ));
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata.json';
+            file_put_contents($metadataFile, json_encode($metadataByFilename, JSON_THROW_ON_ERROR));
+
+            $batch = new BatchConverter();
+            $negativeHead = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                chunkIndex: 0,
+                numChunks: -2,
+                workers: 5,
+                metadataFile: $metadataFile
+            );
+            $negativeEmpty = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                chunkIndex: 1,
+                numChunks: -2,
+                workers: 5,
+                metadataFile: $metadataFile
+            );
+
+            $t->same($expectedHead, $negativeHead['chunking']['selected_filenames']);
+            $t->same(true, $negativeHead['chunking']['negative_num_chunks_active']);
+            $t->same(-2, $negativeHead['chunking']['num_chunks']);
+            $t->same(-2, $negativeHead['chunking']['chunk_size']);
+            $t->same(0, $negativeHead['chunking']['start_index']);
+            $t->same(-2, $negativeHead['chunking']['end_index']);
+            $t->same(0, $negativeHead['chunking']['python_slice_start_index']);
+            $t->same(3, $negativeHead['chunking']['python_slice_end_index']);
+            $t->same(3, $negativeHead['worker_pool']['task_args_count']);
+            $t->same(3, $negativeHead['worker_pool']['total_processes']);
+            $t->same(true, $negativeHead['worker_pool']['pool_launchable']);
+            $t->same($expectedSelectedMetadata, $negativeHead['metadata']['selected_metadata_filenames']);
+            $t->same($expectedMissingMetadata, $negativeHead['metadata']['missing_metadata_filenames']);
+            $t->same(
+                'Converting 3 pdfs in chunk 1/-2 with 3 processes, and storing in ' . $output,
+                $negativeHead['console_summary']['message_line']
+            );
+            $t->same(false, $negativeHead['executes_python_or_models']);
+
+            $t->same([], $negativeEmpty['chunking']['selected_filenames']);
+            $t->same(true, $negativeEmpty['chunking']['negative_num_chunks_active']);
+            $t->same(-2, $negativeEmpty['chunking']['chunk_size']);
+            $t->same(-2, $negativeEmpty['chunking']['start_index']);
+            $t->same(-4, $negativeEmpty['chunking']['end_index']);
+            $t->same(3, $negativeEmpty['chunking']['python_slice_start_index']);
+            $t->same(1, $negativeEmpty['chunking']['python_slice_end_index']);
+            $t->same(0, $negativeEmpty['worker_pool']['task_args_count']);
+            $t->same(0, $negativeEmpty['worker_pool']['total_processes']);
+            $t->same(false, $negativeEmpty['worker_pool']['pool_launchable']);
+            $t->same('empty-task-queue', $negativeEmpty['worker_pool']['pool_error_boundary']);
+            $t->same(
+                'Converting 0 pdfs in chunk 2/-2 with 0 processes, and storing in ' . $output,
+                $negativeEmpty['console_summary']['message_line']
+            );
+            $t->same(false, $negativeEmpty['executes_multiprocessing']);
+            $t->same(false, $negativeEmpty['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records zero num_chunks chunk math failure after listing and output preflight' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $root = $makeTempDir();
+        try {
+            foreach (['queued.pdf', 'wp-upload-notes.txt'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            mkdir($input . DIRECTORY_SEPARATOR . 'nested.pdf');
+
+            $entryOrder = $runtimeDirectoryOrder($input);
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $output = $root . DIRECTORY_SEPARATOR . 'marker-output';
+            $metadataFile = $root . DIRECTORY_SEPARATOR . 'missing-metadata.json';
+
+            $boundary = (new BatchConverter())->runtimeMainPreflightErrorBoundary(
+                $input,
+                $output,
+                numChunks: 0,
+                metadataFile: $metadataFile,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $t->same(false, $boundary['success']);
+            $t->same(null, $boundary['plan']);
+            $t->same('chunk-files-failed', $boundary['error_boundary']);
+            $t->same('ZeroDivisionError', $boundary['error_class']);
+            $t->same('division by zero', $boundary['upstream_error_message']);
+
+            $t->same(true, $boundary['paths']['input_path_exists']);
+            $t->same('directory', $boundary['paths']['input_path_type']);
+            $t->same(true, $boundary['paths']['output_folder_creation_reached']);
+            $t->same(false, $boundary['paths']['output_path_exists']);
+            $t->same('missing', $boundary['paths']['output_path_type']);
+            $t->same(true, $boundary['paths']['output_folder_creation_required']);
+            $t->same(false, $boundary['paths']['output_folder_creation_blocked']);
+            $t->same('os.makedirs(out_folder, exist_ok=True)', $boundary['paths']['output_folder_creation_call']);
+            $t->same(false, is_dir($output));
+
+            $t->same(true, $boundary['input_listing']['listing_reached']);
+            $t->same(true, $boundary['input_listing']['listing_success']);
+            $t->same($entryOrder, $boundary['input_listing']['entry_basenames']);
+            $t->same($fileOrder, $boundary['input_listing']['file_basenames']);
+            $t->same(['nested.pdf'], $boundary['input_listing']['skipped_non_file_basenames']);
+            $t->same(['wp-upload-notes.txt'], $boundary['input_listing']['non_pdf_file_basenames']);
+            $t->same(false, $boundary['input_listing']['extension_filter_active']);
+
+            $chunking = $boundary['chunking'];
+            $t->same(true, $chunking['chunking_reached']);
+            $t->same(0, $chunking['num_chunks']);
+            $t->same(true, $chunking['num_chunks_less_than_one_active']);
+            $t->same('math.ceil(len(files) / args.num_chunks)', $chunking['chunk_size_expression']);
+            $t->same('chunk-files-failed', $chunking['chunk_error_boundary']);
+            $t->same('ZeroDivisionError', $chunking['chunk_error_class']);
+            $t->same('division by zero', $chunking['chunk_error_message']);
+            $t->same(count($fileOrder), $chunking['input_file_count']);
+            $t->same(0, $chunking['selected_count']);
+            $t->same([], $chunking['selected_filenames']);
+
+            $t->same($metadataFile, $boundary['metadata']['metadata_file']);
+            $t->same(false, $boundary['metadata']['metadata_load_reached']);
+            $t->same(false, $boundary['spawn_start_method']['start_method_reached']);
+            $t->same('chunk-files-failed', $boundary['spawn_start_method']['blocked_by']);
+            $t->same(false, $boundary['model_handoff']['model_handoff_reached']);
+            $t->same(false, $boundary['model_handoff']['upstream_model_execution_required']);
+            $t->same(0, $boundary['worker_pool']['task_args_count']);
+            $t->same('chunk-files-failed', $boundary['worker_pool']['pool_error_boundary']);
+            $t->same(false, $boundary['console_summary']['summary_reached']);
+            $t->same('chunk-files-failed', $boundary['console_summary']['blocked_by']);
+            $t->same([
+                'load_metadata_file',
+                'set_spawn_start_method',
+                'prepare_model_handoff',
+                'print_conversion_summary',
+                'build_task_args',
+                'pool_imap_process_single_pdf',
+            ], $boundary['blocked_stages']);
+            $t->same(false, $boundary['executes_python_or_models']);
+            $t->same(false, $boundary['executes_multiprocessing']);
+            $t->same(false, $boundary['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($root);
+        }
+    },
+    'flags empty convert.py chunks and invalid workers before pool launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        try {
+            foreach (['one.pdf', 'two.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $missingOutput = $input . DIRECTORY_SEPARATOR . 'missing-output';
+            $batch = new BatchConverter();
+            $emptyChunk = $batch->runtimeMainPreflightPlan(
+                $input,
+                $missingOutput,
+                chunkIndex: 3,
+                numChunks: 2,
+                workers: 4
+            );
+            $invalidWorkers = $batch->runtimeMainPreflightPlan(
+                $input,
+                $missingOutput,
+                workers: 0
+            );
+
+            $t->same(false, $emptyChunk['paths']['output_folder_exists']);
+            $t->same(true, $emptyChunk['paths']['output_folder_creation_required']);
+            $t->same(false, is_dir($missingOutput));
+            $t->same(2, $emptyChunk['chunking']['input_file_count']);
+            $t->same(1, $emptyChunk['chunking']['chunk_size']);
+            $t->same(3, $emptyChunk['chunking']['start_index']);
+            $t->same(0, $emptyChunk['chunking']['selected_count']);
+            $t->same([], $emptyChunk['chunking']['selected_filenames']);
+            $t->same(0, $emptyChunk['worker_pool']['total_processes']);
+            $t->same(false, $emptyChunk['worker_pool']['pool_launchable']);
+            $t->same('empty-task-queue', $emptyChunk['worker_pool']['pool_error_boundary']);
+            $t->same(0, $emptyChunk['worker_pool']['task_args_count']);
+            $t->same([], $emptyChunk['metadata']['selected_metadata_filenames']);
+            $t->same(false, $emptyChunk['executes_multiprocessing']);
+            $t->same(0, $invalidWorkers['worker_pool']['requested_workers']);
+            $t->same(0, $invalidWorkers['worker_pool']['total_processes']);
+            $t->same(false, $invalidWorkers['worker_pool']['pool_launchable']);
+            $t->same('invalid-worker-count', $invalidWorkers['worker_pool']['pool_error_boundary']);
+            $t->same(2, $invalidWorkers['worker_pool']['task_args_count']);
+            $t->same(false, $invalidWorkers['executes_python_or_models']);
+            $t->same(false, $invalidWorkers['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+        }
+    },
+    'records zero and negative multiprocessing Pool creation failures before pool imap' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        try {
+            foreach (['one.pdf', 'two.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $missingOutput = $input . DIRECTORY_SEPARATOR . 'missing-output';
+            $batch = new BatchConverter();
+            $assertPoolProcessCountFailure = static function (TestRunner $t, array $plan, int $processes): void {
+                $poolCreation = $plan['worker_pool']['pool_creation'];
+                $t->same('convert.py torch.multiprocessing Pool creation boundary', $poolCreation['source']);
+                $t->same('after_task_args_before_pool_imap', $poolCreation['order']);
+                $t->same(true, $poolCreation['pool_creation_reached']);
+                $t->same(false, $poolCreation['pool_creation_success']);
+                $t->same('mp.Pool(processes=total_processes, initializer=worker_init, initargs=(model_lst,))', $poolCreation['pool_creation_call']);
+                $t->same($processes, $poolCreation['processes']);
+                $t->same('pool-process-count-failed', $poolCreation['error_boundary']);
+                $t->same('ValueError', $poolCreation['error_class']);
+                $t->contains('Number of processes must be at least 1', (string) $poolCreation['error_message']);
+                $t->same(true, $poolCreation['blocks_pool_imap']);
+                $t->same(false, $poolCreation['pool_imap_reached']);
+                $t->same(false, $poolCreation['progress_iterator_reached']);
+                $t->same(false, $poolCreation['executes_multiprocessing']);
+            };
+
+            $emptyChunk = $batch->runtimeMainPreflightPlan(
+                $input,
+                $missingOutput,
+                chunkIndex: 3,
+                numChunks: 2,
+                workers: 4
+            );
+            $zeroWorkers = $batch->runtimeMainPreflightPlan(
+                $input,
+                $missingOutput,
+                workers: 0
+            );
+            $negativeWorkers = $batch->runtimeMainPreflightPlan(
+                $input,
+                $missingOutput,
+                workers: -2
+            );
+
+            $t->same(0, $emptyChunk['worker_pool']['total_processes']);
+            $t->same(0, $emptyChunk['worker_pool']['task_args_count']);
+            $t->same('empty-task-queue', $emptyChunk['worker_pool']['pool_error_boundary']);
+            $assertPoolProcessCountFailure($t, $emptyChunk, 0);
+
+            $t->same(0, $zeroWorkers['worker_pool']['requested_workers']);
+            $t->same(0, $zeroWorkers['worker_pool']['total_processes']);
+            $t->same(2, $zeroWorkers['worker_pool']['task_args_count']);
+            $t->same('invalid-worker-count', $zeroWorkers['worker_pool']['pool_error_boundary']);
+            $assertPoolProcessCountFailure($t, $zeroWorkers, 0);
+
+            $t->same(-2, $negativeWorkers['worker_pool']['requested_workers']);
+            $t->same(-2, $negativeWorkers['worker_pool']['total_processes']);
+            $t->same(2, $negativeWorkers['worker_pool']['task_args_count']);
+            $t->same('invalid-worker-count', $negativeWorkers['worker_pool']['pool_error_boundary']);
+            $t->same(
+                'Converting 2 pdfs in chunk 1/1 with -2 processes, and storing in ' . $missingOutput,
+                $negativeWorkers['console_summary']['message_line']
+            );
+            $assertPoolProcessCountFailure($t, $negativeWorkers, -2);
+            $t->same(false, $negativeWorkers['executes_python_or_models']);
+            $t->same(false, $negativeWorkers['executes_multiprocessing']);
+            $t->same(false, $negativeWorkers['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+        }
+    },
+    'records convert.py pool result drain ignoring worker return values' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['already.pdf', 'ready.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'notes.txt', 'WordPress upload sidecar notes.');
+            (new OutputWriter())->saveMarkdown(
+                $output,
+                'already.pdf',
+                '<!-- wp:paragraph --><p>Already imported.</p><!-- /wp:paragraph -->',
+                [],
+                ['title' => 'Already Imported']
+            );
+
+            $batch = new BatchConverter();
+            $plan = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                minLength: 80,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+            $mps = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                minLength: 80,
+                workers: 4,
+                torchDevice: 'mps',
+                torchDeviceModel: 'cpu'
+            );
+            $invalidWorkers = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 0
+            );
+
+            $drain = $plan['worker_pool']['pool_result_drain'];
+            $t->same('convert.py list(tqdm(pool.imap(...))) result drain boundary', $drain['source']);
+            $t->same('after_pool_imap_before_pool_cleanup', $drain['order']);
+            $t->same(true, $drain['review_reached']);
+            $t->same(null, $drain['blocked_by']);
+            $t->same('pool.imap(process_single_pdf, task_args)', $drain['pool_imap_call']);
+            $t->same('list(tqdm(pool.imap(process_single_pdf, task_args), total=len(task_args), desc="Processing PDFs", unit="pdf"))', $drain['result_drain_call']);
+            $t->same(null, $drain['result_assignment']);
+            $t->same(true, $drain['result_values_ignored']);
+            $t->same(true, $drain['return_values_do_not_affect_summary']);
+            $t->same(3, $drain['task_args_count']);
+            $t->same(3, $drain['result_count']);
+            $t->same(3, $drain['progress_total']);
+            $t->same('len(task_args)', $drain['progress_total_source']);
+            $t->same(['notes.txt'], $drain['zero_return_filenames']);
+            $t->same(true, in_array('already.pdf', $drain['none_return_filenames'], true));
+            $t->same(true, in_array('ready.pdf', $drain['none_return_filenames'], true));
+            $t->same(['notes.txt'], $drain['non_null_return_filenames']);
+            $t->same(0, $drain['return_value_by_filename']['notes.txt']);
+            $t->same(null, $drain['return_value_by_filename']['already.pdf']);
+            $t->same('int', $drain['return_type_by_filename']['notes.txt']);
+            $t->same('NoneType', $drain['return_type_by_filename']['already.pdf']);
+            $t->same('unsupported-filetype-return-zero', $drain['return_boundary_by_filename']['notes.txt']);
+            $t->same('markdown_exists-return-none', $drain['return_boundary_by_filename']['already.pdf']);
+            $t->same('skipped-unsupported-filetype', $drain['status_by_filename']['notes.txt']);
+            $t->same('skipped-existing', $drain['status_by_filename']['already.pdf']);
+            $t->same(true, $drain['cleanup_after_result_drain']);
+            $t->same(false, $drain['executes_python_or_models']);
+            $t->same(false, $drain['executes_multiprocessing']);
+            $t->same(false, $drain['executes_external_pdf_tools']);
+
+            $mpsDrain = $mps['worker_pool']['pool_result_drain'];
+            $t->same(true, $mpsDrain['review_reached']);
+            $t->same(true, $mpsDrain['result_values_ignored']);
+            $t->same(false, $mpsDrain['executes_python_or_models']);
+
+            $blockedDrain = $invalidWorkers['worker_pool']['pool_result_drain'];
+            $t->same(false, $blockedDrain['review_reached']);
+            $t->same('pool-process-count-failed', $blockedDrain['blocked_by']);
+            $t->same(0, $blockedDrain['result_count']);
+            $t->same(false, $blockedDrain['cleanup_after_result_drain']);
+            $t->same(false, $blockedDrain['executes_multiprocessing']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records convert.py worker cleanup boundary after pool imap' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['first.pdf', 'second.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+
+            $batch = new BatchConverter();
+            $cuda = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+            $mps = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                torchDevice: 'mps',
+                torchDeviceModel: 'cpu'
+            );
+            $invalidWorkers = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 0
+            );
+
+            $cleanup = $cuda['worker_pool']['pool_cleanup'];
+            $t->same('convert.py pool worker_exit and model_lst cleanup boundary', $cleanup['source']);
+            $t->same('after_pool_imap_before_del_model_lst', $cleanup['order']);
+            $t->same(true, $cleanup['cleanup_reached']);
+            $t->same(null, $cleanup['blocked_by']);
+            $t->same(true, $cleanup['pool_imap_completed_required']);
+            $t->same(true, $cleanup['pool_imap_reached']);
+            $t->same('pool._worker_handler.terminate = worker_exit', $cleanup['worker_handler_terminate_assignment']);
+            $t->same(true, $cleanup['worker_handler_terminate_override_reached']);
+            $t->same('worker_exit', $cleanup['worker_exit_function']);
+            $t->same(true, $cleanup['worker_exit_deletes_global_model_refs']);
+            $t->same('del model_refs', $cleanup['worker_exit_delete_statement']);
+            $t->same(true, $cleanup['model_list_delete_reached']);
+            $t->same('del model_lst', $cleanup['model_list_delete_statement']);
+            $t->same(true, $cleanup['parent_model_list_loaded']);
+            $t->same('model_lst', $cleanup['worker_init_argument']);
+            $t->same(false, $cleanup['executes_python_or_models']);
+            $t->same(false, $cleanup['executes_multiprocessing']);
+            $t->same(false, $cleanup['executes_external_pdf_tools']);
+
+            $mpsCleanup = $mps['worker_pool']['pool_cleanup'];
+            $t->same(true, $mpsCleanup['cleanup_reached']);
+            $t->same(false, $mpsCleanup['parent_model_list_loaded']);
+            $t->same(null, $mpsCleanup['worker_init_argument']);
+            $t->same(true, $mpsCleanup['model_list_delete_reached']);
+
+            $blockedCleanup = $invalidWorkers['worker_pool']['pool_cleanup'];
+            $t->same(false, $blockedCleanup['cleanup_reached']);
+            $t->same('pool-process-count-failed', $blockedCleanup['blocked_by']);
+            $t->same(false, $blockedCleanup['pool_imap_reached']);
+            $t->same(false, $blockedCleanup['worker_handler_terminate_override_reached']);
+            $t->same(false, $blockedCleanup['model_list_delete_reached']);
+            $t->same(false, $blockedCleanup['executes_multiprocessing']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records output-folder file conflicts before metadata and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $root = $makeTempDir();
+        try {
+            foreach (['queued.pdf', 'sidecar.txt'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $blockedOutput = $root . DIRECTORY_SEPARATOR . 'marker-output';
+            $missingMetadata = $root . DIRECTORY_SEPARATOR . 'missing-metadata.json';
+            file_put_contents($blockedOutput, 'not a directory');
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $blockedOutput,
+                workers: 4,
+                metadataFile: $missingMetadata
+            );
+
+            $t->same('os.makedirs(out_folder, exist_ok=True)', $plan['paths']['output_folder_creation_call']);
+            $t->same('after_list_input_files_before_chunk_files', $plan['paths']['output_folder_creation_order']);
+            $t->same(true, $plan['paths']['output_path_exists']);
+            $t->same('file', $plan['paths']['output_path_type']);
+            $t->same(false, $plan['paths']['output_folder_exists']);
+            $t->same(true, $plan['paths']['output_folder_creation_required']);
+            $t->same(true, $plan['paths']['output_folder_creation_blocked']);
+            $t->same('FileExistsError', $plan['paths']['output_folder_creation_error_class']);
+            $t->contains('File exists', (string) $plan['paths']['output_folder_creation_error_message']);
+            $t->same($fileOrder, $plan['input_listing']['file_basenames']);
+            $t->same('output-folder-create-failed', $plan['chunking']['chunk_error_boundary']);
+            $t->same(false, $plan['chunking']['chunking_reached']);
+            $t->same(0, $plan['chunking']['selected_count']);
+            $t->same([], $plan['chunking']['selected_filenames']);
+            $t->same(false, $plan['metadata']['metadata_load_reached']);
+            $t->same($missingMetadata, $plan['metadata']['metadata_file']);
+            $t->same([], $plan['metadata']['metadata_filenames']);
+            $t->same(0, $plan['worker_pool']['task_args_count']);
+            $t->same(0, $plan['worker_pool']['total_processes']);
+            $t->same(false, $plan['worker_pool']['pool_launchable']);
+            $t->same('output-folder-create-failed', $plan['worker_pool']['pool_error_boundary']);
+            $t->same(false, $plan['console_summary']['summary_reached']);
+            $t->same(null, $plan['console_summary']['message_line']);
+            $t->same('output-folder-create-failed', $plan['console_summary']['blocked_by']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+        } finally {
+            $removeTree($input);
+            $removeTree($root);
+        }
+    },
+    'records output-folder parent file conflicts before metadata and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $root = $makeTempDir();
+        try {
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'queued.pdf', "%PDF-1.4\n% queued pdf\n%%EOF");
+            $blockedParent = $root . DIRECTORY_SEPARATOR . 'blocked-parent';
+            $blockedOutput = $blockedParent . DIRECTORY_SEPARATOR . 'marker-output';
+            $missingMetadata = $root . DIRECTORY_SEPARATOR . 'missing-metadata.json';
+            file_put_contents($blockedParent, 'not a directory');
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $blockedOutput,
+                workers: 4,
+                metadataFile: $missingMetadata
+            );
+
+            $t->same('os.makedirs(out_folder, exist_ok=True)', $plan['paths']['output_folder_creation_call']);
+            $t->same('after_list_input_files_before_chunk_files', $plan['paths']['output_folder_creation_order']);
+            $t->same(false, $plan['paths']['output_path_exists']);
+            $t->same('missing', $plan['paths']['output_path_type']);
+            $t->same(false, $plan['paths']['output_folder_exists']);
+            $t->same(true, $plan['paths']['output_folder_creation_required']);
+            $t->same($blockedParent, $plan['paths']['output_folder_parent_path']);
+            $t->same(true, $plan['paths']['output_folder_parent_path_exists']);
+            $t->same('file', $plan['paths']['output_folder_parent_path_type']);
+            $t->same($blockedParent, $plan['paths']['output_folder_parent_conflict_path']);
+            $t->same('file', $plan['paths']['output_folder_parent_conflict_type']);
+            $t->same(true, $plan['paths']['output_folder_parent_creation_blocked']);
+            $t->same(true, $plan['paths']['output_folder_creation_blocked']);
+            $t->same('output-folder-parent-not-directory', $plan['paths']['output_folder_creation_error_boundary']);
+            $t->same('NotADirectoryError', $plan['paths']['output_folder_creation_error_class']);
+            $t->contains('Not a directory', (string) $plan['paths']['output_folder_creation_error_message']);
+            $t->same('queued.pdf', $plan['input_listing']['file_basenames'][0]);
+            $t->same('output-folder-create-failed', $plan['chunking']['chunk_error_boundary']);
+            $t->same(false, $plan['chunking']['chunking_reached']);
+            $t->same(false, $plan['metadata']['metadata_load_reached']);
+            $t->same($missingMetadata, $plan['metadata']['metadata_file']);
+            $t->same(0, $plan['worker_pool']['task_args_count']);
+            $t->same('output-folder-create-failed', $plan['worker_pool']['pool_error_boundary']);
+            $t->same(false, $plan['console_summary']['summary_reached']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($root);
+        }
+    },
+    'records malformed metadata json before model handoff and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf', 'notes.txt'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $selectedNonPdf = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => !str_ends_with(strtolower($filename), '.pdf')
+            ));
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata.json';
+            file_put_contents($metadataFile, '{"alpha.pdf": {"title": "Alpha Import",}');
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 5,
+                metadataFile: $metadataFile
+            );
+
+            $t->same(true, $plan['chunking']['chunking_reached']);
+            $t->same(null, $plan['chunking']['chunk_error_boundary']);
+            $t->same(3, $plan['chunking']['selected_count']);
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+            $t->same($selectedNonPdf, $plan['input_listing']['selected_non_pdf_filenames']);
+            $t->same('metadata_file json.load keyed by basename', $plan['metadata']['source']);
+            $t->same($metadataFile, $plan['metadata']['metadata_file']);
+            $t->same(true, $plan['metadata']['metadata_load_reached']);
+            $t->same(false, $plan['metadata']['metadata_load_success']);
+            $t->same('metadata-file-json-load-failed', $plan['metadata']['metadata_error_boundary']);
+            $t->same('JSONDecodeError', $plan['metadata']['metadata_error_class']);
+            $t->contains('valid JSON', $plan['metadata']['metadata_error_message']);
+            $t->same([], $plan['metadata']['metadata_filenames']);
+            $t->same([], $plan['metadata']['selected_metadata_filenames']);
+            $t->same([], $plan['metadata']['missing_metadata_filenames']);
+            $t->same(5, $plan['worker_pool']['requested_workers']);
+            $t->same(0, $plan['worker_pool']['task_args_count']);
+            $t->same([], $plan['worker_pool']['task_args']);
+            $t->same(0, $plan['worker_pool']['total_processes']);
+            $t->same(false, $plan['worker_pool']['pool_launchable']);
+            $t->same('metadata-file-json-load-failed', $plan['worker_pool']['pool_error_boundary']);
+            $t->same(false, $plan['console_summary']['summary_reached']);
+            $t->same(null, $plan['console_summary']['message_line']);
+            $t->same('metadata-file-json-load-failed', $plan['console_summary']['blocked_by']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records metadata json shape errors at task-args boundary after summary' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata-list.json';
+            file_put_contents($metadataFile, json_encode([
+                ['title' => 'List-shaped metadata cannot answer get()'],
+            ], JSON_THROW_ON_ERROR));
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 5,
+                metadataFile: $metadataFile,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+            $t->same(true, $plan['metadata']['metadata_load_reached']);
+            $t->same(true, $plan['metadata']['metadata_load_success']);
+            $t->same(null, $plan['metadata']['metadata_error_boundary']);
+            $t->same('list', $plan['metadata']['metadata_json_type']);
+            $t->same(false, $plan['metadata']['metadata_get_available']);
+            $t->same('metadata-get-failed', $plan['metadata']['metadata_shape_error_boundary']);
+            $t->same('AttributeError', $plan['metadata']['metadata_shape_error_class']);
+            $t->contains("object has no attribute 'get'", (string) $plan['metadata']['metadata_shape_error_message']);
+            $t->same([], $plan['metadata']['metadata_filenames']);
+            $t->same([], $plan['metadata']['selected_metadata_filenames']);
+            $t->same($fileOrder, $plan['metadata']['missing_metadata_filenames']);
+
+            $t->same(true, $plan['spawn_start_method']['start_method_success']);
+            $t->same(true, $plan['model_handoff']['model_handoff_reached']);
+            $t->same(true, $plan['model_handoff']['main_load_all_models']);
+            $t->same(false, $plan['model_handoff']['executes_python_or_models']);
+            $t->same(true, $plan['console_summary']['summary_reached']);
+            $t->same(2, $plan['console_summary']['selected_pdf_count']);
+            $t->same(
+                'Converting 2 pdfs in chunk 1/1 with 2 processes, and storing in ' . $output,
+                $plan['console_summary']['message_line']
+            );
+            $t->same(true, $plan['console_summary']['emitted_before_task_args']);
+            $t->same(0, $plan['worker_pool']['task_args_count']);
+            $t->same([], $plan['worker_pool']['task_args']);
+            $t->same(0, $plan['worker_pool']['total_processes']);
+            $t->same(false, $plan['worker_pool']['pool_launchable']);
+            $t->same('metadata-get-failed', $plan['worker_pool']['pool_error_boundary']);
+            $t->same('metadata-get-failed', $plan['worker_pool']['task_args_error_boundary']);
+            $t->same('AttributeError', $plan['worker_pool']['task_args_error_class']);
+            $t->same('metadata-get-failed', $plan['conversion_boundary']['metadata_lookup_error_boundary']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records scalar metadata json files as Python get failures after model handoff' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $scalarCases = [
+                'metadata-string.json' => ['json' => '"English"', 'type' => 'str', 'message' => "'str' object has no attribute 'get'"],
+                'metadata-null.json' => ['json' => 'null', 'type' => 'NoneType', 'message' => "'NoneType' object has no attribute 'get'"],
+                'metadata-bool.json' => ['json' => 'false', 'type' => 'bool', 'message' => "'bool' object has no attribute 'get'"],
+                'metadata-float.json' => ['json' => '1.5', 'type' => 'float', 'message' => "'float' object has no attribute 'get'"],
+            ];
+
+            $batch = new BatchConverter();
+            foreach ($scalarCases as $metadataFilename => $case) {
+                $metadataFile = $output . DIRECTORY_SEPARATOR . $metadataFilename;
+                file_put_contents($metadataFile, $case['json']);
+
+                $plan = $batch->runtimeMainPreflightPlan(
+                    $input,
+                    $output,
+                    workers: 5,
+                    metadataFile: $metadataFile,
+                    torchDevice: 'cuda',
+                    torchDeviceModel: 'cpu'
+                );
+
+                $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+                $t->same(true, $plan['metadata']['metadata_load_reached']);
+                $t->same(true, $plan['metadata']['metadata_load_success']);
+                $t->same(null, $plan['metadata']['metadata_error_boundary']);
+                $t->same($case['type'], $plan['metadata']['metadata_json_type']);
+                $t->same(false, $plan['metadata']['metadata_get_available']);
+                $t->same('metadata-get-failed', $plan['metadata']['metadata_shape_error_boundary']);
+                $t->same('AttributeError', $plan['metadata']['metadata_shape_error_class']);
+                $t->same($case['message'], $plan['metadata']['metadata_shape_error_message']);
+                $t->same([], $plan['metadata']['metadata_filenames']);
+                $t->same([], $plan['metadata']['metadata_top_level_key_order']);
+                $t->same($fileOrder, $plan['metadata']['missing_metadata_filenames']);
+
+                $t->same(true, $plan['spawn_start_method']['start_method_success']);
+                $t->same(true, $plan['model_handoff']['model_handoff_reached']);
+                $t->same(true, $plan['model_handoff']['main_load_all_models']);
+                $t->same(true, $plan['console_summary']['summary_reached']);
+                $t->same(2, $plan['console_summary']['selected_pdf_count']);
+                $t->same(
+                    'Converting 2 pdfs in chunk 1/1 with 2 processes, and storing in ' . $output,
+                    $plan['console_summary']['message_line']
+                );
+                $t->same(0, $plan['worker_pool']['task_args_count']);
+                $t->same([], $plan['worker_pool']['task_args']);
+                $t->same(0, $plan['worker_pool']['total_processes']);
+                $t->same(false, $plan['worker_pool']['pool_launchable']);
+                $t->same('metadata-get-failed', $plan['worker_pool']['pool_error_boundary']);
+                $t->same('metadata-get-failed', $plan['worker_pool']['task_args_error_boundary']);
+                $t->same('AttributeError', $plan['worker_pool']['task_args_error_class']);
+                $t->same($case['message'], $plan['worker_pool']['task_args_error_message']);
+                $t->same('metadata-get-failed', $plan['conversion_boundary']['metadata_lookup_error_boundary']);
+                $t->same(false, $plan['executes_python_or_models']);
+                $t->same(false, $plan['executes_multiprocessing']);
+                $t->same(false, $plan['executes_external_pdf_tools']);
+            }
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records per-file metadata value boundaries without blocking task args' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['dict-meta.pdf', 'float-meta.pdf', 'list-meta.pdf', 'missing-meta.pdf', 'null-meta.pdf', 'scalar-meta.pdf', 'zero-meta.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $metadataByFilename = [
+                'dict-meta.pdf' => ['languages' => ['English'], 'title' => 'Dict Metadata'],
+                'float-meta.pdf' => 1.5,
+                'list-meta.pdf' => ['English'],
+                'null-meta.pdf' => null,
+                'scalar-meta.pdf' => 'English',
+                'zero-meta.pdf' => 0,
+            ];
+            $metadataValueTypes = [
+                'dict-meta.pdf' => 'dict',
+                'float-meta.pdf' => 'float',
+                'list-meta.pdf' => 'list',
+                'null-meta.pdf' => 'NoneType',
+                'scalar-meta.pdf' => 'str',
+                'zero-meta.pdf' => 'int',
+            ];
+            $selectedMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => array_key_exists($filename, $metadataByFilename)
+            ));
+            $missingMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => !array_key_exists($filename, $metadataByFilename)
+            ));
+            $selectedMetadataValueTypes = [];
+            $truthyNonMappingMetadataFilenames = [];
+            $falsyNonMappingMetadataFilenames = [];
+            foreach ($selectedMetadataFilenames as $filename) {
+                $selectedMetadataValueTypes[$filename] = $metadataValueTypes[$filename];
+                $metadataValue = $metadataByFilename[$filename];
+                if (is_array($metadataValue) && array_is_list($metadataValue)) {
+                    $truthyNonMappingMetadataFilenames[] = $filename;
+                    continue;
+                }
+                if (is_array($metadataValue)) {
+                    continue;
+                }
+                if ($metadataValue) {
+                    $truthyNonMappingMetadataFilenames[] = $filename;
+                } else {
+                    $falsyNonMappingMetadataFilenames[] = $filename;
+                }
+            }
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata-values.json';
+            file_put_contents($metadataFile, json_encode($metadataByFilename, JSON_THROW_ON_ERROR));
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 8,
+                metadataFile: $metadataFile,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $t->same(true, $plan['metadata']['metadata_load_success']);
+            $t->same('object', $plan['metadata']['metadata_json_type']);
+            $t->same(true, $plan['metadata']['metadata_get_available']);
+            $t->same(null, $plan['metadata']['metadata_shape_error_boundary']);
+            $t->same(['dict-meta.pdf', 'float-meta.pdf', 'list-meta.pdf', 'null-meta.pdf', 'scalar-meta.pdf', 'zero-meta.pdf'], $plan['metadata']['metadata_filenames']);
+            $t->same($selectedMetadataFilenames, $plan['metadata']['selected_metadata_filenames']);
+            $t->same($missingMetadataFilenames, $plan['metadata']['missing_metadata_filenames']);
+            $t->same($metadataValueTypes, $plan['metadata']['metadata_value_types']);
+
+            $review = $plan['metadata']['metadata_value_review'];
+            $t->same('convert.py metadata.get basename + convert_single_pdf metadata truthiness', $review['source']);
+            $t->same(true, $review['review_reached']);
+            $t->same($selectedMetadataValueTypes, $review['selected_metadata_value_types']);
+            $t->same($truthyNonMappingMetadataFilenames, $review['truthy_non_mapping_metadata_filenames']);
+            $t->same($falsyNonMappingMetadataFilenames, $review['falsy_non_mapping_metadata_filenames']);
+            $t->same('convert-single-pdf-metadata-get-failed', $review['conversion_error_boundary']);
+            $t->same('AttributeError', $review['conversion_error_class']);
+            $t->same("'{type}' object has no attribute 'get'", $review['conversion_error_message_template']);
+            $t->same(false, $review['blocks_task_args']);
+            $t->same(false, $review['blocks_pool_launch']);
+
+            $t->same(7, $plan['worker_pool']['task_args_count']);
+            $t->same(7, $plan['worker_pool']['total_processes']);
+            $t->same(true, $plan['worker_pool']['pool_launchable']);
+            $t->same(null, $plan['worker_pool']['pool_error_boundary']);
+            $taskArgsByName = [];
+            foreach ($plan['worker_pool']['task_args'] as $taskArg) {
+                $taskArgsByName[basename($taskArg['filepath'])] = $taskArg;
+            }
+            $t->same(['languages' => ['English'], 'title' => 'Dict Metadata'], $taskArgsByName['dict-meta.pdf']['metadata']);
+            $t->same(1.5, $taskArgsByName['float-meta.pdf']['metadata']);
+            $t->same(['English'], $taskArgsByName['list-meta.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['null-meta.pdf']['metadata']);
+            $t->same('English', $taskArgsByName['scalar-meta.pdf']['metadata']);
+            $t->same(0, $taskArgsByName['zero-meta.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['missing-meta.pdf']['metadata']);
+            $t->same($truthyNonMappingMetadataFilenames, $plan['worker_pool']['truthy_non_mapping_metadata_filenames']);
+            $t->same($falsyNonMappingMetadataFilenames, $plan['worker_pool']['falsy_non_mapping_metadata_filenames']);
+            $t->same('convert-single-pdf-metadata-get-failed', $plan['worker_pool']['per_file_metadata_error_boundary']);
+            $t->same('convert-single-pdf-metadata-get-failed', $plan['conversion_boundary']['per_file_metadata_error_boundary']);
+            $t->same('AttributeError', $plan['conversion_boundary']['per_file_metadata_error_class']);
+            $t->same(true, $plan['console_summary']['summary_reached']);
+            $t->same(
+                'Converting 7 pdfs in chunk 1/1 with 7 processes, and storing in ' . $output,
+                $plan['console_summary']['message_line']
+            );
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'keeps numeric-string metadata filenames addressable like Python json dict keys' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['0', '01', '2.pdf', 'missing'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $metadataByFilename = [
+                '0' => ['title' => 'Zero Basename Import', 'languages' => ['English']],
+                '01' => ['title' => 'Leading Zero Basename Import'],
+                '2.pdf' => ['title' => 'Numeric Prefix PDF Import'],
+            ];
+            $selectedMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => array_key_exists($filename, $metadataByFilename)
+            ));
+            $missingMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => !array_key_exists($filename, $metadataByFilename)
+            ));
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'numeric-filename-metadata.json';
+            file_put_contents($metadataFile, json_encode($metadataByFilename, JSON_THROW_ON_ERROR));
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 6,
+                metadataFile: $metadataFile,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+            $t->same(true, $plan['metadata']['metadata_load_success']);
+            $t->same('object', $plan['metadata']['metadata_json_type']);
+            $t->same(true, $plan['metadata']['metadata_get_available']);
+            $t->same(null, $plan['metadata']['metadata_shape_error_boundary']);
+            $t->same(['0', '01', '2.pdf'], $plan['metadata']['metadata_filenames']);
+            $t->same($selectedMetadataFilenames, $plan['metadata']['selected_metadata_filenames']);
+            $t->same($missingMetadataFilenames, $plan['metadata']['missing_metadata_filenames']);
+            $t->same('dict', $plan['metadata']['metadata_value_types']['0']);
+            $t->same('dict', $plan['metadata']['metadata_value_types']['01']);
+            $t->same('dict', $plan['metadata']['metadata_value_types']['2.pdf']);
+
+            $taskArgsByName = [];
+            foreach ($plan['worker_pool']['task_args'] as $taskArg) {
+                $taskArgsByName[basename($taskArg['filepath'])] = $taskArg;
+            }
+            $t->same(['title' => 'Zero Basename Import', 'languages' => ['English']], $taskArgsByName['0']['metadata']);
+            $t->same(['title' => 'Leading Zero Basename Import'], $taskArgsByName['01']['metadata']);
+            $t->same(['title' => 'Numeric Prefix PDF Import'], $taskArgsByName['2.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['missing']['metadata']);
+            $t->same(4, $plan['worker_pool']['task_args_count']);
+            $t->same(4, $plan['worker_pool']['total_processes']);
+            $t->same(true, $plan['worker_pool']['pool_launchable']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'resolves relative metadata_file paths against process cwd before json load' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $root = $makeTempDir();
+        $previousCwd = getcwd();
+        if (!is_string($previousCwd)) {
+            throw new RuntimeException('Unable to capture current working directory.');
+        }
+
+        try {
+            $input = $root . DIRECTORY_SEPARATOR . 'uploads';
+            $output = $root . DIRECTORY_SEPARATOR . 'marker-output';
+            $relativeDir = $root . DIRECTORY_SEPARATOR . 'runtime';
+            mkdir($input);
+            mkdir($output);
+            mkdir($relativeDir);
+
+            foreach (['alpha.pdf', 'beta.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            file_put_contents($root . DIRECTORY_SEPARATOR . 'relative-metadata.json', json_encode([
+                'alpha.pdf' => ['title' => 'Process CWD Metadata'],
+            ], JSON_THROW_ON_ERROR));
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'relative-metadata.json', json_encode([
+                'beta.pdf' => ['title' => 'Input Folder Decoy'],
+            ], JSON_THROW_ON_ERROR));
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $selectedMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => $filename === 'alpha.pdf'
+            ));
+            $missingMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => $filename !== 'alpha.pdf'
+            ));
+            file_put_contents($output . DIRECTORY_SEPARATOR . 'relative-metadata.json', '{"beta.pdf": {"title": "Output folder decoy",}');
+
+            if (!chdir($root)) {
+                throw new RuntimeException('Unable to enter temporary metadata cwd.');
+            }
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                metadataFile: './runtime/../relative-metadata.json',
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $metadata = $plan['metadata'];
+            $t->same('metadata_file json.load keyed by basename', $metadata['source']);
+            $t->same('./runtime/../relative-metadata.json', $metadata['metadata_file_input']);
+            $t->same($root . DIRECTORY_SEPARATOR . 'relative-metadata.json', $metadata['metadata_file']);
+            $t->same('os.path.abspath(args.metadata_file)', $metadata['metadata_file_abspath_call']);
+            $t->same('after_chunk_files_before_json_load', $metadata['metadata_file_abspath_order']);
+            $t->same('process_cwd', $metadata['metadata_file_abspath_base']);
+            $t->same($root, $metadata['metadata_file_process_cwd']);
+            $t->same(true, $metadata['metadata_file_relative_to_process_cwd']);
+            $t->same(false, $metadata['metadata_file_relative_to_input_folder']);
+            $t->same(false, $metadata['metadata_file_relative_to_output_folder']);
+            $t->same($input . DIRECTORY_SEPARATOR . 'relative-metadata.json', $metadata['metadata_file_input_folder_candidate']);
+            $t->same($output . DIRECTORY_SEPARATOR . 'relative-metadata.json', $metadata['metadata_file_output_folder_candidate']);
+            $t->same(true, $metadata['metadata_file_input_folder_candidate_exists']);
+            $t->same(true, $metadata['metadata_file_output_folder_candidate_exists']);
+            $t->same(true, $metadata['metadata_load_success']);
+            $t->same(['alpha.pdf'], $metadata['metadata_filenames']);
+            $t->same($selectedMetadataFilenames, $metadata['selected_metadata_filenames']);
+            $t->same($missingMetadataFilenames, $metadata['missing_metadata_filenames']);
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+
+            $taskArgsByName = [];
+            foreach ($plan['worker_pool']['task_args'] as $taskArg) {
+                $taskArgsByName[basename($taskArg['filepath'])] = $taskArg;
+            }
+            $t->same(['title' => 'Process CWD Metadata'], $taskArgsByName['alpha.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['beta.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['relative-metadata.json']['metadata']);
+            $t->same(3, $plan['worker_pool']['task_args_count']);
+            $t->same(3, $plan['worker_pool']['total_processes']);
+            $t->same(true, $plan['worker_pool']['pool_launchable']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            chdir($previousCwd);
+            $removeTree($root);
+        }
+    },
+    'treats empty metadata_file argv as falsy before runtime json load' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            file_put_contents($output . DIRECTORY_SEPARATOR . 'metadata.json', '{"beta.pdf": {"title": "Output decoy",}');
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $selectedMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => $filename === 'alpha.pdf'
+            ));
+            $missingMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => $filename !== 'alpha.pdf'
+            ));
+
+            $batch = new BatchConverter();
+            $argumentPlan = $batch->runtimeMainArgumentPreflightPlan([
+                '--metadata_file=',
+                $input,
+                $output,
+            ]);
+            $runtimePlan = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                metadataByFilename: [
+                    'alpha.pdf' => ['title' => 'Fallback metadata argument'],
+                ],
+                metadataFile: '',
+                workers: 4
+            );
+
+            $t->same('', $argumentPlan['arguments']['options']['metadata_file']);
+            $t->same(false, $argumentPlan['arguments']['defaults_applied']['metadata_file']);
+            $t->same(false, $argumentPlan['semantic_boundaries']['metadata_file_read_deferred_until_after_chunk_files']);
+            $t->same(false, $argumentPlan['semantic_boundaries']['metadata_file_truthy_for_json_load']);
+            $t->same(true, $argumentPlan['semantic_boundaries']['empty_metadata_file_skips_json_load']);
+
+            $metadata = $runtimePlan['metadata'];
+            $t->same('metadataByFilename argument', $metadata['source']);
+            $t->same(null, $metadata['metadata_file']);
+            $t->same(null, $metadata['metadata_file_input']);
+            $t->same(null, $metadata['metadata_file_abspath_call']);
+            $t->same(false, $metadata['metadata_file_relative_to_process_cwd']);
+            $t->same(true, $metadata['metadata_load_success']);
+            $t->same(['alpha.pdf'], $metadata['metadata_filenames']);
+            $t->same($selectedMetadataFilenames, $metadata['selected_metadata_filenames']);
+            $t->same($missingMetadataFilenames, $metadata['missing_metadata_filenames']);
+
+            $taskArgsByName = [];
+            foreach ($runtimePlan['worker_pool']['task_args'] as $taskArg) {
+                $taskArgsByName[basename($taskArg['filepath'])] = $taskArg;
+            }
+            $t->same(['title' => 'Fallback metadata argument'], $taskArgsByName['alpha.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['beta.pdf']['metadata']);
+            $t->same(2, $runtimePlan['worker_pool']['task_args_count']);
+            $t->same(2, $runtimePlan['worker_pool']['total_processes']);
+            $t->same(true, $runtimePlan['worker_pool']['pool_launchable']);
+            $t->same(false, $runtimePlan['executes_python_or_models']);
+            $t->same(false, $runtimePlan['executes_multiprocessing']);
+            $t->same(false, $runtimePlan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'matches argparse metadata_file option-looking value boundaries before runtime preflight' => static function (TestRunner $t): void {
+        $batch = new BatchConverter();
+        $shortOptionValue = $batch->runtimeMainArgumentPreflightPlan([
+            '/wp/uploads',
+            '/wp/output',
+            '--metadata_file',
+            '-x',
+        ]);
+        $negativeNumberValue = $batch->runtimeMainArgumentPreflightPlan([
+            '/wp/uploads',
+            '/wp/output',
+            '--metadata_file',
+            '-1',
+        ]);
+        $dashValue = $batch->runtimeMainArgumentPreflightPlan([
+            '/wp/uploads',
+            '/wp/output',
+            '--metadata_file',
+            '-',
+        ]);
+        $equalsOptionValue = $batch->runtimeMainArgumentPreflightPlan([
+            '/wp/uploads',
+            '/wp/output',
+            '--metadata_file=-x',
+        ]);
+        $negativeIntOptionValue = $batch->runtimeMainArgumentPreflightPlan([
+            '/wp/uploads',
+            '/wp/output',
+            '--max',
+            '-1',
+        ]);
+
+        $t->same(false, $shortOptionValue['parse_args']['parse_args_success']);
+        $t->same(2, $shortOptionValue['parse_args']['exit_code']);
+        $t->same('argparse-system-exit', $shortOptionValue['parse_args']['error_boundary']);
+        $t->same('--metadata_file', $shortOptionValue['parse_args']['error_argument']);
+        $t->same('argument --metadata_file: expected one argument', $shortOptionValue['parse_args']['error_message']);
+        $t->same(true, $shortOptionValue['parse_args']['blocks_runtime_preflight']);
+        $t->same(false, $shortOptionValue['semantic_boundaries']['filesystem_touched_before_error']);
+        $t->same([
+            'abspath_input_output',
+            'list_input_files',
+            'makedirs_output_exist_ok',
+            'chunk_files',
+            'load_metadata_file',
+            'set_spawn_start_method',
+            'prepare_model_handoff',
+            'print_conversion_summary',
+            'build_task_args',
+            'pool_imap_process_single_pdf',
+        ], $shortOptionValue['blocked_stages']);
+
+        $t->same(true, $negativeNumberValue['parse_args']['parse_args_success']);
+        $t->same('-1', $negativeNumberValue['arguments']['options']['metadata_file']);
+        $t->same(true, $negativeNumberValue['semantic_boundaries']['metadata_file_truthy_for_json_load']);
+        $t->same(true, $dashValue['parse_args']['parse_args_success']);
+        $t->same('-', $dashValue['arguments']['options']['metadata_file']);
+        $t->same(true, $equalsOptionValue['parse_args']['parse_args_success']);
+        $t->same('-x', $equalsOptionValue['arguments']['options']['metadata_file']);
+        $t->same(true, $negativeIntOptionValue['parse_args']['parse_args_success']);
+        $t->same(-1, $negativeIntOptionValue['arguments']['options']['max']);
+        $t->same(true, $negativeIntOptionValue['semantic_boundaries']['negative_max_allowed_by_argparse']);
+        $t->same(false, $shortOptionValue['executes_python_or_models']);
+        $t->same(false, $shortOptionValue['executes_multiprocessing']);
+        $t->same(false, $shortOptionValue['executes_external_pdf_tools']);
+    },
+    'records convert.py os.listdir file-only boundary without extension filtering' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'metadata.json', 'omega.PDF', 'wp-upload.txt'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            mkdir($input . DIRECTORY_SEPARATOR . 'nested.pdf');
+            mkdir($input . DIRECTORY_SEPARATOR . 'preview-assets');
+            $entryOrder = $runtimeDirectoryOrder($input);
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $skippedNonFiles = array_values(array_filter(
+                $entryOrder,
+                static fn (string $filename): bool => !is_file($input . DIRECTORY_SEPARATOR . $filename)
+            ));
+            $nonPdfFiles = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => !str_ends_with(strtolower($filename), '.pdf')
+            ));
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 8
+            );
+
+            $listing = $plan['input_listing'];
+            $t->same('os.listdir + os.path.isfile', $listing['source']);
+            $t->same($entryOrder, $listing['entry_basenames']);
+            $t->same(6, $listing['entry_count']);
+            $t->same($fileOrder, $listing['file_basenames']);
+            $t->same(4, $listing['file_count']);
+            $t->same($skippedNonFiles, $listing['skipped_non_file_basenames']);
+            $t->same(2, $listing['skipped_non_file_count']);
+            $t->same('os.path.isfile', $listing['file_filter']);
+            $t->same('os.listdir filesystem order', $listing['entry_order_source']);
+            $t->same(false, $listing['sort_applied_before_chunking']);
+            $t->same(true, $listing['preserves_os_listdir_order']);
+            $t->same(false, $listing['extension_filter_active']);
+            $t->same(true, $listing['non_pdf_files_are_task_candidates']);
+            $t->same($nonPdfFiles, $listing['non_pdf_file_basenames']);
+            $t->same($nonPdfFiles, $listing['selected_non_pdf_filenames']);
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+            $t->same('os.listdir filesystem order after os.path.isfile', $plan['chunking']['input_order_source']);
+            $t->same(false, $plan['chunking']['sorts_before_chunking']);
+            $t->same(true, $plan['chunking']['preserves_input_listing_order']);
+            $t->same(4, $plan['worker_pool']['task_args_count']);
+            $t->same(4, $plan['worker_pool']['total_processes']);
+            $t->same(
+                'Converting 4 pdfs in chunk 1/1 with 4 processes, and storing in ' . $output,
+                $plan['console_summary']['message_line']
+            );
+            $t->same(false, $plan['executes_python_or_models']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records convert.py os.path.isfile symlink boundary before chunking and task args' => static function (
+        TestRunner $t
+    ) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'target-report.pdf', "%PDF-1.4\n% symlink target\n%%EOF");
+            mkdir($input . DIRECTORY_SEPARATOR . 'asset-folder');
+            $fileLink = $input . DIRECTORY_SEPARATOR . 'linked-report.pdf';
+            $directoryLink = $input . DIRECTORY_SEPARATOR . 'linked-directory.pdf';
+            $brokenLink = $input . DIRECTORY_SEPARATOR . 'broken-upload.pdf';
+            if (
+                !@symlink($input . DIRECTORY_SEPARATOR . 'target-report.pdf', $fileLink)
+                || !@symlink($input . DIRECTORY_SEPARATOR . 'asset-folder', $directoryLink)
+                || !@symlink($input . DIRECTORY_SEPARATOR . 'missing-target.pdf', $brokenLink)
+            ) {
+                throw new RuntimeException('Unable to create symlink fixtures for markerPDF runtime preflight.');
+            }
+
+            $entryOrder = $runtimeDirectoryOrder($input);
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $symlinkOrder = array_values(array_filter(
+                $entryOrder,
+                static fn (string $filename): bool => is_link($input . DIRECTORY_SEPARATOR . $filename)
+            ));
+            $fileSymlinks = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => is_link($input . DIRECTORY_SEPARATOR . $filename)
+            ));
+            $skippedSymlinks = array_values(array_filter(
+                $entryOrder,
+                static fn (string $filename): bool => is_link($input . DIRECTORY_SEPARATOR . $filename)
+                    && !is_file($input . DIRECTORY_SEPARATOR . $filename)
+            ));
+            $brokenSymlinks = array_values(array_filter(
+                $entryOrder,
+                static fn (string $filename): bool => is_link($input . DIRECTORY_SEPARATOR . $filename)
+                    && !file_exists($input . DIRECTORY_SEPARATOR . $filename)
+            ));
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                metadataByFilename: [
+                    'linked-report.pdf' => ['title' => 'Symlinked Upload', 'languages' => ['English']],
+                ],
+                workers: 6
+            );
+
+            $listing = $plan['input_listing'];
+            $t->same('os.listdir + os.path.isfile', $listing['source']);
+            $t->same('os.path.isfile follows regular-file symlinks and excludes directory or broken symlinks', $listing['symlink_filter']);
+            $t->same($entryOrder, $listing['entry_basenames']);
+            $t->same($fileOrder, $listing['file_basenames']);
+            $t->same($symlinkOrder, $listing['symlink_basenames']);
+            $t->same($fileSymlinks, $listing['file_symlink_basenames']);
+            $t->same($skippedSymlinks, $listing['skipped_symlink_basenames']);
+            $t->same($brokenSymlinks, $listing['broken_symlink_basenames']);
+            $t->same(true, in_array('linked-report.pdf', $listing['file_basenames'], true));
+            $t->same(false, in_array('linked-directory.pdf', $listing['file_basenames'], true));
+            $t->same(false, in_array('broken-upload.pdf', $listing['file_basenames'], true));
+            $t->same(true, in_array('linked-directory.pdf', $listing['skipped_non_file_basenames'], true));
+            $t->same(true, in_array('broken-upload.pdf', $listing['skipped_non_file_basenames'], true));
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+            $t->same(true, $plan['chunking']['preserves_input_listing_order']);
+            $t->same(2, $plan['worker_pool']['task_args_count']);
+            $t->same(2, $plan['worker_pool']['total_processes']);
+            $t->same(true, $plan['worker_pool']['pool_launchable']);
+
+            $taskArgsByName = [];
+            foreach ($plan['worker_pool']['task_args'] as $taskArg) {
+                $taskArgsByName[basename($taskArg['filepath'])] = $taskArg;
+            }
+            $t->same($fileLink, $taskArgsByName['linked-report.pdf']['filepath']);
+            $t->same(['title' => 'Symlinked Upload', 'languages' => ['English']], $taskArgsByName['linked-report.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['target-report.pdf']['metadata']);
+
+            $preflight = $plan['worker_pool']['process_single_pdf_preflight'];
+            $t->same($fileOrder, $preflight['task_arg_filenames']);
+            $t->same(false, in_array('linked-directory.pdf', $preflight['task_arg_filenames'], true));
+            $t->same(false, in_array('broken-upload.pdf', $preflight['task_arg_filenames'], true));
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records duplicate symlink targets as separate convert.py task args before pool launch' => static function (
+        TestRunner $t
+    ) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            $originalPath = $input . DIRECTORY_SEPARATOR . 'original-report.pdf';
+            $linkedPath = $input . DIRECTORY_SEPARATOR . 'linked-copy.pdf';
+            $controlPath = $input . DIRECTORY_SEPARATOR . 'control.pdf';
+            file_put_contents($originalPath, "%PDF-1.4\n% duplicate target original\n%%EOF");
+            file_put_contents($controlPath, "%PDF-1.4\n% duplicate target control\n%%EOF");
+            if (!@symlink($originalPath, $linkedPath)) {
+                throw new RuntimeException('Unable to create duplicate-target symlink fixture for markerPDF runtime preflight.');
+            }
+
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $duplicateFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => in_array($filename, ['linked-copy.pdf', 'original-report.pdf'], true)
+            ));
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                metadataByFilename: [
+                    'control.pdf' => ['title' => 'Control Import'],
+                    'original-report.pdf' => ['title' => 'Original Import', 'languages' => ['English']],
+                ],
+                workers: 6,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $review = $plan['worker_pool']['task_arg_identity_review'];
+            $t->same('convert.py os.listdir/os.path.isfile task tuple identity boundary', $review['source']);
+            $t->same('after_task_args_before_pool_imap', $review['order']);
+            $t->same(true, $review['review_reached']);
+            $t->same(null, $review['blocked_by']);
+            $t->same($fileOrder, $review['task_arg_filenames']);
+            $t->same(3, $review['task_args_count']);
+            $t->same(true, $review['duplicate_resolved_targets_found']);
+            $t->same(1, $review['duplicate_resolved_target_group_count']);
+            $t->same($duplicateFilenames, $review['duplicate_resolved_target_filenames']);
+            $t->same(true, $review['no_dedupe_before_task_args']);
+            $t->same(true, $review['metadata_lookup_uses_entry_basename']);
+            $t->same(false, $review['target_basename_metadata_fallback']);
+
+            $group = $review['duplicate_resolved_target_groups'][0];
+            $t->same(realpath($originalPath), $group['resolved_target']);
+            $t->same(2, $group['entry_count']);
+            $t->same($duplicateFilenames, $group['filenames']);
+            $t->same(true, $group['contains_symlink']);
+            $t->same(['linked-copy.pdf'], $group['symlink_filenames']);
+            $t->same(true, $group['queued_separately']);
+            $t->same(false, $group['deduplicated_by_realpath']);
+
+            $taskArgsByName = [];
+            foreach ($plan['worker_pool']['task_args'] as $taskArg) {
+                $taskArgsByName[basename($taskArg['filepath'])] = $taskArg;
+            }
+            $t->same($originalPath, $taskArgsByName['original-report.pdf']['filepath']);
+            $t->same($linkedPath, $taskArgsByName['linked-copy.pdf']['filepath']);
+            $t->same($controlPath, $taskArgsByName['control.pdf']['filepath']);
+            $t->same(['title' => 'Original Import', 'languages' => ['English']], $taskArgsByName['original-report.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['linked-copy.pdf']['metadata']);
+            $t->same(['title' => 'Control Import'], $taskArgsByName['control.pdf']['metadata']);
+            $t->same(3, $plan['worker_pool']['task_args_count']);
+            $t->same(3, $plan['worker_pool']['total_processes']);
+            $t->same(true, $plan['worker_pool']['pool_launchable']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records convert.py task tuple order before worker-side unpacking' => static function (
+        TestRunner $t
+    ) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf', 'notes.txt'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                metadataByFilename: [
+                    'alpha.pdf' => ['title' => 'Alpha Import', 'languages' => ['English']],
+                    'notes.txt' => 'sidecar metadata stays positional',
+                ],
+                minLength: 80,
+                workers: 6,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $review = $plan['worker_pool']['task_arg_identity_review'];
+            $t->same('task_args = [(f, out_folder, metadata.get(os.path.basename(f)), args.min_length) for f in files_to_convert]', $review['task_arg_tuple_source']);
+            $t->same('filepath, out_folder, metadata, min_length = args', $review['process_single_pdf_unpack']);
+            $t->same(['filepath', 'out_folder', 'metadata', 'min_length'], $review['task_arg_tuple_order']);
+            $t->same(4, $review['task_arg_tuple_arity']);
+            $t->same(2, $review['metadata_tuple_position']);
+            $t->same(3, $review['min_length_tuple_position']);
+            $t->same(true, $review['tuple_order_preserved']);
+            $t->same(3, $review['task_args_count']);
+            $t->same(3, count($review['task_arg_tuple_rows']));
+
+            $rowsByFilename = [];
+            foreach ($review['task_arg_tuple_rows'] as $row) {
+                $rowsByFilename[basename((string) $row[0])] = $row;
+            }
+
+            $t->same($fileOrder, array_keys($rowsByFilename));
+            $t->same($input . DIRECTORY_SEPARATOR . 'alpha.pdf', $rowsByFilename['alpha.pdf'][0]);
+            $t->same($output, $rowsByFilename['alpha.pdf'][1]);
+            $t->same(['title' => 'Alpha Import', 'languages' => ['English']], $rowsByFilename['alpha.pdf'][2]);
+            $t->same(80, $rowsByFilename['alpha.pdf'][3]);
+            $t->same(null, $rowsByFilename['beta.pdf'][2]);
+            $t->same('sidecar metadata stays positional', $rowsByFilename['notes.txt'][2]);
+            $t->same(80, $rowsByFilename['notes.txt'][3]);
+            $t->same('convert-single-pdf-metadata-get-failed', $plan['worker_pool']['per_file_metadata_error_boundary']);
+            $t->same(true, $plan['worker_pool']['pool_launchable']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'preserves convert.py os.listdir order through chunk and max slicing' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['03-tail.pdf', '01-head.pdf', '02-middle.pdf', '04-final.pdf', 'wp-sidecar.txt'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            mkdir($input . DIRECTORY_SEPARATOR . '00-folder.pdf');
+
+            $entryOrder = $runtimeDirectoryOrder($input);
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $expectedChunk = array_slice($fileOrder, 0, (int) ceil(count($fileOrder) / 2));
+            $expectedMax = array_slice($expectedChunk, 0, 1);
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                chunkIndex: 0,
+                numChunks: 2,
+                maxFiles: 1,
+                workers: 4
+            );
+
+            $t->same($entryOrder, $plan['input_listing']['entry_basenames']);
+            $t->same($fileOrder, $plan['input_listing']['file_basenames']);
+            $t->same('os.listdir filesystem order', $plan['input_listing']['entry_order_source']);
+            $t->same(false, $plan['input_listing']['sort_applied_before_chunking']);
+            $t->same(true, $plan['input_listing']['preserves_os_listdir_order']);
+            $t->same($expectedMax, $plan['chunking']['selected_filenames']);
+            $t->same('os.listdir filesystem order after os.path.isfile', $plan['chunking']['input_order_source']);
+            $t->same(false, $plan['chunking']['sorts_before_chunking']);
+            $t->same(true, $plan['chunking']['preserves_input_listing_order']);
+            $t->same(1, $plan['worker_pool']['task_args_count']);
+            $t->same($expectedMax[0], basename($plan['worker_pool']['task_args'][0]['filepath']));
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records non-pdf task candidates rejected by process_single_pdf min_length preflight' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['already-imported.pdf', 'ready.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'wp-upload-notes.txt', 'WordPress sidecar notes selected by convert.py before worker preflight.');
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $selectedNonPdf = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => !str_ends_with(strtolower($filename), '.pdf')
+            ));
+
+            (new OutputWriter())->saveMarkdown(
+                $output,
+                'already-imported.pdf',
+                '<!-- wp:paragraph --><p>Already imported.</p><!-- /wp:paragraph -->',
+                [],
+                ['title' => 'Already Imported']
+            );
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                minLength: 10,
+                workers: 4
+            );
+
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+            $t->same($selectedNonPdf, $plan['input_listing']['selected_non_pdf_filenames']);
+            $t->same(3, $plan['worker_pool']['task_args_count']);
+            $t->same(true, $plan['worker_pool']['pool_launchable']);
+
+            $preflight = $plan['worker_pool']['process_single_pdf_preflight'];
+            $t->same('convert.py pool.imap(process_single_pdf, task_args) per-file preflight boundary', $preflight['source']);
+            $t->same('after_pool_imap_worker_before_convert_single_pdf', $preflight['order']);
+            $t->same(true, $preflight['review_reached']);
+            $t->same(null, $preflight['blocked_by']);
+            $t->same(3, $preflight['task_args_count']);
+            $t->same($fileOrder, $preflight['task_arg_filenames']);
+            $t->same(false, $preflight['extension_filter_before_task_args']);
+            $t->same(true, $preflight['filetype_gate_requires_min_length']);
+            $t->same(true, $preflight['sidecar_reaches_task_args_before_preflight']);
+            $t->same($selectedNonPdf, $preflight['selected_non_pdf_filenames']);
+            $t->same($selectedNonPdf, $preflight['sidecar_rejected_by_process_single_pdf_filenames']);
+            $t->same('unsupported-filetype-return-zero', $preflight['sidecar_rejection_boundary']);
+            $t->same(['already-imported.pdf'], $preflight['existing_markdown_filenames']);
+            $t->same($selectedNonPdf, $preflight['unsupported_filetype_filenames']);
+            $t->same(array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => $filename !== 'already-imported.pdf'
+            )), $preflight['filetype_checked_filenames']);
+            $t->same(['ready.pdf'], $preflight['text_length_checked_filenames']);
+            $t->same('skipped-existing', $preflight['status_by_filename']['already-imported.pdf']);
+            $t->same('skipped-unsupported-filetype', $preflight['status_by_filename']['wp-upload-notes.txt']);
+            $t->same(0, $preflight['upstream_return_value_by_filename']['wp-upload-notes.txt']);
+            $t->same('unsupported-filetype-return-zero', $preflight['upstream_return_boundary_by_filename']['wp-upload-notes.txt']);
+            $t->same('other', $preflight['filetype_by_filename']['wp-upload-notes.txt']);
+            $t->same(false, $preflight['text_length_checked_by_filename']['wp-upload-notes.txt']);
+            $t->same(false, $preflight['executes_python_or_models']);
+            $t->same(false, $preflight['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records process_single_pdf return-value boundary before converter launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['existing.pdf', 'short.pdf', 'ready.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'archive.pdf', "PK\x03\x04not really a pdf");
+
+            (new OutputWriter())->saveMarkdown(
+                $output,
+                'existing.pdf',
+                '<!-- wp:paragraph --><p>Already imported.</p><!-- /wp:paragraph -->',
+                [],
+                ['title' => 'Already Imported']
+            );
+
+            $batch = new BatchConverter();
+            $textLength = static fn (string $filepath): int => basename($filepath) === 'short.pdf' ? 12 : 180;
+
+            $existing = $batch->processFilePreflightPlan($input . DIRECTORY_SEPARATOR . 'existing.pdf', $output, null, 80, $textLength);
+            $archive = $batch->processFilePreflightPlan($input . DIRECTORY_SEPARATOR . 'archive.pdf', $output, null, 80, $textLength);
+            $short = $batch->processFilePreflightPlan($input . DIRECTORY_SEPARATOR . 'short.pdf', $output, null, 80, $textLength);
+            $ready = $batch->processFilePreflightPlan($input . DIRECTORY_SEPARATOR . 'ready.pdf', $output, ['title' => 'Ready Import'], 80, $textLength);
+
+            $t->same('skipped-existing', $existing['status']);
+            $t->same(null, $existing['upstream_return_value']);
+            $t->same('python-none', $existing['upstream_return_type']);
+            $t->same('markdown_exists-return-none', $existing['upstream_return_boundary']);
+
+            $t->same('skipped-unsupported-filetype', $archive['status']);
+            $t->same(0, $archive['upstream_return_value']);
+            $t->same('int', $archive['upstream_return_type']);
+            $t->same('unsupported-filetype-return-zero', $archive['upstream_return_boundary']);
+
+            $t->same('skipped-short-text', $short['status']);
+            $t->same(null, $short['upstream_return_value']);
+            $t->same('python-none', $short['upstream_return_type']);
+            $t->same('short-text-return-none', $short['upstream_return_boundary']);
+
+            $t->same('ready-for-conversion', $ready['status']);
+            $t->same(null, $ready['upstream_return_value']);
+            $t->same('python-none', $ready['upstream_return_type']);
+            $t->same('conversion-or-empty-output-return-none', $ready['upstream_return_boundary']);
+            $t->same(false, $ready['executes_python_or_models']);
+            $t->same(false, $ready['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records process_single_pdf text-length exceptions before converter launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            $filepath = $input . DIRECTORY_SEPARATOR . 'broken-length.pdf';
+            file_put_contents($filepath, "%PDF-1.4\n% broken length\n%%EOF");
+            $batch = new BatchConverter();
+            $textLength = static fn (): int => throw new RuntimeException('native pdftext length boundary unavailable');
+
+            $preflight = $batch->processFilePreflightPlan(
+                $filepath,
+                $output,
+                ['title' => 'Broken Length'],
+                80,
+                $textLength
+            );
+
+            $converterCalled = false;
+            $result = $batch->processFile(
+                $filepath,
+                $output,
+                ['title' => 'Broken Length'],
+                80,
+                static function () use (&$converterCalled): string {
+                    $converterCalled = true;
+
+                    return 'should not run';
+                },
+                $textLength
+            );
+
+            $t->same('error', $preflight['status']);
+            $t->same('get_length_of_text', $preflight['error_stage']);
+            $t->same('preflight-exception-print-return-none', $preflight['error_boundary']);
+            $t->same(RuntimeException::class, $preflight['error_class']);
+            $t->same('native pdftext length boundary unavailable', $preflight['error_message']);
+            $t->same('preflight-exception-print-return-none', $preflight['upstream_return_boundary']);
+            $t->same(null, $preflight['upstream_return_value']);
+            $t->same('python-none', $preflight['upstream_return_type']);
+            $t->same(true, $preflight['filetype_checked']);
+            $t->same('pdf', $preflight['filetype']);
+            $t->same(true, $preflight['text_length_checked']);
+            $t->same(null, $preflight['text_length']);
+            $t->same(false, $preflight['should_invoke_converter']);
+            $t->contains('Error converting ' . $filepath . ': native pdftext length boundary unavailable', $preflight['error_output']['message_line']);
+            $t->same(true, $preflight['error_output']['traceback_available']);
+
+            $t->same('error', $result['status']);
+            $t->same(false, $converterCalled);
+            $t->same('preflight-exception-print-return-none', $result['upstream_return_boundary']);
+            $t->same('preflight-exception-print-return-none', $result['preflight']['error_boundary']);
+            $t->same(false, is_file($output . DIRECTORY_SEPARATOR . 'broken-length' . DIRECTORY_SEPARATOR . 'broken-length.md'));
+            $t->same(false, $result['executes_python_or_models']);
+            $t->same(false, $result['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records process_single_pdf post-conversion empty and error return boundaries' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['converted.pdf', 'empty.pdf', 'broken.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+
+            $batch = new BatchConverter();
+            $converted = $batch->processFile(
+                $input . DIRECTORY_SEPARATOR . 'converted.pdf',
+                $output,
+                ['title' => 'Converted Import'],
+                null,
+                static fn (): array => [
+                    'text' => '<!-- wp:paragraph --><p>Converted runtime import.</p><!-- /wp:paragraph -->',
+                    'images' => [],
+                    'metadata' => ['title' => 'Converted Import'],
+                ]
+            );
+            $empty = $batch->processFile(
+                $input . DIRECTORY_SEPARATOR . 'empty.pdf',
+                $output,
+                null,
+                null,
+                static fn (): array => [" \n\t", [], []]
+            );
+            $broken = $batch->processFile(
+                $input . DIRECTORY_SEPARATOR . 'broken.pdf',
+                $output,
+                ['languages' => ['English']],
+                null,
+                static fn (): string => throw new RuntimeException('forced OCR model boundary unavailable')
+            );
+
+            $convertedBoundary = $converted['conversion_result'];
+            $t->same('convert.py process_single_pdf post-conversion boundary', $convertedBoundary['source']);
+            $t->same('after_convert_single_pdf_before_save_markdown', $convertedBoundary['order']);
+            $t->same(true, $convertedBoundary['conversion_reached']);
+            $t->same(true, $convertedBoundary['conversion_success']);
+            $t->same(false, $convertedBoundary['empty_output']);
+            $t->same(true, $convertedBoundary['save_markdown_reached']);
+            $t->same(true, $convertedBoundary['save_markdown_writes_markdown']);
+            $t->same(null, $convertedBoundary['stdout_message_line']);
+            $t->same(null, $convertedBoundary['error_boundary']);
+            $t->same(null, $convertedBoundary['upstream_return_value']);
+            $t->same('python-none', $convertedBoundary['upstream_return_type']);
+            $t->same('saved-markdown-return-none', $convertedBoundary['upstream_return_boundary']);
+            $t->same(false, $convertedBoundary['executes_python_or_models']);
+            $t->same('saved-markdown-return-none', $converted['upstream_return_boundary']);
+            $t->same(true, is_file($converted['markdown']));
+
+            $emptyBoundary = $empty['conversion_result'];
+            $t->same('skipped-empty-output', $empty['status']);
+            $t->same(true, $emptyBoundary['conversion_reached']);
+            $t->same(true, $emptyBoundary['conversion_success']);
+            $t->same(true, $emptyBoundary['empty_output']);
+            $t->same(false, $emptyBoundary['save_markdown_reached']);
+            $t->same(false, $emptyBoundary['save_markdown_writes_markdown']);
+            $t->same('Empty file: ' . $input . DIRECTORY_SEPARATOR . 'empty.pdf.  Could not convert.', $emptyBoundary['stdout_message_line']);
+            $t->same('empty-output-print-return-none', $emptyBoundary['upstream_return_boundary']);
+            $t->same('empty-output-print-return-none', $empty['upstream_return_boundary']);
+            $t->same(false, is_file($output . DIRECTORY_SEPARATOR . 'empty' . DIRECTORY_SEPARATOR . 'empty.md'));
+
+            $errorBoundary = $broken['conversion_result'];
+            $t->same('error', $broken['status']);
+            $t->same(true, $errorBoundary['conversion_reached']);
+            $t->same(false, $errorBoundary['conversion_success']);
+            $t->same(false, $errorBoundary['save_markdown_reached']);
+            $t->same(false, $errorBoundary['save_markdown_writes_markdown']);
+            $t->same('conversion-exception-print-return-none', $errorBoundary['error_boundary']);
+            $t->same(RuntimeException::class, $errorBoundary['error_class']);
+            $t->same('forced OCR model boundary unavailable', $errorBoundary['error_message']);
+            $t->contains('Error converting ' . $input . DIRECTORY_SEPARATOR . 'broken.pdf: forced OCR model boundary unavailable', $errorBoundary['stdout_message_line']);
+            $t->same(true, $errorBoundary['traceback_available']);
+            $t->contains('RuntimeException: forced OCR model boundary unavailable', $errorBoundary['traceback']);
+            $t->same('conversion-exception-print-return-none', $errorBoundary['upstream_return_boundary']);
+            $t->same('conversion-exception-print-return-none', $broken['upstream_return_boundary']);
+            $t->same(false, is_file($output . DIRECTORY_SEPARATOR . 'broken' . DIRECTORY_SEPARATOR . 'broken.md'));
+            $t->same(false, $broken['executes_python_or_models']);
+            $t->same(false, $broken['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records process_single_pdf save_markdown exceptions after nonempty conversion output' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            $filepath = $input . DIRECTORY_SEPARATOR . 'save-fails.pdf';
+            file_put_contents($filepath, "%PDF-1.4\n% save fails\n%%EOF");
+            file_put_contents($output . DIRECTORY_SEPARATOR . 'save-fails', 'subfolder collision');
+
+            $result = (new BatchConverter())->processFile(
+                $filepath,
+                $output,
+                ['title' => 'Save Fails Import'],
+                null,
+                static fn (): array => [
+                    'text' => '<!-- wp:paragraph --><p>Save failure should not persist.</p><!-- /wp:paragraph -->',
+                    'images' => [],
+                    'metadata' => ['title' => 'Save Fails Import'],
+                ]
+            );
+
+            $boundary = $result['conversion_result'];
+            $t->same('error', $result['status']);
+            $t->same('ready-for-conversion', $result['preflight']['status']);
+            $t->same(true, $boundary['conversion_reached']);
+            $t->same(true, $boundary['conversion_success']);
+            $t->same('after_nonempty_output_during_save_markdown', $boundary['order']);
+            $t->same(true, $boundary['save_markdown_reached']);
+            $t->same(false, $boundary['save_markdown_writes_markdown']);
+            $t->same('save-markdown-exception-print-return-none', $boundary['error_boundary']);
+            $t->same(RuntimeException::class, $boundary['error_class']);
+            $t->contains('Unable to create markerPDF output folder', (string) $boundary['error_message']);
+            $t->contains('Error converting ' . $filepath . ': Unable to create markerPDF output folder', (string) $boundary['stdout_message_line']);
+            $t->same(true, $boundary['traceback_available']);
+            $t->contains('RuntimeException: Unable to create markerPDF output folder', (string) $boundary['traceback']);
+            $t->same(null, $boundary['upstream_return_value']);
+            $t->same('python-none', $boundary['upstream_return_type']);
+            $t->same('save-markdown-exception-print-return-none', $boundary['upstream_return_boundary']);
+            $t->same('save-markdown-exception-print-return-none', $result['upstream_return_boundary']);
+            $t->same(false, is_file($output . DIRECTORY_SEPARATOR . 'save-fails' . DIRECTORY_SEPARATOR . 'save-fails.md'));
+            $t->same(false, $result['writes_markdown']);
+            $t->same(false, $result['executes_python_or_models']);
+            $t->same(false, $result['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records convert.py conversion summary stdout before task args and pool launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf', 'gamma.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+
+            $batch = new BatchConverter();
+            $plan = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                chunkIndex: 1,
+                numChunks: 2,
+                workers: 5
+            );
+            $emptyPlan = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                chunkIndex: 4,
+                numChunks: 2,
+                workers: 5
+            );
+            $invalidWorkers = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 0
+            );
+
+            $summary = $plan['console_summary'];
+            $t->same('convert.py stdout conversion summary', $summary['source']);
+            $t->same(true, $summary['summary_reached']);
+            $t->same(1, $summary['selected_pdf_count']);
+            $t->same(2, $summary['chunk_display_index']);
+            $t->same(2, $summary['num_chunks']);
+            $t->same(1, $summary['total_processes']);
+            $t->same($output, $summary['out_folder']);
+            $t->same(
+                'Converting 1 pdfs in chunk 2/2 with 1 processes, and storing in ' . $output,
+                $summary['message_line']
+            );
+            $t->same('after_model_handoff_before_task_args', $summary['emission_order']);
+            $t->same(true, $summary['emitted_before_task_args']);
+            $t->same(true, $summary['emitted_before_pool_launch']);
+            $t->same(null, $summary['blocked_by']);
+
+            $t->same(true, $emptyPlan['console_summary']['summary_reached']);
+            $t->same(0, $emptyPlan['console_summary']['selected_pdf_count']);
+            $t->same(0, $emptyPlan['console_summary']['total_processes']);
+            $t->same(
+                'Converting 0 pdfs in chunk 5/2 with 0 processes, and storing in ' . $output,
+                $emptyPlan['console_summary']['message_line']
+            );
+            $t->same('empty-task-queue', $emptyPlan['worker_pool']['pool_error_boundary']);
+            $t->same(true, $emptyPlan['console_summary']['emitted_before_pool_launch']);
+
+            $t->same(0, $invalidWorkers['console_summary']['total_processes']);
+            $t->same(
+                'Converting 3 pdfs in chunk 1/1 with 0 processes, and storing in ' . $output,
+                $invalidWorkers['console_summary']['message_line']
+            );
+            $t->same('invalid-worker-count', $invalidWorkers['worker_pool']['pool_error_boundary']);
+            $t->same(false, $invalidWorkers['executes_multiprocessing']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+];

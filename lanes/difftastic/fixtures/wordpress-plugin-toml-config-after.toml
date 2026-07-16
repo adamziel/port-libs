@@ -1,0 +1,14 @@
+name = "Acme Card"
+requires_wp = "6.6"
+
+[build]
+targets = [ "editor", "frontend", "view" ]
+view_script = "build/view.js"
+
+[playground]
+php = "8.3"
+plugins = [ "gutenberg", "wordpress-importer" ]
+
+notes = """
+Review modern card markup
+Keep shortcode fallback"""

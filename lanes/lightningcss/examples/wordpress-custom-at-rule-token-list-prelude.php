@@ -1,0 +1,168 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\LightningCSS\CustomAtRuleTransformer;
+
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+$css = <<<'CSS'
+@wp-token-list theme("card-gap") var(--wp-gap) env(--wp-breakpoint) 2--wp-fluid-step @--wp-accent #wp-card #123slot #wp\2d icon --wp-gap-alias 90deg 250ms 2dppx url(blocks/card/icon.svg);
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+$seenPreludeAst = null;
+$transformer = new CustomAtRuleTransformer();
+$result = $transformer->transform($css, [
+    'wp-token-list' => [
+        'prelude' => '*',
+    ],
+], CustomAtRuleTransformer::composeVisitors([
+    [
+        'Function' => [
+            'theme' => static fn (array $arguments): string => ($arguments[0] ?? '') === 'card-gap' ? '24px' : '0px',
+        ],
+        'Variable' => [
+            '--wp-gap' => static fn (array $variable): array => [
+                'unit' => 'rem',
+                'value' => 1.0,
+            ],
+        ],
+        'EnvironmentVariable' => [
+            '--wp-breakpoint' => static fn (array $environmentVariable): array => [
+                'type' => 'length',
+                'unit' => 'px',
+                'value' => 782.0,
+            ],
+        ],
+        'Angle' => static fn (array $angle): array => ($angle['type'] ?? null) === 'deg'
+            ? ['type' => 'turn', 'value' => $angle['value'] / 360]
+            : $angle,
+        'Time' => static fn (array $time): array => ($time['type'] ?? null) === 'milliseconds'
+            ? ['type' => 'seconds', 'value' => $time['value'] / 1000]
+            : $time,
+        'Resolution' => static fn (array $resolution): array => ($resolution['type'] ?? null) === 'dppx'
+            ? ['type' => 'dpi', 'value' => $resolution['value'] * 96]
+            : $resolution,
+        'Url' => static function (array $url): array {
+            if (str_starts_with($url['url'], 'theme/')) {
+                return $url;
+            }
+
+            $url['url'] = 'theme/' . $url['url'];
+
+            return $url;
+        },
+        'Token' => [
+            'id-hash' => static function (array $token): ?array {
+                if (($token['value'] ?? '') !== 'wp-card' && ($token['value'] ?? '') !== 'wp-icon') {
+                    return null;
+                }
+
+                return [
+                    'type' => 'token',
+                    'value' => [
+                        'type' => 'id-hash',
+                        'value' => ($token['value'] ?? '') === 'wp-card' ? 'wp-card-live' : 'wp-icon-live',
+                    ],
+                ];
+            },
+            'hash' => static function (array $token): ?array {
+                if (($token['value'] ?? '') !== '123slot') {
+                    return null;
+                }
+
+                return [
+                    'type' => 'token',
+                    'value' => [
+                        'type' => 'hash',
+                        'value' => '456slot',
+                    ],
+                ];
+            },
+            'dimension' => static fn (array $token): array => [
+                'type' => 'function',
+                'value' => [
+                    'name' => 'calc',
+                    'arguments' => [
+                        ['type' => 'raw', 'value' => (string) $token['value']],
+                        ['type' => 'token', 'value' => ['type' => 'delim', 'value' => '*']],
+                        [
+                            'type' => 'var',
+                            'value' => [
+                                'name' => ['ident' => $token['unit']],
+                                'fallback' => null,
+                                'raw' => 'var(' . $token['unit'] . ')',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            'at-keyword' => static fn (array $token): array => [
+                'type' => 'color',
+                'value' => [
+                    'type' => 'rgb',
+                    'r' => 5,
+                    'g' => 110,
+                    'b' => 240,
+                    'alpha' => 1,
+                ],
+            ],
+        ],
+    ],
+    [
+        'Rule' => [
+            'custom' => [
+                'wp-token-list' => static function (array $rule, CustomAtRuleTransformer $transformer) use (&$seenPreludeAst): array {
+                    $seenPreludeAst = $rule['preludeAst'];
+
+                    return $transformer->styleRule(':root', [
+                        [
+                            'property' => '--wp-token-list',
+                            'value' => $rule['prelude'],
+                            'important' => false,
+                        ],
+                    ]);
+                },
+            ],
+        ],
+    ],
+]));
+
+$expected = ':root{--wp-token-list:24px 1rem 782px calc(2*var(--wp-fluid-step)) #056ef0 #wp-card-live #456slot #wp-icon-live --wp-gap-alias 0.25turn 0.25s 192dpi url(theme/blocks/card/icon.svg)}.wp-block-card{color:red}';
+
+if (($argv[1] ?? null) === '--self-test') {
+    if ($result !== $expected) {
+        fwrite(STDERR, "Unexpected custom token-list prelude output:\n{$result}\n");
+        exit(1);
+    }
+    if (($seenPreludeAst['type'] ?? null) !== 'token-list') {
+        fwrite(STDERR, "Unexpected prelude AST type:\n" . json_encode($seenPreludeAst) . "\n");
+        exit(1);
+    }
+    $componentTypes = array_map(
+        static fn (array $component): string => (string) ($component['type'] ?? ''),
+        $seenPreludeAst['value'] ?? []
+    );
+    if ($componentTypes !== ['length', 'length', 'length', 'function', 'color', 'token', 'token', 'token', 'dashed-ident', 'angle', 'time', 'resolution', 'url']) {
+        fwrite(STDERR, "Unexpected token-list component types:\n" . json_encode($componentTypes) . "\n");
+        exit(1);
+    }
+
+    $hashTokenTypes = array_map(
+        static fn (array $component): string => (string) ($component['value']['type'] ?? ''),
+        array_slice($seenPreludeAst['value'] ?? [], 5, 3)
+    );
+    if ($hashTokenTypes !== ['id-hash', 'hash', 'id-hash']) {
+        fwrite(STDERR, "Unexpected hash token-list component types:\n" . json_encode($hashTokenTypes) . "\n");
+        exit(1);
+    }
+
+    echo "OK\n";
+    exit(0);
+}
+
+echo $result . PHP_EOL;

@@ -1,0 +1,24 @@
+[ Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "visible" ]
+        ( "/alpha" , "First title line second title line" )
+    ]
+, Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "beta" ]
+        ( "/beta" , "Shortcut title line second shortcut line" )
+    ]
+, Para
+    [ Str "Image"
+    , Space
+    , Image
+        ( "" , [] , [] )
+        [ Str "diagram" ]
+        ( "media/diagram.png"
+        , "Figure title line second figure line"
+        )
+    , Str "."
+    ]
+]

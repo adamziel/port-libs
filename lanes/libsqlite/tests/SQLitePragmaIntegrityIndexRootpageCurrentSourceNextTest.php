@@ -1,0 +1,308 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
+use PortLibs\LibSqlite\SQLiteIndexLeafPage;
+use PortLibs\LibSqlite\SQLitePointerMapEntry;
+use PortLibs\LibSqlite\SQLitePragmaIntegrityIndexRootpageCurrentSourceNext;
+use PortLibs\LibSqlite\SQLiteRecord;
+use PortLibs\LibSqlite\SQLiteSchemaRecord;
+use PortLibs\LibSqlite\SQLiteTableLeafCell;
+use PortLibs\LibSqlite\SQLiteTableLeafPage;
+
+$pageSize = 1024;
+$record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql = null, int $rowid = 1): SQLiteSchemaRecord => new SQLiteSchemaRecord(
+    $type,
+    $name,
+    $table,
+    $root,
+    $sql,
+    $rowid,
+);
+
+$catalogFactory = static function (bool $shadowArchive = false) use ($record): SQLiteAttachedSchemaCatalog {
+    $catalog = new SQLiteAttachedSchemaCatalog([
+        $record('table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id INTEGER PRIMARY KEY, option_name TEXT, option_value TEXT, autoload TEXT)', 1),
+        $record('index', 'wp_options_name', 'wp_options', 5, 'CREATE UNIQUE INDEX wp_options_name ON wp_options(option_name COLLATE NOCASE DESC, autoload)', 2),
+        $record('index', 'wp_options_value_expr', 'wp_options', 6, "CREATE INDEX wp_options_value_expr ON wp_options(json_extract(option_value, '$.plugin'), lower(option_name) COLLATE nocase, autoload DESC)", 3),
+    ], [
+        $record('table', 'wp_options', 'wp_options', 7, 'CREATE TABLE wp_options(option_name TEXT, option_value TEXT, autoload TEXT)', 1),
+        $record('index', 'wp_options_temp_expr', 'wp_options', 8, 'CREATE INDEX wp_options_temp_expr ON wp_options(upper(option_name) COLLATE rtrim, autoload DESC)', 2),
+    ]);
+    $catalog->attach('archive', '/srv/wp/archive.sqlite', [
+        $record('table', 'wp_options', 'wp_options', 9, 'CREATE TABLE wp_options(option_id INTEGER PRIMARY KEY, option_name TEXT, option_value TEXT, autoload TEXT)', 1),
+        $record('index', $shadowArchive ? 'wp_options_value_expr' : 'wp_options_archive_expr', 'wp_options', 10, "CREATE INDEX " . ($shadowArchive ? 'wp_options_value_expr' : 'wp_options_archive_expr') . " ON wp_options(json_extract(option_value, '$.legacy'), option_name COLLATE rtrim DESC)", 2),
+    ]);
+
+    return $catalog;
+};
+
+$headerPage = static function (int $pageCount, int $largestRootPage) use ($pageSize): string {
+    $page = str_repeat("\0", $pageSize);
+    $page = substr_replace($page, "SQLite format 3\0", 0, 16);
+    $page = substr_replace($page, pack('n', $pageSize), 16, 2);
+    $page[18] = "\x01";
+    $page[19] = "\x01";
+    $page = substr_replace($page, pack('N', $pageCount), 28, 4);
+    $page = substr_replace($page, pack('N', $largestRootPage), 52, 4);
+    $page = substr_replace($page, pack('N', 1), 56, 4);
+
+    return $page;
+};
+$putPointerMapEntry = static function (string $page, int $pageNumber, int $type, int $parent): string {
+    return substr_replace($page, chr($type) . pack('N', $parent), 5 * ($pageNumber - 3), 5);
+};
+$schemaCell = static fn (array $values, int $rowId): string => SQLiteTableLeafCell::encode($rowId, SQLiteRecord::encode($values));
+$schemaDatabase = static function (array $schemaRows, int $pageCount, int $largestRootPage, array $pointerMapEntries) use ($headerPage, $putPointerMapEntry, $schemaCell, $pageSize): string {
+    $pages = [
+        1 => SQLiteTableLeafPage::assemble(
+            array_map(static fn (array $row, int $index): string => $schemaCell($row, $index + 1), $schemaRows, array_keys($schemaRows)),
+            $pageSize,
+            100,
+            $headerPage($pageCount, $largestRootPage),
+        ),
+        2 => str_repeat("\0", $pageSize),
+    ];
+    foreach ($pointerMapEntries as $entry) {
+        $pages[2] = $putPointerMapEntry($pages[2], $entry[0], $entry[1], $entry[2]);
+    }
+    for ($pageNumber = 3; $pageNumber <= $pageCount; $pageNumber++) {
+        $pages[$pageNumber] ??= $pageNumber === 5 || $pageNumber === 6 || $pageNumber === 8 || $pageNumber === 10
+            ? SQLiteIndexLeafPage::assemble([], $pageSize)
+            : SQLiteTableLeafPage::assemble([], $pageSize);
+    }
+    ksort($pages);
+
+    return implode('', $pages);
+};
+
+$schemaRows = [
+    ['table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'],
+    ['index', 'wp_options_name', 'wp_options', 5, 'CREATE UNIQUE INDEX wp_options_name ON wp_options(option_name)'],
+    ['index', 'wp_options_value_expr', 'wp_options', 6, "CREATE INDEX wp_options_value_expr ON wp_options(json_extract(option_value, '$.plugin'), option_name)"],
+    ['table', 'wp_posts', 'wp_posts', 7, 'CREATE TABLE wp_posts(ID integer primary key, post_title text)'],
+    ['index', 'wp_posts_title', 'wp_posts', 8, 'CREATE INDEX wp_posts_title ON wp_posts(post_title)'],
+];
+$validDatabase = $schemaDatabase($schemaRows, 10, 8, [
+    [3, SQLitePointerMapEntry::BTREE_PAGE, 4],
+    [4, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [5, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [6, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [7, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [8, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [9, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [10, SQLitePointerMapEntry::ROOT_PAGE, 0],
+]);
+$pointerMismatchDatabase = $schemaDatabase($schemaRows, 10, 8, [
+    [3, SQLitePointerMapEntry::BTREE_PAGE, 4],
+    [4, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [5, SQLitePointerMapEntry::BTREE_PAGE, 4],
+    [6, SQLitePointerMapEntry::BTREE_PAGE, 4],
+    [7, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [8, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [9, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [10, SQLitePointerMapEntry::ROOT_PAGE, 0],
+]);
+$wrongTypeDatabase = $schemaDatabase($schemaRows, 10, 8, [
+    [3, SQLitePointerMapEntry::BTREE_PAGE, 4],
+    [4, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [5, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [6, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [7, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [8, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [9, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [10, SQLitePointerMapEntry::ROOT_PAGE, 0],
+]);
+$wrongTypeDatabase = substr_replace($wrongTypeDatabase, SQLiteTableLeafPage::assemble([], $pageSize), ($pageSize * 5), $pageSize);
+$beyondDatabase = $schemaDatabase([
+    $schemaRows[0],
+    $schemaRows[1],
+    ['index', 'wp_options_value_expr', 'wp_options', 12, $schemaRows[2][4]],
+    $schemaRows[3],
+    $schemaRows[4],
+], 10, 8, [
+    [3, SQLitePointerMapEntry::BTREE_PAGE, 4],
+    [4, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [5, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [6, SQLitePointerMapEntry::BTREE_PAGE, 4],
+    [7, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [8, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [9, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [10, SQLitePointerMapEntry::ROOT_PAGE, 0],
+]);
+$mutatedDatabase = $validDatabase;
+$mutatedDatabase[48] = "\x02";
+
+$valueAt = static function (mixed $value, string $path): mixed {
+    foreach (explode('.', $path) as $part) {
+        if (is_array($value) && array_key_exists($part, $value)) {
+            $value = $value[$part];
+            continue;
+        }
+        $value = is_numeric($part) ? $value[(int) $part] : $value[$part];
+    }
+
+    return $value;
+};
+
+$page = static fn (
+    ?string $sql = null,
+    ?string $db = null,
+    int $offset = 0,
+    int $limit = 124,
+    string $integritySql = 'PRAGMA integrity_check',
+    bool $tableValued = false,
+    ?array $cursor = null,
+    ?SQLiteAttachedSchemaCatalog $catalog = null,
+): array => SQLitePragmaIntegrityIndexRootpageCurrentSourceNext::page(
+    $catalog ?? $catalogFactory(),
+    $sql ?? 'PRAGMA main.index_xinfo(wp_options_value_expr)',
+    $db ?? $pointerMismatchDatabase,
+    $offset,
+    $limit,
+    $integritySql,
+    $tableValued,
+    $cursor,
+);
+
+$default = static fn (): array => $page();
+$valid = static fn (): array => $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $validDatabase);
+$wrongType = static fn (): array => $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $wrongTypeDatabase);
+$beyond = static fn (): array => $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $beyondDatabase);
+$temp = static fn (): array => $page('PRAGMA index_xinfo(wp_options_temp_expr)', $validDatabase);
+$archive = static fn (): array => $page("pragma_index_xinfo('wp_options_archive_expr','archive')", $validDatabase, 0, 124, 'PRAGMA quick_check', true);
+$changedCatalog = static fn (): array => $page('PRAGMA index_xinfo(wp_options_value_expr)', $validDatabase, 0, 124, 'PRAGMA integrity_check', false, null, $catalogFactory(true));
+$mutated = static fn (): array => $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $mutatedDatabase);
+
+$cases = [
+    'default status blocked' => [$default, 'status', 'blocked'],
+    'default limit next124' => [$default, 'limit', 124],
+    'default total' => [$default, 'total', 6],
+    'default count' => [$default, 'count', 6],
+    'default complete' => [$default, 'complete', true],
+    'default next null' => [$default, 'next', null],
+    'source id length' => [static fn (): array => ['length' => strlen($default()['source_id'])], 'length', 64],
+    'database source length' => [static fn (): array => ['length' => strlen($default()['current_source']['database'])], 'length', 64],
+    'catalog source length' => [static fn (): array => ['length' => strlen($default()['current_source']['catalog'])], 'length', 64],
+    'normalized index sql' => [$default, 'current_source.index_xinfo_sql', 'pragma main.index_xinfo(wp_options_value_expr)'],
+    'normalized integrity sql' => [$default, 'current_source.integrity_sql', 'pragma integrity_check'],
+    'table valued false' => [$default, 'current_source.table_valued', false],
+    'current index xinfo count' => [$default, 'current.index_xinfo', 4],
+    'current rootpage count' => [$default, 'current.rootpage', 2],
+    'current rootpage errors' => [$default, 'current.rootpage_errors', 1],
+    'current target schema' => [$default, 'current.target_schema', 'main'],
+    'current target index' => [$default, 'current.target_index', 'wp_options_value_expr'],
+    'current target table' => [$default, 'current.target_table', 'wp_options'],
+    'row0 index source' => [$default, 'rows.0.source', 'index_xinfo'],
+    'row0 index kind' => [$default, 'rows.0.kind', 'index_xinfo'],
+    'row0 schema' => [$default, 'rows.0.schema', 'main'],
+    'row0 target' => [$default, 'rows.0.target', 'wp_options_value_expr'],
+    'row0 expression cid' => [$default, 'rows.0.cid', -2],
+    'row1 collation nocase' => [$default, 'rows.1.coll', 'NOCASE'],
+    'row2 autoload desc' => [$default, 'rows.2.desc', 1],
+    'row3 rowid cid' => [$default, 'rows.3.cid', -1],
+    'row4 root source' => [$default, 'rows.4.source', 'rootpage_integrity'],
+    'row4 table root' => [$default, 'rows.4.name', 'wp_options'],
+    'row4 table status ok' => [$default, 'rows.4.page_status', 'ok'],
+    'row4 pointer type' => [$default, 'rows.4.pointer_map_type', 'root-page'],
+    'row5 index root' => [$default, 'rows.5.name', 'wp_options_value_expr'],
+    'row5 rootpage' => [$default, 'rows.5.rootpage', 6],
+    'row5 status pointer map' => [$default, 'rows.5.page_status', 'pointer_map'],
+    'row5 pointer type' => [$default, 'rows.5.pointer_map_type', 'btree-page'],
+    'row5 pointer parent' => [$default, 'rows.5.pointer_map_parent', 4],
+    'row5 message' => [$default, 'rows.5.message', 'sqlite_schema index wp_options_value_expr rootpage 6 pointer-map btree-page parent 4 does not match expected root-page parent 0'],
+    'valid status ok' => [$valid, 'status', 'ok'],
+    'valid total keeps target roots' => [$valid, 'total', 6],
+    'valid root errors zero' => [$valid, 'current.rootpage_errors', 0],
+    'valid root index ok' => [$valid, 'rows.5.page_status', 'ok'],
+    'wrong type status blocked' => [$wrongType, 'status', 'blocked'],
+    'wrong type index page status' => [$wrongType, 'rows.5.page_status', 'wrong_btree_type'],
+    'wrong type page type' => [$wrongType, 'rows.5.page_type', 'table-leaf'],
+    'beyond status blocked' => [$beyond, 'status', 'blocked'],
+    'beyond header mismatch status' => [$beyond, 'rows.5.page_status', 'header_mismatch'],
+    'beyond root index status' => [$beyond, 'rows.6.page_status', 'beyond_image'],
+    'beyond root message' => [$beyond, 'rows.6.message', 'sqlite_schema index wp_options_value_expr rootpage 12 is beyond the database image'],
+    'temp unqualified schema' => [$temp, 'current.target_schema', 'temp'],
+    'temp target index' => [$temp, 'current.target_index', 'wp_options_temp_expr'],
+    'temp row collation rtrim' => [$temp, 'rows.0.coll', 'RTRIM'],
+    'archive table valued true' => [$archive, 'current_source.table_valued', true],
+    'archive schema' => [$archive, 'current.target_schema', 'archive'],
+    'archive normalized sql' => [$archive, 'current_source.index_xinfo_sql', "pragma_index_xinfo('wp_options_archive_expr','archive')"],
+    'archive target' => [$archive, 'current.target_index', 'wp_options_archive_expr'],
+    'archive rtrim collation' => [$archive, 'rows.1.coll', 'RTRIM'],
+    'catalog shadow main wins' => [$changedCatalog, 'current.target_schema', 'main'],
+    'catalog shadow source changed' => [static fn (): array => ['changed' => $valid()['source_id'] !== $changedCatalog()['source_id']], 'changed', true],
+    'database mutation source changed' => [static fn (): array => ['changed' => $valid()['source_id'] !== $mutated()['source_id']], 'changed', true],
+    'database mutation hash changed' => [static fn (): array => ['changed' => $valid()['current_source']['database'] !== $mutated()['current_source']['database']], 'changed', true],
+    'limit two count' => [static fn (): array => $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 0, 2), 'count', 2],
+    'limit two next offset' => [static fn (): array => $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 0, 2), 'next.offset', 2],
+    'offset four root current' => [static fn (): array => $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 4, 2), 'rows.0.kind', 'rootpage'],
+    'offset four next row index root' => [static fn (): array => $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 4, 2), 'next_row.name', 'wp_options_value_expr'],
+];
+
+$tests = [];
+foreach ($cases as $name => [$callback, $path, $expected]) {
+    $tests['pragma integrity index rootpage current source next124 ' . $name] = static function (TestRunner $t) use ($callback, $valueAt, $path, $expected): void {
+        $t->same($expected, $valueAt($callback(), $path));
+    };
+}
+
+$tests['pragma integrity index rootpage current source next124 resumes with source cursor'] = static function (TestRunner $t) use ($page, $pointerMismatchDatabase): void {
+    $first = $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 0, 2);
+    $second = $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 2, 2, 'PRAGMA integrity_check', false, $first['next']);
+    $third = $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 4, 2, 'PRAGMA integrity_check', false, $second['next']);
+
+    $t->same(2, $first['count']);
+    $t->same(['source_id' => $first['source_id'], 'offset' => 2], $first['next']);
+    $t->same('autoload', $second['rows'][0]['name']);
+    $t->same(-1, $second['rows'][1]['cid']);
+    $t->same(['source_id' => $first['source_id'], 'offset' => 4], $second['next']);
+    $t->same('rootpage', $third['rows'][0]['kind']);
+    $t->same('wp_options_value_expr', $third['rows'][1]['name']);
+    $t->same(null, $third['next']);
+};
+
+$tests['pragma integrity index rootpage current source next124 accepts cursor offset key'] = static function (TestRunner $t) use ($page, $pointerMismatchDatabase): void {
+    $first = $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 0, 3);
+    $second = $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 3, 3, 'PRAGMA integrity_check', false, ['source_id' => $first['source_id'], 'offset' => 3]);
+
+    $t->same(3, $second['offset']);
+    $t->same(-1, $second['rows'][0]['cid']);
+    $t->same('rootpage', $second['rows'][1]['kind']);
+};
+
+$tests['pragma integrity index rootpage current source next124 rejects stale database cursor'] = static function (TestRunner $t) use ($page, $pointerMismatchDatabase, $validDatabase): void {
+    $first = $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 0, 2);
+    $t->throws(InvalidArgumentException::class, static fn () => $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $validDatabase, 2, 2, 'PRAGMA integrity_check', false, $first['next']));
+};
+
+$tests['pragma integrity index rootpage current source next124 rejects stale catalog cursor'] = static function (TestRunner $t) use ($page, $validDatabase, $catalogFactory): void {
+    $first = $page('PRAGMA index_xinfo(wp_options_value_expr)', $validDatabase, 0, 2);
+    $t->throws(InvalidArgumentException::class, static fn () => $page('PRAGMA index_xinfo(wp_options_value_expr)', $validDatabase, 2, 2, 'PRAGMA integrity_check', false, $first['next'], $catalogFactory(true)));
+};
+
+$tests['pragma integrity index rootpage current source next124 rejects stale sql cursor'] = static function (TestRunner $t) use ($page, $pointerMismatchDatabase): void {
+    $first = $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 0, 2);
+    $t->throws(InvalidArgumentException::class, static fn () => $page('PRAGMA index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 2, 2, 'PRAGMA integrity_check', false, $first['next']));
+};
+
+$tests['pragma integrity index rootpage current source next124 rejects stale integrity cursor'] = static function (TestRunner $t) use ($page, $pointerMismatchDatabase): void {
+    $first = $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 0, 2);
+    $t->throws(InvalidArgumentException::class, static fn () => $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 2, 2, 'PRAGMA quick_check', false, $first['next']));
+};
+
+$tests['pragma integrity index rootpage current source next124 rejects stale offset cursor'] = static function (TestRunner $t) use ($page, $pointerMismatchDatabase): void {
+    $first = $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 0, 2);
+    $t->throws(InvalidArgumentException::class, static fn () => $page('PRAGMA main.index_xinfo(wp_options_value_expr)', $pointerMismatchDatabase, 3, 2, 'PRAGMA integrity_check', false, $first['next']));
+};
+
+$tests['pragma integrity index rootpage current source next124 rejects negative offset'] = static function (TestRunner $t) use ($catalogFactory, $validDatabase): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaIntegrityIndexRootpageCurrentSourceNext::page($catalogFactory(), 'PRAGMA index_xinfo(wp_options_name)', $validDatabase, -1, 124));
+};
+
+$tests['pragma integrity index rootpage current source next124 rejects zero limit'] = static function (TestRunner $t) use ($catalogFactory, $validDatabase): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaIntegrityIndexRootpageCurrentSourceNext::page($catalogFactory(), 'PRAGMA index_xinfo(wp_options_name)', $validDatabase, 0, 0));
+};
+
+return $tests;

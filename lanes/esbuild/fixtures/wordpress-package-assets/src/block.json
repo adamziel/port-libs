@@ -1,0 +1,5 @@
+{
+  "name": "port-libs/card",
+  "viewScript": "file:./local-preview.js",
+  "style": "file:./block.css"
+}

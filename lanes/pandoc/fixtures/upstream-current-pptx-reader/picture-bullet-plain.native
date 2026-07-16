@@ -1,0 +1,5 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Picture bullet slide" ]
+, Para [ Str "Image bullet one" ]
+, BulletList [ [ Plain [ Str "Char bullet two" ] ] ]
+]

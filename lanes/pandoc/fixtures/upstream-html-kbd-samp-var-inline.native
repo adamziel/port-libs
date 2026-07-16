@@ -1,0 +1,24 @@
+[ Para
+    [ Str "Press"
+    , Space
+    , Span ( "" , [ "kbd" ] , [] ) [ Str "Cmd" ]
+    , Space
+    , Str "and"
+    , Space
+    , Str "inspect"
+    , Space
+    , Code ( "" , [ "sample" ] , [] ) "stdout"
+    , Space
+    , Str "with"
+    , Space
+    , Code ( "" , [ "variable" ] , [] ) "name"
+    , Str "."
+    ]
+, Para
+    [ Str "After"
+    , Space
+    , Str "inline"
+    , Space
+    , Str "semantics."
+    ]
+]

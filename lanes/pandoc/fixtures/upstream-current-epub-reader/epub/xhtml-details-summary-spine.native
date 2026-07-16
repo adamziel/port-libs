@@ -1,0 +1,24 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Disclosure" , Space , Str "Review" ]
+, RawBlock (Format "html") "<details open=\"open\">"
+, RawBlock (Format "html") "<summary>"
+, Para [ Str "Review" , Space , Str "summary" ]
+, RawBlock (Format "html") "</summary>"
+, Para
+    [ Str "Hidden" , Space , Str "detail" , Space , Str "one." ]
+, BulletList
+    [ [ Plain
+          [ Str "Nested"
+          , Space
+          , Str "disclosure"
+          , Space
+          , Str "item."
+          ]
+      ]
+    ]
+, RawBlock (Format "html") "</details>"
+, Para [ Str "After" , Space , Str "disclosure." ]
+]

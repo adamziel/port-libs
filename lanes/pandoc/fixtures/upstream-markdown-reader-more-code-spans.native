@@ -1,0 +1,10 @@
+[ Header
+    2
+    ( "code-spans" , [] , [] )
+    [ Str "Code" , Space , Str "spans" ]
+, Para [ Code ( "" , [] , [] ) "hi\\" ]
+, Para [ Code ( "" , [] , [] ) "hi there" ]
+, Para [ Code ( "" , [] , [] ) "hi````there" ]
+, Para [ Str "`hi" ]
+, Para [ Str "there`" ]
+]

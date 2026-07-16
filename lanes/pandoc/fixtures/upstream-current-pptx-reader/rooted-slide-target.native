@@ -1,0 +1,4 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Rooted slide target" ]
+, Para [ Str "Resolved from rooted relationship target" ]
+]

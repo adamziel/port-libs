@@ -1,0 +1,24 @@
+# real-upstream-corpus-pragma-schema-dynamic-20260530T162807Z-0
+
+- Base accepted HEAD: `72e7cdb1ae891bd4c5cdf5658524a5a35974f525`.
+- Upstream source truth:
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/pragma.test`
+    - `pragma-6.2`, `pragma-6.2.2`, `pragma-6.2.3`, `pragma-6.3.*`, `pragma-6.4`, `pragma-8.*`
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/pragma4.test`
+    - `4.2.*`, `4.3.*`, `4.4.*`, `4.5.*`
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/pragma5.test`
+    - table-valued `pragma_function_list()` and `pragma_module_list()` cases
+- Behavior fix: `SQLitePragmaSchemaCatalog` now preserves table-level primary-key ordinals from the declared `PRIMARY KEY(...)` list, matching upstream `pragma.test` case `pragma-6.2.2` where `PRIMARY KEY(e,b,c)` yields `e=1`, `b=2`, `c=3`.
+- Focused PHP coverage: added `SQLiteRealUpstreamPragmaSchemaDynamicCorpusTest.php` with 183 focused PASS cases and 1367 assertions over dynamic schema PRAGMA behavior:
+  - `PRAGMA table_info`, `table_xinfo`, `index_list`, `index_info`, `index_xinfo`, `foreign_key_list`, `table_list`, `function_list`, `module_list`, and `collation_list`
+  - table-valued `pragma_*()` calls with explicit schema arguments
+  - dynamic attached-schema-shaped table/index/FK variants using generic `app_settings`, `tenant_settings`, and `dynamic_settings_N` names
+  - empty rowset behavior for missing tables/indexes
+- Non-overlap: this slice does not touch date/VFS/window real-corpus coverage, suite evidence rows, source-neutral API cleanup, or domain-specific smokes. It claims PASS-line growth only, not mapped denominator growth.
+- Dependency closure: no new support component is needed; this reuses existing schema-record parsing and pragma catalog helpers.
+- Verification:
+  - `php -l lanes/libsqlite/src/SQLitePragmaSchemaCatalog.php`
+  - `php -l lanes/libsqlite/tests/SQLiteRealUpstreamPragmaSchemaDynamicCorpusTest.php`
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamPragmaSchemaDynamicCorpusTest.php` -> `1 test files, 1367 assertions, 0 failures`
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaSchemaCatalogTest.php lanes/libsqlite/tests/SQLiteRealUpstreamPragmaSchemaDynamicCorpusTest.php` -> `2 test files, 1439 assertions, 0 failures`
+  - `SQLiteNoDomainSpecificApiTest.php` was not present in this worktree.

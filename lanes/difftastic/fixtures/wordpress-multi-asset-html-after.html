@@ -1,0 +1,25 @@
+<!-- wp:group {"className":"is-style-card"} -->
+<div class="wp-block-group is-style-card">
+  <style type="text/css" data-wp-block="acme/notice">
+    .wp-block-acme-notice { margin-block-start: 1rem; }
+  </style>
+  <style type="text/css" data-wp-block="acme/card">
+    .wp-block-acme-card {
+      color: var(--wp--preset--color--accent);
+      border-radius: 6px;
+    }
+  </style>
+  <style type="text/css" data-wp-theme="spacing">
+    .wp-site-blocks { gap: 1.5rem; }
+  </style>
+  <script type="module" data-wp-interactive="acme/card">
+    wp.interactivity.store('acme/card', { state: { label: 'Read details', expanded: true } });
+  </script>
+  <script type="module" data-wp-interactive="acme/analytics">
+    wp.interactivity.store('acme/analytics', { state: { event: 'card-view' } });
+  </script>
+  <script type="module" data-wp-interactive="acme/gallery">
+    wp.interactivity.store('acme/gallery', { state: { active: 0 } });
+  </script>
+</div>
+<!-- /wp:group -->

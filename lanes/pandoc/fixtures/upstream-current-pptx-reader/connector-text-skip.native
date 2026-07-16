@@ -1,0 +1,4 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Connector text skip" ]
+, Para [ Str "Visible after connector" ]
+]

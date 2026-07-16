@@ -1,0 +1,117 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter.xhtml_start" , [ "section" ] , [] )
+    [ Header
+        1
+        ( "" , [] , [] )
+        [ Str "XHTML"
+        , Space
+        , Str "Semantics"
+        , Space
+        , Str "Spine"
+        ]
+    , Para
+        [ Str "A"
+        , Space
+        , RawInline (Format "html") "<ruby>"
+        , Str "kanji"
+        , RawInline (Format "html") "<rt>"
+        , Str "reading"
+        , RawInline (Format "html") "</rt>"
+        , RawInline (Format "html") "</ruby>"
+        , Space
+        , Str "note"
+        , Space
+        , Str "precedes"
+        , Space
+        , Str "compact"
+        , Space
+        , Str "structural"
+        , Space
+        , Str "HTML."
+        ]
+    , DefinitionList
+        [ ( [ Str "Term" ]
+          , [ [ Plain
+                  [ Str "Definition"
+                  , Space
+                  , Str "carried"
+                  , Space
+                  , Str "through"
+                  , Space
+                  , Str "the"
+                  , Space
+                  , Str "EPUB"
+                  , Space
+                  , Str "spine."
+                  ]
+              ]
+            ]
+          )
+        ]
+    , Table
+        ( "" , [] , [] )
+        (Caption
+           Nothing
+           [ Plain [ Str "Reader" , Space , Str "alignment" ] ])
+        [ ( AlignDefault , ColWidth 0.5 )
+        , ( AlignDefault , ColWidth 0.5 )
+        ]
+        (TableHead
+           ( "" , [] , [] )
+           [ Row
+               ( "" , [] , [] )
+               [ Cell
+                   ( "" , [] , [ ( "scope" , "col" ) ] )
+                   AlignDefault
+                   (RowSpan 1)
+                   (ColSpan 1)
+                   [ Plain [ Str "Feature" ] ]
+               , Cell
+                   ( "" , [] , [ ( "scope" , "col" ) ] )
+                   AlignDefault
+                   (RowSpan 1)
+                   (ColSpan 1)
+                   [ Plain [ Str "State" ] ]
+               ]
+           ])
+        [ TableBody
+            ( "" , [] , [] )
+            (RowHeadColumns 0)
+            []
+            [ Row
+                ( "" , [] , [] )
+                [ Cell
+                    ( "" , [] , [] )
+                    AlignDefault
+                    (RowSpan 1)
+                    (ColSpan 1)
+                    [ Plain [ Str "Ruby" ] ]
+                , Cell
+                    ( "" , [] , [] )
+                    AlignDefault
+                    (RowSpan 1)
+                    (ColSpan 1)
+                    [ Plain [ Str "Inline" , Space , Str "annotation" ]
+                    ]
+                ]
+            , Row
+                ( "" , [] , [] )
+                [ Cell
+                    ( "" , [] , [] )
+                    AlignDefault
+                    (RowSpan 1)
+                    (ColSpan 1)
+                    [ Plain [ Str "Definition" , Space , Str "list" ] ]
+                , Cell
+                    ( "" , [] , [] )
+                    AlignDefault
+                    (RowSpan 1)
+                    (ColSpan 1)
+                    [ Plain [ Str "Block" , Space , Str "structure" ] ]
+                ]
+            ]
+        ]
+        (TableFoot ( "" , [] , [] ) [])
+    ]
+]

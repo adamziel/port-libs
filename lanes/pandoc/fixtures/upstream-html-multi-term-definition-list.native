@@ -1,0 +1,24 @@
+[ DefinitionList
+    [ ( [ Str "Term"
+        , Space
+        , Str "alpha"
+        , LineBreak
+        , Str "Alias"
+        , Space
+        , Str "alpha"
+        ]
+      , [ [ Plain
+              [ Str "First" , Space , Emph [ Str "definition" ] ]
+          ]
+        , [ Para [ Str "Second" , Space , Str "block" ]
+          , BulletList
+              [ [ Plain [ Str "Nested" , Space , Str "note" ] ] ]
+          ]
+        ]
+      )
+    , ( [ Str "Term" , Space , Str "beta" ]
+      , [ [ Plain [ Str "Final" , Space , Str "definition" ] ] ]
+      )
+    ]
+, Para [ Str "After" , Space , Str "glossary." ]
+]

@@ -1,0 +1,4 @@
+[ Header 2 ( "slide-1" , [] , [] ) [ Str "Numbered deck" ]
+, Para [ Str "First step" ]
+, Para [ Str "Second step" ]
+]

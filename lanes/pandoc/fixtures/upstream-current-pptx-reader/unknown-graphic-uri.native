@@ -1,0 +1,5 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Unknown graphic deck" ]
+, Para
+    [ Str "[Graphic: other: urn:example:pptx-custom-graphic]" ]
+]

@@ -1,0 +1,4 @@
+[ Para [ Str "Before" ]
+, CodeBlock ( "" , [] , [] ) "code"
+, Para [ Str "After" ]
+]

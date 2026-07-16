@@ -1,0 +1,7 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Chart placeholder deck" ]
+, Para
+    [ Str
+        "[Graphic: other: http://schemas.openxmlformats.org/drawingml/2006/chart]"
+    ]
+]

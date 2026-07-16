@@ -1,0 +1,17 @@
+[ Header 1 ( "php-extra" , [] , [] ) [ Str "Title" ]
+, Para
+    [ Link
+        ( "" , [ "tracked" ] , [ ( "key" , "v" ) ] )
+        [ Str "link" ]
+        ( "https://example.test" , "" )
+    ]
+, DefinitionList
+    [ ( [ Str "Term" ] , [ [ Plain [ Str "Definition" ] ] ] ) ]
+, Para
+    [ Str "Use"
+    , Space
+    , Str "note"
+    , Note [ Para [ Str "Note" , Space , Str "body" ] ]
+    , Str "."
+    ]
+]

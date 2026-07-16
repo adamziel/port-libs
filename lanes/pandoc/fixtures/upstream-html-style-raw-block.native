@@ -1,0 +1,20 @@
+[ Para
+    [ Str "Before"
+    , Space
+    , Str "migration"
+    , Space
+    , Str "stylesheet."
+    ]
+, Para
+    [ RawInline
+        (Format "html")
+        "<style id=\"legacy-theme-css\" data-source=\"batch-42\">\n.legacy-card { border: 1px solid #ddd; }\n.legacy-card .caption { font-style: italic; }\n</style>"
+    ]
+, Para
+    [ Str "After"
+    , Space
+    , Str "migration"
+    , Space
+    , Str "stylesheet."
+    ]
+]

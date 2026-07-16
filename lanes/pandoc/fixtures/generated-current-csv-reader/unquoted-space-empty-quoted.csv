@@ -1,0 +1,3 @@
+label,raw,empty,note
+ alpha,trailing space , "",done
+beta,plain, "" ,kept

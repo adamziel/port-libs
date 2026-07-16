@@ -1,0 +1,1691 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\MarkerPDF\PdfAcroFormExtractor;
+use PortLibs\MarkerPDF\PdfTextExtractor;
+
+$acroFormPdf = static function (): string {
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 11 0 R 14 0 R 18 0 R 20 0 R 22 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 13 0 R 17 0 R 21 0 R 22 0 R] /NeedAppearances true /DA (/Helv 9 Tf 0 0 1 rg) /DR << /Font << /Helv 16 0 R >> >> >>\nendobj\n"
+        . "6 0 obj\n<< /T (registration) /FT /Tx /Ff 3 /Kids [7 0 R 10 0 R] >>\nendobj\n"
+        . "7 0 obj\n<< /Parent 6 0 R /T (email) /V (editor@example.com) /DA (/Ti 11 Tf 0.25 g) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 7 0 R /Rect [300 620 72 600] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /Parent 6 0 R /T (secret) /Ff 8192 /V (do not leak) /Kids [11 0 R] >>\nendobj\n"
+        . "11 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 560 300 580] /P 3 0 R /F 4 >>\nendobj\n"
+        . "13 0 obj\n<< /FT /Ch /T (category) /Ff 917504 /V (Plugins) /Opt [(Themes) [(plugin) (Plugins)] (Blocks)] /Kids [14 0 R] >>\nendobj\n"
+        . "14 0 obj\n<< /Subtype /Widget /Parent 13 0 R /Rect [72 520 220 540] /P 3 0 R /DA (/Helv 10 Tf 1 0 0 rg) >>\nendobj\n"
+        . "17 0 obj\n<< /FT /Btn /T (delivery) /Ff 49152 /V /Pickup /Kids [18 0 R 20 0 R] >>\nendobj\n"
+        . "18 0 obj\n<< /Subtype /Widget /Parent 17 0 R /Rect [72 480 90 498] /P 3 0 R /AS /Pickup /AP << /N << /Pickup 19 0 R /Off 19 0 R >> >> >>\nendobj\n"
+        . "20 0 obj\n<< /Subtype /Widget /Parent 17 0 R /Rect [110 480 128 498] /P 3 0 R /AS /Off /AP << /N << /Courier 19 0 R /Off 19 0 R >> >> >>\nendobj\n"
+        . "21 0 obj\n<< /FT /Tx /T (metadata_only) /Ff 4 /V (Not exported) >>\nendobj\n"
+        . "22 0 obj\n<< /Subtype /Widget /FT /Tx /T (inline) /V <FEFF0049006E006C0069006E00650020006600690065006C0064> /DA (/Helv 8 Tf 0 1 0 rg) /Rect [72 440 240 460] >>\nendobj\n"
+        . "16 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "19 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$fieldsByName = static function (array $fields): array {
+    $indexed = [];
+    foreach ($fields as $field) {
+        $indexed[$field['name']] = $field;
+    }
+
+    return $indexed;
+};
+
+$signatureDocMdpPdf = static function (string $transformParams): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R /Perms << /DocMDP 30 0 R >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R] /SigFlags 3 >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Sig /T (approval.signature) /Ff 1 /V 30 0 R /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 300 684] /P 3 0 R /F 4 >>\nendobj\n"
+        . "30 0 obj\n<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (Editor Reviewer) /Reason (Approved for import) /Location (Remote) /ContactInfo (editor@example.com) /M (D:20260602032148Z) /ByteRange [0 128 512 64] /Contents <0102030405> /Reference [<< /Type /SigRef /TransformMethod /DocMDP /Data 1 0 R /TransformParams {$transformParams} >>] >>\nendobj\n"
+        . "%%EOF";
+};
+
+$signatureSeedValueLockPdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 13 0 R 14 0 R 15 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 9 0 R 10 0 R 11 0 R] /SigFlags 3 >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Sig /T (approval.signature) /Ff 1 /V 30 0 R /SV 31 0 R /Lock 32 0 R /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 300 684] /P 3 0 R /F 4 >>\nendobj\n"
+        . "9 0 obj\n<< /FT /Tx /T (registration.email) /V (editor@example.com) /Kids [13 0 R] >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (invoice.total) /V (27.06) /Kids [14 0 R] >>\nendobj\n"
+        . "11 0 obj\n<< /FT /Tx /T (internal.notes) /V (still editable) /Kids [15 0 R] >>\nendobj\n"
+        . "13 0 obj\n<< /Subtype /Widget /Parent 9 0 R /Rect [72 600 300 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "14 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 560 300 584] /P 3 0 R /F 4 >>\nendobj\n"
+        . "15 0 obj\n<< /Subtype /Widget /Parent 11 0 R /Rect [72 520 300 544] /P 3 0 R /F 4 >>\nendobj\n"
+        . "30 0 obj\n<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (Editor Reviewer) /Reason (Approved for import) /M (D:20260602064500Z) /ByteRange [0 128 512 64] /Contents <0102030405> >>\nendobj\n"
+        . "31 0 obj\n<< /Type /SV /Ff 111 /Filter /Adobe.PPKLite /SubFilter [/adbe.pkcs7.detached /ETSI.CAdES.detached] /DigestMethod [/SHA256 /SHA512] /V 2.0 /Reasons [(Approved for import) (Final review)] /LegalAttestation [(I attest) <FEFF004F004B>] /AddRevInfo true /MDP << /P 2 >> /TimeStamp << /URL (https://timestamp.example.test/rfc3161) /Ff 1 >> >>\nendobj\n"
+        . "32 0 obj\n<< /Type /SigFieldLock /Action /Include /Fields [(registration.email) (invoice.total)] /P 2 >>\nendobj\n"
+        . "%%EOF";
+};
+
+$xfaPacketPdf = static function (): array {
+    $templateXml = <<<'XML'
+<template xmlns="http://www.xfa.org/schema/xfa-template/3.3/">
+  <subform name="registration">
+    <field name="registration.email"><caption><value><text>Email</text></value></caption></field>
+    <field name="registration.secret"><caption><value><text>Secret</text></value></caption></field>
+  </subform>
+</template>
+XML;
+    $datasetsXml = <<<'XML'
+<xfa:datasets xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/">
+  <xfa:data>
+    <registration><email>editor@example.com</email><secret>do not render</secret></registration>
+  </xfa:data>
+</xfa:datasets>
+XML;
+    $configXml = '<config><present>pdf</present></config>';
+    $templateStream = gzcompress($templateXml);
+    assert(is_string($templateStream));
+    $configHex = strtoupper(bin2hex($configXml));
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R] /XFA [(template) 30 0 R (datasets) 31 0 R (config) <{$configHex}>] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (fallback.email) /V (fallback@example.com) >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($templateStream) . " /Filter /FlateDecode >>\nstream\n"
+        . $templateStream
+        . "\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Length " . strlen($datasetsXml) . " >>\nstream\n"
+        . $datasetsXml
+        . "\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, hash('sha256', $templateXml), hash('sha256', $datasetsXml), hash('sha256', $configXml)];
+};
+
+$xfaXdpStreamPdf = static function (): array {
+    $xdpXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-16"?>
+<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/">
+  <xfa:template xmlns:xfa="http://www.xfa.org/schema/xfa-template/3.3/">
+    <xfa:subform name="article">
+      <xfa:field name="article.title"><xfa:caption><xfa:value><xfa:text>Title</xfa:text></xfa:value></xfa:caption></xfa:field>
+    </xfa:subform>
+  </xfa:template>
+  <xfa:datasets>
+    <xfa:data>
+      <article><title>Fresh dynamic value</title></article>
+    </xfa:data>
+  </xfa:datasets>
+  <config><present>pdf</present></config>
+</xdp:xdp>
+XML;
+    $encoded = iconv('UTF-8', 'UTF-16BE', $xdpXml);
+    assert(is_string($encoded));
+    $utf16 = "\xFE\xFF" . $encoded;
+    $compressed = gzcompress($utf16);
+    assert(is_string($compressed));
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R] /XFA 30 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (fallback.title) /V (fallback title) >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($compressed) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressed
+        . "\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, $xdpXml, hash('sha256', trim($xdpXml))];
+};
+
+$xfaSignatureWidgetStatePdf = static function (): array {
+    $xdpXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-16"?>
+<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/">
+  <xfa:template xmlns:xfa="http://www.xfa.org/schema/xfa-template/3.3/">
+    <xfa:subform name="approval">
+      <xfa:field name="approval.signature"><xfa:caption><xfa:value><xfa:text>Signature</xfa:text></xfa:value></xfa:caption></xfa:field>
+    </xfa:subform>
+  </xfa:template>
+  <xfa:datasets>
+    <xfa:data>
+      <approval><signature>dynamic XFA value must not sign or render</signature></approval>
+    </xfa:data>
+  </xfa:datasets>
+</xdp:xdp>
+XML;
+    $encoded = iconv('UTF-8', 'UTF-16BE', $xdpXml);
+    assert(is_string($encoded));
+    $utf16 = "\xFE\xFF" . $encoded;
+    $compressed = gzcompress($utf16);
+    assert(is_string($compressed));
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [6 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 9 0 R] /SigFlags 3 /XFA 30 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Subtype /Widget /FT /Sig /T (approval.signature) /TU (Final approval signature) /V 40 0 R /Rect [360 80 120 120] /P 3 0 R /F 36 /AS /Signed /AP << /N << /Signed 50 0 R /Off 51 0 R >> >> >>\nendobj\n"
+        . "9 0 obj\n<< /FT /Tx /T (article.title) /V (Static title) /DV (Draft title) >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($compressed) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressed
+        . "\nendstream\nendobj\n"
+        . "40 0 obj\n<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (Editor Reviewer) /Reason (Approved after XFA review) /M (D:20260602082400Z) /ByteRange [0 128 512 64] /Contents <0102030405> >>\nendobj\n"
+        . "50 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "51 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, hash('sha256', trim($xdpXml))];
+};
+
+$xfaSignatureFieldBoundaryPdf = static function (): array {
+    $xdpXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/">
+  <xfa:template xmlns:xfa="http://www.xfa.org/schema/xfa-template/3.3/">
+    <xfa:subform name="approval">
+      <xfa:field name="approval.signature"><xfa:caption><xfa:value><xfa:text>Signature</xfa:text></xfa:value></xfa:caption></xfa:field>
+      <xfa:field name="article.title"><xfa:caption><xfa:value><xfa:text>Title</xfa:text></xfa:value></xfa:caption></xfa:field>
+    </xfa:subform>
+  </xfa:template>
+  <xfa:datasets>
+    <xfa:data>
+      <approval><signature>xfa signature bytes must stay review metadata</signature></approval>
+      <article><title>XFA title should not replace AcroForm value</title></article>
+    </xfa:data>
+  </xfa:datasets>
+  <xfa:signature xmlns:xfa="http://www.xfa.org/schema/xfa-signature/3.3/">
+    <xfa:signData target="approval.signature">detached xfa signature payload</xfa:signData>
+  </xfa:signature>
+</xdp:xdp>
+XML;
+    $compressed = gzcompress($xdpXml);
+    assert(is_string($compressed));
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [6 0 R 9 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 9 0 R] /SigFlags 1 /XFA 30 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Subtype /Widget /FT /Sig /T (approval.signature) /TU (Unsigned XFA approval) /Rect [120 80 360 120] /P 3 0 R /F 4 /AS /Off /AP << /N << /Off 40 0 R /Signed 41 0 R >> >> >>\nendobj\n"
+        . "9 0 obj\n<< /Subtype /Widget /FT /Tx /T (article.title) /V (Static AcroForm title) /Rect [120 140 420 164] /P 3 0 R /F 4 >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($compressed) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressed
+        . "\nendstream\nendobj\n"
+        . "40 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "41 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, hash('sha256', trim($xdpXml))];
+};
+
+$xfaSignatureWidgetReviewPdf = static function (): array {
+    $xdpXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/">
+  <xfa:template xmlns:xfa="http://www.xfa.org/schema/xfa-template/3.3/">
+    <xfa:subform name="approval">
+      <xfa:field name="approval.signature"><xfa:caption><xfa:value><xfa:text>Signature</xfa:text></xfa:value></xfa:caption></xfa:field>
+      <xfa:field name="article.title"><xfa:caption><xfa:value><xfa:text>Title</xfa:text></xfa:value></xfa:caption></xfa:field>
+    </xfa:subform>
+  </xfa:template>
+  <xfa:datasets>
+    <xfa:data>
+      <approval><signature>XFA signature text remains review metadata</signature></approval>
+      <article><title>XFA title does not replace static AcroForm title</title></article>
+    </xfa:data>
+  </xfa:datasets>
+  <xfa:signature xmlns:xfa="http://www.xfa.org/schema/xfa-signature/3.3/">
+    <xfa:signData target="approval.signature">detached XFA packet signature bytes</xfa:signData>
+  </xfa:signature>
+</xdp:xdp>
+XML;
+    $compressedXfa = gzcompress($xdpXml);
+    $appearance = 'BT /Fsig 10 Tf 0 0 Td (visual signature appearance review only) Tj ET';
+    $compressedAppearance = gzcompress($appearance);
+    $focusScript = "app.alert('signature focus review only');";
+    $compressedFocusScript = gzcompress($focusScript);
+    if (!is_string($compressedXfa) || !is_string($compressedAppearance) || !is_string($compressedFocusScript)) {
+        throw new RuntimeException('Unable to compress XFA signature widget review fixture.');
+    }
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [6 0 R 9 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 9 0 R] /SigFlags 3 /XFA 30 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Subtype /Widget /FT /Sig /T (approval.signature) /TU (Final approval signature) /V 40 0 R /SV 31 0 R /Lock 32 0 R /Rect [360 80 120 120] /P 3 0 R /F 36 /AS /Signed /AP << /N << /Signed 50 0 R /Off 51 0 R >> >> /AA << /Fo 60 0 R >> >>\nendobj\n"
+        . "9 0 obj\n<< /Subtype /Widget /FT /Tx /T (article.title) /V (Static AcroForm title) /Rect [120 140 420 164] /P 3 0 R /F 4 >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($compressedXfa) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressedXfa
+        . "\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Type /SV /Ff 75 /Filter /Adobe.PPKLite /SubFilter [/adbe.pkcs7.detached] /DigestMethod [/SHA256] /Reasons [(Approved for import)] /MDP << /P 2 >> >>\nendobj\n"
+        . "32 0 obj\n<< /Type /SigFieldLock /Action /Include /Fields [(article.title)] /P 2 >>\nendobj\n"
+        . "40 0 obj\n<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (Editor Reviewer) /Reason (Approved after XFA review) /M (D:20260602160514Z) /ByteRange [0 128 512 64] /Contents <0102030405> >>\nendobj\n"
+        . "50 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 240 40] /Resources << /Font << /Fsig 52 0 R >> >> /Length " . strlen($compressedAppearance) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressedAppearance
+        . "\nendstream\nendobj\n"
+        . "51 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "52 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "60 0 obj\n<< /S /JavaScript /JS 61 0 R >>\nendobj\n"
+        . "61 0 obj\n<< /Length " . strlen($compressedFocusScript) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressedFocusScript
+        . "\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, hash('sha256', trim($xdpXml)), $appearance, $focusScript];
+};
+
+$widgetXfaActionAppearanceValueCurrentBasePdf = static function (): array {
+    $xdpXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/">
+  <xfa:template xmlns:xfa="http://www.xfa.org/schema/xfa-template/3.3/">
+    <xfa:subform name="article">
+      <xfa:field name="article.summary"><xfa:caption><xfa:value><xfa:text>Summary</xfa:text></xfa:value></xfa:caption></xfa:field>
+    </xfa:subform>
+  </xfa:template>
+  <xfa:datasets>
+    <xfa:data>
+      <article><summary>XFA dynamic summary must stay review metadata</summary></article>
+    </xfa:data>
+  </xfa:datasets>
+</xdp:xdp>
+XML;
+
+    $pageText = 'BT /F1 12 Tf 72 720 Td (Visible widget XFA action appearance value body) Tj ET';
+    $appearance = 'BT /FApp 10 Tf 0 0 Td (Selected widget appearance review text) Tj ET';
+    $script = "app.alert('focus action stays review only');";
+    $compressedXfa = gzcompress($xdpXml);
+    $compressedAppearance = gzcompress($appearance);
+    $compressedScript = gzcompress($script);
+    if (!is_string($compressedXfa) || !is_string($compressedAppearance) || !is_string($compressedScript)) {
+        throw new RuntimeException('Unable to compress widget XFA action appearance fixture.');
+    }
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R] /NeedAppearances true /XFA 30 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (article.summary) /V (Static AcroForm summary) /DV (Draft AcroForm summary) /Kids [8 0 R] /AA << /V 20 0 R >> >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 360 664] /P 3 0 R /F 4 /AS /Ready /AP << /N << /Ready 40 0 R /Off 41 0 R >> >> /A 21 0 R /AA << /Fo 22 0 R >> >>\nendobj\n"
+        . "20 0 obj\n<< /S /URI /URI (javascript:fieldValidate\\(\\)) /Next << /S /Hide /T [8 0 R] /H true >> >>\nendobj\n"
+        . "21 0 obj\n<< /S /SubmitForm /F << /Type /Filespec /F (summary-submit.fdf) >> /Fields [6 0 R] /Flags 4 >>\nendobj\n"
+        . "22 0 obj\n<< /S /JavaScript /JS 24 0 R >>\nendobj\n"
+        . "24 0 obj\n<< /Length " . strlen($compressedScript) . " /Filter /FlateDecode >>\nstream\n{$compressedScript}\nendstream\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($compressedXfa) . " /Filter /FlateDecode >>\nstream\n{$compressedXfa}\nendstream\nendobj\n"
+        . "40 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 260 24] /Resources << /Font << /FApp 50 0 R >> >> /Length " . strlen($compressedAppearance) . " /Filter /FlateDecode >>\nstream\n{$compressedAppearance}\nendstream\nendobj\n"
+        . "41 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "50 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, trim($xdpXml), $appearance, $script];
+};
+
+$submitResetActionPdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 10 0 R 12 0 R 14 0 R 16 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 9 0 R 11 0 R 13 0 R 15 0 R] /NeedAppearances false >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (registration.email) /V (editor@example.com) /DV (pending@example.com) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 620 320 644] /P 3 0 R /F 4 >>\nendobj\n"
+        . "9 0 obj\n<< /FT /Tx /T (registration.notes) /DV (Default reviewer note) /Kids [10 0 R] >>\nendobj\n"
+        . "10 0 obj\n<< /Subtype /Widget /Parent 9 0 R /Rect [72 580 320 604] /P 3 0 R /F 4 >>\nendobj\n"
+        . "11 0 obj\n<< /FT /Tx /T (registration.internal) /Ff 4 /V (Do not export) /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 11 0 R /Rect [72 540 320 564] /P 3 0 R /F 4 >>\nendobj\n"
+        . "13 0 obj\n<< /FT /Btn /T (actions.submit) /Ff 65536 /Kids [14 0 R] >>\nendobj\n"
+        . "14 0 obj\n<< /Subtype /Widget /Parent 13 0 R /Rect [72 500 180 524] /P 3 0 R /F 4 /A << /S /SubmitForm /F 20 0 R /Fields [6 0 R 9 0 R] /Flags 6 >> >>\nendobj\n"
+        . "15 0 obj\n<< /FT /Btn /T (actions.reset) /Ff 65536 /Kids [16 0 R] /AA << /U << /S /ResetForm /Fields [6 0 R] /Flags 1 >> >> >>\nendobj\n"
+        . "16 0 obj\n<< /Subtype /Widget /Parent 15 0 R /Rect [192 500 300 524] /P 3 0 R /F 4 >>\nendobj\n"
+        . "20 0 obj\n<< /Type /Filespec /F (https://example.test/marker-import) >>\nendobj\n"
+        . "%%EOF";
+};
+
+$calculationFormatActionPdf = static function (): array {
+    $calculateScript = "event.value = this.getField('invoice.amount').value * 1.0825;";
+    $compressedCalculateScript = gzcompress($calculateScript);
+    if (!is_string($compressedCalculateScript)) {
+        throw new RuntimeException('Unable to compress calculation script fixture.');
+    }
+
+    $keystrokeScript = 'AFNumber_Keystroke(2, 0, 0, 0, "", true);';
+    $formatScript = 'AFNumber_Format(2, 0, 0, 0, "", true);';
+    $validateScript = 'if (event.value < 0) event.rc = false;';
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 11 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R] /CO [10 0 R 6 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (invoice.amount) /V (25.00) /Kids [8 0 R] /AA << /K 20 0 R /F << /S /JavaScript /JS (AFNumber_Format\\(2, 0, 0, 0, \"\", true\\);) >> /V << /S /JavaScript /JS (if \\(event.value < 0\\) event.rc = false;) >> >> >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 620 240 644] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (invoice.total) /V (27.06) /Kids [11 0 R] /AA << /C << /S /JavaScript /JS 30 0 R >> >> >>\nendobj\n"
+        . "11 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 580 240 604] /P 3 0 R /F 4 >>\nendobj\n"
+        . "20 0 obj\n<< /S /JavaScript /JS (AFNumber_Keystroke\\(2, 0, 0, 0, \"\", true\\);) >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($compressedCalculateScript) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressedCalculateScript
+        . "\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, $keystrokeScript, $formatScript, $validateScript, $calculateScript];
+};
+
+$calculationSignatureStatePdf = static function (): array {
+    $calculateScript = "event.value = Number(this.getField('invoice.amount').value) + 3;";
+    $compressedCalculateScript = gzcompress($calculateScript);
+    if (!is_string($compressedCalculateScript)) {
+        throw new RuntimeException('Unable to compress calculation/signature boundary script fixture.');
+    }
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 11 0 R 14 0 R 17 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R 13 0 R 16 0 R] /SigFlags 3 /CO [10 0 R 6 0 R 13 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (invoice.amount) /V (25.00) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 240 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (invoice.total) /V (28.00) /Kids [11 0 R] /AA << /C << /S /JavaScript /JS 30 0 R >> >> >>\nendobj\n"
+        . "11 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 240 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "13 0 obj\n<< /FT /Sig /T (approval.signature) /V 31 0 R /Lock 32 0 R /Kids [14 0 R] >>\nendobj\n"
+        . "14 0 obj\n<< /Subtype /Widget /Parent 13 0 R /Rect [72 552 300 584] /P 3 0 R /F 4 >>\nendobj\n"
+        . "16 0 obj\n<< /FT /Tx /T (internal.notes) /V (editable review note) /Kids [17 0 R] >>\nendobj\n"
+        . "17 0 obj\n<< /Subtype /Widget /Parent 16 0 R /Rect [72 512 300 536] /P 3 0 R /F 4 >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($compressedCalculateScript) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressedCalculateScript
+        . "\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (Editor Reviewer) /M (D:20260602081217Z) /ByteRange [0 128 512 64] /Contents <0102030405> >>\nendobj\n"
+        . "32 0 obj\n<< /Type /SigFieldLock /Action /Include /Fields [(invoice.amount) (invoice.total)] /P 2 >>\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, $calculateScript];
+};
+
+$currentValueStatePdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 12 0 R 16 0 R 18 0 R 22 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R 14 0 R 20 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (article.title) /V (Final import title) /DV (Draft import title) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 320 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Ch /T (article.topics) /Ff 2097152 /V [(plugin) (themes)] /DV (blocks) /I [1 0] /Opt [[(themes) (Themes)] [(plugin) (Plugins)] [(blocks) (Blocks)]] /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 320 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "14 0 obj\n<< /FT /Btn /T (delivery.method) /Ff 49152 /V /Online /DV /Pickup /Kids [16 0 R 18 0 R] >>\nendobj\n"
+        . "16 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [72 560 90 578] /P 3 0 R /F 4 /AS /Online /AP << /N << /Online 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "18 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [108 560 126 578] /P 3 0 R /F 4 /AS /Off /AP << /N << /Pickup 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "20 0 obj\n<< /FT /Btn /T (review.consent) /Kids [22 0 R] >>\nendobj\n"
+        . "22 0 obj\n<< /Subtype /Widget /Parent 20 0 R /Rect [72 520 90 538] /P 3 0 R /F 4 /AS /Yes /AP << /N << /Yes 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "30 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$fieldHierarchyValueBoundaryPdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [9 0 R 12 0 R 15 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /T (registration) /TM (Registration packet) /FT /Tx /Ff 1 /V (Inherited contact value) /DV (Draft contact value) /Kids [7 0 R 10 0 R 13 0 R] >>\nendobj\n"
+        . "7 0 obj\n<< /T (contact) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /T (email) /Kids [9 0 R] >>\nendobj\n"
+        . "9 0 obj\n<< /Subtype /Widget /Parent 8 0 R /Rect [72 640 320 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /T (title) /V (Child override title) /DV (Child draft title) /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 320 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "13 0 obj\n<< /T (secret) /Ff 8192 /Kids [15 0 R] >>\nendobj\n"
+        . "15 0 obj\n<< /Subtype /Widget /Parent 13 0 R /Rect [72 560 320 584] /P 3 0 R /F 4 >>\nendobj\n"
+        . "%%EOF";
+};
+
+$widgetDefaultStatePdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 12 0 R 16 0 R 18 0 R 22 0 R 24 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R 14 0 R 20 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Btn /T (terms.agreed) /DV /Yes /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 90 658] /P 3 0 R /F 4 /AS /Yes /AP << /N << /Yes 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Btn /T (terms.optional) /DV /Off /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 90 618] /P 3 0 R /F 4 /AS /Off /AP << /N << /Yes 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "14 0 obj\n<< /FT /Btn /T (delivery.window) /Ff 49152 /DV /Courier /Kids [16 0 R 18 0 R] >>\nendobj\n"
+        . "16 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [72 560 90 578] /P 3 0 R /F 4 /AS /Off /AP << /N << /Pickup 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "18 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [108 560 126 578] /P 3 0 R /F 4 /AS /Courier /AP << /N << /Courier 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "20 0 obj\n<< /FT /Btn /T (delivery.changed) /Ff 49152 /DV /Pickup /Kids [22 0 R 24 0 R] >>\nendobj\n"
+        . "22 0 obj\n<< /Subtype /Widget /Parent 20 0 R /Rect [72 520 90 538] /P 3 0 R /F 4 /AS /Online /AP << /N << /Online 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "24 0 obj\n<< /Subtype /Widget /Parent 20 0 R /Rect [108 520 126 538] /P 3 0 R /F 4 /AS /Off /AP << /N << /Pickup 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "30 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$appearanceDefaultResourcesPdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 12 0 R 16 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R 14 0 R] /NeedAppearances true /DA (/Helv 9 Tf 0 0 1 rg) /DR 30 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (article.title) /V (Default resource title) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 320 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (article.body) /V (Body copy) /DA (/Body 11 Tf 0.1 0.2 0.3 rg) /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 320 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "14 0 obj\n<< /FT /Tx /T (article.teaser) /V (Widget override) /Kids [16 0 R] >>\nendobj\n"
+        . "16 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [72 560 320 584] /P 3 0 R /F 4 /DA (/Missing 10 Tf 0.5 g) >>\nendobj\n"
+        . "30 0 obj\n<< /Font << /Helv 31 0 R /Body 32 0 R /Inline << /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /MacRomanEncoding >> >> >>\nendobj\n"
+        . "31 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding 35 0 R >>\nendobj\n"
+        . "32 0 obj\n<< /Type /Font /Subtype /TrueType /BaseFont /ABCDEE+SourceSansPro /Encoding << /Type /Encoding /BaseEncoding /MacRomanEncoding >> /FontDescriptor 33 0 R >>\nendobj\n"
+        . "33 0 obj\n<< /Type /FontDescriptor /FontName /ABCDEE+SourceSansPro /Flags 32 /FontWeight 600 >>\nendobj\n"
+        . "35 0 obj\n<< /Type /Encoding /BaseEncoding /WinAnsiEncoding >>\nendobj\n"
+        . "%%EOF";
+};
+
+$appearanceValueActionBoundaryPdf = static function (): array {
+    $selectedAppearance = 'q BT /FApp 10 Tf 0 0 Td (Stale appearance text must stay review metadata) Tj ET Q';
+    $compressedSelectedAppearance = gzcompress($selectedAppearance);
+    if (!is_string($compressedSelectedAppearance)) {
+        throw new RuntimeException('Unable to compress selected AcroForm appearance fixture.');
+    }
+
+    $staleAppearance = 'BT /FApp 10 Tf 0 0 Td (Stale alternate appearance) Tj ET';
+    $offAppearance = '';
+    $directAppearance = 'BT /FApp 10 Tf 0 0 Td (Direct appearance value must not replace field V) Tj ET';
+    $nestedStampAppearance = 'BT /FApp 8 Tf 0 0 Td (Nested stamp review only) Tj ET';
+    $focusScript = "app.alert('focus review only');";
+    $compressedFocusScript = gzcompress($focusScript);
+    if (!is_string($compressedFocusScript)) {
+        throw new RuntimeException('Unable to compress focus action fixture.');
+    }
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 12 0 R 16 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R 14 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (article.title) /V (Final field value) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 320 664] /P 3 0 R /F 4 /AS /Fresh /AP << /N << /Fresh 30 0 R /Stale 31 0 R /Off 32 0 R >> >> /AA << /Fo 40 0 R >> >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (article.stale_state) /V (Current value despite stale AS) /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 320 624] /P 3 0 R /F 4 /AS /Ghost /AP << /N << /Fresh 30 0 R /Off 32 0 R >> >> >>\nendobj\n"
+        . "14 0 obj\n<< /FT /Tx /T (summary.note) /V (Direct stream field value) /Kids [16 0 R] >>\nendobj\n"
+        . "16 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [72 560 320 584] /P 3 0 R /F 4 /AP << /N 33 0 R >> /A << /S /JavaScript /JS (app.alert\\('activation review only'\\);) >> >>\nendobj\n"
+        . "30 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 24] /Matrix [1 0 0 1 72 640] /Resources 50 0 R /Length " . strlen($compressedSelectedAppearance) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressedSelectedAppearance
+        . "\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 24] /Length " . strlen($staleAppearance) . " >>\nstream\n{$staleAppearance}\nendstream\nendobj\n"
+        . "32 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 24] /Length " . strlen($offAppearance) . " >>\nstream\n{$offAppearance}\nendstream\nendobj\n"
+        . "33 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 240 24] /Resources 50 0 R /Length " . strlen($directAppearance) . " >>\nstream\n{$directAppearance}\nendstream\nendobj\n"
+        . "40 0 obj\n<< /S /JavaScript /JS 41 0 R >>\nendobj\n"
+        . "41 0 obj\n<< /Length " . strlen($compressedFocusScript) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressedFocusScript
+        . "\nendstream\nendobj\n"
+        . "50 0 obj\n<< /Font << /FApp 51 0 R >> /XObject << /Stamp 52 0 R >> >>\nendobj\n"
+        . "51 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "52 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 40 12] /Length " . strlen($nestedStampAppearance) . " >>\nstream\n{$nestedStampAppearance}\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, $selectedAppearance, $directAppearance, $focusScript];
+};
+
+$fieldActionReviewBoundaryPdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 12 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (registration.url) /V (https://example.test/import) /Kids [8 0 R] /AA << /K << /S /Named /N /Print >> /V 20 0 R >> >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 620 320 644] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Btn /T (actions.import_data) /Ff 65536 /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 580 240 604] /P 3 0 R /F 4 /A 21 0 R >>\nendobj\n"
+        . "20 0 obj\n<< /S /URI /URI (javascript:app.alert\\('blocked field validation'\\)) /Next [22 0 R << /S /Hide /T [(registration.url) 8 0 R] /H true >>] >>\nendobj\n"
+        . "21 0 obj\n<< /S /ImportData /F 30 0 R >>\nendobj\n"
+        . "22 0 obj\n<< /S /Launch /F (cmd.exe) /NewWindow true >>\nendobj\n"
+        . "30 0 obj\n<< /Type /Filespec /F (review.fdf) >>\nendobj\n"
+        . "%%EOF";
+};
+
+$actionNextArrayBoundaryPdf = static function (): string {
+    $appearance = 'BT /FApp 9 Tf 0 0 Td (Ready appearance review only) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (article.url) /V (https://example.test/final) /DV (https://example.test/draft) /Kids [8 0 R] /AA << /V 20 0 R >> >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 340 664] /P 3 0 R /F 4 /AS /Ready /AP << /N << /Ready 30 0 R /Off 31 0 R >> >> /A 24 0 R >>\nendobj\n"
+        . "20 0 obj\n<< /S /URI /URI (https://example.test/review) /Next [21 0 R 22 0 R] >>\nendobj\n"
+        . "21 0 obj\n<< /S /Launch /F (cmd.exe) /Next 23 0 R >>\nendobj\n"
+        . "22 0 obj\n<< /S /JavaScript /JS (app.alert\\('cycled nested action blocked'\\)) /Next 20 0 R >>\nendobj\n"
+        . "23 0 obj\n<< /S /Hide /T [8 0 R] /H false >>\nendobj\n"
+        . "24 0 obj\n<< /S /Named /N /Print /Next << /S /GoTo /D [3 0 R /Fit] >> >>\nendobj\n"
+        . "30 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 24] /Resources << /Font << /FApp 40 0 R >> >> /Length " . strlen($appearance) . " >>\nstream\n{$appearance}\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "40 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
+return [
+    'extracts inherited field flags and field default appearance strings' => static function (TestRunner $t) use ($acroFormPdf, $fieldsByName): void {
+        $form = (new PdfAcroFormExtractor())->extractForm($acroFormPdf());
+        $fields = $fieldsByName($form['fields']);
+
+        $t->true($form['need_appearances']);
+        $t->same(6, count($fields));
+
+        $email = $fields['registration.email'];
+        $t->same(7, $email['object']);
+        $t->same('Tx', $email['field_type']);
+        $t->same('text', $email['field_type_label']);
+        $t->same('editor@example.com', $email['value']);
+        $t->same(3, $email['flags']);
+        $t->same(['read_only', 'required'], $email['flag_names']);
+        $t->same('/Ti 11 Tf 0.25 g', $email['default_appearance']['raw']);
+        $t->same('field', $email['default_appearance']['source']);
+        $t->same('Ti', $email['default_appearance']['font_resource']);
+        $t->same(11.0, $email['default_appearance']['font_size']);
+        $t->same(['space' => 'DeviceGray', 'components' => [0.25]], $email['default_appearance']['text_color']);
+        $t->same(0, $email['widgets'][0]['page_index']);
+        $t->same(3, $email['widgets'][0]['page_object']);
+        $t->same([72.0, 600.0, 300.0, 620.0], $email['widgets'][0]['rect']);
+    },
+    'redacts password values while preserving inherited AcroForm appearance metadata' => static function (TestRunner $t) use ($acroFormPdf, $fieldsByName): void {
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($acroFormPdf()));
+        $secret = $fields['registration.secret'];
+
+        $t->same(['password'], $secret['flag_names']);
+        $t->true($secret['value_redacted']);
+        $t->same(null, $secret['value']);
+        $t->same('/Helv 9 Tf 0 0 1 rg', $secret['default_appearance']['raw']);
+        $t->same('acroform', $secret['default_appearance']['source']);
+        $t->same('Helv', $secret['default_appearance']['font_resource']);
+        $t->same(9.0, $secret['default_appearance']['font_size']);
+        $t->same(['space' => 'DeviceRGB', 'components' => [0.0, 0.0, 1.0]], $secret['default_appearance']['text_color']);
+    },
+    'decodes choice and button field flags with widget-local appearance overrides' => static function (TestRunner $t) use ($acroFormPdf, $fieldsByName): void {
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($acroFormPdf()));
+
+        $choice = $fields['category'];
+        $t->same('choice', $choice['field_type_label']);
+        $t->same('Plugins', $choice['value']);
+        $t->same(['combo', 'edit', 'sort'], $choice['flag_names']);
+        $t->same([
+            ['export' => 'Themes', 'label' => 'Themes'],
+            ['export' => 'plugin', 'label' => 'Plugins'],
+            ['export' => 'Blocks', 'label' => 'Blocks'],
+        ], $choice['options']);
+        $t->same('widget', $choice['widgets'][0]['default_appearance']['source']);
+        $t->same('DeviceRGB', $choice['widgets'][0]['default_appearance']['text_color']['space']);
+        $t->same([1.0, 0.0, 0.0], $choice['widgets'][0]['default_appearance']['text_color']['components']);
+
+        $button = $fields['delivery'];
+        $t->same('button', $button['field_type_label']);
+        $t->same('Pickup', $button['value']);
+        $t->same(['no_toggle_to_off', 'radio'], $button['flag_names']);
+        $t->same(['Pickup', 'Off'], $button['widgets'][0]['appearance_states']);
+        $t->same('Pickup', $button['widgets'][0]['appearance_state']);
+        $t->same('Off', $button['widgets'][1]['appearance_state']);
+    },
+    'keeps metadata-only and fused widget fields page-scoped without leaking hidden values' => static function (TestRunner $t) use ($acroFormPdf, $fieldsByName): void {
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($acroFormPdf()));
+
+        $metadataOnly = $fields['metadata_only'];
+        $t->same(['no_export'], $metadataOnly['flag_names']);
+        $t->same([], $metadataOnly['widgets']);
+        $t->same('Not exported', $metadataOnly['value']);
+
+        $inline = $fields['inline'];
+        $t->same('Inline field', $inline['value']);
+        $t->same(0, $inline['widgets'][0]['page_index']);
+        $t->same('field', $inline['default_appearance']['source']);
+        $t->same('Helv', $inline['default_appearance']['font_resource']);
+        $t->same(['space' => 'DeviceRGB', 'components' => [0.0, 1.0, 0.0]], $inline['default_appearance']['text_color']);
+    },
+    'extracts signature field metadata and catalog DocMDP annotation permissions' => static function (TestRunner $t) use ($signatureDocMdpPdf, $fieldsByName): void {
+        $form = (new PdfAcroFormExtractor())->extractForm($signatureDocMdpPdf('<< /Type /TransformParams /P 3 /V /1.2 >>'));
+        $permissions = $form['permissions']['doc_mdp'];
+        $fields = $fieldsByName($form['fields']);
+        $field = $fields['approval.signature'];
+        $signature = $field['signature'];
+        $docMdp = $signature['doc_mdp'];
+
+        $t->same('Sig', $field['field_type']);
+        $t->same('signature', $field['field_type_label']);
+        $t->same(['read_only'], $field['flag_names']);
+        $t->true($field['certifying_signature']);
+        $t->same(null, $field['value']);
+        $t->same(0, $field['widgets'][0]['page_index']);
+        $t->same([72.0, 640.0, 300.0, 684.0], $field['widgets'][0]['rect']);
+
+        $t->same(30, $signature['object']);
+        $t->same('Adobe.PPKLite', $signature['filter']);
+        $t->same('adbe.pkcs7.detached', $signature['subfilter']);
+        $t->same('Editor Reviewer', $signature['name']);
+        $t->same('Approved for import', $signature['reason']);
+        $t->same('Remote', $signature['location']);
+        $t->same('editor@example.com', $signature['contact_info']);
+        $t->same('D:20260602032148Z', $signature['signed_at']);
+        $t->same([0, 128, 512, 64], $signature['byte_range']);
+        $t->true($signature['contents_present']);
+        $t->same(5, $signature['contents_length_bytes']);
+        $t->true($signature['certifying_signature']);
+
+        $t->same(1, count($signature['reference_transforms']));
+        $t->same('DocMDP', $docMdp['transform_method']);
+        $t->same(1, $docMdp['data_object']);
+        $t->same('TransformParams', $docMdp['transform_params_type']);
+        $t->same('1.2', $docMdp['transform_params_version']);
+        $t->same(3, $docMdp['permission_level']);
+        $t->true($docMdp['permission_valid']);
+        $t->same('form_fill_templates_signatures_annotations', $docMdp['permission_label']);
+        $t->same(['fill_forms', 'instantiate_page_templates', 'sign', 'create_modify_delete_annotations'], $docMdp['allowed_changes']);
+
+        $t->same(30, $permissions['signature_object']);
+        $t->same('Editor Reviewer', $permissions['signature_name']);
+        $t->same('D:20260602032148Z', $permissions['signed_at']);
+        $t->same(3, $permissions['permission_level']);
+        $t->same('form_fill_templates_signatures_annotations', $permissions['permission_label']);
+        $t->same(['fill_forms', 'instantiate_page_templates', 'sign', 'create_modify_delete_annotations'], $permissions['allowed_changes']);
+        $t->same('1.2', $permissions['transform_params_version']);
+        $t->same('catalog_perms_doc_mdp', $permissions['source']);
+    },
+    'defaults DocMDP permissions to form fill and signing when transform P is absent' => static function (TestRunner $t) use ($signatureDocMdpPdf, $fieldsByName): void {
+        $form = (new PdfAcroFormExtractor())->extractForm($signatureDocMdpPdf('<< /Type /TransformParams /V /1.2 >>'));
+        $field = $fieldsByName($form['fields'])['approval.signature'];
+        $docMdp = $field['signature']['doc_mdp'];
+
+        $t->same(2, $form['permissions']['doc_mdp']['permission_level']);
+        $t->same('form_fill_templates_signatures', $form['permissions']['doc_mdp']['permission_label']);
+        $t->same(['fill_forms', 'instantiate_page_templates', 'sign'], $form['permissions']['doc_mdp']['allowed_changes']);
+        $t->same(2, $docMdp['permission_level']);
+        $t->true($docMdp['permission_valid']);
+        $t->same('form_fill_templates_signatures', $docMdp['permission_label']);
+        $t->same(['fill_forms', 'instantiate_page_templates', 'sign'], $docMdp['allowed_changes']);
+    },
+    'resolves AcroForm default resource fonts for default appearance review metadata' => static function (TestRunner $t) use ($appearanceDefaultResourcesPdf, $fieldsByName): void {
+        $form = (new PdfAcroFormExtractor())->extractForm($appearanceDefaultResourcesPdf());
+        $fields = $fieldsByName($form['fields']);
+        $resources = $form['default_resources'];
+
+        $t->same('acroform', $resources['source']);
+        $t->same(30, $resources['object']);
+        $t->same(3, $resources['font_count']);
+        $t->same(false, $resources['executes_appearance_streams']);
+        $t->same(false, $resources['renders_appearances']);
+
+        $helv = $resources['fonts']['Helv'];
+        $t->same('Helv', $helv['resource_name']);
+        $t->same(31, $helv['object']);
+        $t->same('Font', $helv['type']);
+        $t->same('Type1', $helv['subtype']);
+        $t->same('Helvetica', $helv['base_font']);
+        $t->same('WinAnsiEncoding', $helv['encoding']);
+
+        $bodyResource = $resources['fonts']['Body'];
+        $t->same(32, $bodyResource['object']);
+        $t->same('TrueType', $bodyResource['subtype']);
+        $t->same('ABCDEE+SourceSansPro', $bodyResource['base_font']);
+        $t->same('MacRomanEncoding', $bodyResource['encoding']);
+        $t->same(33, $bodyResource['font_descriptor']['object']);
+        $t->same('ABCDEE+SourceSansPro', $bodyResource['font_descriptor']['font_name']);
+        $t->same(32, $bodyResource['font_descriptor']['flags']);
+        $t->same(600, $bodyResource['font_descriptor']['font_weight']);
+
+        $inlineResource = $resources['fonts']['Inline'];
+        $t->same(null, $inlineResource['object']);
+        $t->same('Courier', $inlineResource['base_font']);
+        $t->same('MacRomanEncoding', $inlineResource['encoding']);
+
+        $titleAppearance = $fields['article.title']['default_appearance'];
+        $t->same('acroform', $titleAppearance['source']);
+        $t->same('Helv', $titleAppearance['font_resource']);
+        $t->same(true, $titleAppearance['font_resource_resolved']);
+        $t->same(31, $titleAppearance['font_resource_object']);
+        $t->same('Helvetica', $titleAppearance['font_resource_base_font']);
+        $t->same('Type1', $titleAppearance['font_resource_subtype']);
+        $t->same('WinAnsiEncoding', $titleAppearance['font_resource_encoding']);
+        $t->same('acroform', $titleAppearance['default_resource_source']);
+        $t->same(30, $titleAppearance['default_resource_source_object']);
+
+        $bodyAppearance = $fields['article.body']['default_appearance'];
+        $t->same('field', $bodyAppearance['source']);
+        $t->same(10, $bodyAppearance['source_object']);
+        $t->same('Body', $bodyAppearance['font_resource']);
+        $t->same(true, $bodyAppearance['font_resource_resolved']);
+        $t->same(32, $bodyAppearance['font_resource_object']);
+        $t->same('ABCDEE+SourceSansPro', $bodyAppearance['font_resource_base_font']);
+        $t->same(33, $bodyAppearance['font_descriptor_object']);
+        $t->same('ABCDEE+SourceSansPro', $bodyAppearance['font_descriptor_name']);
+        $t->same(32, $bodyAppearance['font_descriptor_flags']);
+        $t->same(600, $bodyAppearance['font_weight']);
+        $t->same(['space' => 'DeviceRGB', 'components' => [0.1, 0.2, 0.3]], $bodyAppearance['text_color']);
+
+        $widgetAppearance = $fields['article.teaser']['widgets'][0]['default_appearance'];
+        $t->same('widget', $widgetAppearance['source']);
+        $t->same('Missing', $widgetAppearance['font_resource']);
+        $t->same(false, $widgetAppearance['font_resource_resolved']);
+        $t->same(null, $widgetAppearance['font_resource_object']);
+        $t->same(null, $widgetAppearance['font_resource_base_font']);
+        $t->same('acroform', $widgetAppearance['default_resource_source']);
+        $t->same(30, $widgetAppearance['default_resource_source_object']);
+        $t->same(['space' => 'DeviceGray', 'components' => [0.5]], $widgetAppearance['text_color']);
+    },
+    'extracts signature seed value constraints and lock dictionary review metadata' => static function (TestRunner $t) use ($signatureSeedValueLockPdf, $fieldsByName): void {
+        $form = (new PdfAcroFormExtractor())->extractForm($signatureSeedValueLockPdf());
+        $field = $fieldsByName($form['fields'])['approval.signature'];
+        $seed = $field['signature_seed_value'];
+        $lock = $field['signature_lock'];
+
+        $t->same('Sig', $field['field_type']);
+        $t->same('Editor Reviewer', $field['signature']['name']);
+        $t->same(31, $seed['object']);
+        $t->same('SV', $seed['type']);
+        $t->same(111, $seed['flags']);
+        $t->same([
+            'filter',
+            'subfilter',
+            'seed_value_parser_version',
+            'reason',
+            'add_revision_info',
+            'digest_method',
+        ], $seed['required_constraints']);
+        $t->same('Adobe.PPKLite', $seed['filter']);
+        $t->true($seed['filter_required']);
+        $t->same(['adbe.pkcs7.detached', 'ETSI.CAdES.detached'], $seed['subfilters']);
+        $t->true($seed['subfilter_required']);
+        $t->same(['SHA256', 'SHA512'], $seed['digest_methods']);
+        $t->true($seed['digest_method_required']);
+        $t->same(2.0, $seed['parser_version']);
+        $t->true($seed['parser_version_required']);
+        $t->same(['Approved for import', 'Final review'], $seed['reasons']);
+        $t->true($seed['reason_required']);
+        $t->same(['I attest', 'OK'], $seed['legal_attestations']);
+        $t->same(false, $seed['legal_attestation_required']);
+        $t->true($seed['add_revision_info']);
+        $t->true($seed['add_revision_info_required']);
+        $t->same(false, $seed['executes_signing']);
+        $t->same(false, $seed['executes_action']);
+
+        $t->same(2, $seed['mdp']['permission_level']);
+        $t->true($seed['mdp']['permission_valid']);
+        $t->same('certifying_signature', $seed['mdp']['signature_type']);
+        $t->same('form_fill_templates_signatures', $seed['mdp']['permission_label']);
+        $t->same(['fill_forms', 'instantiate_page_templates', 'sign'], $seed['mdp']['allowed_changes']);
+        $t->same('https://timestamp.example.test/rfc3161', $seed['timestamp']['url']);
+        $t->same(1, $seed['timestamp']['flags']);
+        $t->true($seed['timestamp']['required']);
+
+        $t->same(32, $lock['object']);
+        $t->same('SigFieldLock', $lock['type']);
+        $t->same('Include', $lock['action']);
+        $t->true($lock['action_valid']);
+        $t->same('lock_included_fields', $lock['action_label']);
+        $t->same(['registration.email', 'invoice.total'], $lock['field_names']);
+        $t->same(['registration.email', 'invoice.total'], $lock['included_fields']);
+        $t->same([], $lock['excluded_fields']);
+        $t->same(2, $lock['permission_level']);
+        $t->true($lock['permission_valid']);
+        $t->same('form_fill_templates_signatures', $lock['permission_label']);
+        $t->same(['fill_forms', 'instantiate_page_templates', 'sign'], $lock['allowed_changes']);
+        $t->same(false, $lock['executes_action']);
+    },
+    'extracts XFA packet array metadata without merging dynamic XML into AcroForm fields' => static function (TestRunner $t) use ($xfaPacketPdf, $fieldsByName): void {
+        [$pdf, $templateHash, $datasetsHash, $configHash] = $xfaPacketPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $packets = $form['xfa_packets'];
+
+        $t->true($form['xfa_overrides_page_content']);
+        $t->same(1, count($fields));
+        $t->same('fallback@example.com', $fields['fallback.email']['value']);
+        $t->same(3, count($packets));
+
+        $template = $packets[0];
+        $t->same(0, $template['index']);
+        $t->same('template', $template['name']);
+        $t->same(30, $template['object']);
+        $t->same('acroform_xfa_array', $template['source']);
+        $t->same(['FlateDecode'], $template['filters']);
+        $t->same('template', $template['xml_root']);
+        $t->same($templateHash, $template['xml_sha256']);
+        $t->same(['registration.email', 'registration.secret'], $template['field_names']);
+        $t->same([], $template['data_node_names']);
+        $t->true($template['has_template']);
+        $t->same(false, $template['has_datasets']);
+        $t->true(str_contains($template['text_preview'], 'Email'));
+
+        $datasets = $packets[1];
+        $t->same('datasets', $datasets['name']);
+        $t->same(31, $datasets['object']);
+        $t->same([], $datasets['filters']);
+        $t->same('xfa:datasets', $datasets['xml_root']);
+        $t->same($datasetsHash, $datasets['xml_sha256']);
+        $t->same([], $datasets['field_names']);
+        $t->same(['registration', 'email', 'secret'], $datasets['data_node_names']);
+        $t->same(false, $datasets['has_template']);
+        $t->true($datasets['has_datasets']);
+        $t->true(str_contains($datasets['text_preview'], 'editor@example.com'));
+
+        $config = $packets[2];
+        $t->same('config', $config['name']);
+        $t->same(null, $config['object']);
+        $t->same('config', $config['xml_root']);
+        $t->same($configHash, $config['xml_sha256']);
+        $t->same([], $config['field_names']);
+        $t->same([], $config['data_node_names']);
+        $t->same('pdf', $config['text_preview']);
+    },
+    'extracts UTF-16 XDP XFA stream packet metadata without dynamic field merge' => static function (TestRunner $t) use ($xfaXdpStreamPdf, $fieldsByName): void {
+        [$pdf, $xdpXml, $xdpHash] = $xfaXdpStreamPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $packets = $form['xfa_packets'];
+
+        $t->true($form['xfa_overrides_page_content']);
+        $t->same(1, count($fields));
+        $t->same('fallback title', $fields['fallback.title']['value']);
+        $t->same(1, count($packets));
+
+        $packet = $packets[0];
+        $t->same('xdp:xdp', $packet['name']);
+        $t->same(30, $packet['object']);
+        $t->same('acroform_xfa_value', $packet['source']);
+        $t->same(['FlateDecode'], $packet['filters']);
+        $t->same('xdp:xdp', $packet['xml_root']);
+        $t->same('UTF-16BE', $packet['xml_encoding']);
+        $t->true($packet['decoded_to_utf8']);
+        $t->same($xdpHash, $packet['xml_sha256']);
+        $t->same(['template', 'datasets', 'config'], $packet['xdp_packet_names']);
+        $t->same(['article.title'], $packet['field_names']);
+        $t->same(['article', 'title'], $packet['data_node_names']);
+        $t->true($packet['is_xdp_package']);
+        $t->true($packet['has_template']);
+        $t->true($packet['has_datasets']);
+        $t->true(str_contains($packet['text_preview'], 'Fresh dynamic value'));
+        $t->true(str_contains($xdpXml, '<xdp:xdp'));
+    },
+    'keeps XFA signature widget annotation state boundaries review-only' => static function (TestRunner $t) use ($xfaSignatureWidgetStatePdf, $fieldsByName): void {
+        [$pdf, $xdpHash] = $xfaSignatureWidgetStatePdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $packets = $form['xfa_packets'];
+        $signature = $fields['approval.signature'];
+        $signatureMetadata = $signature['signature'];
+        $widget = $signature['widgets'][0];
+
+        $t->true($form['xfa_overrides_page_content']);
+        $t->same(2, count($fields));
+        $t->same('Static title', $fields['article.title']['value']);
+        $t->same(1, count($packets));
+        $t->same('xdp:xdp', $packets[0]['xml_root']);
+        $t->same('UTF-16BE', $packets[0]['xml_encoding']);
+        $t->same($xdpHash, $packets[0]['xml_sha256']);
+        $t->same(['approval.signature'], $packets[0]['field_names']);
+        $t->same(['approval', 'signature'], $packets[0]['data_node_names']);
+        $t->true(str_contains($packets[0]['text_preview'], 'dynamic XFA value'));
+
+        $t->same('Sig', $signature['field_type']);
+        $t->same('signature', $signature['field_type_label']);
+        $t->same(null, $signature['value']);
+        $t->true($signature['value_state']['has_current_value']);
+        $t->same(null, $signature['value_state']['display_value']);
+        $t->same('Editor Reviewer', $signatureMetadata['name']);
+        $t->same('Approved after XFA review', $signatureMetadata['reason']);
+        $t->same([0, 128, 512, 64], $signatureMetadata['byte_range']);
+        $t->true($signatureMetadata['contents_present']);
+
+        $t->same(6, $widget['object']);
+        $t->same(0, $widget['page_index']);
+        $t->same(3, $widget['page_object']);
+        $t->same(0, $widget['page_annotation_index']);
+        $t->true($widget['referenced_from_page_annots']);
+        $t->same([120.0, 80.0, 360.0, 120.0], $widget['rect']);
+        $t->same(36, $widget['annotation_flags']);
+        $t->same(['print', 'no_view'], $widget['annotation_flag_names']);
+        $t->same('no_view', $widget['annotation_visibility']);
+        $t->true($widget['hidden']);
+        $t->same(false, $widget['visible']);
+        $t->true($widget['printable']);
+        $t->true($widget['no_view']);
+        $t->same('Signed', $widget['appearance_state']);
+        $t->same(['Signed', 'Off'], $widget['appearance_states']);
+    },
+    'keeps XFA signature field data review only and outside AcroForm signing state' => static function (TestRunner $t) use ($xfaSignatureFieldBoundaryPdf, $fieldsByName): void {
+        [$pdf, $xdpHash] = $xfaSignatureFieldBoundaryPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $packets = $form['xfa_packets'];
+
+        $t->true($form['xfa_overrides_page_content']);
+        $t->same(1, count($packets));
+        $packet = $packets[0];
+        $t->same('xdp:xdp', $packet['xml_root']);
+        $t->same($xdpHash, $packet['xml_sha256']);
+        $t->same(['template', 'datasets', 'signature'], $packet['xdp_packet_names']);
+        $t->same(['approval.signature', 'article.title'], $packet['field_names']);
+        $t->same(['approval.signature', 'article.title'], $packet['data_paths']);
+        $t->same(['approval.signature'], $packet['signature_field_names']);
+        $t->true($packet['has_signature_field']);
+        $t->same(false, $packet['signature_payload_exposed']);
+        $t->same(false, $packet['executes_signature_validation']);
+        $t->same(false, $packet['executes_signing']);
+
+        $signature = $fields['approval.signature'];
+        $signatureBoundary = $signature['xfa_boundary'];
+        $signatureState = $signature['signature_state'];
+        $signatureWidget = $signature['widgets'][0];
+
+        $t->same('Sig', $signature['field_type']);
+        $t->same(null, $signature['signature']);
+        $t->same(null, $signature['value']);
+        $t->same(false, $signatureState['has_signature_dictionary']);
+        $t->same(false, $signatureState['signed']);
+        $t->same(false, $signatureState['xfa_value_used_for_signature']);
+        $t->same(false, $signatureState['executes_signature_validation']);
+        $t->same(false, $signatureState['executes_signing']);
+        $t->same('Off', $signatureWidget['appearance_state']);
+        $t->same(['Off', 'Signed'], $signatureWidget['appearance_states']);
+
+        $t->same('acroform_xfa_field_boundary', $signatureBoundary['source']);
+        $t->true($signatureBoundary['referenced_by_xfa']);
+        $t->same(['xdp:xdp'], $signatureBoundary['packet_names']);
+        $t->same([30], $signatureBoundary['packet_objects']);
+        $t->same(['approval.signature'], $signatureBoundary['matched_field_names']);
+        $t->same(['approval.signature'], $signatureBoundary['matched_data_paths']);
+        $t->true($signatureBoundary['has_xfa_template_reference']);
+        $t->true($signatureBoundary['dynamic_value_present']);
+        $t->same(false, $signatureBoundary['value_used_for_import']);
+        $t->same(false, $signatureBoundary['xfa_payload_text_exposed']);
+        $t->same(false, $signatureBoundary['executes_xfa_javascript']);
+        $t->same(false, $signatureBoundary['executes_signature_validation']);
+        $t->same(false, $signatureBoundary['executes_signing']);
+
+        $title = $fields['article.title'];
+        $t->same('Static AcroForm title', $title['value']);
+        $t->same('Static AcroForm title', $title['value_state']['current']);
+        $t->true($title['xfa_boundary']['dynamic_value_present']);
+        $t->same(false, $title['xfa_boundary']['value_used_for_import']);
+    },
+    'summarizes XFA signature widget review state without executing signing appearance or actions' => static function (TestRunner $t) use ($xfaSignatureWidgetReviewPdf, $fieldsByName): void {
+        [$pdf, $xdpHash, $appearance, $focusScript] = $xfaSignatureWidgetReviewPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $packet = $form['xfa_packets'][0];
+        $signature = $fields['approval.signature'];
+        $review = $signature['signature_widget_review'];
+        $title = $fields['article.title'];
+
+        $t->true($form['xfa_overrides_page_content']);
+        $t->same($xdpHash, $packet['xml_sha256']);
+        $t->same(['template', 'datasets', 'signature'], $packet['xdp_packet_names']);
+        $t->same(['approval.signature', 'article.title'], $packet['field_names']);
+        $t->same(['approval.signature', 'article.title'], $packet['data_paths']);
+        $t->same(['approval.signature'], $packet['signature_field_names']);
+        $t->same(false, $packet['signature_payload_exposed']);
+
+        $t->same('acroform_xfa_signature_widget_review_boundary', $review['source']);
+        $t->same('approval.signature', $review['field_name']);
+        $t->same(6, $review['field_object']);
+        $t->same(1, $review['widget_count']);
+        $t->same(1, $review['page_referenced_widget_count']);
+        $t->same([6], $review['widget_objects']);
+        $t->same([6], $review['page_widget_objects']);
+        $t->same(6, $review['primary_widget_object']);
+        $t->same(0, $review['primary_widget_page_index']);
+        $t->same(3, $review['primary_widget_page_object']);
+        $t->same(0, $review['primary_widget_page_annotation_index']);
+        $t->true($review['primary_widget_referenced_from_page_annots']);
+        $t->same([120.0, 80.0, 360.0, 120.0], $review['primary_widget_rect']);
+        $t->same('no_view', $review['primary_widget_visibility']);
+        $t->same(['print', 'no_view'], $review['primary_widget_flag_names']);
+        $t->true($review['primary_widget_printable']);
+        $t->true($review['primary_widget_hidden']);
+        $t->true($review['primary_widget_no_view']);
+        $t->same(0, $review['visible_widget_count']);
+        $t->same(1, $review['hidden_widget_count']);
+        $t->same(1, $review['printable_widget_count']);
+        $t->same('Signed', $review['appearance_state']);
+        $t->same(['Signed', 'Off'], $review['appearance_states']);
+        $t->same(true, $review['state_matches_appearance']);
+        $t->same(false, $review['stale_appearance_state']);
+        $t->same('Signed', $review['selected_appearance_state']);
+        $t->same(50, $review['selected_appearance_object']);
+        $t->same([50], $review['selected_appearance_objects']);
+        $t->same(hash('sha256', $appearance), $review['selected_appearance_decoded_sha256']);
+        $t->same(false, $review['appearance_value_used_for_import']);
+        $t->same(false, $review['appearance_payload_text_exposed']);
+
+        $t->true($review['has_signature_dictionary']);
+        $t->true($review['signed']);
+        $t->same(40, $review['signature_object']);
+        $t->same('Editor Reviewer', $review['signature_name']);
+        $t->same('Approved after XFA review', $review['signature_reason']);
+        $t->same('D:20260602160514Z', $review['signed_at']);
+        $t->same([0, 128, 512, 64], $review['byte_range']);
+        $t->same(2, $review['byte_range_segment_count']);
+        $t->true($review['contents_present']);
+        $t->same(5, $review['contents_length_bytes']);
+        $t->same(false, $review['certifying_signature']);
+        $t->true($review['signature_dictionary_is_field_value']);
+
+        $t->true($review['xfa_referenced']);
+        $t->true($review['xfa_dynamic_value_present']);
+        $t->same(['xdp:xdp'], $review['xfa_packet_names']);
+        $t->same([30], $review['xfa_packet_objects']);
+        $t->same(['approval.signature'], $review['xfa_matched_field_names']);
+        $t->same(['approval.signature'], $review['xfa_matched_data_paths']);
+        $t->same(false, $review['xfa_value_used_for_signature']);
+        $t->same(false, $review['xfa_value_used_for_import']);
+        $t->same(false, $review['xfa_payload_text_exposed']);
+
+        $t->same(31, $review['seed_value_object']);
+        $t->same(['filter', 'subfilter', 'reason', 'digest_method'], $review['seed_value_required_constraints']);
+        $t->same('Adobe.PPKLite', $review['seed_value_filter']);
+        $t->same(['adbe.pkcs7.detached'], $review['seed_value_subfilters']);
+        $t->same(['SHA256'], $review['seed_value_digest_methods']);
+        $t->same(32, $review['lock_object']);
+        $t->same('Include', $review['lock_action']);
+        $t->same('lock_included_fields', $review['lock_action_label']);
+        $t->same(['article.title'], $review['lock_field_names']);
+        $t->same('form_fill_templates_signatures', $review['lock_permission_label']);
+        $t->same(false, $review['field_locked_by_signed_signature']);
+        $t->same([], $review['locked_by_signatures']);
+
+        $t->same(1, $review['field_action_count']);
+        $t->same(1, $review['widget_action_count']);
+        $t->same(1, $review['action_count']);
+        $t->same($focusScript, $signature['widgets'][0]['actions'][0]['script_preview']);
+        $t->same(hash('sha256', $focusScript), $signature['widgets'][0]['actions'][0]['script_sha256']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['value_used_for_import']);
+        $t->same(false, $review['executes_action']);
+        $t->same(false, $review['executes_javascript']);
+        $t->same(false, $review['executes_appearance_streams']);
+        $t->same(false, $review['renders_appearances']);
+        $t->same(false, $review['executes_signature_validation']);
+        $t->same(false, $review['executes_signing']);
+        $t->same(false, $review['executes_xfa_javascript']);
+        $t->same(false, $review['imports_xfa_payload']);
+
+        $t->same('Static AcroForm title', $title['value']);
+        $t->true($title['signature_lock_state']['effective_locked']);
+        $t->same(['approval.signature'], $title['signature_lock_state']['locked_by_signatures']);
+        $t->same(false, $title['xfa_boundary']['value_used_for_import']);
+    },
+    'rebases widget XFA action appearance and current value review on current base' => static function (TestRunner $t) use ($widgetXfaActionAppearanceValueCurrentBasePdf, $fieldsByName): void {
+        [$pdf, $xdpXml, $appearance, $script] = $widgetXfaActionAppearanceValueCurrentBasePdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $field = $fields['article.summary'];
+        $widget = $field['widgets'][0];
+        $review = $field['widget_xfa_action_appearance_value_review'];
+
+        $t->true($form['xfa_overrides_page_content']);
+        $t->same(hash('sha256', $xdpXml), $form['xfa_packets'][0]['xml_sha256']);
+        $t->same('Static AcroForm summary', $field['value']);
+        $t->same('Static AcroForm summary', $field['value_state']['current']);
+        $t->same('Draft AcroForm summary', $field['value_state']['default']);
+        $t->same('Ready', $widget['appearance_state']);
+        $t->same(40, $widget['normal_appearance']['selected_appearance']['object']);
+
+        $t->same('acroform_widget_xfa_action_appearance_value_currentbase_review_boundary', $review['source']);
+        $t->same('article.summary', $review['field_name']);
+        $t->same(6, $review['field_object']);
+        $t->same('Tx', $review['field_type']);
+        $t->same('Static AcroForm summary', $review['current']);
+        $t->same('Draft AcroForm summary', $review['default']);
+        $t->same('Static AcroForm summary', $review['display_value']);
+        $t->same('field', $review['current_source']);
+        $t->same(6, $review['current_source_object']);
+        $t->true($review['acroform_current_value_authoritative']);
+        $t->true($review['acroform_default_value_authoritative_for_reset']);
+        $t->true($review['referenced_by_xfa']);
+        $t->true($review['has_xfa_template_reference']);
+        $t->true($review['has_xfa_dataset_reference']);
+        $t->true($review['dynamic_value_present']);
+        $t->same(['xdp:xdp'], $review['xfa_packet_names']);
+        $t->same([30], $review['xfa_packet_objects']);
+        $t->same(['article.summary'], $review['xfa_matched_field_names']);
+        $t->same(['article.summary'], $review['xfa_matched_data_paths']);
+        $t->same(['XFA dynamic summary must stay review metadata'], $review['xfa_matched_data_value_previews']);
+        $t->same(false, $review['xfa_value_used_for_current_value']);
+        $t->same(false, $review['xfa_value_used_for_default_value']);
+        $t->same(false, $review['xfa_value_used_for_import']);
+        $t->same(false, $review['xfa_payload_text_exposed']);
+
+        $t->same(1, $review['widget_count']);
+        $t->same(1, $review['page_referenced_widget_count']);
+        $t->same([8], $review['widget_objects']);
+        $t->same(8, $review['primary_widget_object']);
+        $t->same('Ready', $review['primary_widget_appearance_state']);
+        $t->same('state_dictionary', $review['primary_widget_normal_appearance_type']);
+        $t->same(['Ready', 'Off'], $review['widget_appearance_states']);
+        $t->same(40, $review['selected_appearance_object']);
+        $t->same([40], $review['selected_appearance_objects']);
+        $t->same(hash('sha256', $appearance), $review['selected_appearance_decoded_sha256']);
+        $t->same(true, $review['state_matches_appearance']);
+        $t->same(0, $review['stale_appearance_state_count']);
+        $t->same(false, $review['appearance_value_used_for_import']);
+        $t->same(false, $review['appearance_payload_text_exposed']);
+
+        $t->same(4, $review['action_count']);
+        $t->same(2, $review['field_action_count']);
+        $t->same(2, $review['widget_action_count']);
+        $t->same(['URI', 'Hide', 'SubmitForm', 'JavaScript'], $review['action_types']);
+        $t->same(['V', 'activation', 'Fo'], $review['action_triggers']);
+        $t->same(['validate', 'activation', 'focus'], $review['action_trigger_labels']);
+        $t->same(['blocked-unsafe-uri', 'hide-action-review', 'submit-form-action-review', 'blocked-javascript'], $review['action_safety_labels']);
+        $t->same([20, 21, 22], $review['action_objects']);
+        $t->same(['javascript:fieldValidate()', 'summary-submit.fdf'], $review['action_targets']);
+        $t->same(['article.summary'], $review['action_field_names']);
+        $t->same(1, $review['javascript_action_count']);
+        $t->same(1, $review['submit_form_action_count']);
+        $t->same(1, $review['unsafe_uri_action_count']);
+        $t->same(false, $review['submits_form_data']);
+        $t->same(false, $review['executes_action']);
+        $t->same(false, $review['executes_javascript']);
+        $t->same(false, $review['executes_appearance_streams']);
+        $t->same(false, $review['renders_appearances']);
+        $t->same(false, $review['executes_xfa_javascript']);
+
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $t->true(str_contains($visibleText, 'Visible widget XFA action appearance value body'));
+        $t->true(str_contains($visibleText, 'Selected widget appearance review text'));
+        $t->true(!str_contains($visibleText, 'XFA dynamic summary must stay review metadata'));
+        $t->true(!str_contains($visibleText, 'focus action stays review only'));
+        $t->true(!str_contains($visibleText, 'summary-submit.fdf'));
+    },
+    'extracts SubmitForm and ResetForm action review metadata without executing actions' => static function (TestRunner $t) use ($submitResetActionPdf, $fieldsByName): void {
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($submitResetActionPdf()));
+        $submitWidget = $fields['actions.submit']['widgets'][0];
+        $submit = $submitWidget['actions'][0];
+        $reset = $fields['actions.reset']['actions'][0];
+
+        $t->same('SubmitForm', $submit['action_type']);
+        $t->same('activation', $submit['trigger']);
+        $t->same('widget', $submit['source']);
+        $t->same(14, $submit['source_object']);
+        $t->same('https://example.test/marker-import', $submit['target']);
+        $t->same('https', $submit['target_scheme']);
+        $t->same(6, $submit['flags']);
+        $t->same(['include_no_value_fields', 'html_format'], $submit['flag_names']);
+        $t->same('include', $submit['fields_mode']);
+        $t->same([6, 9], $submit['field_objects']);
+        $t->same(['registration.email', 'registration.notes'], $submit['field_names']);
+        $t->same('html', $submit['submit_format']);
+        $t->true($submit['include_no_value_fields']);
+        $t->true($submit['default_excludes_no_export']);
+        $t->same(false, $submit['executes_action']);
+
+        $t->same('ResetForm', $reset['action_type']);
+        $t->same('U', $reset['trigger']);
+        $t->same('mouse_up', $reset['trigger_label']);
+        $t->same('field', $reset['source']);
+        $t->same(15, $reset['source_object']);
+        $t->same(1, $reset['flags']);
+        $t->same(['exclude_list'], $reset['flag_names']);
+        $t->same('exclude', $reset['fields_mode']);
+        $t->same([6], $reset['field_objects']);
+        $t->same(['registration.email'], $reset['field_names']);
+        $t->true($reset['reset_to_default']);
+        $t->same(false, $reset['executes_action']);
+    },
+    'extracts AcroForm current value state from V DV I Opt and widget appearance states' => static function (TestRunner $t) use ($currentValueStatePdf, $fieldsByName): void {
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($currentValueStatePdf()));
+
+        $titleState = $fields['article.title']['value_state'];
+        $t->same('acroform_current_value_state', $titleState['source']);
+        $t->same('Final import title', $titleState['current']);
+        $t->same('Draft import title', $titleState['default']);
+        $t->same('Final import title', $titleState['display_value']);
+        $t->true($titleState['has_current_value']);
+        $t->true($titleState['has_default_value']);
+        $t->true($titleState['changed_from_default']);
+        $t->same('field', $titleState['current_source']);
+        $t->same(6, $titleState['current_source_object']);
+
+        $topicState = $fields['article.topics']['value_state'];
+        $t->same(['plugin', 'themes'], $topicState['choice_values']);
+        $t->same(['blocks'], $topicState['default_choice_values']);
+        $t->same([1, 0], $topicState['selected_indices']);
+        $t->same('field', $topicState['selected_indices_source']);
+        $t->same([
+            ['index' => 1, 'export' => 'plugin', 'label' => 'Plugins'],
+            ['index' => 0, 'export' => 'themes', 'label' => 'Themes'],
+        ], $topicState['selected_options']);
+        $t->same([], $topicState['unmatched_values']);
+        $t->true($topicState['changed_from_default']);
+
+        $delivery = $fields['delivery.method'];
+        $deliveryState = $delivery['value_state'];
+        $t->same('radio', $deliveryState['button_kind']);
+        $t->same('Online', $deliveryState['current_state']);
+        $t->same('Pickup', $deliveryState['default_state']);
+        $t->same('Online', $deliveryState['effective_current_state']);
+        $t->same('field_value', $deliveryState['state_source']);
+        $t->same(['Online', 'Pickup'], $deliveryState['on_values']);
+        $t->same(1, $deliveryState['checked_widget_count']);
+        $t->true($deliveryState['widget_state_consistent']);
+        $t->true($delivery['widgets'][0]['checked']);
+        $t->same('Online', $delivery['widgets'][0]['export_value']);
+        $t->true($delivery['widgets'][0]['selected_by_field_value']);
+        $t->true($delivery['widgets'][0]['state_matches_field_value']);
+        $t->same(false, $delivery['widgets'][1]['checked']);
+        $t->same('Pickup', $delivery['widgets'][1]['export_value']);
+        $t->same(false, $delivery['widgets'][1]['selected_by_field_value']);
+        $t->true($delivery['widgets'][1]['state_matches_field_value']);
+
+        $consent = $fields['review.consent'];
+        $consentState = $consent['value_state'];
+        $t->same('checkbox', $consentState['button_kind']);
+        $t->same(null, $consentState['current_state']);
+        $t->same('Yes', $consentState['effective_current_state']);
+        $t->same('widget_appearance_state', $consentState['state_source']);
+        $t->same(['Yes'], $consentState['on_values']);
+        $t->same(1, $consentState['checked_widget_count']);
+        $t->same(null, $consentState['widget_state_consistent']);
+        $t->true($consent['widgets'][0]['checked']);
+        $t->same('Yes', $consent['widgets'][0]['export_value']);
+        $t->same(null, $consent['widgets'][0]['state_matches_field_value']);
+    },
+    'resolves AcroForm field hierarchy value boundaries before WordPress import review' => static function (TestRunner $t) use ($fieldHierarchyValueBoundaryPdf, $fieldsByName): void {
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($fieldHierarchyValueBoundaryPdf()));
+
+        $t->same(3, count($fields));
+
+        $email = $fields['registration.contact.email'];
+        $emailHierarchy = $email['field_hierarchy'];
+        $t->same('Inherited contact value', $email['value']);
+        $t->same('Draft contact value', $email['default_value']);
+        $t->same('registration.contact.email', $email['mapping_name']);
+        $t->same('acroform_field_hierarchy_value_boundary', $emailHierarchy['source']);
+        $t->same([6, 7, 8], array_column($emailHierarchy['path'], 'object'));
+        $t->same(['registration', 'contact', 'email'], array_column($emailHierarchy['path'], 'partial_name'));
+        $t->same(['registration', 'registration.contact', 'registration.contact.email'], array_column($emailHierarchy['path'], 'full_name'));
+        $t->same('Registration packet', $emailHierarchy['path'][0]['mapping_name']);
+        $t->same([6, 7], $emailHierarchy['ancestor_objects']);
+        $t->same(['FT', 'Ff', 'V', 'DV'], $emailHierarchy['inherited_attributes']);
+        $t->same([], $emailHierarchy['local_value_attributes']);
+        $t->true($emailHierarchy['current_value_inherited']);
+        $t->true($emailHierarchy['default_value_inherited']);
+        $t->same(6, $emailHierarchy['current_value_source_object']);
+        $t->same(6, $emailHierarchy['default_value_source_object']);
+        $t->same(false, $emailHierarchy['terminal_overrides_parent_value']);
+        $t->same(false, $emailHierarchy['value_redacted']);
+        $t->same(false, $emailHierarchy['executes_form_actions']);
+        $t->same(false, $emailHierarchy['executes_javascript']);
+        $t->same('field_hierarchy_inherited', $email['value_state']['hierarchy_boundary']['current_value_source']);
+
+        $title = $fields['registration.title'];
+        $titleHierarchy = $title['field_hierarchy'];
+        $t->same('Child override title', $title['value']);
+        $t->same('Child draft title', $title['default_value']);
+        $t->same([6, 10], array_column($titleHierarchy['path'], 'object'));
+        $t->same(['FT', 'Ff'], $titleHierarchy['inherited_attributes']);
+        $t->same(['V', 'DV'], $titleHierarchy['local_value_attributes']);
+        $t->same(false, $titleHierarchy['current_value_inherited']);
+        $t->same(true, $titleHierarchy['terminal_overrides_parent_value']);
+        $t->same(10, $titleHierarchy['current_value_source_object']);
+        $t->same('field_terminal_override', $title['value_state']['hierarchy_boundary']['current_value_source']);
+        $t->true($title['value_state']['changed_from_default']);
+
+        $secret = $fields['registration.secret'];
+        $secretHierarchy = $secret['field_hierarchy'];
+        $t->same(null, $secret['value']);
+        $t->same(null, $secret['default_value']);
+        $t->true($secret['value_redacted']);
+        $t->same(['password'], $secret['flag_names']);
+        $t->same([6, 13], array_column($secretHierarchy['path'], 'object'));
+        $t->same(['FT', 'V', 'DV'], $secretHierarchy['inherited_attributes']);
+        $t->same(['Ff'], $secretHierarchy['local_attributes']);
+        $t->true($secretHierarchy['current_value_inherited']);
+        $t->true($secretHierarchy['value_redacted']);
+        $t->same('[redacted]', $secret['value_state']['display_value']);
+        $t->same('field_hierarchy_inherited', $secret['value_state']['hierarchy_boundary']['current_value_source']);
+    },
+    'uses widget appearance state as button current value before default comparison' => static function (TestRunner $t) use ($widgetDefaultStatePdf, $fieldsByName): void {
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($widgetDefaultStatePdf()));
+
+        $agreedState = $fields['terms.agreed']['value_state'];
+        $t->same(null, $agreedState['current_state']);
+        $t->same('Yes', $agreedState['default_state']);
+        $t->same('Yes', $agreedState['effective_current_state']);
+        $t->same('Yes', $agreedState['display_value']);
+        $t->same('widget_appearance_state', $agreedState['state_source']);
+        $t->same(false, $agreedState['changed_from_default']);
+        $t->same(1, $agreedState['checked_widget_count']);
+        $t->same(['Yes'], $agreedState['on_values']);
+        $t->true($fields['terms.agreed']['widgets'][0]['checked']);
+        $t->same(null, $fields['terms.agreed']['widgets'][0]['state_matches_field_value']);
+
+        $optionalState = $fields['terms.optional']['value_state'];
+        $t->same(null, $optionalState['effective_current_state']);
+        $t->same('Off', $optionalState['default_state']);
+        $t->same(null, $optionalState['display_value']);
+        $t->same('missing_or_off', $optionalState['state_source']);
+        $t->same(false, $optionalState['changed_from_default']);
+        $t->same(0, $optionalState['checked_widget_count']);
+        $t->same(['Yes'], $optionalState['on_values']);
+        $t->same(false, $fields['terms.optional']['widgets'][0]['checked']);
+
+        $windowState = $fields['delivery.window']['value_state'];
+        $t->same('radio', $windowState['button_kind']);
+        $t->same(null, $windowState['current_state']);
+        $t->same('Courier', $windowState['default_state']);
+        $t->same('Courier', $windowState['effective_current_state']);
+        $t->same('Courier', $windowState['display_value']);
+        $t->same('widget_appearance_state', $windowState['state_source']);
+        $t->same(false, $windowState['changed_from_default']);
+        $t->same(1, $windowState['checked_widget_count']);
+        $t->same(['Pickup', 'Courier'], $windowState['on_values']);
+        $t->same(false, $fields['delivery.window']['widgets'][0]['checked']);
+        $t->true($fields['delivery.window']['widgets'][1]['checked']);
+
+        $changedState = $fields['delivery.changed']['value_state'];
+        $t->same('Pickup', $changedState['default_state']);
+        $t->same('Online', $changedState['effective_current_state']);
+        $t->same('Online', $changedState['display_value']);
+        $t->same('widget_appearance_state', $changedState['state_source']);
+        $t->true($changedState['changed_from_default']);
+        $t->same(1, $changedState['checked_widget_count']);
+        $t->same(['Online', 'Pickup'], $changedState['on_values']);
+        $t->true($fields['delivery.changed']['widgets'][0]['checked']);
+        $t->same(false, $fields['delivery.changed']['widgets'][1]['checked']);
+    },
+    'extracts calculation format keystroke and validation action review metadata without executing scripts' => static function (TestRunner $t) use ($calculationFormatActionPdf, $fieldsByName): void {
+        [$pdf, $keystrokeScript, $formatScript, $validateScript, $calculateScript] = $calculationFormatActionPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+
+        $t->same([
+            ['object' => 10, 'field_name' => 'invoice.total'],
+            ['object' => 6, 'field_name' => 'invoice.amount'],
+        ], $form['calculation_order']);
+
+        $amountActions = $fields['invoice.amount']['actions'];
+        $totalActions = $fields['invoice.total']['actions'];
+
+        $t->same(['K', 'F', 'V'], array_column($amountActions, 'trigger'));
+        $t->same(['keystroke', 'format', 'validate'], array_column($amountActions, 'trigger_label'));
+        $t->same(['JavaScript', 'JavaScript', 'JavaScript'], array_column($amountActions, 'action_type'));
+        $t->same([$keystrokeScript, $formatScript, $validateScript], array_column($amountActions, 'script_preview'));
+        $t->same([
+            hash('sha256', $keystrokeScript),
+            hash('sha256', $formatScript),
+            hash('sha256', $validateScript),
+        ], array_column($amountActions, 'script_sha256'));
+        $t->same([strlen($keystrokeScript), strlen($formatScript), strlen($validateScript)], array_column($amountActions, 'script_bytes'));
+        $t->same([false, false, false], array_column($amountActions, 'script_truncated'));
+        $t->same([false, false, false], array_column($amountActions, 'executes_javascript'));
+        $t->same([false, false, false], array_column($amountActions, 'executes_action'));
+
+        $calculate = $totalActions[0];
+        $t->same('JavaScript', $calculate['action_type']);
+        $t->same('C', $calculate['trigger']);
+        $t->same('calculate', $calculate['trigger_label']);
+        $t->same('field', $calculate['source']);
+        $t->same(10, $calculate['source_object']);
+        $t->same($calculateScript, $calculate['script_preview']);
+        $t->same(hash('sha256', $calculateScript), $calculate['script_sha256']);
+        $t->same(strlen($calculateScript), $calculate['script_bytes']);
+        $t->same(30, $calculate['script_object']);
+        $t->same(['FlateDecode'], $calculate['script_filters']);
+        $t->same(false, $calculate['executes_javascript']);
+        $t->same(false, $calculate['executes_action']);
+        $t->same('27.06', $fields['invoice.total']['value']);
+    },
+    'marks calculation order signature flags and signed lock state boundaries without executing scripts or validating signatures' => static function (TestRunner $t) use ($calculationSignatureStatePdf, $fieldsByName): void {
+        [$pdf, $calculateScript] = $calculationSignatureStatePdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+
+        $t->same(3, $form['signature_flags']['flags']);
+        $t->same(['signatures_exist', 'append_only'], $form['signature_flags']['flag_names']);
+        $t->true($form['signature_flags']['signatures_exist']);
+        $t->true($form['signature_flags']['append_only']);
+        $t->same(false, $form['signature_flags']['executes_signature_validation']);
+        $t->same([
+            ['object' => 10, 'field_name' => 'invoice.total'],
+            ['object' => 6, 'field_name' => 'invoice.amount'],
+            ['object' => 13, 'field_name' => 'approval.signature'],
+        ], $form['calculation_order']);
+
+        $total = $fields['invoice.total'];
+        $totalCalculation = $total['calculation_state'];
+        $t->true($totalCalculation['in_calculation_order']);
+        $t->same(0, $totalCalculation['calculation_order_index']);
+        $t->same(10, $totalCalculation['calculation_order_object']);
+        $t->same('invoice.total', $totalCalculation['calculation_order_field_name']);
+        $t->true($totalCalculation['has_calculate_action']);
+        $t->same(hash('sha256', $calculateScript), $totalCalculation['calculate_actions'][0]['script_sha256']);
+        $t->same(30, $totalCalculation['calculate_actions'][0]['script_object']);
+        $t->same(['FlateDecode'], $totalCalculation['calculate_actions'][0]['script_filters']);
+        $t->same(false, $totalCalculation['executes_javascript']);
+        $t->same(false, $totalCalculation['executes_action']);
+        $t->same('28.00', $total['value']);
+
+        $amountLock = $fields['invoice.amount']['signature_lock_state'];
+        $t->true($amountLock['effective_locked']);
+        $t->same('signed_signature_lock', $amountLock['lock_state_source']);
+        $t->same(['approval.signature'], $amountLock['locked_by_signatures']);
+        $t->same(['form_fill_templates_signatures'], $amountLock['permission_labels']);
+        $t->same(false, $amountLock['executes_action']);
+
+        $totalLock = $total['signature_lock_state'];
+        $t->true($totalLock['effective_locked']);
+        $t->same(1, $totalLock['locked_by_signature_count']);
+        $t->same('Include', $totalLock['locks'][0]['action']);
+
+        $notesLock = $fields['internal.notes']['signature_lock_state'];
+        $t->same(false, $notesLock['effective_locked']);
+        $t->same([], $notesLock['locked_by_signatures']);
+
+        $signatureField = $fields['approval.signature'];
+        $signatureCalculation = $signatureField['calculation_state'];
+        $signatureState = $signatureField['signature_state'];
+        $t->true($signatureCalculation['in_calculation_order']);
+        $t->same(2, $signatureCalculation['calculation_order_index']);
+        $t->same(false, $signatureCalculation['has_calculate_action']);
+        $t->same('acroform_signature_state_boundary', $signatureState['source']);
+        $t->true($signatureState['signatures_exist_hint']);
+        $t->true($signatureState['append_only']);
+        $t->true($signatureState['has_signature_dictionary']);
+        $t->true($signatureState['signed']);
+        $t->same(31, $signatureState['signature_object']);
+        $t->same('D:20260602081217Z', $signatureState['signed_at']);
+        $t->same([0, 128, 512, 64], $signatureState['byte_range']);
+        $t->same(2, $signatureState['byte_range_segment_count']);
+        $t->same(5, $signatureState['contents_length_bytes']);
+        $t->same('signature_dictionary_not_field_value', $signatureState['value_state_source']);
+        $t->same(false, $signatureState['executes_signature_validation']);
+        $t->same(false, $signatureState['executes_signing']);
+        $t->same(false, $signatureState['executes_action']);
+        $t->same(false, $signatureField['signature_lock_state']['effective_locked']);
+    },
+    'resolves selected widget normal appearance streams without replacing current field values or executing actions' => static function (TestRunner $t) use ($appearanceValueActionBoundaryPdf, $fieldsByName): void {
+        [$pdf, $selectedAppearanceBytes, $directAppearanceBytes, $focusScript] = $appearanceValueActionBoundaryPdf();
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($pdf));
+
+        $title = $fields['article.title'];
+        $titleWidget = $title['widgets'][0];
+        $titleAppearance = $titleWidget['normal_appearance'];
+        $selected = $titleAppearance['selected_appearance'];
+        $focusAction = $titleWidget['actions'][0];
+
+        $t->same('Final field value', $title['value']);
+        $t->same('Final field value', $title['value_state']['current']);
+        $t->same('Fresh', $titleWidget['appearance_state']);
+        $t->same(['Fresh', 'Stale', 'Off'], $titleWidget['appearance_states']);
+        $t->same('state_dictionary', $titleAppearance['normal_appearance_type']);
+        $t->same('Fresh', $titleAppearance['selected_state']);
+        $t->true($titleAppearance['state_matches_appearance']);
+        $t->same(false, $titleAppearance['stale_appearance_state']);
+        $t->same(false, $titleAppearance['appearance_value_used_for_import']);
+        $t->same(false, $titleAppearance['payload_text_exposed']);
+        $t->same(false, $titleAppearance['executes_appearance_streams']);
+        $t->same(false, $titleAppearance['renders_appearances']);
+
+        $t->same('normal_state', $selected['source']);
+        $t->same('Fresh', $selected['state']);
+        $t->same(30, $selected['object']);
+        $t->same('XObject', $selected['type']);
+        $t->same('Form', $selected['subtype']);
+        $t->true($selected['form_xobject']);
+        $t->same([0.0, 0.0, 220.0, 24.0], $selected['bbox']);
+        $t->same([1.0, 0.0, 0.0, 1.0, 72.0, 640.0], $selected['matrix']);
+        $t->same(['FlateDecode'], $selected['filters']);
+        $t->true($selected['decoded_stream_available']);
+        $t->same(strlen($selectedAppearanceBytes), $selected['decoded_length_bytes']);
+        $t->same(hash('sha256', $selectedAppearanceBytes), $selected['decoded_sha256']);
+        $t->same(['FApp'], $selected['resource_font_names']);
+        $t->same(['Stamp'], $selected['resource_xobject_names']);
+        $t->same(false, $selected['payload_text_exposed']);
+        $t->same(false, $selected['imports_visible_text']);
+        $t->same(false, $selected['executes_appearance_streams']);
+        $t->same(false, $selected['executes_action']);
+
+        $t->same('JavaScript', $focusAction['action_type']);
+        $t->same('Fo', $focusAction['trigger']);
+        $t->same('focus', $focusAction['trigger_label']);
+        $t->same(40, $focusAction['action_object']);
+        $t->same($focusScript, $focusAction['script_preview']);
+        $t->same(hash('sha256', $focusScript), $focusAction['script_sha256']);
+        $t->same(['FlateDecode'], $focusAction['script_filters']);
+        $t->same(false, $focusAction['executes_javascript']);
+        $t->same(false, $focusAction['executes_action']);
+
+        $stale = $fields['article.stale_state'];
+        $staleAppearance = $stale['widgets'][0]['normal_appearance'];
+        $t->same('Current value despite stale AS', $stale['value']);
+        $t->same('Ghost', $stale['widgets'][0]['appearance_state']);
+        $t->same(['Fresh', 'Off'], $stale['widgets'][0]['appearance_states']);
+        $t->same(null, $staleAppearance['selected_state']);
+        $t->same(null, $staleAppearance['selected_appearance']);
+        $t->same(false, $staleAppearance['state_matches_appearance']);
+        $t->true($staleAppearance['stale_appearance_state']);
+        $t->same(false, $staleAppearance['appearance_value_used_for_import']);
+
+        $direct = $fields['summary.note'];
+        $directAppearance = $direct['widgets'][0]['normal_appearance'];
+        $directSelected = $directAppearance['selected_appearance'];
+        $t->same('Direct stream field value', $direct['value']);
+        $t->same('direct_stream', $directAppearance['normal_appearance_type']);
+        $t->same([], $directAppearance['available_states']);
+        $t->same(null, $directAppearance['selected_state']);
+        $t->same(33, $directSelected['object']);
+        $t->same('normal_direct', $directSelected['source']);
+        $t->same([0.0, 0.0, 240.0, 24.0], $directSelected['bbox']);
+        $t->same(strlen($directAppearanceBytes), $directSelected['decoded_length_bytes']);
+        $t->same(hash('sha256', $directAppearanceBytes), $directSelected['decoded_sha256']);
+        $t->same(false, $directSelected['imports_visible_text']);
+        $t->same('JavaScript', $direct['widgets'][0]['actions'][0]['action_type']);
+        $t->same(false, $direct['widgets'][0]['actions'][0]['executes_action']);
+    },
+    'keeps non JavaScript AcroForm field actions review only without executing URI launch hide or import actions' => static function (TestRunner $t) use ($fieldActionReviewBoundaryPdf, $fieldsByName): void {
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($fieldActionReviewBoundaryPdf()));
+        $url = $fields['registration.url'];
+        $fieldActions = $url['actions'];
+        $widgetAction = $fields['actions.import_data']['widgets'][0]['actions'][0];
+
+        $t->same(['Named', 'URI', 'Launch', 'Hide'], array_column($fieldActions, 'action_type'));
+        $t->same(['K', 'V', 'V', 'V'], array_column($fieldActions, 'trigger'));
+        $t->same(['keystroke', 'validate', 'validate', 'validate'], array_column($fieldActions, 'trigger_label'));
+        $t->same(['named-action-review', 'blocked-unsafe-uri', 'launch-action-review', 'hide-action-review'], array_column($fieldActions, 'safety'));
+        $t->same([false, false, false, false], array_column($fieldActions, 'executes_action'));
+        $t->same([false, false, false, false], array_column($fieldActions, 'executes_javascript'));
+        $t->same([true, true], array_column(array_slice($fieldActions, 2), 'chained'));
+
+        $named = $fieldActions[0];
+        $t->same('Print', $named['named_action']);
+        $t->same('field', $named['source']);
+        $t->same(6, $named['source_object']);
+
+        $uri = $fieldActions[1];
+        $t->same(20, $uri['action_object']);
+        $t->same("javascript:app.alert('blocked field validation')", $uri['uri']);
+        $t->same('javascript', $uri['target_scheme']);
+        $t->same(false, $uri['safe_uri']);
+        $t->true($uri['review_only']);
+
+        $launch = $fieldActions[2];
+        $t->same(22, $launch['action_object']);
+        $t->same('cmd.exe', $launch['target']);
+        $t->same(null, $launch['target_scheme']);
+        $t->true($launch['new_window']);
+        $t->true($launch['review_only']);
+
+        $hide = $fieldActions[3];
+        $t->same(null, $hide['action_object']);
+        $t->same('hide', $hide['operation']);
+        $t->true($hide['hide']);
+        $t->same([8], $hide['field_objects']);
+        $t->same(['registration.url'], $hide['field_names']);
+        $t->same([], $hide['unresolved_field_objects']);
+
+        $t->same('ImportData', $widgetAction['action_type']);
+        $t->same('activation', $widgetAction['trigger']);
+        $t->same('widget', $widgetAction['source']);
+        $t->same(12, $widgetAction['source_object']);
+        $t->same(21, $widgetAction['action_object']);
+        $t->same('review.fdf', $widgetAction['target']);
+        $t->same('import-data-action-review', $widgetAction['safety']);
+        $t->same(false, $widgetAction['imports_form_data']);
+        $t->same(false, $widgetAction['executes_action']);
+        $t->same(false, $widgetAction['executes_javascript']);
+    },
+    'walks nested AcroForm action Next arrays without executing actions or replacing field values' => static function (TestRunner $t) use ($actionNextArrayBoundaryPdf, $fieldsByName): void {
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($actionNextArrayBoundaryPdf()));
+        $field = $fields['article.url'];
+        $widget = $field['widgets'][0];
+        $fieldActions = $field['actions'];
+        $widgetActions = $widget['actions'];
+
+        $t->same('https://example.test/final', $field['value']);
+        $t->same('https://example.test/final', $field['value_state']['current']);
+        $t->same('https://example.test/draft', $field['value_state']['default']);
+        $t->true($field['value_state']['changed_from_default']);
+        $t->same('Ready', $widget['appearance_state']);
+        $t->same(['Ready', 'Off'], $widget['appearance_states']);
+        $t->same(30, $widget['normal_appearance']['selected_appearance']['object']);
+        $t->same(false, $widget['normal_appearance']['selected_appearance']['imports_visible_text']);
+
+        $t->same(['URI', 'Launch', 'Hide', 'JavaScript'], array_column($fieldActions, 'action_type'));
+        $t->same(['V', 'V', 'V', 'V'], array_column($fieldActions, 'trigger'));
+        $t->same(['validate', 'validate', 'validate', 'validate'], array_column($fieldActions, 'trigger_label'));
+        $t->same([false, false, false, false], array_column($fieldActions, 'executes_action'));
+        $t->same([false, false, false, false], array_map(
+            static fn (array $action): bool => (bool) ($action['executes_javascript'] ?? false),
+            $fieldActions
+        ));
+        $t->same([false, true, true, true], array_map(
+            static fn (array $action): bool => (bool) ($action['chained'] ?? false),
+            $fieldActions
+        ));
+
+        $t->same('review-uri', $fieldActions[0]['safety']);
+        $t->true($fieldActions[0]['safe_uri']);
+        $t->same('https://example.test/review', $fieldActions[0]['target']);
+        $t->same('cmd.exe', $fieldActions[1]['target']);
+        $t->same('show', $fieldActions[2]['operation']);
+        $t->same(false, $fieldActions[2]['hide']);
+        $t->same([8], $fieldActions[2]['field_objects']);
+        $t->same(['article.url'], $fieldActions[2]['field_names']);
+        $t->same("app.alert('cycled nested action blocked')", $fieldActions[3]['script_preview']);
+        $t->same(22, $fieldActions[3]['action_object']);
+
+        $t->same(['Named', 'GoTo'], array_column($widgetActions, 'action_type'));
+        $t->same(['activation', 'activation'], array_column($widgetActions, 'trigger'));
+        $t->same([false, true], array_map(
+            static fn (array $action): bool => (bool) ($action['chained'] ?? false),
+            $widgetActions
+        ));
+        $t->same('Print', $widgetActions[0]['named_action']);
+        $t->same([['object' => 3], 'Fit'], $widgetActions[1]['destination']);
+        $t->same(false, $widgetActions[1]['executes_action']);
+        $t->same(false, $widgetActions[1]['executes_javascript']);
+    },
+];

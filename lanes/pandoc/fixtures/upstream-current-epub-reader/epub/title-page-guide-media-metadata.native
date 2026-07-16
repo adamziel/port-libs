@@ -1,0 +1,37 @@
+[ Para [ Span ( "title.xhtml" , [] , [] ) [] ]
+, Header
+    1 ( "" , [] , [] ) [ Str "Title" , Space , Str "Page" ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "generated"
+    , Space
+    , Str "title-page"
+    , Space
+    , Str "guide"
+    , Space
+    , Str "fixture."
+    ]
+, Para
+    [ Image
+        ( "front-plate" , [] , [] )
+        [ Str "Front" , Space , Str "plate" ]
+        ( "images/plate.png" , "Front plate" )
+    ]
+, Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1 ( "" , [] , [] ) [ Str "Main" , Space , Str "Chapter" ]
+, Para
+    [ Str "Linear"
+    , Space
+    , Str "spine"
+    , Space
+    , Str "content"
+    , Space
+    , Str "remains"
+    , Space
+    , Str "intentionally"
+    , Space
+    , Str "simple."
+    ]
+]

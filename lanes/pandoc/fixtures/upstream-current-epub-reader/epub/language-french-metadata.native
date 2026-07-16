@@ -1,0 +1,4 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header 1 ( "" , [] , [] ) [ Str "Bonjour" ]
+, Para [ Str "Texte" , Space , Str "simple." ]
+]

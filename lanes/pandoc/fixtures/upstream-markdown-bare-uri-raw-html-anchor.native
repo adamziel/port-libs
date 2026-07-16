@@ -1,0 +1,7 @@
+[ Para
+    [ RawInline
+        (Format "html") "<a href=\"http://foo.bar.baz\">"
+    , Str "http://foo.bar.baz"
+    , RawInline (Format "html") "</a>"
+    ]
+]

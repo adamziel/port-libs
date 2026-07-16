@@ -1,0 +1,4 @@
+id,note,status
+1,"comma\, inside",ok
+2,"slash \\ kept",done
+3,"path C:\\Temp",review

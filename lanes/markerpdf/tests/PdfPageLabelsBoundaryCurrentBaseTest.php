@@ -1,0 +1,1533 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\MarkerPDF\MarkerAppPreview;
+use PortLibs\MarkerPDF\PdfTextExtractor;
+
+$pageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Opening page imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Body page imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Chapter page imported) Tj ET',
+        13 => 'BT /F1 12 Tf 72 720 Td (Continued page imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 13 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Limits [1 2] /Kids [21 0 R 22 0 R] >>\nendobj\n"
+        . "21 0 obj\n<< /Nums [0 << /S /r /P (stale-front-) /St 6 >> 1 << /S /D /P (Body ) /St 5 >>] >>\nendobj\n"
+        . "22 0 obj\n<< /Nums [2 << /S /D /P (Chapter ) /St 9 >> 3 << /S /D /P (stale-back-) /St 99 >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$alphabeticPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Appendix Z imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Appendix AA imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Appendix BB imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 << /S /A /P (App-) /St 26 >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$indirectOperandPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Front matter imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Front matter continued) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Appendix imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 30 0 R 2 34 0 R] >>\nendobj\n"
+        . "30 0 obj\n<< /S 31 0 R /P 32 0 R /St 33 0 R >>\nendobj\n"
+        . "31 0 obj\n/r\nendobj\n"
+        . "32 0 obj\n(Front )\nendobj\n"
+        . "33 0 obj\n4\nendobj\n"
+        . "34 0 obj\n<< /S 35 0 R /P 36 0 R /St 37 0 R >>\nendobj\n"
+        . "35 0 obj\n/A\nendobj\n"
+        . "36 0 obj\n(App-)\nendobj\n"
+        . "37 0 obj\n26\nendobj\n"
+        . "%%EOF\n";
+};
+
+$transitiveIndirectOperandPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Nested front matter imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Nested front matter continued) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Nested appendix imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums 29 0 R >>\nendobj\n"
+        . "29 0 obj\n30 0 R\nendobj\n"
+        . "30 0 obj\n[0 << /P 31 0 R /S 33 0 R /St 35 0 R >> 2 << /P 37 0 R /S 39 0 R /St 41 0 R >>]\nendobj\n"
+        . "31 0 obj\n32 0 R\nendobj\n"
+        . "32 0 obj\n(Nested Front )\nendobj\n"
+        . "33 0 obj\n34 0 R\nendobj\n"
+        . "34 0 obj\n/r\nendobj\n"
+        . "35 0 obj\n36 0 R\nendobj\n"
+        . "36 0 obj\n4\nendobj\n"
+        . "37 0 obj\n38 0 R\nendobj\n"
+        . "38 0 obj\n(Nested App-)\nendobj\n"
+        . "39 0 obj\n40 0 R\nendobj\n"
+        . "40 0 obj\n/A\nendobj\n"
+        . "41 0 obj\n42 0 R\nendobj\n"
+        . "42 0 obj\n26\nendobj\n"
+        . "%%EOF\n";
+};
+
+$indirectLimitOperandPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Opening fallback imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Body indirect limit imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Appendix indirect limit imported) Tj ET',
+        13 => 'BT /F1 12 Tf 72 720 Td (Appendix continued imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 13 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Limits [30 0 R 31 0 R] /Kids [21 0 R 22 0 R] >>\nendobj\n"
+        . "21 0 obj\n<< /Nums [0 << /P (stale-front-) /S /D /St 90 >> 1 << /P (Body ) /S /D /St 4 >>] >>\nendobj\n"
+        . "22 0 obj\n<< /Nums [2 << /P (App-) /S /A /St 26 >> 3 << /P (stale-back-) /S /D /St 99 >>] >>\nendobj\n"
+        . "30 0 obj\n1\nendobj\n"
+        . "31 0 obj\n2\nendobj\n"
+        . "%%EOF\n";
+};
+
+$generationExactScalarOperandPageLabelPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Generated prefix page one imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Generated prefix page two imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 << /P 30 0 R /S 31 0 R /St 32 0 R >>] >>\nendobj\n"
+        . "30 0 obj\n(Real-)\nendobj\n"
+        . "31 0 obj\n/r\nendobj\n"
+        . "32 0 obj\n4\nendobj\n"
+        . "30 1 obj\n(stale-prefix-)\nendobj\n"
+        . "31 1 obj\n/D\nendobj\n"
+        . "32 1 obj\n99\nendobj\n"
+        . "%%EOF\n";
+};
+
+$generationExactLimitOperandPageLabelPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Generated limit page one imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Generated limit page two imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Generated limit page three imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Limits [30 0 R 31 0 R] /Kids [21 0 R 22 0 R] >>\nendobj\n"
+        . "21 0 obj\n<< /Nums [0 << /P (stale-front-) /S /D /St 9 >> 1 << /P (Body ) /S /D /St 4 >>] >>\nendobj\n"
+        . "22 0 obj\n<< /Nums [2 << /P (App-) /S /A /St 26 >>] >>\nendobj\n"
+        . "30 0 obj\n1\nendobj\n"
+        . "31 0 obj\n2\nendobj\n"
+        . "30 1 obj\n0\nendobj\n"
+        . "31 1 obj\n99\nendobj\n"
+        . "%%EOF\n";
+};
+
+$signedIntegerPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Signed cover imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Signed body imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Signed appendix imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Limits [+1 +2] /Nums [+0 << /P (stale-cover-) /S /D /St +9 >> +1 << /P (Signed ) /S /D /St +3 >> +2 << /P (App-) /S /A /St +26 >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$escapedNamePageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Escaped page imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Named page imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PieceInfo << /PageLabels 40 0 R >> /Page#4Cabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /#4Eums [0 << /#53 /#44 /#50 (Real ) /#53t 7 >> 1 << /#50 (Named-) >>] >>\nendobj\n"
+        . "40 0 obj\n<< /Nums [0 << /S /D /P (stale-private-) /St 99 >> 1 << /S /D /P (stale-nested-) /St 100 >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$pdfDocEncodingPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Encoded prefix page imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Hex prefix page imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Indirect prefix page imported) Tj ET',
+    ];
+    $literalPrefix = 'WP' . chr(0x80) . '-Import' . chr(0x81) . ' ';
+    $hexPrefix = strtoupper(bin2hex('Review ' . chr(0x8d) . 'PDF' . chr(0x8e)));
+    $indirectPrefix = 'Appendix' . chr(0x93) . chr(0x94) . ' ';
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 << /S /D /P ({$literalPrefix}) /St 3 >> 1 << /P <{$hexPrefix}> >> 2 << /S /A /P 31 0 R /St 26 >>] >>\nendobj\n"
+        . "31 0 obj\n({$indirectPrefix})\nendobj\n"
+        . "%%EOF\n";
+};
+
+$generationBoundaryPageLabelPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Current cover imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Current body imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Current appendix imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 30 0 R 1 31 0 R] >>\nendobj\n"
+        . "30 0 obj\n<< /P (Cover-) >>\nendobj\n"
+        . "30 1 obj\n<< /S /D /P (stale-high-generation-) /St 99 >>\nendobj\n"
+        . "31 0 obj\n<< /S /D /P (Body ) /St 4 >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$missingGenerationPageLabelPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Missing generation page one imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Missing generation body imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 30 0 R 1 << /S /D /P (Body ) /St 2 >>] >>\nendobj\n"
+        . "30 1 obj\n<< /S /D /P (stale-missing-generation-) /St 99 >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$sameObjectGenerationChainPageLabelPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Same generation front imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Same generation body imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Same generation appendix imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 30 0 R 1 << /S /D /P (Body ) /St 8 >>] >>\nendobj\n"
+        . "30 0 obj\n30 1 R\nendobj\n"
+        . "30 1 obj\n<< /S /r /P (Front ) /St 4 >>\nendobj\n"
+        . "31 0 obj\n<< /S /D /P (stale-sibling-generation-) /St 99 >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$indirectKeyPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Opening fallback imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Indirect front imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Indirect body imported) Tj ET',
+        13 => 'BT /F1 12 Tf 72 720 Td (Indirect appendix imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 13 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Limits [1 3] /Nums [30 0 R << /S /r /P (Front ) /St 2 >> 31 0 R 34 0 R [2 << /P (nested-stale-) /S /D /St 77 >>] << /P (array-value-stale-) /S /D /St 88 >> 32 0 R << /S /A /P (App-) /St 26 >> 33 0 R << /P (stale-back-) /S /D /St 99 >>] >>\nendobj\n"
+        . "30 0 obj\n1\nendobj\n"
+        . "30 1 obj\n0\nendobj\n"
+        . "31 0 obj\n2\nendobj\n"
+        . "31 1 obj\n0\nendobj\n"
+        . "32 0 obj\n3\nendobj\n"
+        . "33 0 obj\n4\nendobj\n"
+        . "34 0 obj\n<< /S /D /P (Body ) /St 8 >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$indirectNumsArrayPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Indirect array cover imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Indirect array body imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Indirect array appendix imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums 30 0 R >>\nendobj\n"
+        . "30 0 obj\n[0 << /P (Cover-) >> 1 << /P (Body ) /S /D /St 7 >> 2 << /P (App-) /S /A /St 26 >>]\nendobj\n"
+        . "30 1 obj\n[0 << /P (stale-array-) /S /D /St 99 >>]\nendobj\n"
+        . "%%EOF\n";
+};
+
+$objectStreamPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Compressed label first imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Compressed label second imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    $member = '<< /Nums [0 << /P (Obj-) /S /D /St 4 >> 1 << /P (Tail-) >>] >>';
+    $header = '20 0 ';
+    $payload = $header . $member;
+
+    return $pdf
+        . "40 0 obj\n<< /Type /ObjStm /N 1 /First " . strlen($header) . " /Length " . strlen($payload) . " >>\nstream\n{$payload}\nendstream\nendobj\n"
+        . "%%EOF\n";
+};
+
+$tokenBoundaryPageLabelPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Top-level cover imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Top-level body imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Kids [21 0 R << /Private [22 0 R] /Comment (22 0 R) >>] >>\nendobj\n"
+        . "20 1 obj\n<< /Nums [0 << /P (stale-root-) /S /D /St 99 >>] >>\nendobj\n"
+        . "21 0 obj\n<< /Nums [0 << /P (Cover-) >> 1 << /P (Body ) /S /D /St 4 >> [1 << /P (nested-stale-) /S /D /St 77 >>] (1 0 R)] >>\nendobj\n"
+        . "22 0 obj\n<< /Nums [1 << /P (kid-stale-) /S /D /St 66 >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$topLevelDictionaryKeyPageLabelPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Top-level label cover imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Top-level label body imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Top-level label continuation imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Private << /Nums [0 << /P (nested-root-) /S /D /St 99 >>] /Kids [22 0 R] /Limits [0 0] >> /Nums [0 << /Private << /P (nested-prefix-) /S /D /St 77 >> /P (Top-) /S /D /St 4 >> 1 << /Private << /P (nested-body-) /S /A /St 26 >> /P (Body-) /S /D /St 8 >>] /Kids [21 0 R] >>\nendobj\n"
+        . "21 0 obj\n<< /Nums [0 << /P (stale-kid-) /S /D /St 44 >> 1 << /P (stale-body-) /S /D /St 55 >>] >>\nendobj\n"
+        . "22 0 obj\n<< /Nums [2 << /P (nested-private-kid-) /S /D /St 66 >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$commentedReferencePageLabelPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Commented cover imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Commented body imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Commented appendix imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 % catalog PageLabels reference comment\n0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Kids [21 % kid reference comment\n0 R] >>\nendobj\n"
+        . "21 0 obj\n<< /Nums [0 << /P (Cover-) >> 1 30 % label dictionary comment\n0 R 2 << /P (Appendix-) /S 31 % style reference comment\n0 R /St 32 % start reference comment\n0 R >>] >>\nendobj\n"
+        . "30 0 obj\n<< /P (Body ) /S /D /St 4 >>\nendobj\n"
+        . "31 0 obj\n/A\nendobj\n"
+        . "32 0 obj\n26\nendobj\n"
+        . "%%EOF\n";
+};
+
+$malformedLimitsDictionaryPageLabelPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Malformed limits cover imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Malformed limits body imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Malformed limits appendix imported) Tj ET',
+        13 => 'BT /F1 12 Tf 72 720 Td (Malformed limits back matter imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 13 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Limits [<< /Low 1 /High 2 >>] /Nums [0 << /P (Cover-) >> 1 << /P (Body ) /S /D /St 4 >> 2 << /P (App-) /S /A /St 26 >> 3 << /P (Back-) /S /D /St 9 >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$malformedLimitsExtraOperandPageLabelPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Extra limits cover imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Extra limits body imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Extra limits appendix imported) Tj ET',
+        13 => 'BT /F1 12 Tf 72 720 Td (Extra limits back matter imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 13 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Limits [1 2 99] /Nums [0 << /P (Cover-) >> 1 << /P (Body ) /S /D /St 4 >> 2 << /P (App-) /S /A /St 26 >> 3 << /P (Back-) /S /D /St 9 >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$duplicateNumsKeyPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Duplicate key cover imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Duplicate key body imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Duplicate key appendix imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 << /P (Cover-) >> 1 << /P (Body ) /S /D /St 4 >> 1 << /P (stale-duplicate-) /S /D /St 99 >> 2 << /P (App-) /S /A /St 26 >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$descendingNumsPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Descending key front imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Descending key continuation imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Descending key appendix imported) Tj ET',
+        13 => 'BT /F1 12 Tf 72 720 Td (Descending key end imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 13 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 << /P (Front ) /S /r /St 4 >> 2 << /P (App-) /S /A /St 26 >> 1 << /P (stale-descending-) /S /D /St 99 >> 3 << /P (End-) >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$outOfOrderKidLimitsPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Out of order front imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Out of order body imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Out of order appendix imported) Tj ET',
+        13 => 'BT /F1 12 Tf 72 720 Td (Out of order back matter imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 13 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Limits [0 3] /Kids [22 0 R 21 0 R 23 0 R] >>\nendobj\n"
+        . "21 0 obj\n<< /Limits [0 1] /Nums [0 << /P (Front ) /S /r /St 4 >> 1 << /P (Body ) /S /D /St 6 >>] >>\nendobj\n"
+        . "22 0 obj\n<< /Limits [1 2] /Nums [1 << /P (stale-late-) /S /D /St 99 >> 2 << /P (App-) /S /A /St 26 >>] >>\nendobj\n"
+        . "23 0 obj\n<< /Limits [3 3] /Nums [3 << /P (End-) >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$sameLowerKidLimitsPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Same lower cover imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Same lower body imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Same lower appendix imported) Tj ET',
+        13 => 'BT /F1 12 Tf 72 720 Td (Same lower end imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 13 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Limits [0 3] /Kids [21 0 R 22 0 R 23 0 R] >>\nendobj\n"
+        . "21 0 obj\n<< /Limits [0 3] /Nums [0 << /P (Front ) /S /r /St 4 >> 2 << /P (App-) /S /A /St 26 >>] >>\nendobj\n"
+        . "22 0 obj\n<< /Limits [0 1] /Nums [0 << /P (stale-same-lower-) /S /D /St 99 >> 1 << /P (stale-same-lower-body-) /S /D /St 100 >>] >>\nendobj\n"
+        . "23 0 obj\n<< /Limits [3 3] /Nums [3 << /P (End-) >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$mixedNumsKidsPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Mixed node cover imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Mixed node body imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Mixed node appendix imported) Tj ET',
+        13 => 'BT /F1 12 Tf 72 720 Td (Mixed node end imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 13 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Limits [0 3] /Nums [0 << /P (Cover-) >> 4 << /P (stale-root-) /S /D /St 99 >>] /Kids [21 0 R 22 0 R] >>\nendobj\n"
+        . "21 0 obj\n<< /Limits [1 2] /Nums [1 << /P (Body ) /S /D /St 8 >> 2 << /P (App-) /S /A /St 26 >>] >>\nendobj\n"
+        . "22 0 obj\n<< /Limits [3 3] /Nums [3 << /P (End-) >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$malformedPrefixScalarPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Malformed prefix first imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Malformed prefix second imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 << /P 30 0 R /S /D /St 4 >> 1 << /P 31 0 R /S /D /St 8 >>] >>\nendobj\n"
+        . "30 0 obj\n(Malformed-) /S /D\nendobj\n"
+        . "31 0 obj\n(Valid-) % comment-only prefix tail remains whitespace\nendobj\n"
+        . "%%EOF\n";
+};
+
+$namePrefixScalarPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Name prefix first imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Valid prefix second imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 << /P /NamePrefix /S /D /St 4 >> 1 << /P (Valid-) /S /D /St 8 >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$malformedStyleScalarPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Malformed style first imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Valid style second imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 << /P (Bad-) /S 30 0 R /St 4 >> 1 << /P (Valid-) /S 31 0 R /St 8 >>] >>\nendobj\n"
+        . "30 0 obj\n/D /Private\nendobj\n"
+        . "31 0 obj\n/D % comment-only style tail remains whitespace\nendobj\n"
+        . "%%EOF\n";
+};
+
+$malformedDictionaryObjectPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Malformed dictionary first imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Valid dictionary second imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 30 0 R 1 31 0 R] >>\nendobj\n"
+        . "30 0 obj\n<< /P (Bad-) /S /D /St 4 >> /Private\nendobj\n"
+        . "31 0 obj\n<< /P (Valid-) /S /D /St 8 >> % comment-only dictionary tail remains whitespace\nendobj\n"
+        . "%%EOF\n";
+};
+
+$malformedArrayObjectPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Malformed array cover imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Valid array body imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Valid array appendix imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Kids [21 0 R 22 0 R] >>\nendobj\n"
+        . "21 0 obj\n<< /Limits [0 0] /Nums 30 0 R >>\nendobj\n"
+        . "22 0 obj\n<< /Limits [1 2] /Nums 31 0 R >>\nendobj\n"
+        . "30 0 obj\n[0 << /P (BadArray-) /S /D /St 99 >>] /Private\nendobj\n"
+        . "31 0 obj\n[1 << /P (Body ) /S /D /St 4 >> 2 << /P (App-) /S /A /St 26 >>] % comment-only array tail remains whitespace\nendobj\n"
+        . "%%EOF\n";
+};
+
+$malformedValueOrderingPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Malformed value cover imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Malformed value continuation imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Malformed value appendix imported) Tj ET',
+        13 => 'BT /F1 12 Tf 72 720 Td (Malformed value end imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 13 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 << /P (Cover-) >> 3 (malformed-label-value) 2 << /P (stale-lower-) /S /D /St 99 >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
+$trailerRootPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Stale catalog page imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Current root page one imported) Tj ET',
+        13 => 'BT /F1 12 Tf 72 720 Td (Current root page two imported) Tj ET',
+    ];
+
+    $objects = [
+        1 => '<< /Type /Catalog /Pages 2 0 R /PageLabels 30 0 R >>',
+        2 => '<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R] /Count 1 >>',
+        3 => '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 14 0 R >> >> /Contents 10 0 R >>',
+        7 => '<< /Type /Catalog /Pages 8 0 R /PageLabels 31 0 R >>',
+        8 => '<< /Type /Pages /MediaBox [0 0 612 792] /Kids [9 0 R 11 0 R] /Count 2 >>',
+        9 => '<< /Type /Page /Parent 8 0 R /Resources << /Font << /F1 14 0 R >> >> /Contents 12 0 R >>',
+        11 => '<< /Type /Page /Parent 8 0 R /Resources << /Font << /F1 14 0 R >> >> /Contents 13 0 R >>',
+        14 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+        30 => '<< /Nums [0 << /P (stale-root-) /S /D /St 99 >>] >>',
+        31 => '<< /Nums [0 << /P (Current-) /S /D /St 4 >> 1 << /P (Appendix-) /S /A /St 26 >>] >>',
+    ];
+
+    foreach ($contents as $objectNumber => $content) {
+        $objects[$objectNumber] = '<< /Length ' . strlen($content) . " >>\nstream\n{$content}\nendstream";
+    }
+
+    ksort($objects, SORT_NUMERIC);
+
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    foreach ($objects as $objectNumber => $body) {
+        $offsets[$objectNumber] = strlen($pdf);
+        $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+    }
+
+    $xrefOffset = strlen($pdf);
+    $size = max(array_keys($objects)) + 1;
+    $pdf .= "xref\n0 {$size}\n";
+    for ($objectNumber = 0; $objectNumber < $size; $objectNumber++) {
+        if (!isset($offsets[$objectNumber])) {
+            $pdf .= "0000000000 65535 f \n";
+            continue;
+        }
+
+        $pdf .= sprintf("%010d 00000 n \n", $offsets[$objectNumber]);
+    }
+
+    return $pdf
+        . "trailer\n<< /Size {$size} /Root 7 0 R >>\n"
+        . "startxref\n{$xrefOffset}\n%%EOF\n"
+        . "trailer\n<< /Root 1 0 R >>\n";
+};
+
+return [
+    'keeps parent PageLabels Limits across indirect kid number-tree boundaries' => static function (TestRunner $t) use ($pageLabelBoundaryPdf): void {
+        $pdf = $pageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+
+        $t->same(['1', 'Body 5', 'Chapter 9', 'Chapter 10'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, array_column($summary['pages'], 'page_label'));
+        $t->same(['Opening page imported', 'Body page imported', 'Chapter page imported', 'Continued page imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-front-vi', $labels, true));
+        $t->true(!in_array('stale-back-99', $labels, true));
+        $t->same('Chapter 10', $preview->getPageImagePlan($pdf, 4)['page_label']);
+    },
+    'keeps PDF alphabetic PageLabels repeated-letter style aligned with preview metadata' => static function (TestRunner $t) use ($alphabeticPageLabelBoundaryPdf): void {
+        $pdf = $alphabeticPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['App-Z', 'App-AA', 'App-BB'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Appendix Z imported', 'Appendix AA imported', 'Appendix BB imported'], array_column($entries, 'text'));
+        $t->true(!in_array('App-AB', $previewLabels, true));
+        $t->same('App-BB', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'resolves indirect PageLabels style prefix and start operands for preview metadata' => static function (TestRunner $t) use ($indirectOperandPageLabelBoundaryPdf): void {
+        $pdf = $indirectOperandPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Front iv', 'Front v', 'App-Z'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Front matter imported', 'Front matter continued', 'Appendix imported'], array_column($entries, 'text'));
+        $t->true(!in_array('', $previewLabels, true));
+        $t->same('App-Z', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'resolves transitive indirect PageLabels operands for preview metadata' => static function (TestRunner $t) use ($transitiveIndirectOperandPageLabelBoundaryPdf): void {
+        $pdf = $transitiveIndirectOperandPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Nested Front iv', 'Nested Front v', 'Nested App-Z'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Nested front matter imported', 'Nested front matter continued', 'Nested appendix imported'], array_column($entries, 'text'));
+        $t->true(!in_array('1', $previewLabels, true));
+        $t->same('Nested App-Z', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'resolves indirect PageLabels Limits operands before kid boundary filtering' => static function (TestRunner $t) use ($indirectLimitOperandPageLabelBoundaryPdf): void {
+        $pdf = $indirectLimitOperandPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['1', 'Body 4', 'App-Z', 'App-AA'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Opening fallback imported', 'Body indirect limit imported', 'Appendix indirect limit imported', 'Appendix continued imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-front-90', $labels, true));
+        $t->true(!in_array('stale-back-99', $previewLabels, true));
+        $t->same('App-AA', $preview->getPageImagePlan($pdf, 4)['page_label']);
+    },
+    'keeps generation-exact PageLabels scalar operands aligned with preview metadata' => static function (TestRunner $t) use ($generationExactScalarOperandPageLabelPdf): void {
+        $pdf = $generationExactScalarOperandPageLabelPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Real-iv', 'Real-v'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Generated prefix page one imported', 'Generated prefix page two imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-prefix-99', $labels, true));
+        $t->true(!in_array('stale-prefix-100', $previewLabels, true));
+        $t->true(!in_array('Real-4', $labels, true));
+        $t->same('Real-v', $preview->getPageImagePlan($pdf, 2)['page_label']);
+    },
+    'keeps generation-exact PageLabels Limits operands before stale kid labels' => static function (TestRunner $t) use ($generationExactLimitOperandPageLabelPdf): void {
+        $pdf = $generationExactLimitOperandPageLabelPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['1', 'Body 4', 'App-Z'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Generated limit page one imported', 'Generated limit page two imported', 'Generated limit page three imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-front-9', $labels, true));
+        $t->true(!in_array('stale-front-9', $previewLabels, true));
+        $t->same('App-Z', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'keeps signed PageLabels integer operands aligned across import and preview metadata' => static function (TestRunner $t) use ($signedIntegerPageLabelBoundaryPdf): void {
+        $pdf = $signedIntegerPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['1', 'Signed 3', 'App-Z'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Signed cover imported', 'Signed body imported', 'Signed appendix imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-cover-9', $labels, true));
+        $t->true(!in_array('stale-cover-9', $previewLabels, true));
+        $t->same('App-Z', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'keeps escaped catalog PageLabels names above nested private decoys' => static function (TestRunner $t) use ($escapedNamePageLabelBoundaryPdf): void {
+        $pdf = $escapedNamePageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Real 7', 'Named-'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Escaped page imported', 'Named page imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-private-99', $labels, true));
+        $t->true(!in_array('stale-nested-100', $previewLabels, true));
+        $t->same('Named-', $preview->getPageImagePlan($pdf, 2)['page_label']);
+    },
+    'decodes PDFDocEncoding PageLabels prefixes before WordPress page metadata' => static function (TestRunner $t) use ($pdfDocEncodingPageLabelBoundaryPdf): void {
+        $pdf = $pdfDocEncodingPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+        $expectedLabels = ["WP\u{2022}-Import\u{2020} 3", "Review \u{201C}PDF\u{201D}", "Appendix\u{FB01}\u{FB02} Z"];
+
+        $t->same($expectedLabels, $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Encoded prefix page imported', 'Hex prefix page imported', 'Indirect prefix page imported'], array_column($entries, 'text'));
+        $t->true(!in_array('WP' . chr(0x80) . '-Import' . chr(0x81) . ' 3', $previewLabels, true));
+        $t->same("Appendix\u{FB01}\u{FB02} Z", $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'keeps generation-exact indirect PageLabels dictionaries before WordPress page metadata' => static function (TestRunner $t) use ($generationBoundaryPageLabelPdf): void {
+        $pdf = $generationBoundaryPageLabelPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Cover-', 'Body 4', 'Body 5'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Current cover imported', 'Current body imported', 'Current appendix imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-high-generation-99', $labels, true));
+        $t->true(!in_array('stale-high-generation-100', $previewLabels, true));
+        $t->same('Body 5', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'rejects missing-generation PageLabels references before preview metadata fallback' => static function (TestRunner $t) use ($missingGenerationPageLabelPdf): void {
+        $pdf = $missingGenerationPageLabelPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['1', 'Body 2'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Missing generation page one imported', 'Missing generation body imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-missing-generation-99', $labels, true));
+        $t->true(!in_array('stale-missing-generation-99', $previewLabels, true));
+        $t->same('1', $summary['pages'][0]['page_label'] ?? null);
+        $t->same('Body 2', $preview->getPageImagePlan($pdf, 2)['page_label']);
+    },
+    'resolves same-object PageLabels generation chains before preview metadata fallback' => static function (TestRunner $t) use ($sameObjectGenerationChainPageLabelPdf): void {
+        $pdf = $sameObjectGenerationChainPageLabelPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Front iv', 'Body 8', 'Body 9'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Same generation front imported', 'Same generation body imported', 'Same generation appendix imported'], array_column($entries, 'text'));
+        $t->true(!in_array('1', $previewLabels, true));
+        $t->true(!in_array('stale-sibling-generation-99', $labels, true));
+        $t->same('Body 9', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'resolves indirect PageLabels Nums keys by exact generation before WordPress page metadata' => static function (TestRunner $t) use ($indirectKeyPageLabelBoundaryPdf): void {
+        $pdf = $indirectKeyPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['1', 'Front ii', 'Body 8', 'App-Z'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Opening fallback imported', 'Indirect front imported', 'Indirect body imported', 'Indirect appendix imported'], array_column($entries, 'text'));
+        $t->true(!in_array('nested-stale-77', $labels, true));
+        $t->true(!in_array('array-value-stale-88', $previewLabels, true));
+        $t->true(!in_array('stale-back-99', $labels, true));
+        $t->same('App-Z', $preview->getPageImagePlan($pdf, 4)['page_label']);
+    },
+    'resolves indirect PageLabels Nums arrays by exact generation for preview metadata' => static function (TestRunner $t) use ($indirectNumsArrayPageLabelBoundaryPdf): void {
+        $pdf = $indirectNumsArrayPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Cover-', 'Body 7', 'App-Z'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Indirect array cover imported', 'Indirect array body imported', 'Indirect array appendix imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-array-99', $labels, true));
+        $t->true(!in_array('stale-array-100', $previewLabels, true));
+        $t->same('App-Z', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'keeps object-stream PageLabels aligned with preview metadata' => static function (TestRunner $t) use ($objectStreamPageLabelBoundaryPdf): void {
+        $pdf = $objectStreamPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Obj-4', 'Tail-'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Compressed label first imported', 'Compressed label second imported'], array_column($entries, 'text'));
+        $t->true(!in_array('1', $previewLabels, true));
+        $t->true(!in_array('2', $previewLabels, true));
+        $t->same('Tail-', $preview->getPageImagePlan($pdf, 2)['page_label']);
+    },
+    'keeps PageLabels root kids and nums at top-level token boundaries' => static function (TestRunner $t) use ($tokenBoundaryPageLabelPdf): void {
+        $pdf = $tokenBoundaryPageLabelPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Cover-', 'Body 4'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Top-level cover imported', 'Top-level body imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-root-99', $labels, true));
+        $t->true(!in_array('stale-root-100', $previewLabels, true));
+        $t->true(!in_array('kid-stale-66', $labels, true));
+        $t->true(!in_array('nested-stale-77', $previewLabels, true));
+        $t->same('Body 4', $preview->getPageImagePlan($pdf, 2)['page_label']);
+    },
+    'keeps PageLabels dictionaries top-level before private Nums and label decoys' => static function (TestRunner $t) use ($topLevelDictionaryKeyPageLabelPdf): void {
+        $pdf = $topLevelDictionaryKeyPageLabelPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Top-4', 'Body-8', 'Body-9'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Top-level label cover imported', 'Top-level label body imported', 'Top-level label continuation imported'], array_column($entries, 'text'));
+        $t->same('Body-9', $preview->getPageImagePlan($pdf, 3)['page_label']);
+        foreach (['nested-root-99', 'nested-prefix-77', 'nested-body-Z', 'stale-kid-44', 'stale-body-55', 'nested-private-kid-66'] as $staleLabel) {
+            $t->true(!in_array($staleLabel, $labels, true));
+            $t->true(!in_array($staleLabel, $previewLabels, true));
+        }
+    },
+    'keeps comment-delimited PageLabels indirect references before WordPress page metadata' => static function (TestRunner $t) use ($commentedReferencePageLabelPdf): void {
+        $pdf = $commentedReferencePageLabelPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Cover-', 'Body 4', 'Appendix-Z'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Commented cover imported', 'Commented body imported', 'Commented appendix imported'], array_column($entries, 'text'));
+        $t->true(!in_array('1', $labels, true));
+        $t->true(!in_array('2', $previewLabels, true));
+        $t->same('Appendix-Z', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'rejects malformed PageLabels Limits dictionary before nested numeric decoys' => static function (TestRunner $t) use ($malformedLimitsDictionaryPageLabelPdf): void {
+        $pdf = $malformedLimitsDictionaryPageLabelPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Cover-', 'Body 4', 'App-Z', 'Back-9'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Malformed limits cover imported', 'Malformed limits body imported', 'Malformed limits appendix imported', 'Malformed limits back matter imported'], array_column($entries, 'text'));
+        $t->true(!in_array('1', $labels, true));
+        $t->true(!in_array('App-AA', $previewLabels, true));
+        $t->same('Back-9', $preview->getPageImagePlan($pdf, 4)['page_label']);
+    },
+    'rejects malformed PageLabels Limits extra operands before clipping valid labels' => static function (TestRunner $t) use ($malformedLimitsExtraOperandPageLabelPdf): void {
+        $pdf = $malformedLimitsExtraOperandPageLabelPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Cover-', 'Body 4', 'App-Z', 'Back-9'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Extra limits cover imported', 'Extra limits body imported', 'Extra limits appendix imported', 'Extra limits back matter imported'], array_column($entries, 'text'));
+        $t->true(!in_array('1', $labels, true));
+        $t->true(!in_array('App-AA', $previewLabels, true));
+        $t->same('Cover-', $summary['pages'][0]['page_label'] ?? null);
+        $t->same('Back-9', $preview->getPageImagePlan($pdf, 4)['page_label']);
+    },
+    'keeps first valid duplicate PageLabels Nums key before stale relabeling' => static function (TestRunner $t) use ($duplicateNumsKeyPageLabelBoundaryPdf): void {
+        $pdf = $duplicateNumsKeyPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Cover-', 'Body 4', 'App-Z'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Duplicate key cover imported', 'Duplicate key body imported', 'Duplicate key appendix imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-duplicate-99', $labels, true));
+        $t->true(!in_array('stale-duplicate-99', $previewLabels, true));
+        $t->same('Body 4', $summary['pages'][1]['page_label'] ?? null);
+        $t->same('App-Z', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'rejects descending PageLabels Nums keys before stale relabeling' => static function (TestRunner $t) use ($descendingNumsPageLabelBoundaryPdf): void {
+        $pdf = $descendingNumsPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Front iv', 'Front v', 'App-Z', 'End-'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Descending key front imported', 'Descending key continuation imported', 'Descending key appendix imported', 'Descending key end imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-descending-99', $labels, true));
+        $t->true(!in_array('stale-descending-99', $previewLabels, true));
+        $t->same('Front v', $summary['pages'][1]['page_label'] ?? null);
+        $t->same('End-', $preview->getPageImagePlan($pdf, 4)['page_label']);
+    },
+    'orders PageLabels kid nodes by Limits before duplicate merge boundaries' => static function (TestRunner $t) use ($outOfOrderKidLimitsPageLabelBoundaryPdf): void {
+        $pdf = $outOfOrderKidLimitsPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Front iv', 'Body 6', 'App-Z', 'End-'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Out of order front imported', 'Out of order body imported', 'Out of order appendix imported', 'Out of order back matter imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-late-99', $labels, true));
+        $t->true(!in_array('stale-late-99', $previewLabels, true));
+        $t->same('Body 6', $summary['pages'][1]['page_label'] ?? null);
+        $t->same('End-', $preview->getPageImagePlan($pdf, 4)['page_label']);
+    },
+    'preserves PageLabels kid source order when sibling Limits share the same lower bound' => static function (TestRunner $t) use ($sameLowerKidLimitsPageLabelBoundaryPdf): void {
+        $pdf = $sameLowerKidLimitsPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Front iv', 'Front v', 'App-Z', 'End-'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Same lower cover imported', 'Same lower body imported', 'Same lower appendix imported', 'Same lower end imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-same-lower-99', $labels, true));
+        $t->true(!in_array('stale-same-lower-body-100', $previewLabels, true));
+        $t->same('Front v', $summary['pages'][1]['page_label'] ?? null);
+        $t->same('End-', $preview->getPageImagePlan($pdf, 4)['page_label']);
+    },
+    'keeps PageLabels Kids after direct Nums on malformed intermediate nodes' => static function (TestRunner $t) use ($mixedNumsKidsPageLabelBoundaryPdf): void {
+        $pdf = $mixedNumsKidsPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Cover-', 'Body 8', 'App-Z', 'End-'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Mixed node cover imported', 'Mixed node body imported', 'Mixed node appendix imported', 'Mixed node end imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-root-99', $labels, true));
+        $t->true(!in_array('Cover-', array_slice($labels, 1), true));
+        $t->same('Body 8', $summary['pages'][1]['page_label'] ?? null);
+        $t->same('End-', $preview->getPageImagePlan($pdf, 4)['page_label']);
+    },
+    'rejects malformed PageLabels prefix scalar tokens before WordPress page metadata' => static function (TestRunner $t) use ($malformedPrefixScalarPageLabelBoundaryPdf): void {
+        $pdf = $malformedPrefixScalarPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['4', 'Valid-8'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Malformed prefix first imported', 'Malformed prefix second imported'], array_column($entries, 'text'));
+        $t->true(!in_array('Malformed-4', $labels, true));
+        $t->true(!in_array('Malformed-4', $previewLabels, true));
+        $t->same('4', $summary['pages'][0]['page_label'] ?? null);
+        $t->same('Valid-8', $preview->getPageImagePlan($pdf, 2)['page_label']);
+    },
+    'rejects PageLabels prefix name scalars before WordPress page metadata' => static function (TestRunner $t) use ($namePrefixScalarPageLabelBoundaryPdf): void {
+        $pdf = $namePrefixScalarPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['4', 'Valid-8'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Name prefix first imported', 'Valid prefix second imported'], array_column($entries, 'text'));
+        $t->true(!in_array('NamePrefix4', $labels, true));
+        $t->true(!in_array('NamePrefix4', $previewLabels, true));
+        $t->same('4', $summary['pages'][0]['page_label'] ?? null);
+        $t->same('Valid-8', $preview->getPageImagePlan($pdf, 2)['page_label']);
+    },
+    'rejects malformed PageLabels style scalar tokens before WordPress page metadata' => static function (TestRunner $t) use ($malformedStyleScalarPageLabelBoundaryPdf): void {
+        $pdf = $malformedStyleScalarPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Bad-', 'Valid-8'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Malformed style first imported', 'Valid style second imported'], array_column($entries, 'text'));
+        $t->true(!in_array('Bad-4', $labels, true));
+        $t->true(!in_array('Bad-4', $previewLabels, true));
+        $t->same('Bad-', $summary['pages'][0]['page_label'] ?? null);
+        $t->same('Valid-8', $preview->getPageImagePlan($pdf, 2)['page_label']);
+    },
+    'rejects malformed PageLabels dictionary object tails before WordPress page metadata' => static function (TestRunner $t) use ($malformedDictionaryObjectPageLabelBoundaryPdf): void {
+        $pdf = $malformedDictionaryObjectPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['1', 'Valid-8'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Malformed dictionary first imported', 'Valid dictionary second imported'], array_column($entries, 'text'));
+        $t->true(!in_array('Bad-4', $labels, true));
+        $t->true(!in_array('Bad-4', $previewLabels, true));
+        $t->same('1', $summary['pages'][0]['page_label'] ?? null);
+        $t->same('Valid-8', $preview->getPageImagePlan($pdf, 2)['page_label']);
+    },
+    'rejects malformed PageLabels array object tails before WordPress page metadata' => static function (TestRunner $t) use ($malformedArrayObjectPageLabelBoundaryPdf): void {
+        $pdf = $malformedArrayObjectPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['1', 'Body 4', 'App-Z'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Malformed array cover imported', 'Valid array body imported', 'Valid array appendix imported'], array_column($entries, 'text'));
+        $t->true(!in_array('BadArray-99', $labels, true));
+        $t->true(!in_array('BadArray-99', $previewLabels, true));
+        $t->same('1', $summary['pages'][0]['page_label'] ?? null);
+        $t->same('App-Z', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'keeps malformed PageLabels values as ordering boundaries before stale lower keys' => static function (TestRunner $t) use ($malformedValueOrderingPageLabelBoundaryPdf): void {
+        $pdf = $malformedValueOrderingPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Cover-', 'Cover-', 'Cover-', 'Cover-'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Malformed value cover imported', 'Malformed value continuation imported', 'Malformed value appendix imported', 'Malformed value end imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-lower-99', $labels, true));
+        $t->true(!in_array('stale-lower-99', $previewLabels, true));
+        $t->same('Cover-', $summary['pages'][2]['page_label'] ?? null);
+        $t->same('Cover-', $preview->getPageImagePlan($pdf, 4)['page_label']);
+    },
+    'keeps trailer Root catalog PageLabels before stale catalog scan' => static function (TestRunner $t) use ($trailerRootPageLabelBoundaryPdf): void {
+        $pdf = $trailerRootPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Current-4', 'Appendix-Z'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Current root page one imported', 'Current root page two imported'], array_column($entries, 'text'));
+        $t->same([9, 11], array_column($summary['pages'], 'object_id'));
+        $t->true(!in_array('stale-root-99', $labels, true));
+        $t->true(!in_array('stale-root-99', $previewLabels, true));
+        $t->true(!in_array(3, array_column($summary['pages'], 'object_id'), true));
+        $t->same('Appendix-Z', $preview->getPageImagePlan($pdf, 2)['page_label']);
+    },
+];

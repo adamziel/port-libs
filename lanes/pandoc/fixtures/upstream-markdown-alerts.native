@@ -1,0 +1,31 @@
+[ Div
+    ( "" , [ "note" ] , [] )
+    [ Div ( "" , [ "title" ] , [] ) [ Para [ Str "Note" ] ]
+    , Para
+        [ Str "Review"
+        , Space
+        , Str "imported"
+        , Space
+        , Str "media"
+        , Space
+        , Str "before"
+        , Space
+        , Str "publishing."
+        ]
+    ]
+, Div
+    ( "" , [ "warning" ] , [] )
+    [ Div ( "" , [ "title" ] , [] ) [ Para [ Str "Warning" ] ]
+    , Para
+        [ Str "Confirm"
+        , Space
+        , Str "source"
+        , Space
+        , Str "links"
+        , Space
+        , Str "remain"
+        , Space
+        , Str "archived."
+        ]
+    ]
+]

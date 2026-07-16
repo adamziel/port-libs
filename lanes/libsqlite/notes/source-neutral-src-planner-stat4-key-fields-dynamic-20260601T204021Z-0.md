@@ -1,0 +1,22 @@
+# Source-neutral planner/stat4 key-fields dynamic follow-up
+
+- Base accepted HEAD: `db895a79559edd0f949113acf0f6d854666803c0`.
+- Scope: rechecked the assigned STAT4 key-field source surface and kept the existing source-neutral guard coverage intact. The remaining production `plugin_` defaults found by the same source scan were in compound/window fallback label helpers and one encoding RTRIM LIKE default pattern; those are now generic `module_*` defaults.
+- Behavior preserved: the directly coupled compound/window assertions now check the generic fallback labels, and the encoding guard proves the default pattern still exercises SQLite LIKE `_` wildcard and RTRIM residual behavior with `module_cache` rows.
+- Focused evidence:
+  - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php` -> no syntax errors.
+  - `php -l lanes/libsqlite/src/SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan.php` -> no syntax errors.
+  - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext219Test.php` -> no syntax errors.
+  - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext226Test.php` -> no syntax errors.
+  - `php -l lanes/libsqlite/tests/SQLiteSourceNeutralCompoundWindowDefaultsDynamicTest.php` -> no syntax errors.
+  - `php -l lanes/libsqlite/tests/SQLiteSourceNeutralCastLikeGlobDefaultsDynamicTest.php` -> no syntax errors.
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSourceNeutralCompoundWindowDefaultsDynamicTest.php` -> 1 file, 17 assertions, 0 failures.
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSourceNeutralCastLikeGlobDefaultsDynamicTest.php` -> 1 file, 39 assertions, 0 failures.
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext219Test.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext226Test.php` -> 2 files, 715 assertions, 0 failures.
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext260Test.php` -> 1 file, 78 assertions, 0 failures.
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSourceNeutralPlannerStat4KeyFieldsDynamicTest.php` -> 1 file, 52 assertions, 0 failures.
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteNoDomainSpecificApiTest.php` -> 1 file, 8 assertions, 0 failures.
+  - `rg -n "wp_options|wp_sitemeta|\bwp_|option_id|option_name|option_value|\bblog_id\b|\bautoload\b|plugin_" lanes/libsqlite/src` -> no matches.
+  - `git diff --check -- lanes/libsqlite` -> pass.
+- Dependency closure: no new support component needed; this reuses existing compound/window, encoding, and SQLite LIKE/RTRIM helpers.
+- Lane status: no `phpPass` or mapped-coverage counter movement; this is source-neutral production cleanup with focused guard coverage.

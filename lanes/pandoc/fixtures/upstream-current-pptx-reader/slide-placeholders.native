@@ -1,0 +1,7 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Placeholder slide" ]
+, Para [ Str "Visible body before placeholders" ]
+, Para [ Str "2026-07-03" ]
+, Para [ Str "Visible footer text" ]
+, Para [ Str "7" ]
+]

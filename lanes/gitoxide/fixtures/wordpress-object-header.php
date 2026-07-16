@@ -1,0 +1,59 @@
+<?php
+
+declare(strict_types=1);
+
+$blockBlobBody = "<!-- wp:paragraph -->\n"
+    . "<p>Native PHP loose object parsing for a WordPress block export.</p>\n"
+    . "<!-- /wp:paragraph -->\n";
+$looseHeader = 'blob ' . strlen($blockBlobBody) . "\0";
+$positiveSizeLooseHeader = 'blob +' . strlen($blockBlobBody) . "\0";
+$zeroPaddedSizeLooseHeader = 'blob ' . str_pad((string) strlen($blockBlobBody), 5, '0', STR_PAD_LEFT) . "\0";
+$lfSizeLooseHeader = 'blob ' . strlen($blockBlobBody) . "\n\0";
+$noTypeSizeDelimiterStorage = 'blob20WordPressBlockExport';
+$nulBeforeSpaceUnknownKindStorage = "blob\0 " . strlen($blockBlobBody) . $blockBlobBody;
+$unknownKindNoNulStorage = 'wordpress ' . strlen($blockBlobBody);
+$overlongHeaderStorage = 'blob ' . str_repeat('1', 60) . "\0" . $blockBlobBody;
+$emptyBlobBody = '';
+$negativeZeroSizeLooseHeader = "blob -0\0";
+$canonicalEmptyBlobHeader = "blob 0\0";
+$lateSameStreamBody = str_repeat('WordPress late-overrun block body ', 4);
+$allocationLimitBytes = 128;
+$oversizedLooseHeader = "blob 4096\0";
+$truncatedHeaderStorage = "blob 100\0" . str_repeat('A', 100);
+$missingNulHeaderStorage = 'blob ' . strlen($blockBlobBody);
+
+return [
+    'blockBlobBody' => $blockBlobBody,
+    'emptyBlobBody' => $emptyBlobBody,
+    'expectedLooseHeader' => $looseHeader,
+    'positiveSizeLooseHeader' => $positiveSizeLooseHeader,
+    'positiveSizeLooseHeaderOid' => hash('sha1', $positiveSizeLooseHeader . $blockBlobBody),
+    'zeroPaddedSizeLooseHeader' => $zeroPaddedSizeLooseHeader,
+    'zeroPaddedSizeLooseHeaderOid' => hash('sha1', $zeroPaddedSizeLooseHeader . $blockBlobBody),
+    'lfSizeLooseHeader' => $lfSizeLooseHeader,
+    'lfSizeLooseHeaderOid' => hash('sha1', $lfSizeLooseHeader . $blockBlobBody),
+    'noTypeSizeDelimiterStorage' => $noTypeSizeDelimiterStorage,
+    'noTypeSizeDelimiterOid' => str_repeat('9', 40),
+    'nulBeforeSpaceUnknownKindStorage' => $nulBeforeSpaceUnknownKindStorage,
+    'nulBeforeSpaceUnknownKindOid' => str_repeat('c', 40),
+    'unknownKindNoNulStorage' => $unknownKindNoNulStorage,
+    'unknownKindNoNulOid' => str_repeat('b', 40),
+    'overlongHeaderStorage' => $overlongHeaderStorage,
+    'overlongHeaderOid' => str_repeat('d', 40),
+    'negativeZeroSizeLooseHeader' => $negativeZeroSizeLooseHeader,
+    'negativeZeroSizeLooseHeaderOid' => hash('sha1', $negativeZeroSizeLooseHeader . $emptyBlobBody),
+    'emptyBlobOid' => hash('sha1', $canonicalEmptyBlobHeader . $emptyBlobBody),
+    'lateSameStreamBody' => $lateSameStreamBody,
+    'lateSameStreamOid' => hash('sha1', 'blob ' . strlen($lateSameStreamBody) . "\0" . $lateSameStreamBody),
+    'truncatedHeaderStorage' => $truncatedHeaderStorage,
+    'truncatedHeaderOid' => str_repeat('7', 40),
+    'missingNulHeaderStorage' => $missingNulHeaderStorage,
+    'missingNulHeaderOid' => str_repeat('6', 40),
+    'expectedBlobOid' => hash('sha1', $looseHeader . $blockBlobBody),
+    'expectedBlobSha256' => hash('sha256', $looseHeader . $blockBlobBody),
+    'allocationLimitBytes' => $allocationLimitBytes,
+    'oversizedLooseHeader' => $oversizedLooseHeader,
+    'oversizedLooseObjectOid' => str_repeat('a', 40),
+    'allocationLimitMessage' => "Loose object declared size 4096 exceeds allocation limit {$allocationLimitBytes} bytes",
+    'wordpressUse' => 'A WordPress import or deployment tool can decode canonical, upstream-accepted signed-size, and zero-padded loose object headers for block-content blobs, reject LF-tailed, missing-NUL, unknown-kind, NUL-before-space unknown-kind, missing type-size delimiter, and overlong first-window loose-object headers before trusting advertised sizes, reject oversized loose-object declarations before allocating them, reject truncated first-window compressed headers before trusting advertised sizes, and ignore trailing compressed bytes or late same-stream overrun bytes after the declared object body without invoking git cat-file.',
+];

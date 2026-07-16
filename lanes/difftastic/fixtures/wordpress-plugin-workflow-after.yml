@@ -1,0 +1,16 @@
+name: Release block plugin
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        default: false
+      release-channel:
+        default: stable
+jobs:
+  package:
+    steps:
+      - name: Build assets
+        run: |
+          npm ci
+          npm run build
+          wp i18n make-pot . languages/acme-card.pot

@@ -1,0 +1,43 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter.xhtml_start" , [ "section" ] , [] )
+    [ Header
+        1
+        ( "" , [] , [] )
+        [ Str "Metadata"
+        , Space
+        , Str "Record"
+        , Space
+        , Str "Remote"
+        , Space
+        , Str "Navigation"
+        ]
+    , Para
+        [ Str "Reader"
+        , Space
+        , Str "package"
+        , Space
+        , Str "metadata,"
+        , Space
+        , Str "record"
+        , Space
+        , Str "links,"
+        , Space
+        , Str "remote"
+        , Space
+        , Str "manifest"
+        , Space
+        , Str "resources,"
+        , Space
+        , Str "and"
+        , Space
+        , Str "auxiliary"
+        , Space
+        , Str "navigation"
+        , Space
+        , Str "stay"
+        , Space
+        , Str "aligned."
+        ]
+    ]
+]
