@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\PdfReader;
+use PortLibs\Pandoc\PdfSourceDispositionLedger;
 use PortLibs\Pandoc\AstNode;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
@@ -2279,6 +2280,70 @@ $pdfWithPartialPageExtractionIssues = static function (): string {
         . "8 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 99 0 R >>\nendobj\n%%EOF";
 };
 
+$pdfWithCleanNoTextPage = static function (): string {
+    $content = 'q Q';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . ">>\nstream\n{$content}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$pdfWithSparseVisibleOcrOverlay = static function (): string {
+    $content = 'BT /F1 12 Tf 3 Tr 72 720 Td (HIDDEN-OCR-ONE) Tj '
+        . '0 -16 Td (HIDDEN-OCR-TWO) Tj 0 -16 Td (HIDDEN-OCR-THREE) Tj '
+        . '0 -16 Td (HIDDEN-OCR-FOUR) Tj 0 Tr 0 -640 Td (Visible source stamp) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] "
+        . "/Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . ">>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
+$pdfWithUndecodableOnlyPage = static function (): string {
+    $content = 'BT /F1 12 Tf 72 720 Td (Unreadable page text) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] "
+        . "/Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Filter /RunLengthDecode /Length " . strlen($content) . ">>\n"
+        . "stream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
+$pdfWithTextAndScannedPage = static function (): string {
+    $jpeg = base64_decode('/9j/4AAQSkZJRgABAQAAAQABAAD/2w==', true);
+    if (!is_string($jpeg)) {
+        throw new RuntimeException('Unable to build hybrid PDF JPEG fixture.');
+    }
+    $textContent = 'BT /F1 12 Tf 72 720 Td (Searchable first page) Tj ET';
+    $scanContent = "q 612 0 0 792 0 0 cm /Scan Do Q\n"
+        . 'BT /F1 12 Tf 3 Tr 72 720 Td (HIDDEN-SCANNED-PAGE-OCR) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 /MediaBox [0 0 612 792] "
+        . "/Resources << /Font << /F1 7 0 R >> /XObject << /Scan 8 0 R >> >> >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($textContent) . ">>\nstream\n{$textContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 6 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($scanContent) . ">>\nstream\n{$scanContent}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "8 0 obj\n<< /Type /XObject /Subtype /Image /Width 1254 /Height 1638 "
+        . "/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " . strlen($jpeg) . ">>\n"
+        . "stream\n{$jpeg}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $pdfWithFormXObjectPageExtractionIssues = static function (): string {
     $pageContent = 'BT /F1 12 Tf 72 720 Td (Visible Page Text) Tj ET q /FmBad Do Q q /FmBroken Do Q';
     $unsupportedFormContent = 'BT /F1 12 Tf 72 720 Td (Unsupported Form Text) Tj ET';
@@ -3034,6 +3099,58 @@ $pdfWithHybridXrefStreamAndTablePreviousBranches = static function () use ($xref
     $pdf .= sprintf("%010d 00000 n \n", $xrefStreamOffset);
 
     return $pdf . "trailer << /Size 10 /Root 1 0 R /XRefStm {$xrefStreamOffset} /Prev {$contentBranchXrefOffset} >>\nstartxref\n{$latestXrefOffset}\n%%EOF";
+};
+
+$exactSideTableContinuationFixture = static function (float $continuationY = 568.0): array {
+    $sourceItem = static function (string $text, float $x1, float $y1, int $sourceIndex): array {
+        return [
+            'page' => 1,
+            'stream' => 7,
+            'text' => $text,
+            'sourcePdfGlobalSourceIndex' => $sourceIndex,
+            'sourceGeometry' => [
+                'page' => 1,
+                'stream' => 7,
+                'x1' => $x1,
+                'y1' => $y1,
+                'x2' => $x1 + max(36.0, strlen($text) * 4.0),
+                'y2' => $y1 + 12.0,
+                'orientation' => 'horizontal',
+            ],
+            'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+        ];
+    };
+
+    $sourceItems = [
+        $sourceItem('The completed explanation remains readable. Then the', 72.0, 100.0, 0),
+    ];
+    $tableRows = [
+        ['Code', 'Type', 'Meaning'],
+        ['A1', 'alpha', 'first compact entry'],
+        ['B2', 'beta', 'second compact entry'],
+        ['C3', 'gamma', 'third compact entry'],
+    ];
+    foreach ($tableRows as $rowIndex => $row) {
+        foreach ($row as $columnIndex => $cell) {
+            $sourceIndex = count($sourceItems);
+            $sourceItems[] = $sourceItem(
+                $cell,
+                330.0 + ($columnIndex * 70.0),
+                700.0 - ($rowIndex * 12.0),
+                $sourceIndex
+            );
+        }
+    }
+    foreach ([
+        ['Figure 4. Verified side table.', 620.0],
+        ['The caption sentence is complete.', 608.0],
+        ['heuristic selects value with minimum rank', $continuationY],
+    ] as [$text, $y1]) {
+        $sourceIndex = count($sourceItems);
+        $sourceItems[] = $sourceItem($text, 330.0, $y1, $sourceIndex);
+    }
+
+    return $sourceItems;
 };
 
 return [
@@ -4831,6 +4948,89 @@ return [
         $t->true(!str_contains($warningText, 'Malformed PDF xref'));
         $t->true(!str_contains($warningText, 'object stream'));
     },
+    'keeps a completely decoded zero-text page at the typed OCR boundary' => static function (TestRunner $t) use ($pdfWithCleanNoTextPage): void {
+        $document = (new PdfReader())->read($pdfWithCleanNoTextPage());
+        $meta = $document->attr('meta');
+
+        $t->same(0, $meta['pdfTextLines']);
+        $t->same(true, $meta['pdfTextComplete']);
+        $t->same(true, $meta['pdfDocumentComplete']);
+        $t->same(true, $meta['pdfNoTextClassificationComplete']);
+        $t->same('unsupported_no_text', $meta['pdfTextLayerStatus']);
+        $t->same(true, $meta['pdfNeedsOcr']);
+        $t->same([], $meta['pdfTextRepresentedPageNumbers']);
+        $t->same([1], $meta['pdfPagesNeedingImageRepresentation']);
+        $t->same([], $meta['pdfRepresentedPageNumbers']);
+        $t->same(false, $meta['pdfPageRepresentationComplete']);
+    },
+    'requires a page image when a sparse stamp sits over a dominant non-painting OCR layer' => static function (TestRunner $t) use ($pdfWithSparseVisibleOcrOverlay): void {
+        $document = (new PdfReader())->read($pdfWithSparseVisibleOcrOverlay());
+        $meta = $document->attr('meta');
+
+        $t->same(1, $meta['pdfTextLines']);
+        $t->same('visible_text', $meta['pdfTextLayerStatus']);
+        $t->same(true, $meta['pdfNeedsOcr']);
+        $t->same(4, $meta['pdfTextVisibility']['pages'][0]['suppressedNonPaintingRuns'] ?? null);
+        $t->same(1, $meta['pdfTextVisibility']['pages'][0]['visibleOutputRuns'] ?? null);
+        $t->same([1], $meta['pdfTextRepresentedPageNumbers']);
+        $t->same([1], $meta['pdfPagesNeedingImageRepresentation']);
+        $t->same([], $meta['pdfRepresentedPageNumbers']);
+        $t->same(false, $meta['pdfPageRepresentationComplete']);
+    },
+    'does not count a disposition-only source page as text represented' => static function (TestRunner $t): void {
+        $representedPages = (function (array $sourceDisposition): array {
+            return $this->pdfOutputRepresentedPageNumbers($sourceDisposition);
+        })->call(new PdfReader(), [
+            'sourceEdges' => [
+                ['page' => 1, 'target' => 'disposition', 'disposition' => 'running-furniture'],
+                ['page' => 2, 'target' => 'output', 'disposition' => 'emitted'],
+                ['page' => 2, 'target' => 'disposition', 'disposition' => 'semantic-structure'],
+                ['page' => 3, 'target' => 'unresolved', 'disposition' => 'unresolved'],
+            ],
+        ]);
+
+        $t->same([2], $representedPages);
+    },
+    'does not classify an undecodable zero-line page as unsupported no-text' => static function (TestRunner $t) use ($pdfWithUndecodableOnlyPage): void {
+        $document = (new PdfReader())->read($pdfWithUndecodableOnlyPage());
+        $meta = $document->attr('meta');
+
+        $t->same(0, $meta['pdfTextLines']);
+        $t->same(false, $meta['pdfTextComplete']);
+        $t->same(false, $meta['pdfDocumentComplete']);
+        $t->same(false, $meta['pdfNoTextClassificationComplete']);
+        $t->same('incomplete', $meta['pdfTextLayerStatus']);
+        $t->same(false, $meta['pdfNeedsOcr']);
+        $t->same('failed_content_decode', $meta['pdfPageExtractionIssues'][0]['reason'] ?? null);
+        $t->same([], $meta['pdfTextRepresentedPageNumbers']);
+        $t->same([1], $meta['pdfPagesNeedingImageRepresentation']);
+        $t->same(false, $meta['pdfPageRepresentationComplete']);
+    },
+    'fails closed when searchable text masks an unrepresented scanned sibling page' => static function (TestRunner $t) use ($pdfWithTextAndScannedPage): void {
+        $pdf = $pdfWithTextAndScannedPage();
+        $document = (new PdfReader(['pdfCollectImagePlacements' => true]))->read($pdf);
+        $meta = $document->attr('meta');
+
+        $t->same('visible_text', $meta['pdfTextLayerStatus']);
+        $t->same(true, $meta['pdfDocumentComplete']);
+        $t->same(true, $meta['pdfNeedsOcr']);
+        $t->same([1], $meta['pdfTextRepresentedPageNumbers']);
+        $t->same([2], $meta['pdfPagesNeedingImageRepresentation']);
+        $t->same([1], $meta['pdfRepresentedPageNumbers']);
+        $t->same(false, $meta['pdfPageRepresentationComplete']);
+
+        $result = PandocConverter::convertWithMedia($pdf, 'pdf', 'wordpress', [
+            'extractMedia' => ['destination' => 'media', 'imageMode' => 'important'],
+        ]);
+
+        $t->contains('Searchable first page', $result['output']);
+        $t->true(!str_contains($result['output'], 'HIDDEN-SCANNED-PAGE-OCR'));
+        $t->same([1], $result['sourceIntegrity']['pdfTextRepresentedPageNumbers'] ?? null);
+        $t->same([2], $result['sourceIntegrity']['pdfPagesNeedingImageRepresentation'] ?? null);
+        $t->same([1], $result['sourceIntegrity']['pdfRepresentedPageNumbers'] ?? null);
+        $t->same(false, $result['sourceIntegrity']['pdfPageRepresentationComplete'] ?? null);
+        $t->same(false, $result['sourceIntegrity']['complete'] ?? null);
+    },
     'records pdf page-level partial extraction diagnostics in pandoc metadata' => static function (TestRunner $t) use ($pdfWithPartialPageExtractionIssues): void {
         $document = (new PdfReader())->read($pdfWithPartialPageExtractionIssues());
         $blocks = PandocConverter::write($document, 'blocks');
@@ -4854,6 +5054,7 @@ return [
                 'contentReference' => 99,
                 'contentObject' => null,
                 'reason' => 'unresolved_content_reference',
+                'resolutionReason' => 'content-reference-missing',
                 'filters' => [],
             ],
         ], $meta['pdfPageExtractionIssues']);
@@ -5166,7 +5367,15 @@ return [
         $blocksFromLines = (function (array $lines): array {
             return $this->blocksFromLines($lines);
         })->bindTo($reader, PdfReader::class);
+        $looksLikeFragmentedLabels = (function (array $rows): bool {
+            return $this->tableRowsLookLikeFragmentedLabelGrid($rows);
+        })->bindTo($reader, PdfReader::class);
+        $stackedTableRowsAt = (function (array $lines, int $start): array {
+            return $this->stackedTableRowsAt($lines, $start);
+        })->bindTo($reader, PdfReader::class);
         $t->true($blocksFromLines instanceof \Closure);
+        $t->true($looksLikeFragmentedLabels instanceof \Closure);
+        $t->true($stackedTableRowsAt instanceof \Closure);
 
         $blocks = $blocksFromLines([
             'Q', 'u', 'anta 1',
@@ -5177,6 +5386,1129 @@ return [
 
         $tables = array_filter($blocks, static fn (object $block): bool => $block->type === 'table');
         $t->same(0, count($tables));
+        $recurringDiagramRows = [
+            ['Bytecodes', 'Monitor', 'Record', 'LIR'],
+            ['T', 'race', 'Execute', 'Compiled'],
+            ['T', 'race', 'Enter', 'Compiled'],
+            ['T', 'race', 'Compile', 'LIR'],
+            ['T', 'race', 'Leave', 'Compiled'],
+            ['T', 'race', 'loop', 'edge hot loop/exit'],
+        ];
+        $t->same(
+            true,
+            $looksLikeFragmentedLabels($recurringDiagramRows),
+            'A recurring standalone alphabetic cell seam across diagram rows is a split label.'
+        );
+        $t->same([], $stackedTableRowsAt(array_merge(...$recurringDiagramRows), 0)['rows']);
+        $shiftedDiagramRows = [
+            ['race', 'Enter', 'Compiled'],
+            ['T', 'race', 'Compile'],
+            ['LIR', 'T', 'race Leave Compiled'],
+            ['T', 'race', 'loop edge hot'],
+        ];
+        $t->same(
+            true,
+            $looksLikeFragmentedLabels($shiftedDiagramRows),
+            'The same fragment seam shifting columns rejects a truncated diagram candidate.'
+        );
+        $t->same([], $stackedTableRowsAt(array_merge(...$shiftedDiagramRows), 0)['rows']);
+        $t->same(0, count(array_filter(
+            $blocksFromLines(array_merge(...$recurringDiagramRows)),
+            static fn (object $block): bool => $block->type === 'table'
+        )));
+
+        $numericRows = [
+            ['Code', 'Status', 'Count'],
+            ['T', 'race', '12'],
+            ['T', 'race', '13'],
+            ['T', 'race', '14'],
+        ];
+        $t->same(
+            false,
+            $looksLikeFragmentedLabels($numericRows),
+            'Repeated categorical cells with structured numeric values remain eligible table data.'
+        );
+        $t->same(4, count($stackedTableRowsAt(array_merge(...$numericRows), 0)['rows']));
+
+        $fixedTextRows = [
+            ['Code', 'Status', 'Description'],
+            ['TX', 'ready', 'Open'],
+            ['TX', 'ready', 'Closed'],
+            ['TX', 'ready', 'Pending'],
+        ];
+        $t->same(
+            false,
+            $looksLikeFragmentedLabels($fixedTextRows),
+            'A stable repeated categorical pair that is not a one-letter word seam remains eligible table data.'
+        );
+        $t->same(4, count($stackedTableRowsAt(array_merge(...$fixedTextRows), 0)['rows']));
+        $t->same(false, $looksLikeFragmentedLabels([
+            ['Mode', 'State', 'Description'],
+            ['Mode T', 'race ready', 'Open'],
+            ['Mode T', 'race ready', 'Closed'],
+            ['Mode T', 'race ready', 'Pending'],
+        ]), 'Embedded word tails and leads do not prove a standalone fragmented label.');
+        $t->same(false, $looksLikeFragmentedLabels([
+            ['Code', 'Status', 'Description'],
+            ['A', 'alpha', 'First'],
+            ['B', 'beta', 'Second'],
+            ['C', 'gamma', 'Third'],
+        ]), 'Distinct short categorical pairs do not prove a fragmented diagram label.');
+    },
+    'restores exact source backed dense numeric rows after map and diagram filtering' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, false, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $lines = [];
+        $layouts = [];
+        for ($index = 0; $index < 20; $index++) {
+            $line = number_format(25_000 + $index * 50);
+            $lines[] = $line;
+            $layouts[] = [
+                'text' => $line,
+                'page' => 1,
+                'x1' => 72.0 + ($index % 4) * 70.0,
+                'y1' => 700.0 - intdiv($index, 4) * 14.0,
+                'x2' => 118.0 + ($index % 4) * 70.0,
+                'y2' => 710.0 - intdiv($index, 4) * 14.0,
+                'fontSize' => 9.0,
+                'sourcePdfExactSourceIndex' => $index,
+                'sourcePdfExactSourceStart' => 0,
+                'sourcePdfExactSourceEnd' => strlen($line),
+            ];
+        }
+
+        $repaired = implode(' ', $repair($lines, $layouts));
+        foreach ($lines as $line) {
+            $t->contains($line, $repaired);
+        }
+    },
+    'enriches validated global source fallbacks before exact semantic recovery' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $enrich = (function (array $layouts, array $sourceItems): array {
+            return $this->pdfSourceLayoutsWithExactWholeOccurrenceRanges($layouts, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, false, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $removeDiagramRegions = (function (array $records): array {
+            return $this->removeLowCoherencePdfDiagramLabelRegions($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($enrich instanceof \Closure);
+        $t->true($repair instanceof \Closure);
+        $t->true($removeDiagramRegions instanceof \Closure);
+
+        $lines = ['A', 'lower', 'B', 'tail', 'C', 'word', 'D', 'value'];
+        $sourceItems = [];
+        $layouts = [];
+        foreach ($lines as $index => $line) {
+            $id = 'global-source-fallback-' . $index;
+            $sourceItems[] = [
+                'id' => $id,
+                'page' => 1,
+                'stream' => 1,
+                'text' => $line,
+                'sourcePdfGlobalSourceIndex' => $index,
+            ];
+            $layouts[] = [
+                'id' => $id,
+                'text' => $line,
+                'page' => 1,
+                'sourceStream' => 1,
+                'sourcePdfGlobalSourceIndex' => $index,
+                'x1' => 72.0,
+                'y1' => 720.0 - ($index * 12.0),
+                'x2' => 108.0,
+                'y2' => 730.0 - ($index * 12.0),
+                'fontSize' => 10.0,
+                'sourceComplexGeometryPage' => true,
+            ];
+        }
+
+        $rawRecords = array_map(
+            static fn (string $line, array $layout): array => ['text' => $line, 'layout' => $layout],
+            $lines,
+            $layouts
+        );
+        $t->same([], $removeDiagramRegions($rawRecords), 'The positive-control geometry has the sustained fragment pattern classified as a diagram region.');
+
+        $enriched = $enrich($layouts, $sourceItems);
+        foreach ($enriched as $index => $layout) {
+            $t->same([[
+                'sourceIndex' => $index,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen($lines[$index]),
+            ]], $layout['sourcePdfExactSourceRanges'] ?? null);
+        }
+        $repaired = implode(' ', $repair($lines, $enriched));
+        foreach ($lines as $line) {
+            $t->contains($line, $repaired);
+        }
+
+        $mismatched = $layouts;
+        $mismatched[3]['text'] = 'changed';
+        $mismatched = $enrich($mismatched, $sourceItems);
+        $t->same(
+            null,
+            $mismatched[3]['sourcePdfExactSourceRanges'] ?? null,
+            'A global source index cannot bless a layout whose significant projection differs from the immutable occurrence.'
+        );
+    },
+    'borrows neighbor geometry without borrowing source occurrence provenance' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $beforeNeighbor = (function (array $sourceItem, array $nextItem): array {
+            return $this->sourcePdfLineItemBeforeKnownLayout($sourceItem, $nextItem);
+        })->bindTo($reader, PdfReader::class);
+        $enrich = (function (array $layouts, array $sourceItems): array {
+            return $this->pdfSourceLayoutsWithExactWholeOccurrenceRanges($layouts, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($beforeNeighbor instanceof \Closure);
+        $t->true($enrich instanceof \Closure);
+
+        $sourceItem = [
+            'id' => 'current-source-51',
+            'page' => 2,
+            'stream' => 1,
+            'text' => '. Em-',
+            'sourcePdfGlobalSourceIndex' => 51,
+        ];
+        $nextSourceItem = [
+            'id' => 'neighbor-source-52',
+            'page' => 2,
+            'stream' => 1,
+            'text' => 'ployers must use the current withholding tables.',
+            'sourcePdfGlobalSourceIndex' => 52,
+        ];
+        $nextLayout = [
+            'id' => 'neighbor-source-52',
+            'text' => $nextSourceItem['text'],
+            'page' => 2,
+            'sourceStream' => 1,
+            'sourcePdfGlobalSourceIndex' => 52,
+            'sourcePdfSourceIndex' => 52,
+            'sourcePdfSourceIndexEnd' => 52,
+            'sourcePdfSourceIndexes' => [52],
+            'sourcePdfSourceIds' => ['neighbor-source-52'],
+            'sourcePdfStreams' => [1],
+            'x1' => 39.5,
+            'y1' => 172.0,
+            'x2' => 301.7,
+            'y2' => 184.5,
+            'fontSize' => 12.5,
+            'sourceOrderStart' => 654,
+            'sourceOrderEnd' => 668,
+            'sourceCompositePositionedFragments' => true,
+            'sourceCompositeComplementaryExactRanges' => true,
+            'sourcePdfExactSourceIndex' => 52,
+            'sourcePdfExactSourceStart' => 0,
+            'sourcePdfExactSourceEnd' => 48,
+            'sourcePdfExactSourceRanges' => [[
+                'sourceIndex' => 52,
+                'sourceStart' => 0,
+                'sourceEnd' => 48,
+            ]],
+            'sourcePdfExactRangeFragmentSequence' => true,
+            'sourcePdfExactPositionedText' => true,
+            'sourceVerifiedGeometryText' => true,
+        ];
+
+        $inferred = $beforeNeighbor($sourceItem, $nextLayout);
+        $t->same('current-source-51', $inferred['id'] ?? null);
+        $t->same(51, $inferred['sourcePdfGlobalSourceIndex'] ?? null);
+        $t->same(1, $inferred['sourceStream'] ?? null);
+        $t->same('. Em-', $inferred['text'] ?? null);
+        $t->same(true, $inferred['sourceInferredNeighborLayout'] ?? null);
+        $t->same(39.5, $inferred['x1'] ?? null);
+        $t->true(($inferred['y1'] ?? 0.0) > $nextLayout['y1']);
+        foreach ([
+            'sourceOrderStart',
+            'sourceOrderEnd',
+            'sourceCompositePositionedFragments',
+            'sourcePdfExactSourceIndex',
+            'sourcePdfExactSourceStart',
+            'sourcePdfExactSourceEnd',
+            'sourcePdfExactSourceRanges',
+            'sourcePdfExactRangeFragmentSequence',
+            'sourcePdfExactPositionedText',
+            'sourceVerifiedGeometryText',
+        ] as $borrowedKey) {
+            $t->true(!array_key_exists($borrowedKey, $inferred), $borrowedKey . ' must not be borrowed.');
+        }
+
+        $enriched = $enrich([$inferred], [51 => $sourceItem, 52 => $nextSourceItem]);
+        $t->same([[
+            'sourceIndex' => 51,
+            'sourceStart' => 0,
+            'sourceEnd' => 4,
+        ]], $enriched[0]['sourcePdfExactSourceRanges'] ?? null);
+    },
+    'does not restore a proved decorative artifact through exact source recovery' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, false, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $ordinary = static fn (string $text, int $index, float $y): array => [
+            'text' => $text,
+            'page' => 1,
+            'x1' => 72.0,
+            'y1' => $y,
+            'x2' => 300.0,
+            'y2' => $y + 10.0,
+            'fontSize' => 10.0,
+            'sourcePdfExactSourceIndex' => $index,
+            'sourcePdfExactSourceStart' => 0,
+            'sourcePdfExactSourceEnd' => strlen(preg_replace('/\s+/u', '', $text) ?? $text),
+        ];
+        $layouts = [
+            $ordinary('A complete sentence precedes the ornament.', 0, 700.0),
+            array_replace($ordinary('{ }', 1, 684.0), [
+                'id' => 'proved-brace-artifact',
+                'sourcePdfDecorativeBraceEvidence' => [
+                    'method' => 'exact-recurring-oversized-brace-pair',
+                    'proofDigest' => hash('sha256', 'proved-brace-artifact'),
+                ],
+            ]),
+            $ordinary('A complete sentence follows the ornament.', 2, 668.0),
+        ];
+
+        $repaired = implode(' ', $repair([
+            'A complete sentence precedes the ornament.',
+            '{ }',
+            'A complete sentence follows the ornament.',
+        ], $layouts));
+        $t->true(!str_contains($repaired, '{'));
+        $t->contains('precedes the ornament.', $repaired);
+        $t->contains('follows the ornament.', $repaired);
+    },
+    'propagates immutable source occurrence and decorative evidence to fallback layouts' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $lineItem = (function (array $sourceItem): array {
+            return $this->sourcePdfLineItem($sourceItem);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($lineItem instanceof \Closure);
+
+        $evidence = [
+            'method' => 'exact-recurring-oversized-brace-pair',
+            'proofDigest' => hash('sha256', 'source-brace-17'),
+        ];
+        $item = $lineItem([
+            'id' => 'pdf-source-line-17',
+            'text' => '{',
+            'page' => 2,
+            'stream' => 7,
+            'sourcePdfGlobalSourceIndex' => 17,
+            'sourcePdfDecorativeBraceEvidence' => $evidence,
+        ]);
+
+        $t->same('pdf-source-line-17', $item['id'] ?? null);
+        $t->same(17, $item['sourcePdfGlobalSourceIndex'] ?? null);
+        $t->same($evidence, $item['sourcePdfDecorativeBraceEvidence'] ?? null);
+        $t->same(7, $item['sourceStream'] ?? null);
+    },
+    'coalesces only repeated consecutive pdf form tails and keeps their right boundaries' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $coalesce = (function (array $records): array {
+            return $this->coalesceProvenPdfFormTailRecords($records);
+        })->bindTo($reader, PdfReader::class);
+        $merge = (function (array $records): array {
+            return $this->mergeRepairedProseLines($records);
+        })->bindTo($reader, PdfReader::class);
+        $mergeTailRecords = (function (array $left, array $right): array {
+            return $this->mergeProvenPdfFormTailRecords($left, $right);
+        })->bindTo($reader, PdfReader::class);
+        $sourceIndexes = (function (array $record): array {
+            return $this->pdfSemanticRecordGlobalSourceIndexes($record);
+        })->bindTo($reader, PdfReader::class);
+        $stampExactFormTails = (function (array $layouts, array $sourceItems): array {
+            return $this->pdfSourceLayoutsWithExactFormTailOccurrenceProofs(
+                $layouts,
+                $sourceItems
+            );
+        })->bindTo($reader, PdfReader::class);
+        $t->true($coalesce instanceof \Closure);
+        $t->true($merge instanceof \Closure);
+        $t->true($mergeTailRecords instanceof \Closure);
+        $t->true($sourceIndexes instanceof \Closure);
+        $t->true($stampExactFormTails instanceof \Closure);
+
+        $record = static function (
+            string $text,
+            int $page,
+            int $stream,
+            int $globalIndex,
+            array $extra = []
+        ): array {
+            $layout = array_replace([
+                'id' => "source-{$globalIndex}",
+                'text' => $text,
+                'page' => $page,
+                'sourceStream' => $stream,
+                'sourcePdfGlobalSourceIndex' => $globalIndex,
+            ], $extra);
+
+            return ['text' => $text, 'layout' => $layout];
+        };
+        $exactCompositeRecord = static function (
+            string $text,
+            int $page,
+            int $stream,
+            int $globalIndex,
+            array $sourceOccurrences
+        ): array {
+            $projection = preg_replace('/[\s\p{Cc}\p{Cf}]+/u', '', $text) ?? '';
+            $occurrences = [];
+            $ranges = [];
+            $sourceIndexes = [];
+            foreach (array_values($sourceOccurrences) as $offset => $sourceText) {
+                $sourceProjection = preg_replace('/[\s\p{Cc}\p{Cf}]+/u', '', $sourceText) ?? '';
+                $sourceIndex = $globalIndex + $offset;
+                $sourceIndexes[] = $sourceIndex;
+                $occurrences[] = [
+                    'sourceIndex' => $sourceIndex,
+                    'sourceLocalIndex' => $sourceIndex,
+                    'page' => $page,
+                    'stream' => $stream,
+                    'significantBytes' => strlen($sourceProjection),
+                    'significantDigest' => hash('sha256', $sourceProjection),
+                ];
+                $ranges[] = [
+                    'sourceIndex' => $sourceIndex,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen($sourceProjection),
+                ];
+            }
+            $proof = [
+                'version' => 1,
+                'method' => 'source-inventory-whole-occurrence-union',
+                'page' => $page,
+                'layoutStream' => $stream,
+                'occurrences' => $occurrences,
+                'ranges' => $ranges,
+                'projectionDigest' => hash('sha256', $projection),
+            ];
+            $proof['proofDigest'] = hash('sha256', json_encode(
+                $proof,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            ) ?: '');
+
+            return [
+                'text' => $text,
+                'layout' => [
+                    'text' => $text,
+                    'page' => $page,
+                    'sourceStream' => $stream,
+                    'sourcePdfExactPositionedText' => true,
+                    'sourcePdfGlobalSourceIndexes' => $sourceIndexes,
+                    'sourcePdfExactSourceRanges' => $ranges,
+                    'sourcePdfWholeExactOccurrenceProof' => $proof,
+                ],
+            ];
+        };
+
+        $sameBaselineLeft = [
+            'x1' => 100.0,
+            'y1' => 300.0,
+            'x2' => 130.0,
+            'y2' => 312.0,
+            'fontSize' => 10.0,
+            'forceBlockBreakBefore' => true,
+        ];
+        $sameBaselineRight = [
+            'x1' => 129.5,
+            'y1' => 300.0,
+            'x2' => 138.0,
+            'y2' => 312.0,
+            'fontSize' => 10.0,
+        ];
+        $crossStreamForm = [
+            $record('3(a)', 1, 1, 10, $sameBaselineLeft),
+            $record('$', 1, 2, 11, $sameBaselineRight),
+            $record('3(b)', 1, 2, 12),
+            $record('$', 1, 2, 13),
+            $record('4(c)', 1, 2, 14),
+            $record('$', 1, 2, 15),
+        ];
+        $grouped = $coalesce($crossStreamForm);
+        $t->same(['3(a) $', '3(b) $', '4(c) $'], array_column($grouped, 'text'));
+        $t->same([10, 11], $grouped[0]['layout']['sourcePdfGlobalSourceIndexes'] ?? null);
+        $t->same(true, $grouped[0]['layout']['sourcePdfFormTailEnd'] ?? null);
+        $t->same(true, $grouped[0]['layout']['forceBlockBreakBefore'] ?? null);
+
+        $privacy = $record('A separate legal notice remains its own paragraph.', 1, 2, 16);
+        $t->same([
+            '3(a) $',
+            '3(b) $',
+            '4(c) $',
+            'A separate legal notice remains its own paragraph.',
+        ], $merge([...$grouped, $privacy]));
+
+        $crossStreamWithoutGeometry = [
+            $record('1a', 2, 3, 20),
+            $record('$', 2, 4, 21),
+            $record('1b', 2, 3, 22),
+            $record('$', 2, 4, 23),
+            $record('1c', 2, 3, 24),
+            $record('$', 2, 4, 25),
+        ];
+        $t->same(
+            array_column($crossStreamWithoutGeometry, 'text'),
+            array_column($coalesce($crossStreamWithoutGeometry), 'text'),
+            'Content-stream adjacency without inline geometry is not a visual form-tail proof.'
+        );
+
+        $gapInsideProvenPage = [
+            $record('1a', 3, 5, 30),
+            $record('$', 3, 5, 31),
+            $record('1b', 3, 5, 32),
+            $record('$', 3, 5, 33),
+            $record('1c', 3, 5, 34),
+            $record('$', 3, 5, 35),
+            $record('2a', 3, 5, 36),
+            $record('$', 3, 5, 38),
+        ];
+        $t->same(
+            ['1a $', '1b $', '1c $', '2a', '$'],
+            array_column($coalesce($gapInsideProvenPage), 'text'),
+            'A missing source occurrence must keep the apparent tail unmerged even on a proved form page.'
+        );
+
+        $oneOffCurrency = [
+            $record('Equation 2a', 4, 6, 40),
+            $record('$', 4, 6, 41),
+        ];
+        $t->same(
+            array_column($oneOffCurrency, 'text'),
+            array_column($coalesce($oneOffCurrency), 'text'),
+            'One currency-shaped pair is not repeated form evidence.'
+        );
+
+        $alreadyComposite = [
+            $exactCompositeRecord(
+                'First worksheet row . . . . 1a $',
+                6,
+                8,
+                200,
+                ['First worksheet row . . . . 1a', '$']
+            ),
+            $exactCompositeRecord(
+                'Second worksheet row . . . . 2b $',
+                6,
+                8,
+                202,
+                ['Second worksheet row . . . . 2b', '$']
+            ),
+            $exactCompositeRecord(
+                'Third worksheet row . . . . 3(c) $',
+                6,
+                8,
+                204,
+                ['Third worksheet row . . . . 3(c)', '$']
+            ),
+            $record('A separate notice follows the worksheet.', 6, 8, 206),
+        ];
+        $groupedComposite = $coalesce($alreadyComposite);
+        $t->same(array_column($alreadyComposite, 'text'), array_column($groupedComposite, 'text'));
+        $t->same(
+            'exact-source-composite-form-tail',
+            $groupedComposite[0]['layout']['sourcePdfFormTailProof']['method'] ?? null
+        );
+        $t->same(true, $groupedComposite[1]['layout']['sourcePdfFormTailEnd'] ?? null);
+        $t->same(true, $groupedComposite[2]['layout']['sourcePdfFormTailComposite'] ?? null);
+        $t->same(
+            array_column($groupedComposite, 'text'),
+            $merge($groupedComposite),
+            'An already-composite exact currency occurrence must still close its form row.'
+        );
+
+        $notOccurrenceSeparated = [
+            $exactCompositeRecord(
+                'First price 1a $',
+                7,
+                9,
+                210,
+                ['First price', '1a $']
+            ),
+            $exactCompositeRecord(
+                'Second price 2b $',
+                7,
+                9,
+                212,
+                ['Second price', '2b $']
+            ),
+            $exactCompositeRecord(
+                'Third price 3c $',
+                7,
+                9,
+                214,
+                ['Third price', '3c $']
+            ),
+        ];
+        $unprovedComposite = $coalesce($notOccurrenceSeparated);
+        $t->same(
+            [null, null, null],
+            array_map(
+                static fn (array $item): mixed => $item['layout']['sourcePdfFormTailEnd'] ?? null,
+                $unprovedComposite
+            ),
+            'A suffix inside a larger source occurrence is not a composite form-tail proof.'
+        );
+
+        $partialRangeLayouts = [];
+        $partialRangeSourceItems = [];
+        foreach ([
+            ['First hidden prefix First form row . . . . 1a', '$'],
+            ['Second hidden prefix Second form row . . . . 2b', '$'],
+            ['Third hidden prefix Third form row . . . . 3(c)', '$'],
+        ] as $offset => [$sourceCarrier, $sourceCurrency]) {
+            $carrierProjection = preg_replace('/\s+/u', '', $sourceCarrier) ?? '';
+            $visibleStart = strpos($carrierProjection, $offset === 0 ? 'Firstform' : ($offset === 1 ? 'Secondform' : 'Thirdform'));
+            $t->true(is_int($visibleStart));
+            $globalIndex = 300 + $offset * 2;
+            foreach ([$sourceCarrier, $sourceCurrency] as $sourceOffset => $sourceText) {
+                $partialRangeSourceItems[] = [
+                    'text' => $sourceText,
+                    'page' => 8,
+                    'stream' => 10,
+                    'sourcePdfGlobalSourceIndex' => $globalIndex + $sourceOffset,
+                    'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                    'sourceGeometry' => [
+                        'x1' => 100.0 + $sourceOffset * 200.0,
+                        'y1' => 500.0 - $offset * 20.0,
+                        'x2' => 250.0 + $sourceOffset * 200.0,
+                        'y2' => 510.0 - $offset * 20.0,
+                        'orientation' => 'horizontal',
+                    ],
+                ];
+            }
+            $visibleCarrier = substr($carrierProjection, $visibleStart);
+            $visibleText = preg_replace(
+                '/(?<=\p{Ll})(?=form)|(?<=form)(?=row)/u',
+                ' ',
+                $visibleCarrier
+            ) ?? $visibleCarrier;
+            $visibleText = str_replace('row....', 'row . . . . ', $visibleText) . ' $';
+            $partialRangeLayouts[] = [
+                'text' => $visibleText,
+                'page' => 8,
+                'x1' => 100.0,
+                'y1' => 500.0 - $offset * 20.0,
+                'x2' => 310.0,
+                'y2' => 510.0 - $offset * 20.0,
+                'fontSize' => 10.0,
+                'sourcePdfExactSourceRanges' => [[
+                    'sourceIndex' => $globalIndex,
+                    'sourceStart' => $visibleStart,
+                    'sourceEnd' => strlen($carrierProjection),
+                ], [
+                    'sourceIndex' => $globalIndex + 1,
+                    'sourceStart' => 0,
+                    'sourceEnd' => 1,
+                ]],
+            ];
+        }
+        $stampedPartialRangeLayouts = $stampExactFormTails(
+            $partialRangeLayouts,
+            $partialRangeSourceItems
+        );
+        $partialRangeRecords = array_map(
+            static fn (array $layout): array => ['text' => $layout['text'], 'layout' => $layout],
+            $stampedPartialRangeLayouts
+        );
+        $groupedPartialRanges = $coalesce($partialRangeRecords);
+        $t->same(
+            [true, true, true],
+            array_map(
+                static fn (array $item): mixed => $item['layout']['sourcePdfFormTailEnd'] ?? null,
+                $groupedPartialRanges
+            ),
+            'A source-inventory proof may certify a full terminal currency after an exact carrier suffix.'
+        );
+
+        $detachedRowId = [
+            $record('Enter the estimated amount here . . . .', 5, 7, 100),
+            $record('1b', 5, 7, 101),
+            $record('$', 5, 7, 102),
+            $record('Second row . . . . 2a', 5, 7, 103),
+            $record('$', 5, 7, 104),
+            $record('Third row . . . . 3(a)', 5, 7, 105),
+            $record('$', 5, 7, 106),
+            $record('Privacy Act notice starts here.', 5, 7, 107),
+        ];
+        $groupedRows = $coalesce($detachedRowId);
+        $t->same([
+            'Enter the estimated amount here . . . . 1b $',
+            'Second row . . . . 2a $',
+            'Third row . . . . 3(a) $',
+            'Privacy Act notice starts here.',
+        ], array_column($groupedRows, 'text'));
+        $t->same([100, 101, 102], $groupedRows[0]['layout']['sourcePdfGlobalSourceIndexes'] ?? null);
+        $t->same(
+            ['source-100', 'source-101', 'source-102'],
+            $groupedRows[0]['layout']['sourcePdfSourceIds'] ?? null
+        );
+        $t->same(
+            array_column($groupedRows, 'text'),
+            $merge($groupedRows),
+            'Every proved currency tail must close its row before the next row or legal notice.'
+        );
+
+        $sameOccurrenceFragments = [
+            $record('Field', 12, 13, 500, [
+                'x1' => 100.0,
+                'y1' => 200.0,
+                'x2' => 150.0,
+                'y2' => 212.0,
+                'fontSize' => 10.0,
+                'sourcePdfGlobalSourceIndexes' => [500],
+                'sourcePdfExactSourceRanges' => [[
+                    'sourceIndex' => 500,
+                    'sourceStart' => 0,
+                    'sourceEnd' => 5,
+                ]],
+            ]),
+            $record('tail', 12, 13, 500, [
+                'x1' => 151.0,
+                'y1' => 200.0,
+                'x2' => 190.0,
+                'y2' => 212.0,
+                'fontSize' => 10.0,
+                'sourcePdfGlobalSourceIndexes' => [500],
+                'sourcePdfExactSourceRanges' => [[
+                    'sourceIndex' => 500,
+                    'sourceStart' => 5,
+                    'sourceEnd' => 9,
+                ]],
+            ]),
+        ];
+        $sameOccurrenceMerged = $mergeTailRecords(...$sameOccurrenceFragments);
+        $t->same(
+            [500],
+            $sameOccurrenceMerged['layout']['sourcePdfGlobalSourceIndexes'] ?? null,
+            'Adjacent ranges from one occurrence must retain one global source identity.'
+        );
+        $t->same([[
+            'sourceIndex' => 500,
+            'sourceStart' => 0,
+            'sourceEnd' => 9,
+        ]], $sameOccurrenceMerged['layout']['sourcePdfExactSourceRanges'] ?? null);
+        $t->same([500], $sourceIndexes($sameOccurrenceMerged));
+        $t->same(
+            [500],
+            $sameOccurrenceMerged['layout']['sourcePdfFormTailProof']['sourceIndexes'] ?? null
+        );
+    },
+    'restores only a fully covered repeated form prefix to exact source bundle order' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $stampExactFormTails = (function (array $layouts, array $sourceItems): array {
+            return $this->pdfSourceLayoutsWithExactFormTailOccurrenceProofs(
+                $layouts,
+                $sourceItems
+            );
+        })->bindTo($reader, PdfReader::class);
+        $orderFormSource = (function (array $lines, array $layouts, array $sourceItems): array {
+            return $this->pdfRepairSourceInProvenFormRowBundleOrder(
+                $lines,
+                $layouts,
+                $sourceItems
+            );
+        })->bindTo($reader, PdfReader::class);
+        $t->true($stampExactFormTails instanceof \Closure);
+        $t->true($orderFormSource instanceof \Closure);
+
+        $sourceItem = static function (int $index, string $text, float $y): array {
+            return [
+                'id' => 'form-source-' . $index,
+                'page' => 9,
+                'stream' => 12,
+                'text' => $text,
+                'sourcePdfGlobalSourceIndex' => $index,
+                'sourceGeometry' => [
+                    'page' => 9,
+                    'stream' => 12,
+                    'x1' => 60.0,
+                    'y1' => $y,
+                    'x2' => 500.0,
+                    'y2' => $y + 12.5,
+                    'orientation' => 'horizontal',
+                ],
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            ];
+        };
+        $sourceItems = [
+            $sourceItem(0, 'Worksheet heading.', 700.0),
+            $sourceItem(1, 'Alpha row 1a', 600.0),
+            $sourceItem(2, '$', 600.0),
+            $sourceItem(3, 'Beta row 2b', 500.0),
+            $sourceItem(4, '$', 500.0),
+            $sourceItem(5, 'Gamma row 3c', 400.0),
+            $sourceItem(6, '$', 400.0),
+            $sourceItem(7, 'A legal notice follows.', 300.0),
+        ];
+        $fragment = static function (
+            string $text,
+            array $ranges,
+            float $x1,
+            float $y,
+            float $x2
+        ): array {
+            return [
+                'text' => $text,
+                'page' => 9,
+                'sourceStream' => 12,
+                'x1' => $x1,
+                'y1' => $y,
+                'x2' => $x2,
+                'y2' => $y + 12.5,
+                'fontSize' => 10.0,
+                'sourcePdfExactSourceRanges' => $ranges,
+            ];
+        };
+        $layouts = [
+            $fragment('Worksheet heading.', [[
+                'sourceIndex' => 0,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen('Worksheetheading.'),
+            ]], 60.0, 700.0, 260.0),
+            $fragment('Alpha row', [[
+                'sourceIndex' => 1,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen('Alpharow'),
+            ]], 60.0, 600.0, 240.0),
+            // The next row's left carrier is painted before the prior row's
+            // right field. Exact source reconstruction must undo only that
+            // interleave and keep the later legal notice after every field.
+            $fragment('Beta row', [[
+                'sourceIndex' => 3,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen('Betarow'),
+            ]], 60.0, 500.0, 240.0),
+            $fragment('1a $', [[
+                'sourceIndex' => 1,
+                'sourceStart' => strlen('Alpharow'),
+                'sourceEnd' => strlen('Alpharow1a'),
+            ], [
+                'sourceIndex' => 2,
+                'sourceStart' => 0,
+                'sourceEnd' => 1,
+            ]], 300.0, 600.0, 500.0),
+            $fragment('Gamma row', [[
+                'sourceIndex' => 5,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen('Gammarow'),
+            ]], 60.0, 400.0, 240.0),
+            $fragment('2b $', [[
+                'sourceIndex' => 3,
+                'sourceStart' => strlen('Betarow'),
+                'sourceEnd' => strlen('Betarow2b'),
+            ], [
+                'sourceIndex' => 4,
+                'sourceStart' => 0,
+                'sourceEnd' => 1,
+            ]], 300.0, 500.0, 500.0),
+            $fragment('A legal notice follows.', [[
+                'sourceIndex' => 7,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen('Alegalnoticefollows.'),
+            ]], 60.0, 300.0, 300.0),
+            $fragment('3c $', [[
+                'sourceIndex' => 5,
+                'sourceStart' => strlen('Gammarow'),
+                'sourceEnd' => strlen('Gammarow3c'),
+            ], [
+                'sourceIndex' => 6,
+                'sourceStart' => 0,
+                'sourceEnd' => 1,
+            ]], 300.0, 400.0, 500.0),
+        ];
+        $layouts = $stampExactFormTails($layouts, $sourceItems);
+        $lines = array_column($layouts, 'text');
+        $ordered = $orderFormSource($lines, $layouts, $sourceItems);
+        $t->same(array_column($sourceItems, 'text'), $ordered['lines']);
+        $t->same([9], $ordered['geometryPageNumbers']);
+        $t->same(
+            range(0, 6),
+            array_map(
+                static fn (array $layout): mixed =>
+                    $layout['sourcePdfGlobalSourceIndex']
+                        ?? ($layout['sourcePdfGlobalSourceIndexes'][0] ?? null),
+                array_slice($ordered['layouts'], 0, 7)
+            )
+        );
+
+        $incompleteLayouts = $layouts;
+        unset($incompleteLayouts[4]['sourcePdfExactSourceRanges']);
+        $rejected = $orderFormSource($lines, $incompleteLayouts, $sourceItems);
+        $t->same([], $rejected['geometryPageNumbers']);
+        $t->same($lines, $rejected['lines']);
+    },
+    'folds only recurring exact brace delimited form lists without dropping characters' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $stampWholeProofs = (function (array $layouts, array $sourceItems): array {
+            return $this->pdfSourceLayoutsWithWholeExactOccurrenceProofs(
+                $layouts,
+                $sourceItems
+            );
+        })->bindTo($reader, PdfReader::class);
+        $fold = (function (array $records): array {
+            return $this->foldExactPdfBraceDelimitedListRecords($records);
+        })->bindTo($reader, PdfReader::class);
+        $validateBundle = (function (array $record): ?array {
+            return $this->pdfValidatedFormRowBundleProof($record);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($stampWholeProofs instanceof \Closure);
+        $t->true($fold instanceof \Closure);
+        $t->true($validateBundle instanceof \Closure);
+
+        $texts = [
+            'First choices:', '{', '• One', '• Two', '}',
+            'Second choices:', '{', '• Three', '• Four', '}',
+        ];
+        $sourceItems = [];
+        $layouts = [];
+        foreach ($texts as $index => $text) {
+            $firstPair = $index < 5;
+            $local = $index % 5;
+            $baseY = $firstPair ? 500.0 : 400.0;
+            $x1 = $local === 1 ? 90.0 : ($local === 4 ? 390.0 : 110.0);
+            $x2 = $local === 1 ? 105.0 : ($local === 4 ? 410.0 : 300.0);
+            $y1 = in_array($local, [1, 4], true) ? $baseY : $baseY + 4.0;
+            $y2 = in_array($local, [1, 4], true) ? $baseY + 20.0 : $baseY + 16.0;
+            $projection = preg_replace('/\s+/u', '', $text) ?? $text;
+            $sourceItems[] = [
+                'id' => 'brace-list-source-' . $index,
+                'page' => 10,
+                'stream' => 3,
+                'text' => $text,
+                'sourcePdfGlobalSourceIndex' => $index,
+                'sourceGeometry' => [
+                    'page' => 10,
+                    'stream' => 3,
+                    'x1' => $x1,
+                    'y1' => $y1,
+                    'x2' => $x2,
+                    'y2' => $y2,
+                    'orientation' => 'horizontal',
+                ],
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            ];
+            $layouts[] = [
+                'text' => $text,
+                'page' => 10,
+                'sourceStream' => 3,
+                'x1' => $x1,
+                'y1' => $y1,
+                'x2' => $x2,
+                'y2' => $y2,
+                'fontSize' => in_array($local, [1, 4], true) ? 16.0 : 10.0,
+                'sourcePdfExactPositionedText' => true,
+                'sourcePdfGlobalSourceIndexes' => [$index],
+                'sourcePdfExactSourceRanges' => [[
+                    'sourceIndex' => $index,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen($projection),
+                ]],
+            ];
+        }
+        $layouts = $stampWholeProofs($layouts, $sourceItems);
+        foreach ($layouts as $index => &$layout) {
+            $bundleStart = $index < 5 ? 0 : 5;
+            $bundleProof = [
+                'version' => 1,
+                'method' => 'exact-source-occurrence-form-row-bundle',
+                'page' => 10,
+                'sourceStartIndex' => $bundleStart,
+                'sourceEndIndex' => $bundleStart + 4,
+                'tailCenter' => $index < 5 ? 510.0 : 410.0,
+                'tailX2' => 500.0,
+            ];
+            $bundleProof['proofDigest'] = hash('sha256', json_encode(
+                $bundleProof,
+                JSON_UNESCAPED_SLASHES
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: '');
+            $layout['sourcePdfFormRowBundleProof'] = $bundleProof;
+        }
+        unset($layout);
+        $records = array_map(
+            static fn (string $text, array $layout): array => compact('text', 'layout'),
+            $texts,
+            $layouts
+        );
+        $t->true(is_array($validateBundle($records[1])));
+        $invalidBundleMember = $records[1];
+        $invalidBundleMember['layout']['sourcePdfGlobalSourceIndexes'] = [1, 1];
+        $t->same(null, $validateBundle($invalidBundleMember));
+        $mismatchedBundleMember = $records[1];
+        $mismatchedBundleMember['layout']['sourcePdfGlobalSourceIndexes'] = [2];
+        $t->same(null, $validateBundle($mismatchedBundleMember));
+        $folded = $fold($records);
+        $t->same([
+            'First choices: {',
+            '• One',
+            '• Two }',
+            'Second choices: {',
+            '• Three',
+            '• Four }',
+        ], array_column($folded, 'text'));
+        $sourceProjection = preg_replace('/\s+/u', '', implode('', $texts)) ?? '';
+        $foldedProjection = preg_replace(
+            '/\s+/u',
+            '',
+            implode('', array_column($folded, 'text'))
+        ) ?? '';
+        $t->same($sourceProjection, $foldedProjection);
+        $t->same([
+            [0, 1], [2], [3, 4], [5, 6], [7], [8, 9],
+        ], array_map(
+            static fn (array $record): array =>
+                $record['layout']['sourcePdfGlobalSourceIndexes'] ?? [],
+            $folded
+        ));
+        $t->same([
+            [0, 1], [2], [3, 4], [5, 6], [7], [8, 9],
+        ], array_map(
+            static fn (array $record): array => array_values(array_unique(array_column(
+                $record['layout']['sourcePdfExactSourceRanges'] ?? [],
+                'sourceIndex'
+            ))),
+            $folded
+        ));
+        $t->same(
+            array_slice($texts, 0, 5),
+            array_column($fold(array_slice($records, 0, 5)), 'text'),
+            'One exact brace-delimited list is not recurring visual evidence.'
+        );
+    },
+    'recovers visible exact-source loss without erasing semantic prefixes or accepting duplicate carriers' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $snapshot = (function (array $records): array {
+            return $this->pdfExactSourceSemanticRecoverySnapshot($records);
+        })->bindTo($reader, PdfReader::class);
+        $restore = (function (array $records, array $recoverySnapshot): array {
+            return $this->restoreDroppedExactSourceSemanticRecords($records, $recoverySnapshot);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($snapshot instanceof \Closure);
+        $t->true($restore instanceof \Closure);
+
+        $layout = static fn (int $sourceIndex): array => [
+            'page' => 1,
+            'sourceStream' => 3,
+            'sourcePdfSourceIndex' => $sourceIndex,
+        ];
+        $records = [
+            ['text' => 'Introductory prose.', 'layout' => $layout(0)],
+            ['text' => '25,200', 'layout' => $layout(1)],
+            ['text' => 'Closing prose.', 'layout' => $layout(2)],
+        ];
+        $recoverySnapshot = $snapshot($records);
+
+        $prefixed = $records;
+        $prefixed[1]['text'] = "\x1EPDF-MAP-LABEL\x1F25,200";
+        $retained = $restore($prefixed, $recoverySnapshot);
+        $t->same("\x1EPDF-MAP-LABEL\x1F25,200", $retained[1]['text']);
+
+        $trimmed = $records;
+        $trimmed[1]['text'] = '25';
+        $recovered = $restore($trimmed, $recoverySnapshot);
+        $t->same('25,200', $recovered[1]['text']);
+
+        $duplicate = [$records[1], $records[1]];
+        $t->same([], $snapshot($duplicate), 'One complete source occurrence cannot authorize two semantic carriers.');
+    },
+    'recovers only a validated exact-offset inline marker union' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $sourceSha256 = str_repeat('c', 64);
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $snapshot = (function (array $records): array {
+            return $this->pdfExactSourceSemanticRecoverySnapshot($records);
+        })->bindTo($reader, PdfReader::class);
+        $restore = (function (array $records, array $recoverySnapshot): array {
+            return $this->restoreDroppedExactSourceSemanticRecords($records, $recoverySnapshot);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($setSourceSha256 instanceof \Closure);
+        $t->true($snapshot instanceof \Closure);
+        $t->true($restore instanceof \Closure);
+        $setSourceSha256($sourceSha256);
+
+        $record = static function (
+            string $text,
+            int $globalSourceIndex,
+            int $pageLocalSourceIndex,
+            float $x1,
+            float $y1,
+            float $x2,
+            float $y2,
+            float $fontSize
+        ): array {
+            $projection = preg_replace('/[\s\p{Cc}\p{Cf}]+/u', '', $text) ?? '';
+
+            return [
+                'text' => $text,
+                'layout' => [
+                    'text' => $text,
+                    'page' => 2,
+                    'sourceStream' => 3,
+                    'id' => 'inline-recovery-' . $globalSourceIndex,
+                    'sourcePdfGlobalSourceIndex' => $globalSourceIndex,
+                    'sourceOrderStart' => $globalSourceIndex,
+                    'sourceOrderEnd' => $globalSourceIndex,
+                    'sourcePdfSourceIndex' => $pageLocalSourceIndex,
+                    'sourcePdfSourceIndexEnd' => $pageLocalSourceIndex,
+                    'sourcePdfSourceIndexes' => [$pageLocalSourceIndex],
+                    'sourcePdfExactSourceRanges' => [[
+                        'sourceIndex' => $globalSourceIndex,
+                        'sourceStart' => 0,
+                        'sourceEnd' => strlen($projection),
+                    ]],
+                    'sourceGeometry' => [
+                        'page' => 2,
+                        'stream' => 3,
+                        'x1' => $x1,
+                        'y1' => $y1,
+                        'x2' => $x2,
+                        'y2' => $y2,
+                        'orientation' => 'horizontal',
+                    ],
+                    'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                    'sourcePdfExactGeometryFallback' => true,
+                    'sourceUnmatchedFallback' => true,
+                    'x1' => $x1,
+                    'y1' => $y1,
+                    'x2' => $x2,
+                    'y2' => $y2,
+                    'fontSize' => $fontSize,
+                ],
+            ];
+        };
+        $composite = (new \PortLibs\Pandoc\PdfInlineMarkerSemanticProcessor($sourceSha256))->process([
+            $record(',w', 194, 89, 427.0, 636.0, 445.0, 650.0, 13.5),
+            $record('(i)', 195, 90, 441.0, 643.0, 455.0, 653.0, 9.9),
+        ]);
+        $t->same(1, count($composite));
+        $t->same(',w(i)', $composite[0]['text']);
+        $recoverySnapshot = $snapshot($composite);
+        $t->same(1, count($recoverySnapshot));
+        $t->same(',w(i)', $restore([], $recoverySnapshot)[0]['text'] ?? null);
+
+        $tamperedRange = $composite;
+        $tamperedRange[0]['layout']['sourcePdfExactSourceRanges'][1]['sourceEnd']--;
+        $tamperedComponent = $composite;
+        $tamperedComponent[0]['layout']['sourcePdfInlineMarkerExactSourceUnionProof']['components'][1]['projectionDigest'] = str_repeat('0', 64);
+        $tamperedProof = $composite;
+        $tamperedProof[0]['layout']['sourcePdfInlineMarkerExactSourceUnionProof']['proofDigest'] = str_repeat('0', 64);
+        $unproved = $composite;
+        unset($unproved[0]['layout']['sourcePdfInlineMarkerExactSourceUnionProof']);
+        foreach ([$tamperedRange, $tamperedComponent, $tamperedProof, $unproved] as $candidate) {
+            $t->same([], $snapshot($candidate));
+        }
     },
     'does not dictionary segment glued pdf prose without layout evidence' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
@@ -5206,7 +6538,7 @@ return [
         $t->true(!str_contains($html, '<h2>Technical documents'), 'wrapped prose line is not promoted by dictionary segmentation');
         $t->true(!str_contains($text, 'Technical documents can lose word spaces'), 'glued prose is not guessed from English vocabulary');
     },
-    'removes standalone pdf brace artifacts during prose repair' => static function (TestRunner $t) use ($pdfWithContent): void {
+    'preserves standalone pdf braces without local replacement evidence' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
             . '1 0 0 1 72 748 Tm (Technical documents can lose word spaces during PDF extraction.) Tj '
@@ -5224,11 +6556,62 @@ return [
         $meta = $document->attr('meta');
 
         $t->same(true, $meta['pdfTextRepair']);
-        $t->contains('Providers should practice hand hygiene: Every time they enter your room.', $text);
+        $t->contains('Providers should practice hand hygiene: { } Every time they enter your room.', $text);
         $t->contains('Before preparing food, keep hands clean by asking people to wash.', $text);
         $t->contains('Use a towel to turn off the faucet if you don’t want germs to use it.', $text);
-        $t->true(!str_contains($text, '{ }'));
-        $t->true(!str_contains($text, 'hygiene: { } Every'));
+        $t->same(0, $meta['pdfTextFidelity']['unresolvedSignificantCharacterCount'] ?? null);
+        $t->same(0, $meta['pdfSourceDisposition']['unresolvedOccurrenceCount'] ?? null);
+        $t->same(true, $meta['pdfSemanticTextComplete'] ?? null);
+    },
+    'classifies only recurring oversized brace pairs enclosing text as PDF ornaments' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $detect = (function (array $items): array {
+            return $this->pdfDecorativeBracePairEvidence($items);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($detect instanceof \Closure);
+
+        $item = static function (string $id, string $text, int $page, float $x1, float $y1, float $x2, float $y2): array {
+            return [
+                'id' => $id,
+                'page' => $page,
+                'stream' => 1,
+                'text' => $text,
+                'sourceGeometry' => compact('page', 'x1', 'y1', 'x2', 'y2'),
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            ];
+        };
+        $evidence = $detect([
+            $item('callout-a-1', 'First callout line.', 1, 80.0, 510.0, 180.0, 522.0),
+            $item('callout-a-2', 'Second callout line.', 1, 80.0, 492.0, 190.0, 504.0),
+            $item('brace-a', "{\t}", 1, 50.0, 475.0, 220.0, 535.0),
+            $item('callout-b-1', 'Third callout line.', 1, 330.0, 510.0, 430.0, 522.0),
+            $item('callout-b-2', 'Fourth callout line.', 1, 330.0, 492.0, 440.0, 504.0),
+            $item('brace-b-open', '{', 1, 300.0, 475.0, 320.0, 535.0),
+            $item('brace-b-close', '}', 1, 450.0, 475.0, 470.0, 535.0),
+            // An exact brace-only line is still literal when no recurring,
+            // oversized enclosing pair proves a visual ornament.
+            $item('standalone-code-brace', '{', 2, 72.0, 700.0, 80.0, 712.0),
+        ]);
+
+        $evidenceIds = array_keys($evidence);
+        sort($evidenceIds);
+        $t->same(
+            ['brace-a', 'brace-b-close', 'brace-b-open'],
+            $evidenceIds
+        );
+        foreach ($evidence as $pairEvidence) {
+            $t->same('exact-recurring-oversized-brace-pair-enclosing-text', $pairEvidence['method'] ?? null);
+            $t->same(2, $pairEvidence['recurringPairCount'] ?? null);
+            $t->true(($pairEvidence['enclosedOccurrenceCount'] ?? 0) >= 2);
+        }
+        $t->true(!isset($evidence['standalone-code-brace']));
+
+        $t->same([], $detect([
+            $item('duplicate-line-1', 'First duplicated-layer line.', 3, 80.0, 510.0, 190.0, 522.0),
+            $item('duplicate-line-2', 'Second duplicated-layer line.', 3, 80.0, 492.0, 200.0, 504.0),
+            $item('duplicate-brace-a', "{\t}", 3, 50.0, 475.0, 220.0, 535.0),
+            $item('duplicate-brace-b', "{\t}", 3, 50.0, 475.0, 220.0, 535.0),
+        ]), 'Overprinted duplicate layers at one location are not a recurring visual convention.');
     },
     'turns repeated embedded pdf bullet markers into a list' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf '
@@ -5275,6 +6658,1332 @@ return [
         $t->contains('<li><p>Wet your hands with warm water.</p></li>', $html);
         $t->contains('<li><p>Rub your hands together.</p></li>', $html);
         $t->contains('<li><p>Rinse your hands well.</p></li>', $html);
+    },
+    'keeps unicode dash form references out of embedded ordered lists' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm (Form W\2264. See instructions on page 5. Enter the amount on line 1.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $plain = trim(PandocConverter::write($document, 'plain'));
+        $html = PandocConverter::write($document, 'html');
+        $meta = $document->attr('meta');
+
+        $t->same(['paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('Form W–4. See instructions on page 5. Enter the amount on line 1.', $plain);
+        $t->true(!str_contains($html, '<ol>'));
+        $t->same(true, $meta['pdfSourceBindingComplete'] ?? null);
+        $t->same(true, $meta['pdfSemanticTextComplete'] ?? null);
+    },
+    'does not let proved bullet cardinality preempt exact ordered list item disposition' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm (- Hyphen bullet item.) Tj '
+            . '1 0 0 1 72 732 Tm (\225 Unicode bullet item.) Tj '
+            . '1 0 0 1 72 700 Tm (Room 3. remains ordinary prose.) Tj '
+            . '1 0 0 1 72 668 Tm (1. Ordered item keeps \225 inline symbol.) Tj '
+            . '1 0 0 1 72 652 Tm (2. Second ordered item.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $html = PandocConverter::write($document, 'html');
+        $meta = $document->attr('meta');
+        $disposition = $meta['pdfSourceDisposition'];
+
+        $t->same(
+            ['bullet_list', 'paragraph', 'ordered_list'],
+            array_map(static fn (AstNode $node): string => $node->type, $document->children)
+        );
+        $t->same(2, count($document->children[0]->children));
+        $t->same(2, count($document->children[2]->children));
+        $t->contains('<li><p>Ordered item keeps • inline symbol.</p></li>', $html);
+        $t->same(true, $meta['pdfSourceBindingComplete'] ?? null);
+        $t->same(null, $meta['pdfSourceBindingFailureReason'] ?? null);
+        $t->same(0, $disposition['unresolvedOccurrenceCount'] ?? null);
+        $t->same(0, $disposition['unclaimedEmittedSignificantCharacterCount'] ?? null);
+        $t->same(true, $meta['pdfSemanticTextComplete'] ?? null);
+
+        $suppressionByText = [];
+        foreach ($disposition['evidencedSuppressionSample'] ?? [] as $sample) {
+            $suppressionByText[$sample['text'] ?? ''] = $sample;
+        }
+        $bulletProof = $suppressionByText['• Unicode bullet item.']['evidence'] ?? [];
+        $t->same('exact-source-structural-list-marker-cardinality', $bulletProof['method'] ?? null);
+        $t->same(2, $bulletProof['sourceMarkerCounts']['bullet'] ?? null);
+        $t->same(2, $bulletProof['structuralMarkerCounts']['bullet'] ?? null);
+        $t->same(3, $bulletProof['sourceMarkerCounts']['ordered'] ?? null);
+        $t->same(2, $bulletProof['structuralMarkerCounts']['ordered'] ?? null);
+
+        $orderedProof = $suppressionByText['1. Ordered item keeps • inline symbol.']['evidence'] ?? [];
+        $t->same('exact-structural-list-item-occurrence', $orderedProof['method'] ?? null);
+        $t->same('ordered', $orderedProof['listType'] ?? null);
+    },
+    'binds a standalone ordered marker without consuming a mid sentence year' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm (This form was signed for 2022. Form details remain.) Tj '
+            . '1 0 0 1 72 716 Tm (1.) Tj '
+            . '1 0 0 1 90 716 Tm (Actual ordered item.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $plain = PandocConverter::write($document, 'plain');
+
+        $t->contains('signed for 2022. Form details remain.', $plain);
+        $t->same(1, count(array_filter(
+            $document->children,
+            static fn (AstNode $block): bool => $block->type === 'ordered_list'
+        )));
+
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $explicitDispositions = (function (array $items, array $blocks): array {
+            return $this->explicitPdfSourceDispositions($items, $blocks);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($setSourceSha256 instanceof \Closure);
+        $t->true($explicitDispositions instanceof \Closure);
+        $setSourceSha256(str_repeat('c', 64));
+        $dispositions = $explicitDispositions([
+            ['id' => 'year-prose', 'page' => 1, 'stream' => 1, 'text' => 'This form was signed for 2022. Form details remain.'],
+            ['id' => 'standalone-marker', 'page' => 1, 'stream' => 1, 'text' => '1.'],
+            ['id' => 'list-body', 'page' => 1, 'stream' => 1, 'text' => 'Actual ordered item.'],
+        ], $document->children);
+        $t->same(
+            'exact-standalone-list-marker-to-item',
+            $dispositions['standalone-marker']['evidence']['method'] ?? null
+        );
+        $t->same('', $dispositions['standalone-marker']['textProjection'] ?? null);
+        $semanticStructureProof = $dispositions['standalone-marker']['semanticStructureProof'] ?? [];
+        $t->same(1, $semanticStructureProof['version'] ?? null);
+        $t->same('exact-standalone-list-marker-to-item', $semanticStructureProof['method'] ?? null);
+        $t->same('ordered', $semanticStructureProof['listType'] ?? null);
+        $t->same(1, $semanticStructureProof['markerOrdinal'] ?? null);
+        $t->same(hash('sha256', '1.'), $semanticStructureProof['markerDigest'] ?? null);
+        $t->same('list-body', $semanticStructureProof['anchorSourceOccurrenceId'] ?? null);
+        $t->same(
+            hash('sha256', 'Actualordereditem.'),
+            $semanticStructureProof['itemProjectionDigest'] ?? null
+        );
+        $t->true(!isset($dispositions['year-prose']), 'A mid-sentence year must remain emitted text, not list-marker suppression evidence.');
+    },
+    'requires a unique immediate source anchor for standalone list marker structural edges' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $explicitDispositions = (function (
+            array $items,
+            array $blocks,
+            array $layouts = []
+        ): array {
+            return $this->explicitPdfSourceDispositions($items, $blocks, [], $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($setSourceSha256 instanceof \Closure);
+        $t->true($explicitDispositions instanceof \Closure);
+        $setSourceSha256(str_repeat('d', 64));
+
+        $listItem = static fn (string $text): AstNode => new AstNode(
+            'list_item',
+            [],
+            [new AstNode('paragraph', ['text' => $text])]
+        );
+        $ordered = static fn (string $text, int $start = 1): AstNode => new AstNode(
+            'ordered_list',
+            ['start' => $start],
+            [$listItem($text)]
+        );
+        $bullet = static fn (string $text): AstNode => new AstNode(
+            'bullet_list',
+            [],
+            [$listItem($text)]
+        );
+
+        $prefixItems = [
+            ['id' => 'prefix-marker', 'page' => 1, 'stream' => 3, 'text' => '1.'],
+            ['id' => 'prefix-anchor', 'page' => 1, 'stream' => 3, 'text' => 'The informa'],
+            ['id' => 'prefix-tail', 'page' => 1, 'stream' => 3, 'text' => 'tion continues.'],
+        ];
+        $prefixDispositions = $explicitDispositions(
+            $prefixItems,
+            [$ordered('The information continues.')]
+        );
+        $t->true(!isset($prefixDispositions['prefix-marker']['semanticStructureProof']));
+
+        $weakPrefixDispositions = $explicitDispositions([
+            ['id' => 'weak-marker', 'page' => 1, 'stream' => 3, 'text' => '1.'],
+            ['id' => 'weak-anchor', 'page' => 1, 'stream' => 3, 'text' => 'A'],
+        ], [$ordered('Anything at all.')]);
+        $t->true(!isset($weakPrefixDispositions['weak-marker']['semanticStructureProof']));
+
+        $groundedPrefixItems = [
+            ['id' => 'intact-word', 'page' => 1, 'stream' => 3, 'text' => 'The word information appears intact.'],
+            ['id' => 'grounded-marker', 'page' => 1, 'stream' => 3, 'text' => '1.'],
+            ['id' => 'grounded-anchor', 'page' => 1, 'stream' => 3, 'text' => 'The informa-'],
+            ['id' => 'grounded-tail', 'page' => 1, 'stream' => 3, 'text' => 'tion continues.'],
+        ];
+        $wrappedPair = "1\0" . "3\0" . "2\0" . '3';
+        $groundedPrefixDispositions = $explicitDispositions(
+            $groundedPrefixItems,
+            [$ordered('The information continues.')],
+            [
+                [
+                    'page' => 1,
+                    'sourceStream' => 3,
+                    'sourcePdfSourceIndex' => 2,
+                    'sourcePdfWrappedHyphenPairAfter' => $wrappedPair,
+                ],
+                [
+                    'page' => 1,
+                    'sourceStream' => 3,
+                    'sourcePdfSourceIndex' => 3,
+                    'sourcePdfWrappedHyphenPairBefore' => $wrappedPair,
+                ],
+            ]
+        );
+        $prefixProof = $groundedPrefixDispositions['grounded-marker']['semanticStructureProof'] ?? [];
+        $t->same('grounded-anchor', $prefixProof['anchorSourceOccurrenceId'] ?? null);
+        $t->same(
+            hash('sha256', 'Theinformationcontinues.'),
+            $prefixProof['itemProjectionDigest'] ?? null
+        );
+
+        $ordinaryPrefixItems = [
+            ['id' => 'ordinary-marker', 'page' => 3, 'stream' => 1, 'text' => '2.'],
+            ['id' => 'ordinary-anchor', 'page' => 3, 'stream' => 1, 'text' => 'The electronic system must provide exactly the same'],
+            ['id' => 'ordinary-following', 'page' => 3, 'stream' => 1, 'text' => 'information as the paper form.'],
+        ];
+        $ordinaryPrefixDispositions = $explicitDispositions(
+            $ordinaryPrefixItems,
+            [$ordered(
+                'The electronic system must provide exactly the same information as the paper form.',
+                2
+            )]
+        );
+        $ordinaryProof = $ordinaryPrefixDispositions['ordinary-marker']['semanticStructureProof'] ?? [];
+        $t->same('ordinary-anchor', $ordinaryProof['anchorSourceOccurrenceId'] ?? null);
+        $t->same(2, $ordinaryProof['markerOrdinal'] ?? null);
+
+        $sharedFirstLineItems = [
+            ['id' => 'employee-marker', 'page' => 6, 'stream' => 13, 'text' => '4.'],
+            ['id' => 'employee-anchor', 'page' => 6, 'stream' => 13, 'text' => 'Enter the additional amount of withholding requested'],
+            ['id' => 'employee-following', 'page' => 6, 'stream' => 13, 'text' => 'by the employee on line 6.'],
+            ['id' => 'payee-marker', 'page' => 9, 'stream' => 16, 'text' => '4.'],
+            ['id' => 'payee-anchor', 'page' => 9, 'stream' => 16, 'text' => 'Enter the additional amount of withholding requested'],
+            ['id' => 'payee-following', 'page' => 9, 'stream' => 16, 'text' => 'by the payee on line 3.'],
+        ];
+        $sharedFirstLineDispositions = $explicitDispositions(
+            $sharedFirstLineItems,
+            [
+                $ordered('Enter the additional amount of withholding requested by the employee on line 6.', 4),
+                $ordered('Enter the additional amount of withholding requested by the payee on line 3.', 4),
+            ]
+        );
+        $t->same(
+            'employee-anchor',
+            $sharedFirstLineDispositions['employee-marker']['semanticStructureProof']['anchorSourceOccurrenceId'] ?? null
+        );
+        $t->same(
+            'payee-anchor',
+            $sharedFirstLineDispositions['payee-marker']['semanticStructureProof']['anchorSourceOccurrenceId'] ?? null
+        );
+
+        $ambiguousSharedPrefixItems = $sharedFirstLineItems;
+        $ambiguousSharedPrefixItems[5]['text'] = 'by the employee on line 6.';
+        $ambiguousSharedPrefixDispositions = $explicitDispositions(
+            $ambiguousSharedPrefixItems,
+            [
+                $ordered('Enter the additional amount of withholding requested by the employee on line 6.', 4),
+                $ordered('Enter the additional amount of withholding requested by the employee on line 6.', 4),
+            ]
+        );
+        $t->true(!isset($ambiguousSharedPrefixDispositions['employee-marker']['semanticStructureProof']));
+        $t->true(!isset($ambiguousSharedPrefixDispositions['payee-marker']['semanticStructureProof']));
+
+        $wrongFollowingStream = $ordinaryPrefixItems;
+        $wrongFollowingStream[2]['stream'] = 2;
+        $wrongFollowingStreamDispositions = $explicitDispositions(
+            $wrongFollowingStream,
+            [$ordered(
+                'The electronic system must provide exactly the same information as the paper form.',
+                2
+            )]
+        );
+        $t->true(!isset(
+            $wrongFollowingStreamDispositions['ordinary-marker']['semanticStructureProof']
+        ));
+
+        $bulletDispositions = $explicitDispositions([
+            ['id' => 'bullet-marker', 'page' => 2, 'stream' => 7, 'text' => "\u{2022}"],
+            ['id' => 'bullet-anchor', 'page' => 2, 'stream' => 7, 'text' => 'Exact bullet body.'],
+        ], [$bullet('Exact bullet body.')]);
+        $bulletProof = $bulletDispositions['bullet-marker']['semanticStructureProof'] ?? [];
+        $t->same('bullet', $bulletProof['listType'] ?? null);
+        $t->true(array_key_exists('markerOrdinal', $bulletProof));
+        $t->same(null, $bulletProof['markerOrdinal'] ?? null);
+        $t->same('bullet-anchor', $bulletProof['anchorSourceOccurrenceId'] ?? null);
+
+        $wrongStream = $prefixItems;
+        $wrongStream[1]['stream'] = 4;
+        $wrongStreamDispositions = $explicitDispositions(
+            $wrongStream,
+            [$ordered('The information continues.')]
+        );
+        $t->true(!isset($wrongStreamDispositions['prefix-marker']['semanticStructureProof']));
+
+        $nonImmediateDispositions = $explicitDispositions([
+            ['id' => 'non-immediate-marker', 'page' => 1, 'stream' => 3, 'text' => '1.'],
+            ['id' => 'intervening-source', 'page' => 1, 'stream' => 3, 'text' => 'Unrelated text.'],
+            ['id' => 'later-body', 'page' => 1, 'stream' => 3, 'text' => 'The information continues.'],
+        ], [$ordered('The information continues.')]);
+        $t->true(!isset($nonImmediateDispositions['non-immediate-marker']['semanticStructureProof']));
+
+        $wrongOrdinalDispositions = $explicitDispositions([
+            ['id' => 'wrong-ordinal-marker', 'page' => 1, 'stream' => 3, 'text' => '2.'],
+            ['id' => 'wrong-ordinal-anchor', 'page' => 1, 'stream' => 3, 'text' => 'The information continues.'],
+        ], [$ordered('The information continues.')]);
+        $t->true(!isset($wrongOrdinalDispositions['wrong-ordinal-marker']['semanticStructureProof']));
+
+        $duplicateItems = [
+            ['id' => 'duplicate-marker-a', 'page' => 1, 'stream' => 3, 'text' => '1.'],
+            ['id' => 'duplicate-anchor-a', 'page' => 1, 'stream' => 3, 'text' => 'Repeated item.'],
+            ['id' => 'duplicate-marker-b', 'page' => 1, 'stream' => 3, 'text' => '1.'],
+            ['id' => 'duplicate-anchor-b', 'page' => 1, 'stream' => 3, 'text' => 'Repeated item.'],
+        ];
+        $duplicateTargets = [$ordered('Repeated item.'), $ordered('Repeated item.')];
+        $duplicateDispositions = $explicitDispositions($duplicateItems, $duplicateTargets);
+        foreach ([
+            'duplicate-marker-a' => 'duplicate-anchor-a',
+            'duplicate-marker-b' => 'duplicate-anchor-b',
+        ] as $markerId => $anchorId) {
+            $proof = $duplicateDispositions[$markerId]['semanticStructureProof'] ?? [];
+            $t->same('exact-standalone-list-marker-to-item', $proof['method'] ?? null);
+            $t->same($anchorId, $proof['anchorSourceOccurrenceId'] ?? null);
+            $t->same(hash('sha256', 'Repeateditem.'), $proof['itemProjectionDigest'] ?? null);
+        }
+
+        $duplicateAnchorIds = $duplicateItems;
+        $duplicateAnchorIds[3]['id'] = 'duplicate-anchor-a';
+        $duplicateAnchorIdDispositions = $explicitDispositions($duplicateAnchorIds, $duplicateTargets);
+        $t->true(!isset($duplicateAnchorIdDispositions['duplicate-marker-a']['semanticStructureProof']));
+        $t->true(!isset($duplicateAnchorIdDispositions['duplicate-marker-b']['semanticStructureProof']));
+
+        $duplicateMarkerIds = $duplicateItems;
+        $duplicateMarkerIds[2]['id'] = 'duplicate-marker-a';
+        $duplicateMarkerIdDispositions = $explicitDispositions($duplicateMarkerIds, $duplicateTargets);
+        $t->true(!isset($duplicateMarkerIdDispositions['duplicate-marker-a']['semanticStructureProof']));
+
+        $wrongDuplicateCardinality = $explicitDispositions(
+            $duplicateItems,
+            [$ordered('Repeated item.')]
+        );
+        $t->true(!isset($wrongDuplicateCardinality['duplicate-marker-a']['semanticStructureProof']));
+        $t->true(!isset($wrongDuplicateCardinality['duplicate-marker-b']['semanticStructureProof']));
+
+        $mixedVisibleTargets = $explicitDispositions(
+            $duplicateItems,
+            [$ordered('Repeated item.'), $ordered('Repeateditem.')]
+        );
+        $t->true(!isset($mixedVisibleTargets['duplicate-marker-a']['semanticStructureProof']));
+        $t->true(!isset($mixedVisibleTargets['duplicate-marker-b']['semanticStructureProof']));
+
+        $extendedPrefixItems = [
+            ['id' => 'alpha-marker', 'page' => 12, 'stream' => 4, 'text' => "\u{2022}"],
+            ['id' => 'alpha-anchor', 'page' => 12, 'stream' => 4, 'text' => 'Underlying'],
+            ['id' => 'alpha-second', 'page' => 12, 'stream' => 4, 'text' => 'considerations:'],
+            ['id' => 'alpha-third', 'page' => 12, 'stream' => 4, 'text' => 'employee records.'],
+            ['id' => 'beta-marker', 'page' => 12, 'stream' => 4, 'text' => "\u{2022}"],
+            ['id' => 'beta-anchor', 'page' => 12, 'stream' => 4, 'text' => 'Underlying'],
+            ['id' => 'beta-second', 'page' => 12, 'stream' => 4, 'text' => 'considerations:'],
+            ['id' => 'beta-third', 'page' => 12, 'stream' => 4, 'text' => 'payee records.'],
+        ];
+        $extendedPrefixDispositions = $explicitDispositions(
+            $extendedPrefixItems,
+            [
+                $bullet('Underlying considerations: employee records.'),
+                $bullet('Underlying considerations: payee records.'),
+            ]
+        );
+        foreach ([
+            'alpha-marker' => ['alpha-anchor', 'alpha-second', 'alpha-third'],
+            'beta-marker' => ['beta-anchor', 'beta-second', 'beta-third'],
+        ] as $markerId => $anchorIds) {
+            $proof = $extendedPrefixDispositions[$markerId]['semanticStructureProof'] ?? [];
+            $t->same(2, $proof['version'] ?? null);
+            $t->same($anchorIds[0], $proof['anchorSourceOccurrenceId'] ?? null);
+            $t->same($anchorIds, $proof['anchorSourceOccurrenceIds'] ?? null);
+            $t->same(
+                hash('sha256', $markerId === 'alpha-marker'
+                    ? 'Underlyingconsiderations:employeerecords.'
+                    : 'Underlyingconsiderations:payeerecords.'),
+                $proof['anchorProjectionDigest'] ?? null
+            );
+        }
+
+        $extendedDuplicateItems = $extendedPrefixItems;
+        $extendedDuplicateItems[7]['text'] = 'employee records.';
+        $extendedDuplicateDispositions = $explicitDispositions(
+            $extendedDuplicateItems,
+            [
+                $bullet('Underlying considerations: employee records.'),
+                $bullet('Underlying considerations: employee records.'),
+            ]
+        );
+        $t->true(!isset($extendedDuplicateDispositions['alpha-marker']['semanticStructureProof']));
+        $t->true(!isset($extendedDuplicateDispositions['beta-marker']['semanticStructureProof']));
+    },
+    'defers identical cross page list target identity to exact anchor binding' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $explicitDispositions = (function (array $items, array $blocks): array {
+            return $this->explicitPdfSourceDispositions($items, $blocks);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($setSourceSha256 instanceof \Closure);
+        $t->true($explicitDispositions instanceof \Closure);
+        $setSourceSha256(str_repeat('2', 64));
+
+        $listItem = static fn (string $text): AstNode => new AstNode(
+            'list_item',
+            [],
+            [new AstNode('paragraph', ['text' => $text], [
+                new AstNode('text', ['text' => $text]),
+            ])]
+        );
+        $source = [
+            ['id' => 'page-one-marker', 'page' => 1, 'stream' => 1, 'text' => "\u{2022}"],
+            ['id' => 'page-one-anchor', 'page' => 1, 'stream' => 1, 'text' => 'Go to'],
+            ['id' => 'page-two-marker', 'page' => 2, 'stream' => 1, 'text' => "\u{2022}"],
+            ['id' => 'page-two-anchor', 'page' => 2, 'stream' => 1, 'text' => 'Go to'],
+        ];
+        $blocks = [
+            new AstNode('bullet_list', [], [$listItem('Go to')]),
+            new AstNode('bullet_list', [], [$listItem('Go to')]),
+        ];
+
+        $dispositions = $explicitDispositions($source, $blocks);
+        foreach ([
+            'page-one-marker' => 'page-one-anchor',
+            'page-two-marker' => 'page-two-anchor',
+        ] as $markerId => $anchorId) {
+            $proof = $dispositions[$markerId]['semanticStructureProof'] ?? [];
+            $t->same('exact-standalone-list-marker-to-item', $proof['method'] ?? null);
+            $t->same($anchorId, $proof['anchorSourceOccurrenceId'] ?? null);
+            $t->same(hash('sha256', 'Goto'), $proof['itemProjectionDigest'] ?? null);
+        }
+
+        $binding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            $blocks,
+            $dispositions
+        );
+        $t->same(true, $binding['complete']);
+        $t->same(null, $binding['failureReason']);
+        $firstMapping = $binding['explicitDispositions']['page-one-marker']['sourceMapping'] ?? [];
+        $secondMapping = $binding['explicitDispositions']['page-two-marker']['sourceMapping'] ?? [];
+        $t->same('exact-semantic-list-marker', $firstMapping['mappingMode'] ?? null);
+        $t->same('exact-semantic-list-marker', $secondMapping['mappingMode'] ?? null);
+        $t->true(
+            ($firstMapping['destinationInlineIds'][0] ?? null)
+                !== ($secondMapping['destinationInlineIds'][0] ?? null)
+        );
+
+        foreach ([
+            [$blocks[0]],
+            [$blocks[0], $blocks[1], new AstNode('bullet_list', [], [$listItem('Go to')])],
+        ] as $wrongCardinalityBlocks) {
+            $wrongCardinality = $explicitDispositions($source, $wrongCardinalityBlocks);
+            $t->true(!isset($wrongCardinality['page-one-marker']['semanticStructureProof']));
+            $t->true(!isset($wrongCardinality['page-two-marker']['semanticStructureProof']));
+        }
+
+        $mixedMarkerSource = $source;
+        $mixedMarkerSource[2]['text'] = '*';
+        $mixedMarkerDispositions = $explicitDispositions($mixedMarkerSource, $blocks);
+        $t->same(
+            'exact-standalone-list-marker-to-item',
+            $mixedMarkerDispositions['page-one-marker']['semanticStructureProof']['method'] ?? null
+        );
+        $t->same(
+            'exact-standalone-list-marker-to-item',
+            $mixedMarkerDispositions['page-two-marker']['semanticStructureProof']['method'] ?? null
+        );
+
+        $prefixAmbiguousSource = $source;
+        $prefixAmbiguousSource[] = [
+            'id' => 'page-two-anchor-tail',
+            'page' => 2,
+            'stream' => 1,
+            'text' => 'site',
+        ];
+        $prefixAmbiguousBlocks = [
+            $blocks[0],
+            $blocks[1],
+            new AstNode('bullet_list', [], [$listItem('Go to site')]),
+        ];
+        $prefixAmbiguous = $explicitDispositions(
+            $prefixAmbiguousSource,
+            $prefixAmbiguousBlocks
+        );
+        $t->true(!isset($prefixAmbiguous['page-one-marker']['semanticStructureProof']));
+        $t->true(!isset($prefixAmbiguous['page-two-marker']['semanticStructureProof']));
+    },
+    'keeps literal standalone bullets emitted when only other occurrences have exact structural edges' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $explicitDispositions = (function (array $items, array $blocks): array {
+            return $this->explicitPdfSourceDispositions($items, $blocks);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($setSourceSha256 instanceof \Closure);
+        $t->true($explicitDispositions instanceof \Closure);
+        $setSourceSha256(str_repeat('e', 64));
+
+        $paragraph = static fn (string $text): AstNode => new AstNode(
+            'paragraph',
+            [],
+            [new AstNode('text', ['text' => $text])]
+        );
+        $listItem = static fn (string $text): AstNode => new AstNode(
+            'list_item',
+            [],
+            [$paragraph($text)]
+        );
+        $source = [
+            ['id' => 'literal-marker', 'page' => 1, 'stream' => 1, 'text' => "\u{2022}"],
+            ['id' => 'literal-anchor', 'page' => 1, 'stream' => 1, 'text' => 'Literal link.'],
+            ['id' => 'first-marker', 'page' => 2, 'stream' => 7, 'text' => "\u{2022}"],
+            ['id' => 'first-anchor', 'page' => 2, 'stream' => 7, 'text' => 'First structural item.'],
+            ['id' => 'second-marker', 'page' => 2, 'stream' => 7, 'text' => "\u{2022}"],
+            ['id' => 'second-anchor', 'page' => 2, 'stream' => 7, 'text' => 'Second structural item.'],
+            // This item has structural list semantics but no source marker.
+            // It makes the document-wide source/structure marker totals equal
+            // by coincidence; that must not empty the unrelated literal bullet.
+            ['id' => 'third-anchor', 'page' => 2, 'stream' => 7, 'text' => 'Third structural item.'],
+        ];
+        $blocks = [
+            $paragraph("\u{2022} Literal link."),
+            new AstNode('bullet_list', [], [
+                $listItem('First structural item.'),
+                $listItem('Second structural item.'),
+                $listItem('Third structural item.'),
+            ]),
+        ];
+
+        $dispositions = $explicitDispositions($source, $blocks);
+        $t->true(!isset($dispositions['literal-marker']));
+        foreach ([
+            'first-marker' => 'first-anchor',
+            'second-marker' => 'second-anchor',
+        ] as $markerId => $anchorId) {
+            $marker = $dispositions[$markerId] ?? [];
+            $t->same('exact-standalone-list-marker-to-item', $marker['evidence']['method'] ?? null);
+            $t->same('', $marker['textProjection'] ?? null);
+            $t->same(
+                'exact-standalone-list-marker-to-item',
+                $marker['semanticStructureProof']['method'] ?? null
+            );
+            $t->same($anchorId, $marker['semanticStructureProof']['anchorSourceOccurrenceId'] ?? null);
+        }
+
+        $binding = \PortLibs\Pandoc\PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            $blocks,
+            $dispositions
+        );
+        $t->same(true, $binding['complete']);
+        $t->same(null, $binding['failureReason']);
+        $t->same(
+            'exact-sequence',
+            $binding['explicitDispositions']['literal-marker']['sourceMapping']['mappingMode'] ?? null
+        );
+        foreach (['first-marker', 'second-marker'] as $markerId) {
+            $t->same(
+                'exact-semantic-list-marker',
+                $binding['explicitDispositions'][$markerId]['sourceMapping']['mappingMode'] ?? null
+            );
+        }
+
+        $ledger = \PortLibs\Pandoc\PdfSourceDispositionLedger::fromSourceLineItems(
+            $source,
+            $binding['blocks'],
+            $binding['explicitDispositions']
+        );
+        $t->same(true, $ledger['sourceEdgeMappingComplete'] ?? null);
+        $t->same(0, $ledger['unresolvedOccurrenceCount'] ?? null);
+        $t->same(0, $ledger['unclaimedEmittedSignificantCharacterCount'] ?? null);
+        $t->same(true, $ledger['orderedSignificantCharactersPreserved'] ?? null);
+    },
+    'keeps exact standalone list marker proofs across inline link boundaries' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $explicitDispositions = (function (array $items, array $blocks): array {
+            return $this->explicitPdfSourceDispositions($items, $blocks);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($setSourceSha256 instanceof \Closure);
+        $t->true($explicitDispositions instanceof \Closure);
+        $setSourceSha256(str_repeat('f', 64));
+
+        $itemText = ': Choose an approved payment processor to pay online or by phone.';
+        $source = [
+            ['id' => 'linked-marker', 'page' => 1, 'stream' => 1, 'text' => "•"],
+            ['id' => 'linked-anchor', 'page' => 1, 'stream' => 1, 'text' => ': Choose an'],
+            ['id' => 'linked-following', 'page' => 1, 'stream' => 1, 'text' => 'approved payment processor to pay online or by'],
+            ['id' => 'linked-tail', 'page' => 1, 'stream' => 1, 'text' => 'phone.'],
+        ];
+        $blocks = [new AstNode('bullet_list', [], [
+            new AstNode('list_item', [], [
+                new AstNode('paragraph', ['text' => $itemText], [
+                    new AstNode('link', ['url' => 'https://example.test/pay'], [
+                        new AstNode('text', [
+                            'text' => ': Choose an approved payment processor to pay online or b',
+                        ]),
+                    ]),
+                    new AstNode('text', ['text' => 'y phone.']),
+                ]),
+            ]),
+        ])];
+
+        $dispositions = $explicitDispositions($source, $blocks);
+        $t->same(
+            'exact-standalone-list-marker-to-item',
+            $dispositions['linked-marker']['semanticStructureProof']['method'] ?? null
+        );
+        $t->same(
+            'linked-anchor',
+            $dispositions['linked-marker']['semanticStructureProof']['anchorSourceOccurrenceId'] ?? null
+        );
+
+        $binding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            $blocks,
+            $dispositions
+        );
+        $t->same(true, $binding['complete']);
+        $t->same(null, $binding['failureReason']);
+    },
+    'keeps an exact list marker proof across a standalone punctuation continuation' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $explicitDispositions = (function (array $items, array $blocks): array {
+            return $this->explicitPdfSourceDispositions($items, $blocks);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($setSourceSha256 instanceof \Closure);
+        $t->true($explicitDispositions instanceof \Closure);
+        $setSourceSha256(str_repeat('1', 64));
+
+        $source = [
+            ['id' => 'punctuation-marker', 'page' => 1, 'stream' => 1, 'text' => "•"],
+            ['id' => 'punctuation-anchor', 'page' => 1, 'stream' => 1, 'text' => 'To get help any time with general tax topics, visit'],
+            ['id' => 'punctuation-period', 'page' => 1, 'stream' => 1, 'text' => '.'],
+            ['id' => 'punctuation-tail', 'page' => 1, 'stream' => 1, 'text' => 'The site can help with common tax issues.'],
+        ];
+        $itemText = 'To get help any time with general tax topics, visit. The site can help with common tax issues.';
+        $blocks = [new AstNode('bullet_list', [], [
+            new AstNode('list_item', [], [
+                new AstNode('paragraph', ['text' => $itemText], [
+                    new AstNode('text', ['text' => $itemText]),
+                ]),
+            ]),
+        ])];
+
+        $dispositions = $explicitDispositions($source, $blocks);
+        $t->same(
+            'exact-standalone-list-marker-to-item',
+            $dispositions['punctuation-marker']['semanticStructureProof']['method'] ?? null
+        );
+        $t->same(
+            'punctuation-anchor',
+            $dispositions['punctuation-marker']['semanticStructureProof']['anchorSourceOccurrenceId'] ?? null
+        );
+
+        $binding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            $blocks,
+            $dispositions
+        );
+        $t->same(true, $binding['complete']);
+        $t->same(null, $binding['failureReason']);
+    },
+    'treats only a proof-bearing empty list marker as geometry-order neutral' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $explicitDispositions = (function (array $items, array $blocks): array {
+            return $this->explicitPdfSourceDispositions($items, $blocks);
+        })->bindTo($reader, PdfReader::class);
+        $geometryProof = (function (
+            array $items,
+            array $blocks,
+            array $dispositions
+        ): array {
+            $this->sourceOrderProofDiagnostics = [];
+            $result = $this->pdfDispositionsWithExactGeometryPageOrderProofs(
+                $items,
+                $blocks,
+                $dispositions,
+                [1],
+                []
+            );
+
+            return [$result, $this->sourceOrderProofDiagnostics];
+        })->bindTo($reader, PdfReader::class);
+        $t->true($explicitDispositions instanceof \Closure);
+        $t->true($geometryProof instanceof \Closure);
+
+        $geometry = static fn (float $x1, float $x2): array => [
+            'page' => 1,
+            'stream' => 1,
+            'x1' => $x1,
+            'y1' => 700.0,
+            'x2' => $x2,
+            'y2' => 712.0,
+        ];
+        $items = [
+            [
+                'id' => 'geometry-marker',
+                'page' => 1,
+                'stream' => 1,
+                'text' => '1.',
+                'sourceGeometry' => $geometry(72.0, 82.0),
+            ],
+            [
+                'id' => 'geometry-anchor',
+                'page' => 1,
+                'stream' => 1,
+                'text' => 'Geometry item.',
+                'sourceGeometry' => $geometry(90.0, 180.0),
+            ],
+        ];
+        $blocks = [new AstNode('ordered_list', ['start' => 1], [
+            new AstNode('list_item', [], [
+                new AstNode('paragraph', ['text' => 'Geometry item.']),
+            ]),
+        ])];
+        $dispositions = $explicitDispositions($items, $blocks);
+        $t->true(isset($dispositions['geometry-marker']['semanticStructureProof']));
+
+        [, $provedDiagnostics] = $geometryProof($items, $blocks, $dispositions);
+        $provedReasons = array_column($provedDiagnostics, 'reason');
+        $t->true(!in_array('empty-output-disposition-projection', $provedReasons, true));
+
+        $itemsWithFigureSpace = array_merge($items, [[
+            'id' => 'geometry-figure-space',
+            'page' => 1,
+            'stream' => 1,
+            'text' => "\u{2007}",
+            'sourceGeometry' => $geometry(190.0, 198.0),
+        ]]);
+        $dispositionsWithFigureSpace = $explicitDispositions($itemsWithFigureSpace, $blocks);
+        [, $figureSpaceDiagnostics] = $geometryProof(
+            $itemsWithFigureSpace,
+            $blocks,
+            $dispositionsWithFigureSpace
+        );
+        $t->true(!in_array(
+            'empty-output-disposition-projection',
+            array_column($figureSpaceDiagnostics, 'reason'),
+            true
+        ));
+
+        unset($dispositions['geometry-marker']['semanticStructureProof']);
+        [, $unprovedDiagnostics] = $geometryProof($items, $blocks, $dispositions);
+        $t->same(
+            'empty-output-disposition-projection',
+            $unprovedDiagnostics[0]['reason'] ?? null
+        );
+    },
+    'derives conservative page spans from actual repaired page records' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repairAndProve = (function (array $lines, array $layouts): array {
+            $pageProjections = null;
+            $repaired = $this->repairProseTextLines(
+                $lines,
+                true,
+                $layouts,
+                $pageProjections
+            );
+            $blocks = $this->blocksFromLines($repaired);
+
+            return [
+                'repaired' => $repaired,
+                'pageProjections' => $pageProjections,
+                'proofs' => $this->pdfFinalOutputPageProofs(
+                    $blocks,
+                    is_array($pageProjections) ? $pageProjections : []
+                ),
+            ];
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repairAndProve instanceof \Closure);
+
+        $result = $repairAndProve(
+            ['The report should', 'not be split.'],
+            [
+                [
+                    'text' => 'The report should',
+                    'page' => 1,
+                    'x1' => 315.0,
+                    'y1' => 72.0,
+                    'x2' => 520.0,
+                    'y2' => 84.0,
+                    'fontSize' => 10.0,
+                ],
+                [
+                    'text' => 'not be split.',
+                    'page' => 2,
+                    'x1' => 52.0,
+                    'y1' => 710.0,
+                    'x2' => 290.0,
+                    'y2' => 722.0,
+                    'fontSize' => 10.0,
+                ],
+            ]
+        );
+
+        $t->same(['The report should not be split.'], $result['repaired']);
+        $t->same([
+            1 => 'Thereportshould',
+            2 => 'notbesplit.',
+        ], $result['pageProjections']);
+        $t->same(0, $result['proofs'][1]['start'] ?? null);
+        $t->same(strlen('Thereportshould'), $result['proofs'][1]['end'] ?? null);
+        $t->same(strlen('Thereportshould'), $result['proofs'][2]['start'] ?? null);
+        $t->same(strlen('Thereportshouldnotbesplit.'), $result['proofs'][2]['end'] ?? null);
+        $t->same([], $result['proofs'][1]['leafEnds'] ?? null);
+        $t->same([strlen('notbesplit.')], $result['proofs'][2]['leafEnds'] ?? null);
+    },
+    'rejects conservative page spans when final output has compensating cross page drift' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $conservativeProjections = (function (array $lines, array $layouts): ?array {
+            $pageProjections = null;
+            $this->repairProseTextLines($lines, true, $layouts, $pageProjections);
+
+            return $pageProjections;
+        })->bindTo($reader, PdfReader::class);
+        $prove = (function (array $blocks, array $pageProjections): array {
+            return $this->pdfFinalOutputPageProofs($blocks, $pageProjections);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($conservativeProjections instanceof \Closure);
+        $t->true($prove instanceof \Closure);
+
+        $pageProjections = $conservativeProjections(
+            ['AX', 'BY', 'CD'],
+            [
+                ['page' => 1],
+                ['page' => 1],
+                ['page' => 2],
+            ]
+        );
+        $t->same([
+            1 => 'AXBY',
+            2 => 'CD',
+        ], $pageProjections);
+
+        $driftedBlocks = [
+            new AstNode('paragraph', [], [new AstNode('text', ['text' => 'AB'])]),
+            new AstNode('paragraph', [], [new AstNode('text', ['text' => 'XYCD'])]),
+        ];
+        $t->same([], $prove($driftedBlocks, $pageProjections ?? []));
+    },
+    'discards un-emitted page candidate proofs when text table fallback wins' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $fallbackProofState = (function (array $layouts): array {
+            $candidate = new AstNode('paragraph', ['text' => 'Candidate output.']);
+            $this->sourceProofCandidateBlocksByPage = [7 => [$candidate]];
+            $this->independentColumnBlocksByPage = [7 => [$candidate]];
+            $restoredLayouts = $this->sourceOrderProofLayoutsAfterPdfTextTableFallback($layouts);
+            $proofs = $this->pdfFinalOutputPageProofs(
+                [new AstNode('paragraph', ['text' => 'Conservative output.'])],
+                [1 => 'Conservativeoutput.']
+            );
+
+            return [
+                'layouts' => $restoredLayouts,
+                'candidatePages' => array_keys($this->sourceProofCandidateBlocksByPage),
+                'independentPages' => array_keys($this->independentColumnBlocksByPage),
+                'proofs' => $proofs,
+            ];
+        })->bindTo($reader, PdfReader::class);
+        $t->true($fallbackProofState instanceof \Closure);
+
+        $layouts = [[
+            'page' => 1,
+            'sourcePdfSourceIndex' => 0,
+            'text' => 'Conservative output.',
+        ]];
+        $result = $fallbackProofState($layouts);
+        $t->same($layouts, $result['layouts']);
+        $t->same([], $result['candidatePages']);
+        $t->same([], $result['independentPages']);
+        $t->same('Conservativeoutput.', $result['proofs'][1]['projection'] ?? null);
+        $t->same(0, $result['proofs'][1]['start'] ?? null);
+        $t->same(strlen('Conservativeoutput.'), $result['proofs'][1]['end'] ?? null);
+    },
+    'accepts exact page order proof when one final text leaf crosses the page boundary' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $geometryProof = (function (
+            array $items,
+            array $blocks,
+            array $layouts,
+            array $pageProofs,
+            array $selectedGeometryPages = [1]
+        ): array {
+            $this->sourceOrderProofDiagnostics = [];
+            $result = $this->pdfDispositionsWithExactGeometryPageOrderProofs(
+                $items,
+                $blocks,
+                [],
+                $selectedGeometryPages,
+                $layouts,
+                $pageProofs
+            );
+
+            return [$result, $this->sourceOrderProofDiagnostics];
+        })->bindTo($reader, PdfReader::class);
+        $t->true($setSourceSha256 instanceof \Closure);
+        $t->true($geometryProof instanceof \Closure);
+        $setSourceSha256(str_repeat('f', 64));
+
+        $geometry = static fn (int $page, float $x1): array => [
+            'page' => $page,
+            'stream' => 1,
+            'x1' => $x1,
+            'y1' => 700.0,
+            'x2' => $x1 + 20.0,
+            'y2' => 712.0,
+            'orientation' => 'horizontal',
+        ];
+        $source = [
+            [
+                'id' => 'page-one-left',
+                'page' => 1,
+                'stream' => 1,
+                'text' => 'AX',
+                'sourceGeometry' => $geometry(1, 72.0),
+            ],
+            [
+                'id' => 'page-one-right',
+                'page' => 1,
+                'stream' => 1,
+                'text' => 'BY',
+                'sourceGeometry' => $geometry(1, 112.0),
+            ],
+            [
+                'id' => 'page-two-tail',
+                'page' => 2,
+                'stream' => 1,
+                'text' => 'Gamma',
+                'sourceGeometry' => $geometry(2, 72.0),
+            ],
+        ];
+        $blocks = [new AstNode('paragraph', [], [
+            new AstNode('text', ['text' => 'ABXY Gamma']),
+        ])];
+        $layouts = [[
+            'page' => 1,
+            'sourcePdfExactSourceRanges' => [
+                ['sourceIndex' => 0, 'sourceStart' => 0, 'sourceEnd' => 1],
+                ['sourceIndex' => 1, 'sourceStart' => 0, 'sourceEnd' => 1],
+                ['sourceIndex' => 0, 'sourceStart' => 1, 'sourceEnd' => 2],
+                ['sourceIndex' => 1, 'sourceStart' => 1, 'sourceEnd' => 2],
+            ],
+        ]];
+
+        $pageProofs = [
+            1 => ['start' => 0, 'end' => 4, 'projection' => 'ABXY'],
+            2 => ['start' => 4, 'end' => 9, 'projection' => 'Gamma'],
+        ];
+        [$dispositions, $diagnostics] = $geometryProof(
+            $source,
+            $blocks,
+            $layouts,
+            $pageProofs
+        );
+        $proof = $dispositions['page-one-left']['orderProof'] ?? [];
+        $t->same('ABXY', $proof['emittedTextProjection'] ?? null);
+        $t->same([
+            ['sourceOccurrenceId' => 'page-one-left', 'sourceStart' => 0, 'sourceEnd' => 1],
+            ['sourceOccurrenceId' => 'page-one-right', 'sourceStart' => 0, 'sourceEnd' => 1],
+            ['sourceOccurrenceId' => 'page-one-left', 'sourceStart' => 1, 'sourceEnd' => 2],
+            ['sourceOccurrenceId' => 'page-one-right', 'sourceStart' => 1, 'sourceEnd' => 2],
+        ], $proof['emittedSourceRanges'] ?? null);
+        $t->true(in_array('page-boundary-inside-final-output-leaf', array_column(
+            $diagnostics,
+            'reason'
+        ), true));
+
+        $binding = \PortLibs\Pandoc\PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            $blocks,
+            $dispositions
+        );
+        $t->same(true, $binding['complete']);
+        $t->same(null, $binding['failureReason']);
+        $edges = $binding['blocks'][0]->children()[0]->attr('sourceLineEdges', []);
+        $t->same(5, count(is_array($edges) ? $edges : []));
+        $ledger = \PortLibs\Pandoc\PdfSourceDispositionLedger::fromSourceLineItems(
+            $source,
+            $binding['blocks'],
+            $binding['explicitDispositions']
+        );
+        $t->same(true, $ledger['sourceEdgeMappingComplete'] ?? null);
+        $t->same(true, $ledger['orderedSignificantCharactersPreserved'] ?? null);
+
+        [$rangeEvidencedDispositions, $rangeEvidencedDiagnostics] = $geometryProof(
+            $source,
+            $blocks,
+            $layouts,
+            $pageProofs,
+            []
+        );
+        $rangeEvidence = $rangeEvidencedDispositions['page-one-left']['evidence'] ?? [];
+        $t->same(
+            'complete-exact-positioned-source-range-order',
+            $rangeEvidence['localGeometryMatch'] ?? null
+        );
+        $t->same(
+            ['page-one-left', 'page-one-right'],
+            $rangeEvidencedDispositions['page-one-left']['orderProof']['sourceOccurrenceIds'] ?? null
+        );
+        $t->true(in_array('accepted', array_column($rangeEvidencedDiagnostics, 'status'), true));
+
+        $corruptLayouts = $layouts;
+        $corruptLayouts[0]['sourcePdfExactSourceRanges'][3]['sourceEnd'] = 1;
+        [$rejected, $rejectedDiagnostics] = $geometryProof(
+            $source,
+            $blocks,
+            $corruptLayouts,
+            $pageProofs
+        );
+        $t->true(!isset($rejected['page-one-left']['orderProof']));
+        $rejections = array_values(array_filter(
+            $rejectedDiagnostics,
+            static fn (array $diagnostic): bool => ($diagnostic['status'] ?? null) === 'rejected'
+        ));
+        $t->same(
+            'changed-page-has-no-unique-occurrence-or-token-output-order',
+            $rejections[array_key_last($rejections)]['reason'] ?? null
+        );
+
+        [$rangeEvidenceRejected, $rangeEvidenceRejectedDiagnostics] = $geometryProof(
+            $source,
+            $blocks,
+            $corruptLayouts,
+            $pageProofs,
+            []
+        );
+        $t->true(!isset($rangeEvidenceRejected['page-one-left']['orderProof']));
+        $rangeEvidenceRejections = array_values(array_filter(
+            $rangeEvidenceRejectedDiagnostics,
+            static fn (array $diagnostic): bool => ($diagnostic['status'] ?? null) === 'rejected'
+        ));
+        $t->same(
+            'changed-page-has-no-selected-or-exact-range-geometry-evidence',
+            $rangeEvidenceRejections[array_key_last($rangeEvidenceRejections)]['reason'] ?? null
+        );
+
+        $partialRangeSource = [
+            [
+                'id' => 'partial-a',
+                'page' => 1,
+                'stream' => 1,
+                'text' => 'A',
+                'sourceGeometry' => $geometry(1, 72.0),
+            ],
+            [
+                'id' => 'partial-b',
+                'page' => 1,
+                'stream' => 1,
+                'text' => 'B',
+                'sourceGeometry' => $geometry(1, 102.0),
+            ],
+            [
+                'id' => 'partial-c',
+                'page' => 1,
+                'stream' => 1,
+                'text' => 'C',
+                'sourceGeometry' => $geometry(1, 132.0),
+            ],
+        ];
+        $partialRangeBlocks = [new AstNode('paragraph', [], [
+            new AstNode('text', ['text' => 'BAC']),
+        ])];
+        $partialRangeLayouts = [[
+            'page' => 1,
+            'sourcePdfExactSourceRanges' => [
+                ['sourceIndex' => 0, 'sourceStart' => 0, 'sourceEnd' => 1],
+            ],
+        ]];
+        [$partialRangeAccepted] = $geometryProof(
+            $partialRangeSource,
+            $partialRangeBlocks,
+            $partialRangeLayouts,
+            [1 => ['start' => 0, 'end' => 3, 'projection' => 'BAC']],
+            []
+        );
+        $t->same(
+            'partial-exact-positioned-ranges-plus-unique-occurrence-order',
+            $partialRangeAccepted['partial-a']['evidence']['localGeometryMatch'] ?? null
+        );
+        $t->same(
+            ['partial-b', 'partial-a', 'partial-c'],
+            $partialRangeAccepted['partial-a']['orderProof']['emittedSourceOccurrenceIds'] ?? null
+        );
+
+        [$textOnlyRejected, $textOnlyRejectedDiagnostics] = $geometryProof(
+            $partialRangeSource,
+            $partialRangeBlocks,
+            [],
+            [1 => ['start' => 0, 'end' => 3, 'projection' => 'BAC']],
+            []
+        );
+        $t->true(!isset($textOnlyRejected['partial-a']['orderProof']));
+        $textOnlyRejections = array_values(array_filter(
+            $textOnlyRejectedDiagnostics,
+            static fn (array $diagnostic): bool => ($diagnostic['status'] ?? null) === 'rejected'
+        ));
+        $t->same(
+            'changed-page-has-no-selected-or-exact-range-geometry-evidence',
+            $textOnlyRejections[array_key_last($textOnlyRejections)]['reason'] ?? null
+        );
+    },
+    'rejects a geometry page proof that borrows compensating bytes from the next page' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $geometryProof = (function (
+            array $items,
+            array $blocks,
+            array $layouts,
+            array $pageProofs
+        ): array {
+            $this->sourceOrderProofDiagnostics = [];
+            $result = $this->pdfDispositionsWithExactGeometryPageOrderProofs(
+                $items,
+                $blocks,
+                [],
+                [1],
+                $layouts,
+                $pageProofs
+            );
+
+            return [$result, $this->sourceOrderProofDiagnostics];
+        })->bindTo($reader, PdfReader::class);
+        $t->true($setSourceSha256 instanceof \Closure);
+        $t->true($geometryProof instanceof \Closure);
+        $setSourceSha256(str_repeat('3', 64));
+
+        $geometry = static fn (int $page, float $x1): array => [
+            'page' => $page,
+            'stream' => 1,
+            'x1' => $x1,
+            'y1' => 700.0,
+            'x2' => $x1 + 20.0,
+            'y2' => 712.0,
+            'orientation' => 'horizontal',
+        ];
+        $source = [
+            [
+                'id' => 'borrow-page-one-left',
+                'page' => 1,
+                'stream' => 1,
+                'text' => 'AX',
+                'sourceGeometry' => $geometry(1, 72.0),
+            ],
+            [
+                'id' => 'borrow-page-one-right',
+                'page' => 1,
+                'stream' => 1,
+                'text' => 'BY',
+                'sourceGeometry' => $geometry(1, 112.0),
+            ],
+            [
+                'id' => 'borrow-page-two-tail',
+                'page' => 2,
+                'stream' => 1,
+                'text' => 'CD',
+                'sourceGeometry' => $geometry(2, 72.0),
+            ],
+        ];
+        $blocks = [
+            new AstNode('paragraph', [], [new AstNode('text', ['text' => 'AB'])]),
+            new AstNode('paragraph', [], [new AstNode('text', ['text' => 'XYCD'])]),
+        ];
+        $layouts = [[
+            'page' => 1,
+            'sourcePdfExactSourceRanges' => [
+                ['sourceIndex' => 0, 'sourceStart' => 0, 'sourceEnd' => 1],
+                ['sourceIndex' => 1, 'sourceStart' => 0, 'sourceEnd' => 1],
+                ['sourceIndex' => 0, 'sourceStart' => 1, 'sourceEnd' => 2],
+                ['sourceIndex' => 1, 'sourceStart' => 1, 'sourceEnd' => 2],
+            ],
+        ]];
+
+        [$dispositions, $diagnostics] = $geometryProof($source, $blocks, $layouts, [
+            1 => ['start' => 0, 'end' => 2, 'projection' => 'AB'],
+            2 => ['start' => 2, 'end' => 6, 'projection' => 'XYCD'],
+        ]);
+        $t->true(!isset($dispositions['borrow-page-one-left']['orderProof']));
+        $rejections = array_values(array_filter(
+            $diagnostics,
+            static fn (array $diagnostic): bool => ($diagnostic['status'] ?? null) === 'rejected'
+        ));
+        $t->same(
+            'page-projection-character-inventory-mismatch',
+            $rejections[array_key_last($rejections)]['reason'] ?? null
+        );
+    },
+    'keeps a proved list marker neutral inside an independent-column order scope' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $dispositionsFor = (function (array $items, array $blocks): array {
+            $this->geometryLayoutHypotheses = [[
+                'page' => 1,
+                'bounds' => ['x1' => 0.0, 'y1' => 0.0, 'x2' => 300.0, 'y2' => 300.0],
+                'columnMinusTableMargin' => 0.3,
+                'selected' => 'independent-columns',
+                'features' => [],
+            ]];
+            $this->sourceProofCandidateBlocksByPage = [1 => $blocks];
+
+            return $this->explicitPdfSourceDispositions($items, $blocks);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($dispositionsFor instanceof \Closure);
+
+        $geometry = [
+            'page' => 1,
+            'stream' => 1,
+            'x1' => 10.0,
+            'y1' => 10.0,
+            'x2' => 100.0,
+            'y2' => 20.0,
+            'orientation' => 'horizontal',
+        ];
+        $items = [
+            [
+                'id' => 'column-list-marker',
+                'page' => 1,
+                'stream' => 1,
+                'text' => '1.',
+                'sourceGeometry' => $geometry,
+            ],
+            [
+                'id' => 'column-list-anchor',
+                'page' => 1,
+                'stream' => 1,
+                'text' => 'Anything at all.',
+                'sourceGeometry' => $geometry,
+            ],
+        ];
+        $blocks = [new AstNode('ordered_list', ['start' => 1], [
+            new AstNode('list_item', [], [
+                new AstNode('paragraph', ['text' => 'Anything at all.']),
+            ]),
+        ])];
+
+        $dispositions = $dispositionsFor($items, $blocks);
+        $marker = $dispositions['column-list-marker'] ?? [];
+        $t->same('exact-standalone-list-marker-to-item', $marker['semanticStructureProof']['method'] ?? null);
+        $t->same(false, $marker['allowOrderChange'] ?? null);
+        $t->true(!isset($marker['orderProof']));
+        $anchorScopeIds = $dispositions['column-list-anchor']['orderProof']['sourceOccurrenceIds'] ?? [];
+        $t->true(!in_array('column-list-marker', $anchorScopeIds, true));
+    },
+    'keeps parenthetical alternatives embedded in pdf prose' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($blocksFromLines instanceof \Closure);
+
+        $text = 'Complete this step if you (1) hold more than one job at a time, or (2) are married filing jointly.';
+        $blocks = $blocksFromLines([$text]);
+
+        $t->same(['paragraph'], array_map(static fn (AstNode $block): string => $block->type, $blocks));
+        $t->same($text, $blocks[0]->attr('text'));
+    },
+    'preserves explicit PDF ordered-list starts and discontinuous restarts' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($blocksFromLines instanceof \Closure);
+
+        $blocks = $blocksFromLines([
+            '4. Fourth visible item.',
+            '5. Fifth visible item.',
+            'Intervening prose remains a paragraph.',
+            '8. Eighth visible item.',
+            '9. Ninth visible item.',
+            '12. Twelfth visible item.',
+            '13. Thirteenth visible item.',
+        ]);
+        $t->same(
+            ['ordered_list', 'paragraph', 'ordered_list', 'ordered_list'],
+            array_map(static fn (AstNode $block): string => $block->type, $blocks)
+        );
+        $t->same([4, 8, 12], array_map(
+            static fn (AstNode $block): int => (int) $block->attr('start', 1),
+            array_values(array_filter($blocks, static fn (AstNode $block): bool => $block->type === 'ordered_list'))
+        ));
+
+        $wordpress = PandocConverter::write(new AstNode('document', [], $blocks), 'blocks');
+        foreach ([4, 8, 12] as $start) {
+            $t->contains('<!-- wp:list {"ordered":true,"start":' . $start . '} -->', $wordpress);
+            $t->contains('<ol start="' . $start . '">', $wordpress);
+        }
+        $t->contains('<p>Intervening prose remains a paragraph.</p>', $wordpress);
+    },
+    'keeps isolated four digit years in PDF prose while retaining proven high ordinal lists' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($blocksFromLines instanceof \Closure);
+
+        $yearProse = $blocksFromLines([
+            '2026. See Exemption from withholding on page 2 for when you may claim exemption from withholding.',
+        ]);
+        $t->same(['paragraph'], array_map(static fn (AstNode $block): string => $block->type, $yearProse));
+        $t->same(
+            '2026. See Exemption from withholding on page 2 for when you may claim exemption from withholding.',
+            $yearProse[0]->attr('text')
+        );
+
+        $highOrdinalList = $blocksFromLines([
+            '2026. High ordinal item retained by adjacent sequence evidence.',
+            '2027. Next high ordinal item retained by adjacent sequence evidence.',
+        ]);
+        $t->same(['ordered_list'], array_map(static fn (AstNode $block): string => $block->type, $highOrdinalList));
+        $t->same(2026, $highOrdinalList[0]->attr('start'));
+        $t->same(2, count($highOrdinalList[0]->children));
+
+        $closingParenthesis = $blocksFromLines([
+            '2026) A closing-parenthesis marker remains unambiguous.',
+        ]);
+        $t->same('ordered_list', $closingParenthesis[0]->type);
+        $t->same(2026, $closingParenthesis[0]->attr('start'));
     },
     'keeps explicit pdf list markers as repaired prose block boundaries' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
@@ -5652,6 +8361,284 @@ return [
         $t->true($leftThird !== false, 'left column remains contiguous');
         $t->true($rightFirst !== false, 'right column prose is segmented');
         $t->true($leftThird < $rightFirst, 'left column is emitted before right column');
+    },
+    'promotes only a fully exact two column panel title ahead of its source ordered body' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $promote = (function (array $items): array {
+            return $this->promoteSourcePdfExactGeometryPanelTitles($items);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($promote instanceof \Closure);
+
+        $panel = static function (): array {
+            $items = [];
+            for ($column = 0; $column < 2; $column++) {
+                for ($row = 0; $row < 8; $row++) {
+                    $line = $column * 8 + $row + 1;
+                    $items[] = [
+                        'text' => sprintf('Panel body line %02d has sufficient ordinary words', $line),
+                        'page' => 1,
+                        'x1' => 72.0 + $column * 160.0,
+                        'y1' => 680.0 - $row * 12.0,
+                        'x2' => 202.0 + $column * 160.0,
+                        'y2' => 688.0 - $row * 12.0,
+                        'fontSize' => 8.0,
+                        'code' => false,
+                        'sourcePdfExactGeometryFallback' => true,
+                    ];
+                }
+            }
+            $items[] = [
+                'text' => 'Verified Panel Overview',
+                'page' => 1,
+                'x1' => 72.0,
+                'y1' => 700.0,
+                'x2' => 210.0,
+                'y2' => 712.0,
+                'fontSize' => 12.0,
+                'code' => false,
+                'sourcePdfExactGeometryFallback' => true,
+            ];
+
+            return $items;
+        };
+
+        $fullyExact = $promote($panel());
+        $t->same('Verified Panel Overview', $fullyExact[0]['text'] ?? null);
+        $t->same(true, $fullyExact[0]['sourcePdfExactGeometryPanelTitle'] ?? null);
+        $t->same(true, $fullyExact[0]['forceBlockBreakBefore'] ?? null);
+        $t->same('Panel body line 01 has sufficient ordinary words', $fullyExact[1]['text'] ?? null);
+
+        $partiallyExact = $panel();
+        unset($partiallyExact[15]['sourcePdfExactGeometryFallback']);
+        $unchanged = $promote($partiallyExact);
+        $t->same(array_column($partiallyExact, 'text'), array_column($unchanged, 'text'));
+        $t->true(!isset($unchanged[16]['sourcePdfExactGeometryPanelTitle']));
+    },
+    'keeps overlapping styled title and tagline baselines distinct' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $itemsFromRuns = (function (array $runs): array {
+            return $this->positionedProseLineItemsFromTextRuns($runs);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($itemsFromRuns instanceof \Closure);
+
+        $run = static function (
+            string $text,
+            float $x1,
+            float $x2,
+            float $y1,
+            float $y2,
+            float $baseline,
+            int $order,
+            string $boundary = 'line-break'
+        ): array {
+            return [
+                'text' => $text,
+                'page' => 1,
+                'stream' => 1,
+                'x1' => $x1,
+                'y1' => $y1,
+                'x2' => $x2,
+                'y2' => $y2,
+                'textX1' => $x1 + 2.0,
+                'textY1' => $baseline,
+                'textX2' => $x2 - 2.0,
+                'textY2' => $baseline,
+                'fontSize' => 1.0,
+                'order' => $order,
+                'wordBoundaryBefore' => $boundary === 'line-break',
+                'wordBoundarySource' => $boundary,
+            ];
+        };
+
+        $runs = [
+            $run('Report ', 34.0, 62.0, 732.8, 741.55, 738.8, 0),
+            $run('2026', 62.0, 104.0, 723.8, 753.8, 738.8, 1, 'text-position-continuation'),
+            $run('A smaller explanatory tagline remains separate.', 120.0, 390.0, 728.5, 738.0, 733.99, 7),
+        ];
+        for ($index = 0; $index < 7; $index++) {
+            $baseline = 700.0 - $index * 15.0;
+            $runs[] = $run(
+                'Ordinary body line ' . $index . ' remains on its own baseline.',
+                72.0,
+                420.0,
+                $baseline - 2.0,
+                $baseline + 10.5,
+                $baseline,
+                8 + $index
+            );
+        }
+
+        $texts = array_column($itemsFromRuns($runs), 'text');
+        $t->true(in_array('Report 2026', $texts, true));
+        $t->true(in_array('A smaller explanatory tagline remains separate.', $texts, true));
+        $t->true(!in_array(
+            'Report 2026 A smaller explanatory tagline remains separate.',
+            $texts,
+            true
+        ));
+    },
+    'preserves a standalone semantic ellipsis in positioned pdf prose' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $itemsFromRuns = (function (array $runs): array {
+            return $this->positionedProseLineItemsFromTextRuns($runs);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($itemsFromRuns instanceof \Closure);
+
+        $run = static function (string $text, float $x, float $y): array {
+            return [
+                'text' => $text,
+                'page' => 1,
+                'stream' => 1,
+                'x1' => $x,
+                'y1' => $y,
+                'x2' => $x + max(12.0, strlen($text) * 5.0),
+                'y2' => $y + 10.0,
+                'textX1' => $x,
+                'textY1' => $y + 2.0,
+                'textX2' => $x + max(12.0, strlen($text) * 5.0),
+                'textY2' => $y + 2.0,
+                'fontSize' => 10.0,
+                'wordBoundaryBefore' => true,
+                'wordBoundarySource' => 'line-break',
+            ];
+        };
+
+        $items = $itemsFromRuns([
+            $run('The tentative amount to withhold is…', 72.0, 700.0),
+            $run('…', 320.0, 680.0),
+            $run('The next visible payroll row remains.', 72.0, 660.0),
+        ]);
+
+        $t->same(1, count(array_filter(
+            array_column($items, 'text'),
+            static fn (string $text): bool => $text === '…'
+        )));
+    },
+    'preserves only exactly source backed punctuation rows in positioned pdf prose' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $itemsFromRuns = (function (array $runs): array {
+            return $this->positionedProseLineItemsFromTextRuns($runs);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($itemsFromRuns instanceof \Closure);
+
+        $run = static function (
+            string $text,
+            float $y,
+            ?int $sourceIndex = null,
+            ?int $sourceEnd = null
+        ): array {
+            $run = [
+                'text' => $text,
+                'page' => 1,
+                'stream' => 1,
+                'x1' => 72.0,
+                'y1' => $y,
+                'x2' => 420.0,
+                'y2' => $y + 10.0,
+                'textX1' => 72.0,
+                'textY1' => $y + 2.0,
+                'textX2' => 420.0,
+                'textY2' => $y + 2.0,
+                'fontSize' => 10.0,
+                'wordBoundaryBefore' => true,
+                'wordBoundarySource' => 'line-break',
+            ];
+            if ($sourceIndex !== null && $sourceEnd !== null) {
+                $run['sourcePdfExactSourceIndex'] = $sourceIndex;
+                $run['sourcePdfExactSourceStart'] = 0;
+                $run['sourcePdfExactSourceEnd'] = $sourceEnd;
+            }
+
+            return $run;
+        };
+
+        $items = $itemsFromRuns([
+            $run('Before exact punctuation.', 740.0),
+            $run("•", 720.0, 4, 3),
+            $run('.', 700.0),
+            $run('.', 680.0, 5, 1),
+            $run('?', 660.0, 6, 2),
+            $run('After exact punctuation.', 640.0),
+        ]);
+
+        $t->same([
+            'Before exact punctuation.',
+            "•",
+            '.',
+            'After exact punctuation.',
+        ], array_column($items, 'text'));
+        $t->same([
+            ['sourceIndex' => 4, 'sourceStart' => 0, 'sourceEnd' => 3],
+        ], $items[1]['sourcePdfExactSourceRanges'] ?? null);
+        $t->same([
+            ['sourceIndex' => 5, 'sourceStart' => 0, 'sourceEnd' => 1],
+        ], $items[2]['sourcePdfExactSourceRanges'] ?? null);
+    },
+    'binds exact punctuation rows after positioned pdf prose repair' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, true, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $explicitDispositions = (function (array $source, array $blocks): array {
+            return $this->explicitPdfSourceDispositions($source, $blocks);
+        })->bindTo($reader, PdfReader::class);
+        foreach ([$setSourceSha256, $repair, $blocksFromLines, $explicitDispositions] as $closure) {
+            $t->true($closure instanceof \Closure);
+        }
+        $setSourceSha256(str_repeat('a', 64));
+
+        $source = [
+            ['id' => 'structural-marker', 'page' => 1, 'stream' => 1, 'text' => "•"],
+            ['id' => 'structural-anchor', 'page' => 1, 'stream' => 1, 'text' => ': A local item remains.'],
+            ['id' => 'literal-marker', 'page' => 1, 'stream' => 1, 'text' => "•"],
+            ['id' => 'literal-period', 'page' => 1, 'stream' => 1, 'text' => '.'],
+        ];
+        $layouts = [];
+        foreach ($source as $index => $item) {
+            $significant = preg_replace('/\s+/u', '', $item['text']) ?? '';
+            $layouts[] = [
+                'text' => $item['text'],
+                'page' => 1,
+                'sourceStream' => 1,
+                'x1' => 72.0,
+                'y1' => 740.0 - $index * 20.0,
+                'x2' => 420.0,
+                'y2' => 750.0 - $index * 20.0,
+                'fontSize' => 10.0,
+                'sourcePdfExactSourceRanges' => [[
+                    'sourceIndex' => $index,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen($significant),
+                ]],
+            ];
+        }
+
+        $repaired = $repair(array_column($source, 'text'), $layouts);
+        $t->same(["• : A local item remains.", "•."], $repaired);
+        $blocks = $blocksFromLines($repaired);
+        $t->same(['bullet_list', 'paragraph'], array_column($blocks, 'type'));
+        $t->same("•.", $blocks[1]->attr('text'));
+
+        $dispositions = $explicitDispositions($source, $blocks);
+        $t->same(
+            'exact-standalone-list-marker-to-item',
+            $dispositions['structural-marker']['semanticStructureProof']['method'] ?? null
+        );
+        $t->true(!isset($dispositions['literal-marker']));
+
+        $binding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            $blocks,
+            $dispositions
+        );
+        $t->same(true, $binding['complete']);
+        $t->same(null, $binding['failureReason']);
     },
     'preserves aligned monospaced code columns until listing detection' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -6042,10 +9029,9 @@ return [
         $t->true($join instanceof \Closure);
         $t->true($repair instanceof \Closure);
 
-        // A detached source label remains ambiguous and is spaced by the
-        // generic prose pass. The second label is attached to its sentence
-        // punctuation in the same source record, and its own positioned
-        // boundary proves that its numeric style fragment is compact.
+        // Both numeric style fragments have exact local positioned boundary
+        // evidence. The generic prose pass must not override those compact
+        // identifiers with an inferred letter/digit separator.
         $sourceItems = [
             ['page' => 1, 'stream' => 1, 'text' => 'A neutral label R'],
             ['page' => 1, 'stream' => 1, 'text' => '42'],
@@ -6065,7 +9051,7 @@ return [
                 $compactBeforeSecondNumber => '',
             ],
         ]);
-        $t->same('A neutral label R 42. R16 continues in prose.', $repair((string) $joined));
+        $t->same('A neutral label R42. R16 continues in prose.', $repair((string) $joined));
     },
     'does not rewrite repeated source spellings without local positioning' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -6083,6 +9069,255 @@ return [
             'Dogs on leash all owed.',
             'The balance is all owed today.',
         ], $repaired);
+    },
+    'does not discard short records as map or diagram noise without local geometry evidence' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $removeMapRegions = (function (array $records): array {
+            return $this->removeLowCoherencePdfMapRegions($records);
+        })->bindTo($reader, PdfReader::class);
+        $removeDiagramRegions = (function (array $records): array {
+            return $this->removeLowCoherencePdfDiagramLabelRegions($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($removeMapRegions instanceof \Closure);
+        $t->true($removeDiagramRegions instanceof \Closure);
+
+        $numericRecords = [];
+        for ($index = 0; $index < 24; $index++) {
+            $numericRecords[] = [
+                'text' => number_format(1000 + ($index * 50)),
+                'layout' => null,
+            ];
+        }
+        $t->same(
+            $numericRecords,
+            $removeMapRegions($numericRecords),
+            'A long run of compact source values is not map evidence when no occurrence has geometry.'
+        );
+
+        $fragmentRecords = array_map(
+            static fn (string $text): array => ['text' => $text, 'layout' => null],
+            ['A', 'lower', 'B', 'tail', 'C', 'word', 'D', 'value']
+        );
+        $t->same(
+            $fragmentRecords,
+            $removeDiagramRegions($fragmentRecords),
+            'A text-only fragment pattern cannot prove that visible source records belong to a diagram.'
+        );
+    },
+    'keeps aligned numeric data records out of the map label role' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $removeMapRegions = (function (array $records): array {
+            return $this->removeLowCoherencePdfMapRegions($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($removeMapRegions instanceof \Closure);
+
+        $records = [];
+        for ($index = 0; $index < 24; $index++) {
+            $column = $index % 2;
+            $row = intdiv($index, 2);
+            $records[] = [
+                'text' => number_format(1000 + ($index * 50)),
+                'layout' => [
+                    'page' => 1,
+                    'x1' => 72.0 + ($column * 160.0),
+                    'y1' => 720.0 - ($row * 14.0),
+                    'x2' => 118.0 + ($column * 160.0),
+                    'y2' => 730.0 - ($row * 14.0),
+                    'fontSize' => 10.0,
+                    'sourceComplexGeometryPage' => true,
+                ],
+            ];
+        }
+
+        $t->same(
+            $records,
+            $removeMapRegions($records),
+            'Repeated numeric columns are data-grid evidence, not a spatial map-label convention.'
+        );
+    },
+    'keeps page map candidates separate from a prior page display tail' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $pageEvidence = (function (array $items): ?array {
+            return $this->positionedPdfPageMapLabelGeometryEvidence($items);
+        })->bindTo($reader, PdfReader::class);
+        $removeMapRegions = (function (array $records): array {
+            return $this->removeLowCoherencePdfMapRegions($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($setSourceSha256 instanceof \Closure);
+        $t->true($pageEvidence instanceof \Closure);
+        $t->true($removeMapRegions instanceof \Closure);
+
+        $setSourceSha256(str_repeat('a', 64));
+        $positionedPageTwo = [];
+        for ($index = 0; $index < 20; $index++) {
+            $column = $index % 2;
+            $row = intdiv($index, 2);
+            $positionedPageTwo[] = [
+                'text' => $column === 0 ? 'Label Alpha' : 'Label Beta',
+                'page' => 2,
+                'x1' => 72.0 + ($column * 180.0),
+                'y1' => 720.0 - ($row * 14.0),
+                'x2' => 132.0 + ($column * 180.0),
+                'y2' => 730.0 - ($row * 14.0),
+                'fontSize' => 10.0,
+            ];
+        }
+        $evidence = $pageEvidence($positionedPageTwo);
+        $t->same('positioned-sustained-map-label-region', $evidence['kind'] ?? null);
+        $t->same(2, $evidence['page'] ?? null);
+
+        $pageOneRecords = [];
+        foreach (['Display Alpha', 'Display Beta', 'Display Gamma', 'Display Delta'] as $index => $text) {
+            $pageOneRecords[] = [
+                'text' => $text,
+                'layout' => [
+                    'page' => 1,
+                    'x1' => 72.0,
+                    'y1' => 720.0 - ($index * 14.0),
+                    'x2' => 142.0,
+                    'y2' => 730.0 - ($index * 14.0),
+                    'fontSize' => 10.0,
+                ],
+            ];
+        }
+        $pageTwoSourceRecords = [];
+        foreach ($positionedPageTwo as $index => $item) {
+            $pageTwoSourceRecords[] = [
+                'text' => (string) $item['text'],
+                'layout' => [
+                    'page' => 2,
+                    'id' => 'source-map-' . $index,
+                    'sourcePdfGlobalSourceIndex' => $index,
+                    'sourcePdfPageMapLabelGeometryEvidence' => $evidence,
+                ],
+            ];
+        }
+        $proseRecord = [
+            'text' => 'A complete synthetic sentence remains ordinary prose.',
+            'layout' => [
+                'page' => 2,
+                'id' => 'source-prose',
+                'sourcePdfGlobalSourceIndex' => 20,
+                'sourcePdfPageMapLabelGeometryEvidence' => $evidence,
+            ],
+        ];
+
+        $classified = $removeMapRegions([
+            ...$pageOneRecords,
+            ...$pageTwoSourceRecords,
+            $proseRecord,
+        ]);
+        $t->same(25, count($classified), 'A physical page transition must flush the preceding map candidate.');
+        $t->same(
+            array_column($pageOneRecords, 'text'),
+            array_column(array_slice($classified, 0, 4), 'text'),
+            'A short display tail keeps its own page-local classification.'
+        );
+        $pageTwoAtoms = array_slice($classified, 4, 20);
+        $t->same(
+            array_map(
+                static fn (array $record): string => "\x1EPDF-MAP-LABEL\x1F" . $record['text'],
+                $pageTwoSourceRecords
+            ),
+            array_column($pageTwoAtoms, 'text'),
+            'Every source-bound atom on the proved map page must survive in source order.'
+        );
+        $t->same(
+            array_map(static fn (array $record): string => (string) $record['layout']['id'], $pageTwoSourceRecords),
+            array_map(static fn (array $record): string => (string) $record['layout']['id'], $pageTwoAtoms),
+            'Page-local classification must preserve each exact source carrier.'
+        );
+        $t->same($proseRecord, $classified[24] ?? null, 'Coherent prose remains outside the map-label role.');
+    },
+    'carries page map geometry proof without inventing source occurrence coordinates' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $pageEvidence = (function (array $items): ?array {
+            return $this->positionedPdfPageMapLabelGeometryEvidence($items);
+        })->bindTo($reader, PdfReader::class);
+        $removeMapRegions = (function (array $records): array {
+            return $this->removeLowCoherencePdfMapRegions($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($setSourceSha256 instanceof \Closure);
+        $t->true($pageEvidence instanceof \Closure);
+        $t->true($removeMapRegions instanceof \Closure);
+
+        $sourceSha256 = str_repeat('a', 64);
+        $setSourceSha256($sourceSha256);
+        $positioned = [];
+        for ($index = 0; $index < 20; $index++) {
+            $column = $index % 2;
+            $row = intdiv($index, 2);
+            $positioned[] = [
+                'text' => $column === 0 ? 'North Trail' : 'Picnic Area',
+                'page' => 4,
+                'x1' => 72.0 + ($column * 180.0),
+                'y1' => 720.0 - ($row * 14.0),
+                'x2' => 132.0 + ($column * 180.0),
+                'y2' => 730.0 - ($row * 14.0),
+                'fontSize' => 10.0,
+            ];
+        }
+        $evidence = $pageEvidence($positioned);
+        $t->same('positioned-sustained-map-label-region', $evidence['kind'] ?? null);
+        $t->same(4, $evidence['page'] ?? null);
+        $t->same(20, $evidence['mapLabelRecordCount'] ?? null);
+
+        $sourceRecords = [];
+        foreach ($positioned as $index => $item) {
+            $sourceRecords[] = [
+                'text' => (string) $item['text'],
+                // This is an exact source carrier with page-level evidence,
+                // not a positioned line. No x/y/font fields are fabricated.
+                'layout' => [
+                    'page' => 4,
+                    'id' => 'source-map-' . $index,
+                    'sourcePdfGlobalSourceIndex' => $index,
+                    'sourcePdfPageMapLabelGeometryEvidence' => $evidence,
+                ],
+            ];
+        }
+        $classified = $removeMapRegions($sourceRecords);
+        $t->same(20, count(array_filter(
+            $classified,
+            static fn (array $record): bool => str_starts_with(
+                (string) $record['text'],
+                "\x1EPDF-MAP-LABEL\x1F"
+            )
+        )));
+        $t->same([], array_values(array_filter(
+            $classified,
+            static fn (array $record): bool => isset(
+                $record['layout']['x1'],
+                $record['layout']['y1'],
+                $record['layout']['x2'],
+                $record['layout']['y2'],
+                $record['layout']['fontSize']
+            )
+        )), 'Page evidence must not turn source carriers into positioned occurrences.');
+
+        $numericRecords = [];
+        for ($index = 0; $index < 20; $index++) {
+            $numericRecords[] = [
+                'text' => number_format(25000 + ($index * 50)),
+                'layout' => [
+                    'page' => 4,
+                    'id' => 'source-value-' . $index,
+                    'sourcePdfGlobalSourceIndex' => $index,
+                    'sourcePdfPageMapLabelGeometryEvidence' => $evidence,
+                ],
+            ];
+        }
+        $t->same(
+            $numericRecords,
+            $removeMapRegions($numericRecords),
+            'Even genuine page-level map evidence cannot reclassify a numeric-dominant data run.'
+        );
     },
     'keeps unverified inline fragment spaces in source text' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -6105,6 +9340,202 @@ return [
             'Horses and Hiking o nly Dogs on leash all owed A normal phrase in a sentence stays spaced.',
         ], $repaired);
     },
+    'keeps exact standalone wrapped word hyphens out of pdf bullet structure' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $exactFallback = (function (array $sourceItem, int $sourceIndex): ?array {
+            return $this->sourcePdfExactGeometryFallbackLineItem($sourceItem, $sourceIndex);
+        })->bindTo($reader, PdfReader::class);
+        $restoreMarkers = (function (array $items, array $sourceItems): array {
+            return $this->restoreSourcePdfStandaloneListMarkerPrefixes($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $markHyphens = (function (array $items, array $sourceItems): array {
+            return $this->markSourcePdfLocalWrappedHyphenJoins($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, true, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        foreach ([$setSourceSha256, $exactFallback, $restoreMarkers, $markHyphens, $repair, $blocksFromLines] as $closure) {
+            $t->true($closure instanceof \Closure);
+        }
+        $setSourceSha256(str_repeat('b', 64));
+
+        $source = static fn (
+            string $id,
+            string $text,
+            float $x1,
+            float $y1,
+            float $x2
+        ): array => [
+            'id' => $id,
+            'page' => 2,
+            'stream' => 9,
+            'text' => $text,
+            'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            'sourceGeometry' => [
+                'page' => 2,
+                'stream' => 9,
+                'x1' => $x1,
+                'y1' => $y1,
+                'x2' => $x2,
+                'y2' => $y1 + 9.375,
+                'orientation' => 'horizontal',
+            ],
+        ];
+        $wrappedSource = [
+            $source('prefix', 'sepa', 158.5, 583.25, 176.5),
+            $source('hyphen', '-', 172.75, 583.25, 178.7),
+            $source('continuation', 'rately', 158.5, 575.25, 178.1),
+        ];
+        $wrappedItems = array_map(
+            static fn (array $item, int $index): array => $exactFallback($item, $index) ?? [],
+            $wrappedSource,
+            array_keys($wrappedSource)
+        );
+        $restoredWrappedItems = $restoreMarkers($wrappedItems, $wrappedSource);
+        $t->same(3, count($restoredWrappedItems), 'The standalone hyphen carrier must not be attached as a bullet prefix and discarded.');
+        $markedWrappedItems = $markHyphens($restoredWrappedItems, $wrappedSource);
+        $t->same(
+            'exact-standalone-wrapped-word-hyphen',
+            $markedWrappedItems[1]['sourcePdfStandaloneWrappedWordHyphenEvidence']['kind'] ?? null
+        );
+        $wrappedLines = $repair(array_column($markedWrappedItems, 'text'), $markedWrappedItems);
+        $t->contains('sepa-rately', implode(' ', $wrappedLines));
+        $wrappedBlocks = $blocksFromLines($wrappedLines);
+        $t->same(0, count(array_filter(
+            $wrappedBlocks,
+            static fn (AstNode $block): bool => $block->type === 'bullet_list'
+        )));
+
+        $listSource = [
+            $source('intro', 'Intro.', 72.0, 615.0, 102.0),
+            $source('bullet', '-', 72.0, 599.0, 77.0),
+            $source('item', 'First item.', 90.0, 599.0, 145.0),
+        ];
+        $listItems = array_map(
+            static fn (array $item, int $index): array => $exactFallback($item, $index) ?? [],
+            $listSource,
+            array_keys($listSource)
+        );
+        $restoredListItems = $restoreMarkers($listItems, $listSource);
+        $t->same(2, count($restoredListItems));
+        $t->same('- First item.', $restoredListItems[1]['text'] ?? null);
+        $markedListItems = $markHyphens($restoredListItems, $listSource);
+        $listLines = $repair(array_column($markedListItems, 'text'), $markedListItems);
+        $listBlocks = $blocksFromLines($listLines);
+        $t->same(1, count(array_filter(
+            $listBlocks,
+            static fn (AstNode $block): bool => $block->type === 'bullet_list'
+        )), 'A genuine left-indented standalone hyphen must remain a bullet marker.');
+    },
+    'keeps exact dense numeric row markers literal' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $markInlineMarkers = (function (array &$items): void {
+            $this->markSourcePdfInlineStandaloneMarkerOccurrences($items);
+        })->bindTo($reader, PdfReader::class);
+        $exactFallback = (function (array $sourceItem, int $sourceIndex): ?array {
+            return $this->sourcePdfExactGeometryFallbackLineItem($sourceItem, $sourceIndex);
+        })->bindTo($reader, PdfReader::class);
+        $restoreMarkers = (function (array $items, array $sourceItems): array {
+            return $this->restoreSourcePdfStandaloneListMarkerPrefixes($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, false, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        foreach ([$setSourceSha256, $markInlineMarkers, $exactFallback, $restoreMarkers, $repair, $blocksFromLines] as $closure) {
+            $t->true($closure instanceof \Closure);
+        }
+        $setSourceSha256(str_repeat('7', 64));
+
+        $source = static fn (
+            string $id,
+            string $text,
+            float $x1,
+            float $y1,
+            float $x2,
+            int $globalIndex
+        ): array => [
+            'id' => $id,
+            'page' => 19,
+            'stream' => 26,
+            'text' => $text,
+            'sourcePdfGlobalSourceIndex' => $globalIndex,
+            'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            'sourceGeometry' => [
+                'page' => 19,
+                'stream' => 26,
+                'x1' => $x1,
+                'y1' => $y1,
+                'x2' => $x2,
+                'y2' => $y1 + 8.125,
+                'orientation' => 'horizontal',
+            ],
+        ];
+        $tableSource = [
+            $source('upper-peer', '4,327', 119.496975, 559.70712, 134.944225, 16739),
+            $source('first-cell', '19,100', 58.65638, 552.70712, 77.30163, 16741),
+            $source('left-cell', '19,150', 92.46638, 552.70712, 111.11163, 16742),
+            $source('inline-star', '*', 129.79785, 552.70712, 134.944225, 16743),
+            $source('right-cell', '4,328', 143.0756, 552.70712, 158.52285, 16744),
+            $source('next-cell', '7,152', 166.6556, 552.70712, 182.10285, 16745),
+            $source('last-cell', '8,046', 189.98561, 552.70712, 205.43286, 16746),
+            $source('lower-peer', '4,329', 119.496975, 545.70712, 134.944225, 16747),
+        ];
+        $markInlineMarkers($tableSource);
+        $proofDigest = $tableSource[3]['sourcePdfInlineStandaloneMarkerEvidence'] ?? null;
+        $t->same(hash('sha256', implode("\0", [
+            'exact-dense-numeric-row-marker-cell',
+            str_repeat('7', 64),
+            '19',
+            '26',
+            'left-cell',
+            'inline-star',
+            'right-cell',
+        ])), $proofDigest);
+
+        $tableItems = array_map(
+            static fn (array $item, int $index): array => $exactFallback($item, $index) ?? [],
+            $tableSource,
+            array_keys($tableSource)
+        );
+        $restoredTableItems = $restoreMarkers($tableItems, $tableSource);
+        $t->same(8, count($restoredTableItems));
+        $t->same('*', $restoredTableItems[3]['text'] ?? null);
+        $repairedTableLines = $repair(
+            array_column($restoredTableItems, 'text'),
+            $restoredTableItems
+        );
+        $t->true(in_array('*', $repairedTableLines, true));
+        $t->same(0, count(array_filter(
+            $blocksFromLines($repairedTableLines),
+            static fn (AstNode $block): bool => $block->type === 'bullet_list'
+        )), 'A marker in an exact dense numeric row must remain literal text.');
+
+        $listSource = $tableSource;
+        $listSource[2]['sourceGeometry']['y1'] = 570.0;
+        $listSource[2]['sourceGeometry']['y2'] = 578.125;
+        unset($listSource[3]['sourcePdfInlineStandaloneMarkerEvidence']);
+        $markInlineMarkers($listSource);
+        $t->true(!isset($listSource[3]['sourcePdfInlineStandaloneMarkerEvidence']));
+        $listItems = array_map(
+            static fn (array $item, int $index): array => $exactFallback($item, $index) ?? [],
+            $listSource,
+            array_keys($listSource)
+        );
+        $restoredListItems = $restoreMarkers($listItems, $listSource);
+        $t->true(in_array('* 4,328', array_column($restoredListItems, 'text'), true));
+    },
     'preserves ambiguous hard-hyphen line breaks without local provenance' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines): array {
@@ -6126,8 +9557,13 @@ return [
         ]);
 
         $t->same([
-            'expanded the lagoon, created frog-breeding habitat, and enhanced sand dunes. efficient type-specialized machine code hard-to-treat infections for the ac-tual dynamic types.',
-            'Inadynamicallytypedpro-gramming language such as JavaScript.',
+            'expanded the lagoon, created frog-',
+            'breeding habitat, and enhanced sand dunes. efficient type-',
+            'specialized machine code hard-',
+            'to-treat infections for the ac-',
+            'tual dynamic types.',
+            'Inadynamicallytypedpro-',
+            'gramming language such as JavaScript.',
         ], $repaired);
     },
     'uses explicit hyphen boundaries without a continuation-case rule' => static function (TestRunner $t): void {
@@ -6138,19 +9574,22 @@ return [
         $t->true($repair instanceof \Closure);
 
         $t->same([
-            'An unresolved pre-your regular continuation.',
+            'An unresolved pre-',
+            'your regular continuation.',
         ], $repair([
             'An unresolved pre-',
             'your regular continuation.',
         ]));
         $t->same([
-            'An unresolved pre-Your regular continuation.',
+            'An unresolved pre-',
+            'Your regular continuation.',
         ], $repair([
             'An unresolved pre-',
             'Your regular continuation.',
         ]));
         $t->same([
-            'An explicit pre-Your regular continuation.',
+            'An explicit pre-',
+            'Your regular continuation.',
         ], $repair([
             "An explicit pre\u{00AD}",
             'Your regular continuation.',
@@ -6167,7 +9606,7 @@ return [
         $next = ['text' => 'tual dynamic types.', 'page' => 1, 'x1' => 51.0, 'y1' => 88.0, 'x2' => 170.0, 'y2' => 98.0, 'fontSize' => 10.0];
 
         $t->same([
-            'for the ac-tual dynamic types.',
+            'for the ac- tual dynamic types.',
         ], $repair([
             'for the ac-',
             'tual dynamic types.',
@@ -6215,7 +9654,237 @@ return [
 
         $repaired = $repair(array_column($marked, 'text'), $marked);
         $t->contains('renewal at this exact visual continuation.', implode(' ', $repaired));
-        $t->contains('renew-al without the same source/layout pair.', implode(' ', $repaired));
+        $t->contains('renew- al without the same source/layout pair.', implode(' ', $repaired));
+    },
+    'preserves a painted hard hyphen in an exact source reference entry' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $mark = (function (array $items, array $sourceItems): array {
+            return $this->markSourcePdfLocalWrappedHyphenJoins($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, true, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($mark instanceof \Closure);
+        $t->true($repair instanceof \Closure);
+
+        $sourceItems = [
+            ['page' => 1, 'stream' => 1, 'text' => 'Compilation is also painted as one token.'],
+            ['page' => 1, 'stream' => 1, 'text' => '[18] A Region-Based Compila-'],
+            ['page' => 1, 'stream' => 1, 'text' => 'tion Technique for Dynamic Compilers.'],
+        ];
+        $layout = [
+            'page' => 1,
+            'sourceStream' => 1,
+            'x1' => 72.0,
+            'x2' => 320.0,
+            'fontSize' => 10.0,
+            'sourceVerifiedGeometryText' => true,
+            'sourcePdfExactPositionedText' => true,
+        ];
+        $items = [
+            array_replace($layout, [
+                'text' => $sourceItems[1]['text'],
+                'sourcePdfSourceIndex' => 1,
+                'y1' => 700.0,
+                'y2' => 712.0,
+                'sourcePdfReferenceEntry' => true,
+            ]),
+            array_replace($layout, [
+                'text' => $sourceItems[2]['text'],
+                'sourcePdfSourceIndex' => 2,
+                'y1' => 688.0,
+                'y2' => 700.0,
+                'sourcePdfReferenceEntry' => true,
+            ]),
+        ];
+
+        $ordinaryItems = array_map(static function (array $item): array {
+            unset($item['sourcePdfReferenceEntry']);
+
+            return $item;
+        }, $items);
+        $ordinaryMarked = $mark($ordinaryItems, $sourceItems);
+        $t->true(is_string($ordinaryMarked[0]['sourcePdfWrappedHyphenPairAfter'] ?? null));
+
+        $referenceMarked = $mark($items, $sourceItems);
+        $t->same(null, $referenceMarked[0]['sourcePdfWrappedHyphenPairAfter'] ?? null);
+        $t->same(null, $referenceMarked[1]['sourcePdfWrappedHyphenPairBefore'] ?? null);
+        $repaired = $repair(array_column($referenceMarked, 'text'), $referenceMarked);
+        $t->contains(
+            '[18] A Region-Based Compila- tion Technique for Dynamic Compilers.',
+            implode(' ', $repaired)
+        );
+    },
+    'uses adjacent whole exact ranges as a read only hard hyphen identity' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $mark = (function (array $items, array $sourceItems): array {
+            return $this->markSourcePdfLocalWrappedHyphenJoins($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $matches = (function (array $previous, array $following): bool {
+            return $this->repairedPdfLayoutsHaveLocalWrappedHyphenPair($previous, $following);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, true, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($setSourceSha256 instanceof \Closure);
+        $t->true($mark instanceof \Closure);
+        $t->true($matches instanceof \Closure);
+        $t->true($repair instanceof \Closure);
+        $setSourceSha256(str_repeat('d', 64));
+
+        $compact = static fn (string $text): string => preg_replace('/\s+/u', '', $text) ?? '';
+        $source = static fn (string $text, int $sourceIndex, float $y, int $stream = 3): array => [
+            'page' => 1,
+            'stream' => $stream,
+            'text' => $text,
+            'sourcePdfGlobalSourceIndex' => $sourceIndex,
+            'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            'sourceGeometry' => [
+                'page' => 1,
+                'stream' => $stream,
+                'x1' => 72.0,
+                'y1' => $y,
+                'x2' => 320.0,
+                'y2' => $y + 12.0,
+                'orientation' => 'horizontal',
+            ],
+        ];
+        $sourceItems = [
+            $source('Compilation is painted intact elsewhere.', 0, 724.0),
+            $source('The compiler performs Compila-', 1, 700.0),
+            $source('tion quickly.', 2, 688.0),
+        ];
+        $carrier = static function (array $sourceItem, int $sourceIndex) use ($compact): array {
+            $geometry = $sourceItem['sourceGeometry'];
+
+            return [
+                'text' => $sourceItem['text'],
+                'page' => 1,
+                'x1' => $geometry['x1'],
+                'y1' => $geometry['y1'],
+                'x2' => $geometry['x2'],
+                'y2' => $geometry['y2'],
+                'fontSize' => 10.0,
+                'sourcePdfExactSourceRanges' => [[
+                    'sourceIndex' => $sourceIndex,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen($compact($sourceItem['text'])),
+                ]],
+            ];
+        };
+        $items = [
+            $carrier($sourceItems[1], 1),
+            $carrier($sourceItems[2], 2),
+        ];
+
+        $marked = $mark($items, $sourceItems);
+        $pair = $marked[0]['sourcePdfWrappedHyphenPairAfter'] ?? null;
+        $t->true(is_string($pair) && $pair !== '');
+        $t->same($pair, $marked[1]['sourcePdfWrappedHyphenPairBefore'] ?? null);
+        $proof = $marked[0]['sourcePdfWholeExactRangeWrappedHyphenProofAfter'] ?? null;
+        $t->true(is_array($proof));
+        $t->same($proof, $marked[1]['sourcePdfWholeExactRangeWrappedHyphenProofBefore'] ?? null);
+        $t->same(true, $matches($marked[0], $marked[1]));
+        $t->contains('The compiler performs Compilation quickly.', implode(
+            ' ',
+            $repair(array_column($marked, 'text'), $marked)
+        ));
+
+        $postStampGeometryMutation = $marked;
+        $postStampGeometryMutation[1]['y1'] += 1.0;
+        $t->same(false, $matches(
+            $postStampGeometryMutation[0],
+            $postStampGeometryMutation[1]
+        ));
+
+        $partial = $items;
+        $partial[1]['sourcePdfExactSourceRanges'][0]['sourceEnd']--;
+        $partial = $mark($partial, $sourceItems);
+        $t->same(null, $partial[0]['sourcePdfWrappedHyphenPairAfter'] ?? null);
+        $t->same(null, $partial[1]['sourcePdfWrappedHyphenPairBefore'] ?? null);
+
+        $missingGeometrySource = $sourceItems;
+        unset(
+            $missingGeometrySource[1]['sourceGeometry'],
+            $missingGeometrySource[1]['sourceGeometryMethod']
+        );
+        $missingGeometry = $mark($items, $missingGeometrySource);
+        $t->same(null, $missingGeometry[0]['sourcePdfWrappedHyphenPairAfter'] ?? null);
+
+        $streamMismatchItems = $items;
+        $streamMismatchItems[1]['sourceStream'] = 99;
+        $streamMismatch = $mark($streamMismatchItems, $sourceItems);
+        $t->same(null, $streamMismatch[0]['sourcePdfWrappedHyphenPairAfter'] ?? null);
+
+        $duplicateSourceItems = array_merge($sourceItems, [
+            $source($sourceItems[1]['text'], 3, 500.0),
+            $source($sourceItems[2]['text'], 4, 488.0),
+        ]);
+        $swappedDuplicateItems = $items;
+        $swappedDuplicateItems[0]['sourcePdfExactSourceRanges'][0]['sourceIndex'] = 3;
+        $swappedDuplicateItems[1]['sourcePdfExactSourceRanges'][0]['sourceIndex'] = 4;
+        $swappedDuplicate = $mark($swappedDuplicateItems, $duplicateSourceItems);
+        $t->same(null, $swappedDuplicate[0]['sourcePdfWrappedHyphenPairAfter'] ?? null);
+    },
+    'carries an exact directional hard-hyphen pair across a forced small-font list boundary' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $mark = (function (array $items, array $sourceItems): array {
+            return $this->markSourcePdfLocalWrappedHyphenJoins($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, true, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($mark instanceof \Closure);
+        $t->true($repair instanceof \Closure);
+
+        $sourceItems = [
+            ['page' => 1, 'stream' => 4, 'text' => 'The intact alcoholbased token supplies document-local evidence.'],
+            ['page' => 1, 'stream' => 4, 'text' => '2. Use alcohol-'],
+            ['page' => 1, 'stream' => 4, 'text' => 'based rub.'],
+        ];
+        $base = [
+            'page' => 1,
+            'sourceStream' => 4,
+            'x1' => 72.0,
+            'x2' => 220.0,
+            'fontSize' => 10.0,
+            'sourceVerifiedGeometryText' => true,
+            'sourcePdfExactPositionedText' => true,
+        ];
+        $items = [
+            array_replace($base, [
+                'text' => $sourceItems[1]['text'],
+                'sourcePdfSourceIndex' => 1,
+                'y1' => 700.0,
+                'y2' => 712.0,
+            ]),
+            array_replace($base, [
+                'text' => $sourceItems[2]['text'],
+                'sourcePdfSourceIndex' => 2,
+                'y1' => 688.0,
+                'y2' => 700.0,
+                'forceBlockBreakBefore' => true,
+            ]),
+        ];
+
+        $marked = $mark($items, $sourceItems);
+        $pair = $marked[0]['sourcePdfWrappedHyphenPairAfter'] ?? null;
+        $t->true(is_string($pair) && $pair !== '');
+        $t->same($pair, $marked[1]['sourcePdfWrappedHyphenPairBefore'] ?? null);
+        $t->same(['2. Use alcoholbased rub.'], $repair(array_column($marked, 'text'), $marked));
+
+        unset(
+            $marked[0]['sourcePdfWrappedHyphenPairAfter'],
+            $marked[1]['sourcePdfWrappedHyphenPairBefore']
+        );
+        $t->same(
+            ['2. Use alcohol-', 'based rub.'],
+            $repair(array_column($marked, 'text'), $marked),
+            'The forced boundary must remain without the exact directional pair.'
+        );
     },
     'retains both local directions when chained wrapped hyphens share a source row' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -6358,7 +10027,7 @@ return [
 
         $repaired = implode(' ', $repair(array_column($marked, 'text'), $marked));
         $t->contains('riverbank reference.', $repaired);
-        $t->contains('river-bank', $repaired);
+        $t->contains('river- bank', $repaired);
     },
     'removes a soft hyphen only from its locally proven wrapped pair' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -6398,6 +10067,461 @@ return [
         $t->contains('continuation at this proven wrapped boundary.', implode(' ', $repaired));
         $t->true(!str_contains(implode(' ', $repaired), 'continu-ation'));
     },
+    'retains a wrapped soft hyphen when the same compound is intact elsewhere in the source' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $mark = (function (array $items, array $sourceItems): array {
+            return $this->markSourcePdfLocalWrappedHyphenJoins($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, true, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $dispositionsFor = (function (array $items, array $layouts): array {
+            return $this->explicitPdfSourceDispositions($items, [], [], $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($mark instanceof \Closure);
+        $t->true($repair instanceof \Closure);
+        $t->true($dispositionsFor instanceof \Closure);
+
+        $sourceItems = [
+            ['id' => 'inline-compound', 'page' => 1, 'stream' => 1, 'text' => "Use an alcohol\u{00AD}based hand rub when appropriate."],
+            ['id' => 'wrapped-compound', 'page' => 1, 'stream' => 1, 'text' => "Cleansing hands using an alcohol\u{00AD}"],
+            ['id' => 'wrapped-tail', 'page' => 1, 'stream' => 1, 'text' => 'based hand rub helps prevent infection.'],
+        ];
+        $layout = [
+            'page' => 1,
+            'x1' => 72.0,
+            'x2' => 420.0,
+            'fontSize' => 10.0,
+            'sourceStream' => 1,
+            'sourceVerifiedGeometryText' => true,
+            'sourcePdfExactPositionedText' => true,
+        ];
+        $items = [
+            array_replace($layout, ['text' => $sourceItems[0]['text'], 'sourcePdfSourceIndex' => 0, 'y1' => 730.0, 'y2' => 742.0]),
+            array_replace($layout, ['text' => $sourceItems[1]['text'], 'sourcePdfSourceIndex' => 1, 'y1' => 718.0, 'y2' => 730.0]),
+            array_replace($layout, ['text' => $sourceItems[2]['text'], 'sourcePdfSourceIndex' => 2, 'y1' => 706.0, 'y2' => 718.0]),
+        ];
+
+        $marked = $mark($items, $sourceItems);
+        $pair = $marked[1]['sourcePdfWrappedSemanticHyphenPairAfter'] ?? null;
+        $t->true(is_string($pair) && $pair !== '');
+        $t->same($pair, $marked[2]['sourcePdfWrappedSemanticHyphenPairBefore'] ?? null);
+        $t->same(null, $marked[1]['sourcePdfWrappedHyphenPairAfter'] ?? null);
+
+        $repaired = $repair(array_column($marked, 'text'), $marked);
+        $t->contains('Cleansing hands using an alcohol-based hand rub helps prevent infection.', implode(' ', $repaired));
+        $t->true(!str_contains(implode(' ', $repaired), 'alcoholbased'));
+
+        $dispositions = $dispositionsFor($sourceItems, $marked);
+        $t->same('Cleansing hands using an alcohol-', $dispositions['wrapped-compound']['textProjection'] ?? null);
+        $t->same(1, $dispositions['wrapped-compound']['evidence']['softHyphenRepair']['semanticLineEndHyphenCount'] ?? null);
+        $t->same(0, $dispositions['wrapped-compound']['evidence']['softHyphenRepair']['lineEndJoinCount'] ?? null);
+    },
+    'uses exact source geometry for a semantic soft hyphen across an inferred forced boundary' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $mark = (function (array $items, array $sourceItems): array {
+            return $this->markSourcePdfLocalWrappedHyphenJoins($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, true, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($mark instanceof \Closure);
+        $t->true($repair instanceof \Closure);
+        $t->true($blocksFromLines instanceof \Closure);
+
+        $sourceItem = static fn (string $text, int $globalIndex, float $y): array => [
+            'page' => 1,
+            'stream' => 4,
+            'text' => $text,
+            'sourcePdfGlobalSourceIndex' => $globalIndex,
+            'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            'sourceGeometry' => [
+                'x1' => 72.0,
+                'y1' => $y,
+                'x2' => 420.0,
+                'y2' => $y + 12.0,
+                'orientation' => 'horizontal',
+            ],
+        ];
+        $sourceItems = [
+            $sourceItem("Use an alcohol\u{00AD}based hand rub when appropriate.", 100, 724.0),
+            $sourceItem("• Cleansing hands using an alcohol\u{00AD}", 101, 700.0),
+            $sourceItem('based hand rub.', 102, 688.0),
+        ];
+        $base = [
+            'page' => 1,
+            'sourceStream' => 4,
+            'x1' => 72.0,
+            'x2' => 420.0,
+            'fontSize' => 12.0,
+        ];
+        $items = [
+            array_replace($base, [
+                'text' => $sourceItems[1]['text'],
+                'sourcePdfSourceIndex' => 1,
+                'sourcePdfGlobalSourceIndex' => 101,
+                'sourcePdfExactPositionedText' => true,
+                'y1' => 700.0,
+                'y2' => 712.0,
+            ]),
+            array_replace($base, [
+                'text' => $sourceItems[2]['text'],
+                'sourcePdfSourceIndex' => 2,
+                'sourcePdfGlobalSourceIndex' => 102,
+                'sourceInferredNeighborLayout' => true,
+                'forceBlockBreakBefore' => true,
+                'y1' => 688.0,
+                'y2' => 700.0,
+            ]),
+        ];
+
+        $marked = $mark($items, $sourceItems);
+        $pair = $marked[0]['sourcePdfWrappedSemanticHyphenPairAfter'] ?? null;
+        $t->true(is_string($pair) && $pair !== '');
+        $t->same($pair, $marked[1]['sourcePdfWrappedSemanticHyphenPairBefore'] ?? null);
+        $t->same(null, $marked[0]['sourcePdfWrappedHyphenPairAfter'] ?? null);
+        $repaired = $repair(array_column($marked, 'text'), $marked);
+        $t->same(['• Cleansing hands using an alcohol-based hand rub.'], $repaired);
+        $blocks = $blocksFromLines($repaired);
+        $t->same(1, count($blocks));
+        $t->same('bullet_list', $blocks[0]->type);
+        $t->same('Cleansing hands using an alcohol-based hand rub.', $blocks[0]->children[0]->children[0]->attr('text'));
+
+        $missingGeometry = $sourceItems;
+        unset($missingGeometry[2]['sourceGeometry'], $missingGeometry[2]['sourceGeometryMethod']);
+        $unmarked = $mark($items, $missingGeometry);
+        $t->same(null, $unmarked[0]['sourcePdfWrappedSemanticHyphenPairAfter'] ?? null);
+        $t->same(
+            ['• Cleansing hands using an alcohol-', 'based hand rub.'],
+            $repair(array_column($unmarked, 'text'), $unmarked)
+        );
+
+        $mismatchedItems = $items;
+        $mismatchedItems[1]['sourcePdfGlobalSourceIndex'] = 999;
+        $mismatched = $mark($mismatchedItems, $sourceItems);
+        $t->same(null, $mismatched[0]['sourcePdfWrappedSemanticHyphenPairAfter'] ?? null);
+
+        $sourceOnlyItems = [
+            $sourceItem('Starting from exact source geometry supplies local spelling evidence.', 200, 724.0),
+            $sourceItem('When the VM fails to finish a trace start-', 201, 700.0),
+            $sourceItem('ing at a given point, it records the failure.', 202, 688.0),
+        ];
+        $sourceOnlyLayouts = [
+            [
+                'text' => $sourceOnlyItems[1]['text'],
+                'page' => 1,
+                'sourceStream' => 4,
+                'sourcePdfGlobalSourceIndex' => 201,
+            ],
+            [
+                'text' => $sourceOnlyItems[2]['text'],
+                'page' => 1,
+                'sourceStream' => 4,
+                'sourcePdfGlobalSourceIndex' => 202,
+            ],
+        ];
+        $markedSourceOnly = $mark($sourceOnlyLayouts, $sourceOnlyItems);
+        $hardPair = $markedSourceOnly[0]['sourcePdfWrappedHyphenPairAfter'] ?? null;
+        $t->true(is_string($hardPair) && $hardPair !== '');
+        $t->same($hardPair, $markedSourceOnly[1]['sourcePdfWrappedHyphenPairBefore'] ?? null);
+        $t->same(1, $markedSourceOnly[0]['sourcePdfSourceIndex'] ?? null);
+        $t->same(2, $markedSourceOnly[1]['sourcePdfSourceIndex'] ?? null);
+        $t->same([
+            'When the VM fails to finish a trace starting at a given point, it records the failure.',
+        ], $repair(array_column($markedSourceOnly, 'text'), $markedSourceOnly));
+    },
+    'binds a document-proven wrapped semantic hyphen to the exact emitted source occurrence' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 734 Td "
+            . "(Intro:Next.) Tj 0 -14 Td "
+            . "(Use an alcohol\\255based hand rub when appropriate.) Tj 0 -14 Td "
+            . "(Cleansing hands using an alcohol\\255) Tj 0 -14 Td "
+            . "(based hand rub helps prevent infection.) Tj ET";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+            . "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+            . "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>endobj\n"
+            . "4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>endobj\n"
+            . "5 0 obj<</Length " . strlen($content) . ">>stream\n{$content}\nendstream\nendobj\n"
+            . "trailer<</Root 1 0 R>>\n%%EOF";
+
+        $document = (new PdfReader(['pdfRepairProseText' => true]))->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->contains('Use an alcohol-based hand rub when appropriate.', $blocks);
+        $t->contains('Cleansing hands using an alcohol-based hand rub helps prevent infection.', $blocks);
+        $t->true(!str_contains($blocks, 'alcoholbased'));
+        $t->same(true, $meta['pdfSourceBindingComplete'] ?? null);
+        $t->same(true, $meta['pdfSemanticTextComplete'] ?? null);
+        $t->same(0, $meta['pdfSourceDisposition']['unresolvedOccurrenceCount'] ?? null);
+        $t->same(0, $meta['pdfSourceDisposition']['unclaimedEmittedSignificantCharacterCount'] ?? null);
+    },
+    'binds a proven discretionary hard-hyphen join through the exact source ledger occurrence' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 72 734 Td '
+            . '(A riverbank route supplies exact document-local spelling evidence.) Tj 0 -14 Td '
+            . '(The marked visual row reaches the river-) Tj 0 -14 Td '
+            . '(bank before the path turns inland.) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+            . "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+            . "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>endobj\n"
+            . "4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>endobj\n"
+            . "5 0 obj<</Length " . strlen($content) . ">>stream\n{$content}\nendstream\nendobj\n"
+            . "trailer<</Root 1 0 R>>\n%%EOF";
+
+        $document = (new PdfReader(['pdfRepairProseText' => true]))->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->contains('The marked visual row reaches the riverbank before the path turns inland.', $blocks);
+        $t->true(!str_contains($blocks, 'river-bank before'));
+        $t->same(true, $meta['pdfSourceBindingComplete'] ?? null);
+        $t->same(true, $meta['pdfSemanticTextComplete'] ?? null);
+        $t->same(0, $meta['pdfSourceDisposition']['unresolvedOccurrenceCount'] ?? null);
+        $t->same(0, $meta['pdfSourceDisposition']['unclaimedEmittedSignificantCharacterCount'] ?? null);
+    },
+    'projects each proven terminal hard-hyphen glyph without changing the following occurrence' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $dispositionsFor = (function (array $items, array $layouts): array {
+            return $this->explicitPdfSourceDispositions($items, [], [], $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($dispositionsFor instanceof \Closure);
+
+        foreach (['-', "\u{2010}", "\u{2011}"] as $case => $separator) {
+            $items = [
+                ['id' => "hard-evidence-{$case}", 'page' => 1, 'stream' => 3, 'text' => 'The riverbank is nearby.'],
+                ['id' => "hard-lead-{$case}", 'page' => 1, 'stream' => 3, 'text' => 'Walk toward the river' . $separator],
+                ['id' => "hard-tail-{$case}", 'page' => 1, 'stream' => 3, 'text' => 'bank and turn left.'],
+            ];
+            $pair = '1' . "\0" . '3' . "\0" . '1' . "\0" . '2';
+            $layouts = [
+                [
+                    'page' => 1,
+                    'sourceStream' => 3,
+                    'sourcePdfSourceIndex' => 1,
+                    'sourcePdfWrappedHyphenPairAfter' => $pair,
+                ],
+                [
+                    'page' => 1,
+                    'sourceStream' => 3,
+                    'sourcePdfSourceIndex' => 2,
+                    'sourcePdfWrappedHyphenPairBefore' => $pair,
+                ],
+            ];
+
+            $dispositions = $dispositionsFor($items, $layouts);
+            $lead = $dispositions["hard-lead-{$case}"] ?? [];
+            $evidence = $lead['evidence']['wrappedHyphenBoundaryRepair'] ?? [];
+            $t->same('Walk toward the river', $lead['textProjection'] ?? null);
+            $t->same('discretionary-hard-hyphen', $evidence['suppressionKind'] ?? null);
+            $t->same(
+                strlen($separator),
+                ($evidence['sourceByteRanges']['precedingTerminalSeparator']['sourceEnd'] ?? 0)
+                    - ($evidence['sourceByteRanges']['precedingTerminalSeparator']['sourceStart'] ?? 0)
+            );
+            $t->same(null, $dispositions["hard-tail-{$case}"] ?? null);
+        }
+    },
+    'projects wrapped soft hyphens only from exact directional source-layout pairs' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $dispositionsFor = (function (array $items, array $layouts): array {
+            return $this->explicitPdfSourceDispositions($items, [], [], $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($dispositionsFor instanceof \Closure);
+        $pair = static fn (int $page, int $stream, int $previous, int $following): string =>
+            $page . "\0" . $stream . "\0" . $previous . "\0" . $following;
+
+        $discretionaryItems = [
+            [
+                'id' => 'soft-discretionary-lead',
+                'page' => 1,
+                'stream' => 7,
+                'text' => "A visual row ends with continu\u{00AD}",
+                'provenance' => ['index' => 40],
+            ],
+            [
+                'id' => 'soft-discretionary-tail',
+                'page' => 1,
+                'stream' => 7,
+                'text' => 'ation in the next exact source occurrence.',
+                'provenance' => ['index' => 41],
+            ],
+        ];
+        $discretionaryPair = $pair(1, 7, 0, 1);
+        $discretionaryLayouts = [
+            [
+                'page' => 1,
+                'sourceStream' => 7,
+                'sourcePdfSourceIndex' => 0,
+                'sourcePdfWrappedHyphenPairAfter' => $discretionaryPair,
+                'sourcePdfExactSourceRanges' => [[
+                    'sourceIndex' => 0,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen('Avisualrowendswithcontinu'),
+                ]],
+            ],
+            [
+                'page' => 1,
+                'sourceStream' => 7,
+                'sourcePdfSourceIndex' => 1,
+                'sourcePdfWrappedHyphenPairBefore' => $discretionaryPair,
+                'sourcePdfExactSourceRanges' => [[
+                    'sourceIndex' => 1,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen('ationinthenextexactsourceoccurrence.'),
+                ]],
+            ],
+        ];
+        $discretionary = $dispositionsFor($discretionaryItems, $discretionaryLayouts);
+        $discretionaryDisposition = $discretionary['soft-discretionary-lead'] ?? [];
+        $discretionaryEvidence = $discretionaryDisposition['evidence']['wrappedHyphenBoundaryRepair'] ?? [];
+        $t->same('A visual row ends with continu', $discretionaryDisposition['textProjection'] ?? null);
+        $t->same('boundary-repair', $discretionaryDisposition['disposition'] ?? null);
+        $t->same('exact-directional-source-wrapped-hyphen-boundary', $discretionaryEvidence['method'] ?? null);
+        $t->same('discretionary-soft-hyphen', $discretionaryEvidence['suppressionKind'] ?? null);
+        $t->same(['preceding' => 0, 'following' => 1], $discretionaryEvidence['sourcePageLocalIndexes'] ?? null);
+        $t->same(['preceding' => 0, 'following' => 1], $discretionaryEvidence['sourceGlobalIndexes'] ?? null);
+        $t->same(['preceding' => 40, 'following' => 41], $discretionaryEvidence['sourceProvenanceIndexes'] ?? null);
+        $t->same(64, strlen((string) ($discretionaryEvidence['pairDigest'] ?? '')));
+        $t->true(!array_key_exists('pair', $discretionaryEvidence));
+        $t->same(1, $discretionaryDisposition['evidence']['softHyphenRepair']['lineEndJoinCount'] ?? null);
+
+        $semanticItems = [
+            ['id' => 'soft-semantic-evidence', 'page' => 1, 'stream' => 8, 'text' => 'Use an alcohol-based rub.'],
+            ['id' => 'soft-semantic-lead', 'page' => 1, 'stream' => 8, 'text' => "Use another alcohol\u{00AD}"],
+            ['id' => 'soft-semantic-tail', 'page' => 1, 'stream' => 8, 'text' => 'based rub after washing.'],
+        ];
+        $semanticPair = $pair(1, 8, 1, 2);
+        $semanticLayouts = [
+            [
+                'page' => 1,
+                'sourceStream' => 8,
+                'sourcePdfSourceIndex' => 1,
+                'sourcePdfWrappedSemanticHyphenPairAfter' => $semanticPair,
+            ],
+            [
+                'page' => 1,
+                'sourceStream' => 8,
+                'sourcePdfSourceIndex' => 2,
+                'sourcePdfWrappedSemanticHyphenPairBefore' => $semanticPair,
+            ],
+        ];
+        $semantic = $dispositionsFor($semanticItems, $semanticLayouts);
+        $semanticDisposition = $semantic['soft-semantic-lead'] ?? [];
+        $t->same('Use another alcohol-', $semanticDisposition['textProjection'] ?? null);
+        $t->same(
+            'semantic-soft-hyphen',
+            $semanticDisposition['evidence']['wrappedHyphenBoundaryRepair']['suppressionKind'] ?? null
+        );
+        $t->same(1, $semanticDisposition['evidence']['softHyphenRepair']['semanticLineEndHyphenCount'] ?? null);
+        $t->same(0, $semanticDisposition['evidence']['softHyphenRepair']['lineEndJoinCount'] ?? null);
+
+        $unpairedItems = [
+            ['id' => 'unpaired-soft-lead', 'page' => 1, 'stream' => 9, 'text' => "Keep this soft boundary visible\u{00AD}"],
+            ['id' => 'unpaired-soft-tail', 'page' => 1, 'stream' => 9, 'text' => 'without a directional pair.'],
+        ];
+        $unpaired = $dispositionsFor($unpairedItems, []);
+        $t->same('Keep this soft boundary visible-', $unpaired['unpaired-soft-lead']['textProjection'] ?? null);
+        $t->same(0, $unpaired['unpaired-soft-lead']['evidence']['softHyphenRepair']['lineEndJoinCount'] ?? null);
+        $t->same(0, $unpaired['unpaired-soft-lead']['evidence']['softHyphenRepair']['semanticLineEndHyphenCount'] ?? null);
+    },
+    'rejects wrapped-hyphen projections with mismatched or nonlocal occurrence identity' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $dispositionsFor = (function (array $items, array $layouts): array {
+            return $this->explicitPdfSourceDispositions($items, [], [], $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($dispositionsFor instanceof \Closure);
+        $pair = static fn (int $page, int $stream, int $previous, int $following): string =>
+            $page . "\0" . $stream . "\0" . $previous . "\0" . $following;
+        $layout = static function (
+            int $page,
+            int $stream,
+            int $sourceIndex,
+            string $marker,
+            bool $after,
+            bool $semantic = false
+        ): array {
+            $key = $semantic
+                ? ($after ? 'sourcePdfWrappedSemanticHyphenPairAfter' : 'sourcePdfWrappedSemanticHyphenPairBefore')
+                : ($after ? 'sourcePdfWrappedHyphenPairAfter' : 'sourcePdfWrappedHyphenPairBefore');
+
+            return [
+                'page' => $page,
+                'sourceStream' => $stream,
+                'sourcePdfSourceIndex' => $sourceIndex,
+                $key => $marker,
+            ];
+        };
+
+        $mismatchItems = [
+            ['id' => 'mismatch-evidence', 'page' => 1, 'stream' => 1, 'text' => 'A riverbank route exists.'],
+            ['id' => 'mismatch-lead', 'page' => 1, 'stream' => 1, 'text' => 'Follow the river-'],
+            ['id' => 'mismatch-tail', 'page' => 1, 'stream' => 1, 'text' => 'bank to the bridge.'],
+        ];
+        $expected = $pair(1, 1, 1, 2);
+        $mismatch = $dispositionsFor($mismatchItems, [
+            $layout(1, 1, 1, $expected, true),
+            $layout(1, 1, 2, $expected . '-mismatch', false),
+        ]);
+        $t->same(null, $mismatch['mismatch-lead'] ?? null);
+
+        $crossStreamItems = [
+            ['id' => 'stream-evidence', 'page' => 1, 'stream' => 1, 'text' => 'A riverbank route exists.'],
+            ['id' => 'stream-lead', 'page' => 1, 'stream' => 1, 'text' => 'Follow the river-'],
+            ['id' => 'stream-tail', 'page' => 1, 'stream' => 2, 'text' => 'bank to the bridge.'],
+        ];
+        $crossStream = $dispositionsFor($crossStreamItems, [
+            $layout(1, 1, 1, $expected, true),
+            $layout(1, 2, 2, $expected, false),
+        ]);
+        $t->same(null, $crossStream['stream-lead'] ?? null);
+
+        $crossPageItems = [
+            ['id' => 'page-evidence', 'page' => 1, 'stream' => 1, 'text' => 'A riverbank route exists.'],
+            ['id' => 'page-lead', 'page' => 1, 'stream' => 1, 'text' => 'Follow the river-'],
+            ['id' => 'page-tail', 'page' => 2, 'stream' => 1, 'text' => 'bank to the bridge.'],
+        ];
+        $crossPagePair = $pair(1, 1, 1, 0);
+        $crossPage = $dispositionsFor($crossPageItems, [
+            $layout(1, 1, 1, $crossPagePair, true),
+            $layout(2, 1, 0, $crossPagePair, false),
+        ]);
+        $t->same(null, $crossPage['page-lead'] ?? null);
+
+        $nonadjacentItems = [
+            ['id' => 'gap-evidence', 'page' => 1, 'stream' => 1, 'text' => 'A riverbank route exists.'],
+            ['id' => 'gap-lead', 'page' => 1, 'stream' => 1, 'text' => 'Follow the river-'],
+            ['id' => 'gap-middle', 'page' => 1, 'stream' => 1, 'text' => 'Unrelated source occurrence.'],
+            ['id' => 'gap-tail', 'page' => 1, 'stream' => 1, 'text' => 'bank to the bridge.'],
+        ];
+        $gapPair = $pair(1, 1, 1, 3);
+        $nonadjacent = $dispositionsFor($nonadjacentItems, [
+            $layout(1, 1, 1, $gapPair, true),
+            $layout(1, 1, 3, $gapPair, false),
+        ]);
+        $t->same(null, $nonadjacent['gap-lead'] ?? null);
+
+        $semanticHardItems = [
+            ['id' => 'semantic-hard-evidence', 'page' => 1, 'stream' => 1, 'text' => 'This is a well-being measure.'],
+            ['id' => 'semantic-hard-lead', 'page' => 1, 'stream' => 1, 'text' => 'Protect participant well-'],
+            ['id' => 'semantic-hard-tail', 'page' => 1, 'stream' => 1, 'text' => 'being throughout the study.'],
+        ];
+        $semanticHardPair = $pair(1, 1, 1, 2);
+        $semanticHard = $dispositionsFor($semanticHardItems, [
+            $layout(1, 1, 1, $semanticHardPair, true),
+            $layout(1, 1, 2, $semanticHardPair, false),
+        ]);
+        $t->same(null, $semanticHard['semantic-hard-lead'] ?? null);
+
+        $hardUnderSemanticMarker = $dispositionsFor($semanticHardItems, [
+            $layout(1, 1, 1, $semanticHardPair, true, true),
+            $layout(1, 1, 2, $semanticHardPair, false, true),
+        ]);
+        $t->same(null, $hardUnderSemanticMarker['semantic-hard-lead'] ?? null);
+    },
     'continues matching pdf body prose across a page boundary' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines, array $layouts): array {
@@ -6434,7 +10558,7 @@ return [
         $bottomOfPage['text'] = 'The object represen-';
         $topOfNextPage['text'] = 'tations remain available after the page break.';
         $t->same([
-            'The object representations remain available after the page break.',
+            'The object represen- tations remain available after the page break.',
         ], $repair([
             'The object represen-',
             'tations remain available after the page break.',
@@ -6454,7 +10578,13 @@ return [
         $repair = (function (array $lines, array $layouts): array {
             return $this->repairProseTextLines($lines, true, $layouts);
         })->bindTo($reader, PdfReader::class);
+        $stampWholeExactProof = (function (array $layouts, array $sourceItems): array {
+            $layouts = $this->pdfSourceLayoutsWithExactWholeOccurrenceRanges($layouts, $sourceItems);
+
+            return $this->pdfSourceLayoutsWithWholeExactOccurrenceProofs($layouts, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
         $t->true($repair instanceof \Closure);
+        $t->true($stampWholeExactProof instanceof \Closure);
 
         $layout = [
             'sourceStructuredGeometry' => true,
@@ -6473,8 +10603,150 @@ return [
             array_replace($layout, ['text' => 'A complete sentence remains readable. The unresolved source tail', 'page' => 1, 'y1' => 72.0, 'y2' => 84.0]),
             array_replace($layout, ['text' => 'Figure caption begins a separate visual block.', 'page' => 2, 'y1' => 700.0, 'y2' => 712.0]),
         ]));
+
+        $reminderLead = 'IRS Tax Withholding Estimator. Employees and payees';
+        $reminderTail = 'may use the IRS Tax Withholding Estimator, available at';
+        $caption = 'Figure caption begins a separate visual block.';
+        $leadLayout = array_replace($layout, [
+            'text' => $reminderLead,
+            'page' => 1,
+            'sourceStream' => 9,
+            'sourcePdfSourceIndex' => 71,
+            'sourcePdfSourceIndexEnd' => 72,
+            'sourcePdfSourceIndexes' => [71, 72],
+            'sourcePdfExactPositionedText' => true,
+            'sourcePdfExactSourceRanges' => [
+                ['sourceIndex' => 109, 'sourceStart' => 0, 'sourceEnd' => 27],
+                ['sourceIndex' => 110, 'sourceStart' => 0, 'sourceEnd' => 18],
+            ],
+            'y1' => 96.0,
+            'y2' => 108.0,
+        ]);
+        $tailLayout = array_replace($layout, [
+            'text' => $reminderTail,
+            'page' => 1,
+            'sourceStream' => 9,
+            'sourcePdfSourceIndex' => 73,
+            'sourcePdfGlobalSourceIndex' => 111,
+            'sourcePdfExactPositionedText' => true,
+            'sourcePdfExactSourceRanges' => [[
+                'sourceIndex' => 111,
+                'sourceStart' => 0,
+                'sourceEnd' => 47,
+            ]],
+            'y1' => 84.0,
+            'y2' => 96.0,
+        ]);
+        $captionLayout = array_replace($layout, [
+            'text' => $caption,
+            'page' => 2,
+            'y1' => 700.0,
+            'y2' => 712.0,
+        ]);
+        [$leadLayout, $tailLayout] = $stampWholeExactProof(
+            [$leadLayout, $tailLayout],
+            [
+                109 => [
+                    'page' => 1,
+                    'stream' => 9,
+                    'text' => 'IRS Tax Withholding Estimator.',
+                    'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                    'sourceGeometry' => ['x1' => 72.0, 'y1' => 96.0, 'x2' => 260.0, 'y2' => 108.0, 'orientation' => 'horizontal'],
+                ],
+                110 => [
+                    'page' => 1,
+                    'stream' => 9,
+                    'text' => 'Employees and payees',
+                    'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                    'sourceGeometry' => ['x1' => 270.0, 'y1' => 96.0, 'x2' => 390.0, 'y2' => 108.0, 'orientation' => 'horizontal'],
+                ],
+                111 => [
+                    'page' => 1,
+                    'stream' => 9,
+                    'text' => $reminderTail,
+                    'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                    'sourceGeometry' => ['x1' => 72.0, 'y1' => 84.0, 'x2' => 390.0, 'y2' => 96.0, 'orientation' => 'horizontal'],
+                ],
+            ]
+        );
+        $t->same([
+            $reminderLead . ' ' . $reminderTail,
+            $caption,
+        ], $repair(
+            [$reminderLead, $reminderTail, $caption],
+            [$leadLayout, $tailLayout, $captionLayout]
+        ));
+
+        $oddOccurrenceKeyLayout = $leadLayout;
+        $occurrences = $oddOccurrenceKeyLayout['sourcePdfWholeExactOccurrenceProof']['occurrences'];
+        $oddOccurrenceKeyLayout['sourcePdfWholeExactOccurrenceProof']['occurrences'] = [
+            0 => $occurrences[0],
+            2 => $occurrences[1],
+        ];
+        $t->same([$caption], $repair(
+            [$reminderLead, $reminderTail, $caption],
+            [$oddOccurrenceKeyLayout, $tailLayout, $captionLayout]
+        ));
+
+        $oddRangeKeyLayout = $leadLayout;
+        $ranges = $oddRangeKeyLayout['sourcePdfWholeExactOccurrenceProof']['ranges'];
+        $oddRangeKeyLayout['sourcePdfWholeExactOccurrenceProof']['ranges'] = [
+            0 => $ranges[0],
+            2 => $ranges[1],
+        ];
+        $t->same([$caption], $repair(
+            [$reminderLead, $reminderTail, $caption],
+            [$oddRangeKeyLayout, $tailLayout, $captionLayout]
+        ));
+
+        $rebalancedOccurrenceLayout = $leadLayout;
+        $rebalancedProof = $rebalancedOccurrenceLayout['sourcePdfWholeExactOccurrenceProof'];
+        $rebalancedProof['occurrences'][0]['significantBytes']--;
+        $rebalancedProof['occurrences'][1]['significantBytes']++;
+        $rebalancedProof['ranges'][0]['sourceEnd']--;
+        $rebalancedProof['ranges'][1]['sourceEnd']++;
+        $rebalancedOccurrenceLayout['sourcePdfExactSourceRanges'] = $rebalancedProof['ranges'];
+        $rebalancedProofPayload = $rebalancedProof;
+        unset($rebalancedProofPayload['proofDigest']);
+        $rebalancedProof['proofDigest'] = hash('sha256', json_encode(
+            $rebalancedProofPayload,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        ) ?: '');
+        $rebalancedOccurrenceLayout['sourcePdfWholeExactOccurrenceProof'] = $rebalancedProof;
+        $t->same([$caption], $repair(
+            [$reminderLead, $reminderTail, $caption],
+            [$rebalancedOccurrenceLayout, $tailLayout, $captionLayout]
+        ));
+
+        $partialLeadLayout = $leadLayout;
+        $partialLeadLayout['sourcePdfExactSourceRanges'][0]['sourceEnd']--;
+        $t->same([$caption], $repair(
+            [$reminderLead, $reminderTail, $caption],
+            [$partialLeadLayout, $tailLayout, $captionLayout]
+        ));
+
+        $unprovedTailLayout = $tailLayout;
+        unset($unprovedTailLayout['sourcePdfWholeExactOccurrenceProof']);
+        $t->same([$caption], $repair(
+            [$reminderLead, $reminderTail, $caption],
+            [$leadLayout, $unprovedTailLayout, $captionLayout]
+        ));
+
+        $supplementalTailLayout = $tailLayout;
+        $supplementalTailLayout['sourceSupplementalPositioned'] = true;
+        $t->same([$caption], $repair(
+            [$reminderLead, $reminderTail, $caption],
+            [$leadLayout, $supplementalTailLayout, $captionLayout]
+        ));
+
+        $staleTailLayout = $tailLayout;
+        $staleTailLayout['text'] = 'may now use the IRS Tax Withholding Estimator, available at';
+        $t->same([$caption], $repair(
+            [$reminderLead, $reminderTail, $caption],
+            [$leadLayout, $staleTailLayout, $captionLayout]
+        ));
     },
-    'trims only unresolved pdf hyphenated paragraph tails' => static function (TestRunner $t): void {
+    'preserves unresolved pdf hyphenated paragraph tails' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines): array {
             return $this->repairProseTextLines($lines, true);
@@ -6482,7 +10754,7 @@ return [
         $t->true($repair instanceof \Closure);
 
         $t->same([
-            'A complete sentence survives.',
+            'A complete sentence survives. The U.S. Gov-',
         ], $repair([
             'A complete sentence survives. The U.S. Gov-',
         ]));
@@ -6647,7 +10919,7 @@ return [
         ]);
 
         $t->same([
-            '[18] Example reference with a Compilation Technique for Programming Languages.',
+            '[18] Example reference with a Compila- tion Technique for Pro- gramming Languages.',
         ], $merged);
     },
     'does not promote sentence case pdf prose fragments to headings' => static function (TestRunner $t): void {
@@ -6668,6 +10940,695 @@ return [
         $t->same('paragraph', $blocks[1]->type);
         $t->same('heading', $blocks[2]->type);
         $t->same('paragraph', $blocks[3]->type);
+    },
+    'demotes geometry-proven form labels without demoting prominent short headings' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $markLabels = (function (array &$items): void {
+            $this->markSourcePdfLayoutLabelOccurrences($items);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, false, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $markDisplayAndLayoutLabels = (function (array $records): array {
+            return $this->markPdfLayoutLabelRecords(
+                $this->markPdfDisplayHeadingRecords($records)
+            );
+        })->bindTo($reader, PdfReader::class);
+        $t->true($markLabels instanceof \Closure);
+        $t->true($repair instanceof \Closure);
+        $t->true($blocksFromLines instanceof \Closure);
+        $t->true($markDisplayAndLayoutLabels instanceof \Closure);
+
+        $item = static function (
+            string $text,
+            float $x1,
+            float $y1,
+            float $x2,
+            float $y2
+        ): array {
+            return [
+                'page' => 1,
+                'stream' => 1,
+                'text' => $text,
+                'sourceGeometry' => [
+                    'page' => 1,
+                    'stream' => 1,
+                    'x1' => $x1,
+                    'y1' => $y1,
+                    'x2' => $x2,
+                    'y2' => $y2,
+                    'orientation' => 'horizontal',
+                ],
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            ];
+        };
+        $items = [
+            $item('Brief', 30.0, 740.0, 96.0, 762.0),
+            $item('Applicant', 30.0, 680.0, 88.0, 690.0),
+            $item('Details', 30.0, 668.0, 76.0, 678.0),
+            $item('Enter the applicant legal name in this field.', 145.0, 668.0, 420.0, 690.0),
+            $item('Payment', 30.0, 600.0, 82.0, 610.0),
+            $item('Options', 30.0, 588.0, 76.0, 598.0),
+            $item('Only', 30.0, 576.0, 58.0, 586.0),
+            $item('Choose one available payment method in this field.', 145.0, 576.0, 430.0, 610.0),
+            $item('Contact', 30.0, 470.0, 76.0, 480.0),
+            $item('Preferences', 30.0, 458.0, 96.0, 468.0),
+            $item('Enter one available contact preference in this field.', 145.0, 458.0, 430.0, 480.0),
+            $item('Notes', 30.0, 400.0, 86.0, 420.0),
+            $item('Keep these instructions with the completed record.', 30.0, 380.0, 330.0, 390.0),
+            $item('Footer text remains ordinary prose.', 30.0, 100.0, 250.0, 110.0),
+        ];
+        $markLabels($items);
+
+        foreach ([1, 2, 4, 5, 6, 8, 9] as $index) {
+            $t->same(true, $items[$index]['sourcePdfLayoutLabel'] ?? null, "Stacked form label {$index} should be demoted by layout evidence.");
+        }
+        $t->same(null, $items[0]['sourcePdfLayoutLabel'] ?? null, 'The prominent page heading must remain eligible for the outline.');
+        $t->same(null, $items[11]['sourcePdfLayoutLabel'] ?? null, 'A prominent short heading elsewhere on the same form page must remain eligible for the outline.');
+
+        $layouts = array_map(static function (array $source): array {
+            $geometry = $source['sourceGeometry'];
+
+            return [
+                'page' => 1,
+                'x1' => $geometry['x1'],
+                'y1' => $geometry['y1'],
+                'x2' => $geometry['x2'],
+                'y2' => $geometry['y2'],
+                'fontSize' => max(8.0, ($geometry['y2'] - $geometry['y1']) * 0.8),
+                'sourcePdfLayoutLabel' => ($source['sourcePdfLayoutLabel'] ?? false) === true,
+                'forceBlockBreakBefore' => true,
+            ];
+        }, $items);
+        $blocks = $blocksFromLines($repair(array_column($items, 'text'), $layouts));
+        $byText = [];
+        foreach ($blocks as $block) {
+            $text = (string) $block->attr('text', '');
+            if ($text !== '') {
+                $byText[$text] = $block;
+            }
+        }
+        $t->same('heading', $byText['Brief']->type ?? null);
+        $t->same('heading', $byText['Notes']->type ?? null);
+        $t->same('paragraph', $byText['Applicant']->type ?? null);
+        $t->same('layout-label', $byText['Applicant']->attr('sourceRole') ?? null);
+        $t->same('paragraph', $byText['Payment']->type ?? null);
+
+        $ordinaryItems = [
+            $item('Alpha', 30.0, 680.0, 70.0, 690.0),
+            $item('Beta', 30.0, 668.0, 66.0, 678.0),
+            $item('Gamma', 30.0, 600.0, 78.0, 610.0),
+            $item('Delta', 30.0, 588.0, 72.0, 598.0),
+            $item('Epsilon', 30.0, 576.0, 84.0, 586.0),
+            $item('Ordinary prose follows below these labels.', 30.0, 500.0, 310.0, 510.0),
+            $item('More ordinary prose keeps the page bounds stable.', 30.0, 100.0, 330.0, 110.0),
+        ];
+        $markLabels($ordinaryItems);
+        foreach ($ordinaryItems as $ordinaryItem) {
+            $t->same(null, $ordinaryItem['sourcePdfLayoutLabel'] ?? null, 'Stacking without aligned right-hand form content is not sufficient demotion evidence.');
+        }
+
+        // Muir's brochure uses three ordinary two-line side-headings beside
+        // prose. That is visually similar to a form lane but does not provide
+        // the sustained three-line field-label evidence required above.
+        $brochureItems = [
+            $item('The First', 30.0, 700.0, 88.0, 712.0),
+            $item('Stewards', 30.0, 686.0, 92.0, 698.0),
+            $item('The first section contains ordinary historical prose.', 145.0, 686.0, 430.0, 712.0),
+            $item('Portuguese', 30.0, 500.0, 106.0, 512.0),
+            $item('Dairymen', 30.0, 486.0, 94.0, 498.0),
+            $item('The second section contains ordinary historical prose.', 145.0, 486.0, 430.0, 512.0),
+            $item('Bygone Days', 30.0, 300.0, 116.0, 312.0),
+            $item('at the Beach', 30.0, 286.0, 110.0, 298.0),
+            $item('The third section contains ordinary historical prose.', 145.0, 286.0, 430.0, 312.0),
+            $item('Footer text remains ordinary prose.', 30.0, 100.0, 250.0, 110.0),
+        ];
+        $markLabels($brochureItems);
+        foreach ($brochureItems as $brochureItem) {
+            $t->same(null, $brochureItem['sourcePdfLayoutLabel'] ?? null, 'Two-line brochure side-headings must remain eligible for the outline.');
+        }
+
+        $calloutItems = [
+            $item('▲', 310.0, 470.0, 346.0, 502.0),
+            $item('CAUTION', 316.0, 471.0, 341.0, 477.0),
+            $item('The callout introduces ordinary explanatory prose.', 344.0, 476.0, 575.0, 488.0),
+        ];
+        $markLabels($calloutItems);
+        $t->same(
+            true,
+            $calloutItems[1]['sourcePdfLayoutLabel'] ?? null,
+            'A compact label fully contained by an oversized same-stream symbol is callout furniture.'
+        );
+
+        $mastheadRecords = [[
+            'text' => 'Primary Report',
+            'layout' => ['page' => 1, 'x1' => 34.0, 'y1' => 732.0, 'x2' => 150.0, 'y2' => 762.0, 'fontSize' => 24.0],
+        ], [
+            'text' => 'Subordinate Certificate Title',
+            'layout' => ['page' => 1, 'x1' => 190.0, 'y1' => 742.0, 'x2' => 420.0, 'y2' => 760.0, 'fontSize' => 14.0],
+        ], [
+            'text' => 'Sentence case fragment',
+            'layout' => ['page' => 1, 'x1' => 34.0, 'y1' => 710.0, 'x2' => 210.0, 'y2' => 734.0, 'fontSize' => 24.0],
+        ], [
+            'text' => 'Why?',
+            'layout' => ['page' => 1, 'x1' => 34.0, 'y1' => 500.0, 'x2' => 110.0, 'y2' => 536.0, 'fontSize' => 36.0],
+        ], [
+            'text' => 'why?',
+            'layout' => ['page' => 1, 'x1' => 34.0, 'y1' => 450.0, 'x2' => 110.0, 'y2' => 486.0, 'fontSize' => 36.0],
+        ], [
+            'text' => 'Why!',
+            'layout' => ['page' => 1, 'x1' => 34.0, 'y1' => 400.0, 'x2' => 110.0, 'y2' => 436.0, 'fontSize' => 36.0],
+        ]];
+        for ($index = 0; $index < 7; $index++) {
+            $mastheadRecords[] = [
+                'text' => 'Ordinary body prose line ' . $index . ' remains editable.',
+                'layout' => [
+                    'page' => 1,
+                    'x1' => 72.0,
+                    'y1' => 700.0 - $index * 14.0,
+                    'x2' => 430.0,
+                    'y2' => 710.0 - $index * 14.0,
+                    'fontSize' => 8.0,
+                ],
+            ];
+        }
+        $mastheadRecords = $markDisplayAndLayoutLabels($mastheadRecords);
+        $t->same(true, $mastheadRecords[0]['layout']['sourcePdfDisplayHeading'] ?? null);
+        $t->same(
+            true,
+            $mastheadRecords[1]['layout']['sourcePdfLayoutLabel'] ?? null,
+            'A smaller title in the same masthead band remains text without becoming a peer outline heading.'
+        );
+        $t->same(
+            null,
+            $mastheadRecords[2]['layout']['sourcePdfDisplayHeading'] ?? null,
+            'Oversized sentence-case fragments are not display headings without a title shape.'
+        );
+        $t->same(
+            true,
+            $mastheadRecords[3]['layout']['sourcePdfDisplayHeading'] ?? null,
+            'A prominent capitalized one-word interrogative remains a display heading.'
+        );
+        $t->same(null, $mastheadRecords[4]['layout']['sourcePdfDisplayHeading'] ?? null);
+        $t->same(null, $mastheadRecords[5]['layout']['sourcePdfDisplayHeading'] ?? null);
+
+        $spatialItems = [];
+        for ($index = 0; $index < 8; $index++) {
+            $spatial = $item(
+                chr(65 + $index),
+                300.0 + $index * 5.0,
+                300.0 + $index * 4.0,
+                306.0 + $index * 5.0,
+                306.0 + $index * 4.0
+            );
+            $spatial['sourceGeometry']['orientation'] = 'r' . (($index + 1) * 11);
+            $spatialItems[] = $spatial;
+        }
+        $rotatedLabelIndex = count($spatialItems);
+        $rotatedLabel = $item('Rotated Trail', 360.0, 360.0, 430.0, 370.0);
+        $rotatedLabel['sourceGeometry']['orientation'] = 'r103';
+        $spatialItems[] = $rotatedLabel;
+        $edgeLabelIndex = count($spatialItems);
+        $spatialItems[] = $item('To Campground', 72.0, 20.0, 145.0, 28.0);
+        $centralTitleIndex = count($spatialItems);
+        $spatialItems[] = $item('Central Title', 72.0, 350.0, 160.0, 370.0);
+        for ($index = 0; $index < 10; $index++) {
+            $spatialItems[] = $item(
+                'Ordinary horizontal body line ' . $index . ' stays readable.',
+                72.0,
+                700.0 - $index * 18.0,
+                390.0,
+                710.0 - $index * 18.0
+            );
+        }
+        $markLabels($spatialItems);
+        $t->same(true, $spatialItems[$rotatedLabelIndex]['sourcePdfLayoutLabel'] ?? null);
+        $t->same(true, $spatialItems[$edgeLabelIndex]['sourcePdfLayoutLabel'] ?? null);
+        $t->same(
+            null,
+            $spatialItems[$centralTitleIndex]['sourcePdfLayoutLabel'] ?? null,
+            'A prominent central horizontal title on a spatial page remains outline-eligible.'
+        );
+
+        $sustainedSpatialItems = [];
+        for ($index = 0; $index < 16; $index++) {
+            $spatial = $item(
+                chr(65 + ($index % 10)),
+                250.0 + $index * 4.0,
+                240.0 + $index * 3.0,
+                256.0 + $index * 4.0,
+                246.0 + $index * 3.0
+            );
+            $spatial['sourceGeometry']['orientation'] = 'r' . (($index % 6 + 1) * 15);
+            $sustainedSpatialItems[] = $spatial;
+        }
+        $sustainedTitleIndex = count($sustainedSpatialItems);
+        $sustainedTitle = $item('Sustained Map Title', 360.0, 360.0, 470.0, 370.0);
+        $sustainedTitle['sourceGeometry']['orientation'] = 'r15';
+        $sustainedSpatialItems[] = $sustainedTitle;
+        $markLabels($sustainedSpatialItems);
+        $t->same(
+            null,
+            $sustainedSpatialItems[$sustainedTitleIndex]['sourcePdfLayoutLabel'] ?? null,
+            'A repeated-orientation sustained map region remains one editable spatial region.'
+        );
+    },
+    'stable-moves a signed exact positioned continuation run across page furniture' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $buildProof = (function (
+            array $predecessor,
+            array $candidate,
+            array $sourceItems,
+            array $items,
+            int $candidateVisualIndex
+        ): ?array {
+            $this->sourceSha256 = str_repeat('c', 64);
+
+            return $this->sourcePdfExactPositionedColumnWrapContinuationProof(
+                $predecessor,
+                $candidate,
+                1,
+                $sourceItems,
+                $items,
+                $candidateVisualIndex
+            );
+        })->bindTo($reader, PdfReader::class);
+        $restore = (function (array $records): array {
+            $this->sourceSha256 = str_repeat('c', 64);
+
+            return $this->restoreProvenPdfCrossPanelContinuationRecords($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($buildProof instanceof \Closure);
+        $t->true($restore instanceof \Closure);
+
+        $source = static fn (int $index, string $text): array => [
+            'id' => 'continuation-source-' . $index,
+            'page' => 1,
+            'stream' => 1,
+            'text' => $text,
+            'sourcePdfGlobalSourceIndex' => $index,
+        ];
+        $projection = static fn (string $text): string =>
+            preg_replace('/[\s\p{Cc}\p{Cf}]+/u', '', $text) ?? '';
+        $positioned = static function (
+            array $sourceItem,
+            int $index,
+            float $x1,
+            float $y1,
+            float $x2,
+            float $y2,
+            int $sourceOrderStart,
+            int $sourceOrderEnd,
+            bool $verified
+        ) use ($projection): array {
+            return [
+                'id' => $sourceItem['id'],
+                'page' => 1,
+                'sourceStream' => 1,
+                'text' => $sourceItem['text'],
+                'x1' => $x1,
+                'y1' => $y1,
+                'x2' => $x2,
+                'y2' => $y2,
+                'fontSize' => 10.0,
+                'code' => false,
+                'sourcePdfSourceIndex' => $index,
+                'sourcePdfGlobalSourceIndex' => $index,
+                'sourcePdfExactPositionedText' => true,
+                'sourceVerifiedGeometryText' => $verified,
+                'sourceOrderStart' => $sourceOrderStart,
+                'sourceOrderEnd' => $sourceOrderEnd,
+                'pdfTextOrientation' => 'r0',
+                'pdfTextRotation' => 0.0,
+                'pdfPrimaryOrientation' => true,
+                'sourcePdfExactSourceRanges' => [[
+                    'sourceIndex' => $index,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen($projection($sourceItem['text'])),
+                ]],
+            ];
+        };
+
+        $sourceItems = [
+            $source(0, 'Backcountry camping options remain pending (permit'),
+            $source(1, 'required) check with the local information'),
+            $source(2, 'Information Center.'),
+        ];
+        $predecessor = $positioned($sourceItems[0], 0, 100.0, 300.0, 220.0, 310.0, 10, 10, true);
+        $candidate = $positioned($sourceItems[1], 1, 228.0, 700.0, 348.0, 710.0, 11, 13, true);
+        $terminal = $positioned($sourceItems[2], 2, 228.0, 688.0, 320.0, 698.0, 14, 14, false);
+        $proof = $buildProof($predecessor, $candidate, $sourceItems, [$candidate, $terminal], 0);
+        $t->same('whole-source-positioned-column-wrap-continuation', $proof['method'] ?? null);
+        $t->same(2, count($proof['continuationMembers'] ?? []));
+        $t->same('continuation-source-2', $proof['continuationMembers'][1]['sourceOccurrenceId'] ?? null);
+
+        $predecessor['sourcePdfCrossPanelContinuationTail'] = true;
+        $predecessor['sourcePdfCrossPanelContinuationProof'] = $proof;
+        foreach ([&$candidate, &$terminal] as $ordinal => &$member) {
+            $member['sourcePdfCrossPanelContinuationProof'] = $proof;
+            $member['sourcePdfCrossPanelContinuationMemberOrdinal'] = $ordinal;
+        }
+        unset($member);
+        $candidate['sourcePdfCrossPanelContinuation'] = true;
+        $displaced = [
+            ['text' => $predecessor['text'], 'layout' => $predecessor],
+            ['text' => 'Furniture A', 'layout' => null],
+            ['text' => $candidate['text'], 'layout' => $candidate],
+            ['text' => 'Furniture B', 'layout' => null],
+            ['text' => $terminal['text'], 'layout' => $terminal],
+            ['text' => 'After furniture', 'layout' => null],
+        ];
+        $restored = $restore($displaced);
+        $t->same([
+            $predecessor['text'],
+            $candidate['text'],
+            $terminal['text'],
+            'Furniture A',
+            'Furniture B',
+            'After furniture',
+        ], array_column($restored, 'text'));
+
+        $tamperedMember = $displaced;
+        $tamperedMember[4]['text'] = 'Different terminal.';
+        $t->same(array_column($tamperedMember, 'text'), array_column($restore($tamperedMember), 'text'));
+
+        $duplicateOrdinal = $displaced;
+        array_splice($duplicateOrdinal, 4, 0, [$duplicateOrdinal[2]]);
+        $t->same(array_column($duplicateOrdinal, 'text'), array_column($restore($duplicateOrdinal), 'text'));
+
+        $forgedDigest = $displaced;
+        $forgedDigest[2]['layout']['sourcePdfCrossPanelContinuationProof']['proofDigest'] = str_repeat('d', 64);
+        $t->same(array_column($forgedDigest, 'text'), array_column($restore($forgedDigest), 'text'));
+
+        $globalIndexTamper = $displaced;
+        $globalIndexTamper[4]['layout']['sourcePdfGlobalSourceIndex'] = 999;
+        $t->same(array_column($globalIndexTamper, 'text'), array_column($restore($globalIndexTamper), 'text'));
+
+        $localEndTamper = $displaced;
+        $localEndTamper[4]['layout']['sourcePdfSourceIndexEnd'] = 99;
+        $t->same(array_column($localEndTamper, 'text'), array_column($restore($localEndTamper), 'text'));
+
+        $rotated = $candidate;
+        $rotated['pdfTextOrientation'] = 'r90';
+        $rotated['pdfTextRotation'] = 90.0;
+        $rotated['pdfPrimaryOrientation'] = false;
+        $t->same(null, $buildProof($predecessor, $rotated, $sourceItems, [$rotated, $terminal], 0));
+        $t->same(null, $buildProof($predecessor, $candidate, $sourceItems, [$candidate], 0));
+
+        $listSourceItems = $sourceItems;
+        $listSourceItems[2] = $source(2, '1. Separate list item.');
+        $listTerminal = $positioned(
+            $listSourceItems[2],
+            2,
+            228.0,
+            688.0,
+            320.0,
+            698.0,
+            14,
+            14,
+            false
+        );
+        $t->same(
+            null,
+            $buildProof(
+                $predecessor,
+                $candidate,
+                $listSourceItems,
+                [$candidate, $listTerminal],
+                0
+            ),
+            'A later list item cannot be signed into a prose continuation run.'
+        );
+
+        $copiedRoleOnly = $displaced;
+        unset($copiedRoleOnly[0]['layout']['sourcePdfCrossPanelContinuationProof']);
+        $t->same(array_column($copiedRoleOnly, 'text'), array_column($restore($copiedRoleOnly), 'text'));
+    },
+    'types only immutable local credit and footer carriers after natural merge provenance' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $proofCandidates = (function (array $records): array {
+            $this->sourceSha256 = str_repeat('e', 64);
+
+            return $this->pdfLocalCreditAndFooterLayoutLabelProofCandidates($records);
+        })->bindTo($reader, PdfReader::class);
+        $resolveProofs = (function (array $records, array $proofs): array {
+            $this->sourceSha256 = str_repeat('e', 64);
+
+            return $this->pdfLocalLayoutLabelProofTargetRecordIndexes(
+                $records,
+                $proofs
+            );
+        })->bindTo($reader, PdfReader::class);
+        $merge = (function (array $records): array {
+            $this->sourceSha256 = str_repeat('e', 64);
+
+            return $this->mergeRepairedPdfRecords($records);
+        })->bindTo($reader, PdfReader::class);
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($proofCandidates instanceof \Closure);
+        $t->true($resolveProofs instanceof \Closure);
+        $t->true($merge instanceof \Closure);
+        $t->true($blocksFromLines instanceof \Closure);
+
+        $projection = static fn (string $text): string =>
+            preg_replace('/[\s\p{Cc}\p{Cf}]+/u', '', $text) ?? '';
+        $record = static function (
+            int $index,
+            string $text,
+            float $x1,
+            float $y1,
+            float $x2,
+            float $y2,
+            float $fontSize = 10.0
+        ) use ($projection): array {
+            return [
+                'text' => $text,
+                'layout' => [
+                    'id' => 'local-label-source-' . $index,
+                    'page' => 1,
+                    'sourceStream' => 1,
+                    'sourcePdfGlobalSourceIndex' => $index,
+                    'x1' => $x1,
+                    'y1' => $y1,
+                    'x2' => $x2,
+                    'y2' => $y2,
+                    'fontSize' => $fontSize,
+                    'sourcePdfExactSourceRanges' => [[
+                        'sourceIndex' => $index,
+                        'sourceStart' => 0,
+                        'sourceEnd' => strlen($projection($text)),
+                    ]],
+                ],
+            ];
+        };
+
+        $records = [
+            $record(0, '© PHOTO', 72.0, 600.0, 98.0, 606.0, 6.0),
+            $record(1, 'NPS', 100.0, 600.0, 118.0, 606.0, 6.0),
+            $record(2, 'Ordinary body line two remains readable.', 72.0, 560.0, 360.0, 570.0),
+            $record(3, '© PHOTO', 480.0, 400.0, 506.0, 406.0, 6.0),
+            $record(4, 'NPS', 508.0, 400.0, 526.0, 406.0, 6.0),
+        ];
+        for ($index = 5; $index < 10; $index++) {
+            $records[] = $record(
+                $index,
+                'Ordinary body line ' . $index . ' remains readable.',
+                72.0,
+                720.0 - ($index - 5) * 24.0,
+                390.0,
+                730.0 - ($index - 5) * 24.0
+            );
+        }
+        $records[] = $record(10, 'Final publication sentence.', 72.0, 31.0, 250.0, 41.0);
+        $records[] = $record(11, 'EXPERIENCE THE LAND', 72.0, 20.0, 210.0, 28.0, 8.0);
+
+        $proofs = $proofCandidates($records);
+        $t->same(3, count($proofs));
+        $t->same([
+            'repeated-source-local-photo-credit-companion',
+            'repeated-source-local-photo-credit-companion',
+            'source-local-terminal-footer-tagline',
+        ], array_column(array_column($proofs, 'proof'), 'method'));
+        $firstRecurringEvidence = $proofs[0]['proof']['evidence'];
+        $secondRecurringEvidence = $proofs[1]['proof']['evidence'];
+        $t->same(2, count($firstRecurringEvidence['recurringPeers'] ?? []));
+        $t->same(
+            $firstRecurringEvidence['recurringPeers'] ?? null,
+            $secondRecurringEvidence['recurringPeers'] ?? null
+        );
+        $t->same(
+            $firstRecurringEvidence['recurringGroupDigest'] ?? null,
+            $secondRecurringEvidence['recurringGroupDigest'] ?? null
+        );
+        foreach ($records as $sourceRecord) {
+            $t->same(null, $sourceRecord['layout']['sourcePdfLayoutLabel'] ?? null);
+        }
+
+        $merged = $merge($records);
+        $roles = [];
+        foreach ($blocksFromLines($merged) as $block) {
+            if ($block->attr('sourceRole') === 'layout-label') {
+                $roles[] = (string) $block->attr('text', '');
+            }
+        }
+        $t->same(['NPS', 'NPS', 'EXPERIENCE THE LAND'], $roles);
+
+        $peerRecords = $records;
+        $peer = $record(12, 'NPS', 72.0, 200.0, 94.0, 210.0);
+        $peer['layout']['page'] = 2;
+        $peerRecords[] = $peer;
+        $peerContinuation = $record(13, 'appended', 72.0, 188.0, 140.0, 198.0);
+        $peerContinuation['layout']['page'] = 2;
+        $peerRecords[] = $peerContinuation;
+        $peerMerged = $merge($peerRecords);
+        $t->same(
+            2,
+            count(array_filter(
+                $blocksFromLines($peerMerged),
+                static fn (AstNode $block): bool =>
+                    $block->attr('sourceRole') === 'layout-label'
+                        && $block->attr('text') === 'NPS'
+            )),
+            'An equal-text peer that naturally merges away cannot borrow either signed origin.'
+        );
+        $t->contains(
+            'NPS appended',
+            implode("\n", $peerMerged),
+            'The unrelated page peer must retain its natural prose merge.'
+        );
+        $t->same(
+            $roles,
+            array_values(array_map(
+                static fn (AstNode $block): string => (string) $block->attr('text', ''),
+                array_filter(
+                    $blocksFromLines($merge($records)),
+                    static fn (AstNode $block): bool =>
+                        $block->attr('sourceRole') === 'layout-label'
+                )
+            )),
+            'Whole-document and page-local merging preserve the same proved carrier roles.'
+        );
+
+        $tamperedProofs = $proofs;
+        $tamperedProofs[0]['proof']['proofDigest'] = str_repeat('f', 64);
+        $t->same([], $resolveProofs($records, $tamperedProofs));
+        $duplicateProofs = $proofs;
+        $duplicateProofs[] = $proofs[0];
+        $t->same([], $resolveProofs($records, $duplicateProofs));
+
+        foreach (['sourcePdfExactSourceRanges', 'id'] as $missingPeerField) {
+            $missingPeerRecords = $records;
+            unset($missingPeerRecords[4]['layout'][$missingPeerField]);
+            $missingPeerProofs = $proofCandidates($missingPeerRecords);
+            $t->same(
+                ['source-local-terminal-footer-tagline'],
+                array_column(array_column($missingPeerProofs, 'proof'), 'method'),
+                "A recurring group with a peer missing {$missingPeerField} must fail closed."
+            );
+            $t->same([], $resolveProofs($missingPeerRecords, $proofs));
+        }
+        $movedPeerRecords = $records;
+        $movedPeerRecords[4]['layout']['x1'] = 112.0;
+        $movedPeerRecords[4]['layout']['x2'] = 130.0;
+        $movedPeerProofs = $proofCandidates($movedPeerRecords);
+        $t->same(
+            ['source-local-terminal-footer-tagline'],
+            array_column(array_column($movedPeerProofs, 'proof'), 'method'),
+            'A recurring group whose exact peer geometry loses the signed span must fail closed.'
+        );
+        $t->same([], $resolveProofs($movedPeerRecords, $proofs));
+        $missingGeometryRecords = $records;
+        unset($missingGeometryRecords[4]['layout']['x2']);
+        $t->same(
+            ['source-local-terminal-footer-tagline'],
+            array_column(
+                array_column($proofCandidates($missingGeometryRecords), 'proof'),
+                'method'
+            ),
+            'A recurring peer missing a signed geometry coordinate must fail closed.'
+        );
+        $t->same([], $resolveProofs($missingGeometryRecords, $proofs));
+
+        $thirdPeerRecords = $records;
+        $thirdPeerRecords[] = $record(12, '© PHOTO', 280.0, 300.0, 306.0, 306.0, 6.0);
+        $thirdPeerRecords[] = $record(13, 'NPS', 308.0, 300.0, 326.0, 306.0, 6.0);
+        $thirdPeerProofs = $proofCandidates($thirdPeerRecords);
+        $thirdPhotoProofs = array_values(array_filter(
+            $thirdPeerProofs,
+            static fn (array $candidate): bool =>
+                ($candidate['proof']['method'] ?? null)
+                    === 'repeated-source-local-photo-credit-companion'
+        ));
+        $t->same(3, count($thirdPhotoProofs));
+        $t->same(
+            3,
+            count($thirdPhotoProofs[0]['proof']['evidence']['recurringPeers'] ?? []),
+            'Adding an exact peer recomputes and signs the complete recurrence group.'
+        );
+        $t->same([], $resolveProofs($thirdPeerRecords, $proofs));
+
+        $steeringRecords = $records;
+        $steeringRecords[11] = $record(
+            11,
+            'FINAL NOTICE',
+            72.0,
+            20.0,
+            170.0,
+            28.0,
+            8.0
+        );
+        $steeringRecords[] = $record(12, 'appended', 72.0, 8.0, 145.0, 18.0, 8.0);
+        $steeringProofs = $proofCandidates($steeringRecords);
+        $t->same(
+            'source-local-terminal-footer-tagline',
+            $steeringProofs[array_key_last($steeringProofs)]['proof']['method'] ?? null
+        );
+        $steeringMerged = $merge($steeringRecords);
+        $t->contains('FINAL NOTICE appended', implode("\n", $steeringMerged));
+        $t->same(
+            0,
+            count(array_filter(
+                $blocksFromLines($steeringMerged),
+                static fn (AstNode $block): bool =>
+                    $block->attr('sourceRole') === 'layout-label'
+                        && $block->attr('text') === 'FINAL NOTICE'
+            )),
+            'A valid proof cannot make a naturally merging target atomic.'
+        );
+
+        $substitutionRecords = $records;
+        $fragmentLeft = $record(12, 'NP-', 72.0, 200.0, 100.0, 210.0);
+        $fragmentRight = $record(13, 'S', 72.0, 188.0, 82.0, 198.0);
+        $fragmentLeft['layout']['page'] = 2;
+        $fragmentRight['layout']['page'] = 2;
+        $fragmentLeft['layout']['sourcePdfWrappedHyphenPairAfter'] = 'unrelated-fragment-pair';
+        $fragmentRight['layout']['sourcePdfWrappedHyphenPairBefore'] = 'unrelated-fragment-pair';
+        $substitutionRecords[] = $fragmentLeft;
+        $substitutionRecords[] = $fragmentRight;
+        $substitutionMerged = $merge($substitutionRecords);
+        $t->same(
+            1,
+            count(array_filter(
+                $substitutionMerged,
+                static fn (string $line): bool => $line === 'NPS'
+            )),
+            'Unrelated fragments may naturally reconstruct the same spelling only as ordinary text.'
+        );
+        $t->same(
+            2,
+            count(array_filter(
+                $blocksFromLines($substitutionMerged),
+                static fn (AstNode $block): bool =>
+                    $block->attr('sourceRole') === 'layout-label'
+                        && $block->attr('text') === 'NPS'
+            )),
+            'A reconstructed equal spelling cannot inherit a signed target origin.'
+        );
     },
     'keeps a glyphless hanging pdf list continuation in one visual flow' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -6910,6 +11871,42 @@ return [
         $t->same([0, 1, 2], $result['items'][0]['sourcePdfSourceIndexes']);
 
         $result = $match([
+            ['page' => 1, 'stream' => 1, 'text' => 'Multiply the number of eligible accounts'],
+            ['page' => 1, 'stream' => 1, 'text' => 'by $500 . . .'],
+        ], [[
+            'text' => 'Multiply the number of eligible accounts by $500',
+            'page' => 1,
+            'x1' => 72.0,
+            'y1' => 684.0,
+            'x2' => 360.0,
+            'y2' => 696.0,
+            'fontSize' => 10.0,
+            'code' => false,
+        ]]);
+        $t->same([0 => true, 1 => true], $result['sourceIndexes']);
+        $t->same(
+            'Multiply the number of eligible accounts by $500 . . .',
+            $result['items'][0]['text'],
+            'A source dot leader omitted from positioned prose should remain in lossless source output.'
+        );
+        $t->same([0, 1], $result['items'][0]['sourcePdfSourceIndexes']);
+
+        $result = $match([
+            ['page' => 1, 'stream' => 1, 'text' => 'A conclusion trails'],
+            ['page' => 1, 'stream' => 1, 'text' => 'off...'],
+        ], [[
+            'text' => 'A conclusion trails off',
+            'page' => 1,
+            'x1' => 72.0,
+            'y1' => 668.0,
+            'x2' => 300.0,
+            'y2' => 680.0,
+            'fontSize' => 10.0,
+            'code' => false,
+        ]]);
+        $t->same([], $result['sourceIndexes'], 'An ellipsis is semantic punctuation, not a decorative dot leader.');
+
+        $result = $match([
             ['page' => 1, 'stream' => 1, 'text' => 'A complete sentence.'],
             ['page' => 1, 'stream' => 1, 'text' => 'A separate sentence'],
         ], [[
@@ -6923,6 +11920,962 @@ return [
             'code' => false,
         ]]);
         $t->same([], $result['sourceIndexes']);
+    },
+    'keeps an exact carrier projected beside its fallback neighbors during a later column rebuild' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $project = (function (array $sourceItems, array $geometryItems): array {
+            return $this->sourcePdfExactMatchedItemsInSourceFallbackOrder($sourceItems, $geometryItems);
+        })->bindTo($reader, PdfReader::class);
+        $rebuild = (function (array $items, array $sourceItems): array {
+            return $this->prioritizeSourcePdfVerifiedCrossColumnContinuationPages($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($project instanceof \Closure);
+        $t->true($rebuild instanceof \Closure);
+
+        $compact = static fn (string $text): string => preg_replace('/\s+/u', '', $text) ?? '';
+        $source = static function (string $text, int $globalIndex, float $y) use ($compact): array {
+            return [
+                'id' => 'source-' . $globalIndex,
+                'page' => 1,
+                'stream' => 1,
+                'text' => $text,
+                'sourcePdfGlobalSourceIndex' => $globalIndex,
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                'sourceGeometry' => [
+                    'page' => 1,
+                    'stream' => 1,
+                    'x1' => 72.0,
+                    'y1' => $y,
+                    'x2' => 300.0,
+                    'y2' => $y + 10.0,
+                    'orientation' => 'horizontal',
+                ],
+                'sourceSignificantBytes' => strlen($compact($text)),
+            ];
+        };
+        $sourceItems = [
+            $source('Leading fallback sentence.', 100, 720.0),
+            $source('The carrier joins i', 101, 708.0),
+            $source('2', 102, 708.0),
+            $source(' in source order.', 103, 708.0),
+            $source('Trailing fallback sentence.', 104, 696.0),
+        ];
+        $ranges = [];
+        foreach ([1, 2, 3] as $sourceIndex) {
+            $ranges[] = [
+                'sourceIndex' => $sourceItems[$sourceIndex]['sourcePdfGlobalSourceIndex'],
+                'sourceStart' => 0,
+                'sourceEnd' => strlen($compact($sourceItems[$sourceIndex]['text'])),
+            ];
+        }
+        $carrier = [
+            'text' => 'The carrier joins i2 in source order.',
+            'page' => 1,
+            'sourceStream' => 1,
+            'x1' => 72.0,
+            'y1' => 708.0,
+            'x2' => 300.0,
+            'y2' => 718.0,
+            'fontSize' => 10.0,
+            'sourceOrderStart' => 7000,
+            'sourceOrderEnd' => 7010,
+            'sourcePdfExactSourceRanges' => $ranges,
+            'sourcePdfSourceIndex' => 1,
+            'sourcePdfSourceIndexEnd' => 3,
+            'sourcePdfSourceIndexes' => [1, 2, 3],
+            'sourcePdfExactRangeFragmentSequence' => true,
+            'sourcePdfExactPositionedText' => true,
+            'sourceVerifiedGeometryText' => true,
+            'sourceStructuredGeometry' => true,
+            'sourceGeometryColumn' => 0,
+            'sourceComplexGeometryPage' => true,
+        ];
+
+        $projected = $project($sourceItems, [$carrier]);
+        $t->same([
+            'Leading fallback sentence.',
+            'The carrier joins i2 in source order.',
+            'Trailing fallback sentence.',
+        ], array_column($projected, 'text'));
+        $t->same([101, 102, 103], $projected[1]['sourcePdfGlobalSourceIndexes'] ?? null);
+        $t->same([101, 103], [
+            $projected[1]['sourceOrderStart'] ?? null,
+            $projected[1]['sourceOrderEnd'] ?? null,
+        ]);
+        $t->same(true, $projected[1]['sourcePdfFallbackOrderProjection'] ?? null);
+
+        $singletonSourceItems = [
+            $source('Singletonseparator remains exact.', 41, 680.0),
+        ];
+        $singletonProjection = strlen($compact($singletonSourceItems[0]['text']));
+        $singletonCandidate = array_replace($carrier, [
+            'id' => 'positioned-candidate-must-not-win',
+            'text' => 'Singleton separator remains exact.',
+            'sourceOrderStart' => 8000,
+            'sourceOrderEnd' => 8010,
+            'sourcePdfGlobalSourceIndex' => 999,
+            'sourcePdfExactSourceRanges' => [[
+                'sourceIndex' => 41,
+                'sourceStart' => 0,
+                'sourceEnd' => $singletonProjection,
+            ]],
+            'sourcePdfSourceIndex' => 0,
+            'sourcePdfSourceIndexEnd' => 0,
+            'sourcePdfSourceIndexes' => [0],
+        ]);
+        $singleton = $project($singletonSourceItems, [$singletonCandidate]);
+        $t->same('Singleton separator remains exact.', $singleton[0]['text'] ?? null);
+        $t->same('source-41', $singleton[0]['id'] ?? null);
+        $t->same(41, $singleton[0]['sourcePdfGlobalSourceIndex'] ?? null);
+        $t->same([41, 41], [
+            $singleton[0]['sourceOrderStart'] ?? null,
+            $singleton[0]['sourceOrderEnd'] ?? null,
+        ]);
+        $t->same(true, $singleton[0]['sourcePdfFallbackOrderProjection'] ?? null);
+
+        $partialCandidate = $singletonCandidate;
+        $partialCandidate['sourcePdfExactSourceRanges'][0]['sourceEnd']--;
+        $partial = $project($singletonSourceItems, [$partialCandidate]);
+        $t->same('Singletonseparator remains exact.', $partial[0]['text'] ?? null);
+        $t->true(!isset($partial[0]['sourcePdfFallbackOrderProjection']));
+
+        $unsequencedCarrier = $carrier;
+        unset($unsequencedCarrier['sourcePdfExactRangeFragmentSequence']);
+        $unsequenced = $project($sourceItems, [$unsequencedCarrier]);
+        $t->same(5, count($unsequenced));
+        $t->same('The carrier joins i', $unsequenced[1]['text'] ?? null);
+        $t->true(count(array_filter(
+            $unsequenced,
+            static fn (array $item): bool => isset($item['sourcePdfFallbackOrderProjection'])
+        )) === 0);
+
+        $column = static fn (string $text, int $column, float $x): array => [
+            'text' => $text,
+            'page' => 1,
+            'sourceStream' => 1,
+            'x1' => $x,
+            'y1' => 650.0,
+            'x2' => $x + 220.0,
+            'y2' => 660.0,
+            'fontSize' => 10.0,
+            'sourceStructuredGeometry' => true,
+            'sourceGeometryColumn' => $column,
+            'sourceVerifiedGeometryText' => true,
+        ];
+        $leftColumn = $column('Verified left column.', 0, 40.0);
+        $rightColumn = $column('verified right continuation.', 1, 320.0);
+        $rightColumn['sourceCrossColumnContinuation'] = true;
+        $rebuilt = $rebuild([
+            $projected[0],
+            $leftColumn,
+            $projected[1],
+            $rightColumn,
+            $projected[2],
+        ], $sourceItems);
+        $t->same([
+            'Leading fallback sentence.',
+            'The carrier joins i2 in source order.',
+            'Trailing fallback sentence.',
+        ], array_slice(array_column($rebuilt, 'text'), -3));
+    },
+    'prefers exact source ranges over punctuation-insensitive duplicate line keys' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $match = (function (array $sourceItems, array $positionedItems): array {
+            return $this->matchSourcePdfLinesToPositionedItems($sourceItems, $positionedItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($match instanceof \Closure);
+
+        $emDash = 'Your credit is—';
+        $enDash = 'Your credit is–';
+        $sourceItems = [
+            [
+                'id' => 'em-dash-source',
+                'page' => 1,
+                'stream' => 1,
+                'text' => $emDash,
+                'sourcePdfGlobalSourceIndex' => 40,
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                'sourceGeometry' => [
+                    'page' => 1,
+                    'stream' => 1,
+                    'x1' => 72.0,
+                    'y1' => 684.0,
+                    'x2' => 180.0,
+                    'y2' => 696.0,
+                    'orientation' => 'horizontal',
+                ],
+            ],
+            [
+                'id' => 'en-dash-source',
+                'page' => 1,
+                'stream' => 1,
+                'text' => $enDash,
+                'sourcePdfGlobalSourceIndex' => 41,
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                'sourceGeometry' => [
+                    'page' => 1,
+                    'stream' => 1,
+                    'x1' => 72.0,
+                    'y1' => 700.0,
+                    'x2' => 180.0,
+                    'y2' => 712.0,
+                    'orientation' => 'horizontal',
+                ],
+            ],
+            [
+                'id' => 'second-en-dash-source',
+                'page' => 1,
+                'stream' => 1,
+                'text' => $enDash,
+                'sourcePdfGlobalSourceIndex' => 42,
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                'sourceGeometry' => [
+                    'page' => 1,
+                    'stream' => 1,
+                    'x1' => 72.0,
+                    'y1' => 668.0,
+                    'x2' => 180.0,
+                    'y2' => 680.0,
+                    'orientation' => 'horizontal',
+                ],
+            ],
+        ];
+        $layout = [
+            'page' => 1,
+            'x1' => 72.0,
+            'x2' => 180.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+            'code' => false,
+        ];
+        $result = $match($sourceItems, [
+            array_replace($layout, [
+                'text' => $enDash,
+                'y1' => 700.0,
+                'sourcePdfExactSourceRanges' => [[
+                    'sourceIndex' => 41,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen('Yourcreditis–'),
+                ]],
+            ]),
+            array_replace($layout, [
+                'text' => $emDash,
+                'y1' => 560.0,
+                'y2' => 572.0,
+                'sourcePdfExactSourceRanges' => [[
+                    'sourceIndex' => 40,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen('Yourcreditis—'),
+                ]],
+            ]),
+            array_replace($layout, [
+                'text' => $enDash,
+                'y1' => 420.0,
+                'y2' => 432.0,
+                'sourcePdfExactSourceRanges' => [[
+                    'sourceIndex' => 42,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen('Yourcreditis–'),
+                ]],
+            ]),
+        ]);
+
+        $t->same([1 => true, 0 => true, 2 => true], $result['sourceIndexes']);
+        $t->same(
+            ['en-dash-source', 'em-dash-source', 'second-en-dash-source'],
+            array_column($result['items'], 'id')
+        );
+        $t->same([$enDash, $emDash, $enDash], array_column($result['items'], 'text'));
+        $t->same(
+            [41, 40, 42],
+            array_map(
+                static fn (array $item): int => $item['sourcePdfExactSourceRanges'][0]['sourceIndex'],
+                $result['items']
+            )
+        );
+    },
+    'matches full exact source ranges across page content streams' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $match = (function (array $sourceItems, array $positionedItems): array {
+            return $this->matchSourcePdfLinesToPositionedItems($sourceItems, $positionedItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($match instanceof \Closure);
+
+        $source = static fn (string $text, int $stream, int $globalIndex, float $x): array => [
+            'page' => 1,
+            'stream' => $stream,
+            'text' => $text,
+            'sourcePdfGlobalSourceIndex' => $globalIndex,
+            'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            'sourceGeometry' => [
+                'page' => 1,
+                'stream' => $stream,
+                'x1' => $x,
+                'y1' => 100.0,
+                'x2' => $x + 8.0,
+                'y2' => 110.0,
+                'orientation' => 'horizontal',
+            ],
+        ];
+        $sourceItems = [
+            $source('•', 1, 40, 10.0),
+            $source('I', 2, 41, 16.0),
+            $source('RS', 3, 42, 22.0),
+        ];
+        $layout = [
+            'text' => '•IRS',
+            'page' => 1,
+            'x1' => 10.0,
+            'y1' => 100.0,
+            'x2' => 46.0,
+            'y2' => 110.0,
+            'fontSize' => 8.0,
+            'code' => false,
+            'sourceOrderStart' => 5,
+            'sourceOrderEnd' => 7,
+            'sourcePdfExactSourceRanges' => [
+                ['sourceIndex' => 40, 'sourceStart' => 0, 'sourceEnd' => 3],
+                ['sourceIndex' => 41, 'sourceStart' => 0, 'sourceEnd' => 1],
+                ['sourceIndex' => 42, 'sourceStart' => 0, 'sourceEnd' => 2],
+            ],
+        ];
+
+        $result = $match($sourceItems, [$layout]);
+        $t->same([0 => true, 1 => true, 2 => true], $result['sourceIndexes']);
+        $t->same('•IRS', $result['items'][0]['text']);
+        $t->same([0, 1, 2], $result['items'][0]['sourcePdfSourceIndexes']);
+        $t->same(true, $result['items'][0]['sourcePdfExactRangeFragmentSequence'] ?? null);
+
+        $layout['text'] = '•IR';
+        $layout['sourcePdfExactSourceRanges'][2]['sourceEnd'] = 1;
+        $partial = $match($sourceItems, [$layout]);
+        $t->same([], $partial['sourceIndexes'], 'A partial occurrence range must not authorize a joined source line.');
+
+        $singletonSourceItems = [$source('. Em-', 1, 43, 30.0)];
+        $singletonLayout = [
+            'text' => '. Em-',
+            'page' => 1,
+            'x1' => 30.0,
+            'y1' => 80.0,
+            'x2' => 58.0,
+            'y2' => 90.0,
+            'fontSize' => 8.0,
+            'code' => false,
+            'sourceOrderStart' => 8,
+            'sourceOrderEnd' => 9,
+            'sourcePdfExactSourceRanges' => [[
+                'sourceIndex' => 43,
+                'sourceStart' => 0,
+                'sourceEnd' => 4,
+            ]],
+        ];
+        $singleton = $match($singletonSourceItems, [$singletonLayout]);
+        $t->same([0 => true], $singleton['sourceIndexes']);
+        $t->same('. Em-', $singleton['items'][0]['text'] ?? null);
+        $t->same([0], $singleton['items'][0]['sourcePdfSourceIndexes'] ?? null);
+        $t->same(true, $singleton['items'][0]['sourcePdfExactRangeFragmentSequence'] ?? null);
+
+        $singletonLayout['sourcePdfExactSourceRanges'][0]['sourceEnd'] = 3;
+        $partialSingleton = $match($singletonSourceItems, [$singletonLayout]);
+        $t->same([], $partialSingleton['sourceIndexes'], 'A partial singleton range must remain unmatched.');
+    },
+    'rejoins an exact source adjacent punctuation carrier inside one stable column' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $compose = (function (array $items, array $columns): array {
+            return $this->composePositionedPdfInlineFragmentsWithinStableColumns($items, $columns);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($compose instanceof \Closure);
+
+        $leadText = 'Employers should go to';
+        $lead = [
+            'text' => $leadText,
+            'page' => 2,
+            'sourceStream' => 1,
+            'sourcePdfSourceIndex' => 50,
+            'x1' => 39.5,
+            'y1' => 180.0,
+            'x2' => 137.8,
+            'y2' => 192.0,
+            'fontSize' => 10.0,
+            'sourceOrderStart' => 630,
+            'sourceOrderEnd' => 651,
+            'sourcePdfExactSourceRanges' => [[
+                'sourceIndex' => 50,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen(str_replace(' ', '', $leadText)),
+            ]],
+        ];
+        $punctuationCarrier = [
+            'text' => '. Em-',
+            'page' => 2,
+            'sourceStream' => 1,
+            'sourcePdfSourceIndex' => 51,
+            'sourcePdfSourceIndexEnd' => 51,
+            'x1' => 270.46,
+            'y1' => 180.0,
+            'x2' => 299.5,
+            'y2' => 192.0,
+            'fontSize' => 10.0,
+            'sourceOrderStart' => 652,
+            'sourceOrderEnd' => 653,
+            'startsWithWhitespace' => false,
+            'hasWordBoundaryBefore' => false,
+            'sourcePdfExactSourceRanges' => [[
+                'sourceIndex' => 51,
+                'sourceStart' => 0,
+                'sourceEnd' => 4,
+            ]],
+            'sourcePdfExactRangeFragmentSequence' => true,
+        ];
+        $columns = [[
+            'x' => 39.5,
+            'width' => 262.41,
+            'fontSize' => 10.0,
+            'count' => 20,
+        ]];
+
+        $combined = $compose([$lead, $punctuationCarrier], $columns);
+        $t->same(1, count($combined));
+        $t->same('Employers should go to. Em-', $combined[0]['text'] ?? null);
+        $t->same(50, $combined[0]['sourcePdfSourceIndex'] ?? null);
+        $t->same(51, $combined[0]['sourcePdfSourceIndexEnd'] ?? null);
+        $t->same([
+            ['sourceIndex' => 50, 'sourceStart' => 0, 'sourceEnd' => strlen(str_replace(' ', '', $leadText))],
+            ['sourceIndex' => 51, 'sourceStart' => 0, 'sourceEnd' => 4],
+        ], $combined[0]['sourcePdfExactSourceRanges'] ?? null);
+
+        $nonAdjacent = $punctuationCarrier;
+        $nonAdjacent['sourceOrderStart'] = 654;
+        $nonAdjacent['sourceOrderEnd'] = 655;
+        $rejected = $compose([$lead, $nonAdjacent], $columns);
+        $t->same(2, count($rejected), 'Exact ranges cannot bridge a non-adjacent paint-atom gap.');
+
+        $outsideColumn = $punctuationCarrier;
+        $outsideColumn['x1'] = 315.0;
+        $outsideColumn['x2'] = 344.0;
+        $rejected = $compose([$lead, $outsideColumn], $columns);
+        $t->same(2, count($rejected), 'Exact adjacency cannot bridge a punctuation carrier into the next column.');
+    },
+    'composes only overlapping interleaved exact-range positioned fragments' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $match = (function (array $sourceItems, array $positionedItems): array {
+            return $this->matchSourcePdfLinesToPositionedItems($sourceItems, $positionedItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($match instanceof \Closure);
+
+        $source = static fn (string $text, int $globalIndex, float $x, float $y): array => [
+            'page' => 1,
+            'stream' => $globalIndex === 50 ? 1 : 2,
+            'text' => $text,
+            'sourcePdfGlobalSourceIndex' => $globalIndex,
+            'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            'sourceGeometry' => [
+                'page' => 1,
+                'stream' => $globalIndex === 50 ? 1 : 2,
+                'x1' => $x,
+                'y1' => $y,
+                'x2' => $x + 8.0,
+                'y2' => $y + 10.0,
+                'orientation' => 'horizontal',
+            ],
+        ];
+        $sourceItems = [
+            $source('•', 50, 10.0, 100.0),
+            $source('I', 51, 10.0, 106.0),
+            $source('RS.gov', 52, 18.0, 100.0),
+            $source('(English)', 53, 42.0, 100.0),
+        ];
+        $singleton = [
+            'text' => 'I',
+            'page' => 1,
+            'x1' => 10.0,
+            'y1' => 106.0,
+            'x2' => 16.0,
+            'y2' => 116.0,
+            'fontSize' => 8.0,
+            'code' => false,
+            'sourceOrderStart' => 12,
+            'sourceOrderEnd' => 12,
+            'sourcePdfExactSourceIndex' => 51,
+            'sourcePdfExactSourceStart' => 0,
+            'sourcePdfExactSourceEnd' => 1,
+        ];
+        $carrier = [
+            'text' => '•RS.gov (English)',
+            'page' => 1,
+            'x1' => 10.0,
+            'y1' => 100.0,
+            'x2' => 62.0,
+            'y2' => 110.0,
+            'fontSize' => 8.0,
+            'code' => false,
+            'sourceOrderStart' => 11,
+            'sourceOrderEnd' => 18,
+            'sourcePdfExactSourceRanges' => [
+                ['sourceIndex' => 50, 'sourceStart' => 0, 'sourceEnd' => 3],
+                ['sourceIndex' => 52, 'sourceStart' => 0, 'sourceEnd' => 6],
+                ['sourceIndex' => 53, 'sourceStart' => 0, 'sourceEnd' => 9],
+            ],
+        ];
+
+        $result = $match($sourceItems, [$singleton, $carrier]);
+        $t->same([0 => true, 1 => true, 2 => true, 3 => true], $result['sourceIndexes']);
+        $t->same('•IRS.gov (English)', $result['items'][0]['text']);
+        $t->same(true, $result['items'][0]['sourcePdfExactRangeFragmentSequence'] ?? null);
+
+        $detached = $singleton;
+        $detached['y1'] = 116.0;
+        $detached['y2'] = 126.0;
+        $rejected = $match($sourceItems, [$detached, $carrier]);
+        $t->true(count($rejected['sourceIndexes']) < 4, 'A detached singleton must not compose by character inventory alone.');
+        $t->true(!in_array('•IRS.gov (English)', array_column($rejected['items'], 'text'), true));
+    },
+    'propagates exact positioned table cell provenance only through internal AST attributes' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $cellFromRun = (function (array $run): array {
+            return $this->positionedCellFromRun($run);
+        })->bindTo($reader, PdfReader::class);
+        $astFromCell = (function (array $cell): AstNode {
+            return $this->tableCellFromValue($cell);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($cellFromRun instanceof \Closure);
+        $t->true($astFromCell instanceof \Closure);
+
+        $cell = $cellFromRun([
+            'page' => 2,
+            'stream' => 9,
+            'text' => 'Amount',
+            'x1' => 10.0,
+            'y1' => 100.0,
+            'x2' => 50.0,
+            'y2' => 110.0,
+            'textX1' => 12.0,
+            'textY1' => 100.0,
+            'textX2' => 48.0,
+            'textY2' => 110.0,
+            'fontSize' => 10.0,
+            'order' => 17,
+            'lastOrder' => 18,
+            'sourcePdfExactSourceIndex' => 41,
+            'sourcePdfExactSourceStart' => 0,
+            'sourcePdfExactSourceEnd' => 6,
+        ]);
+        $ranges = [['sourceIndex' => 41, 'sourceStart' => 0, 'sourceEnd' => 6]];
+        $t->same($ranges, $cell['sourcePdfExactSourceRanges'] ?? null);
+        $t->same([9], $cell['sourcePdfStreams'] ?? null);
+        $t->same(17, $cell['sourceOrderStart'] ?? null);
+        $t->same(18, $cell['sourceOrderEnd'] ?? null);
+
+        $node = $astFromCell($cell);
+        $t->same($ranges, $node->attr('sourcePdfExactSourceRanges'));
+        $t->same(2, $node->attr('sourcePdfGeometryPage'));
+        $t->same([9], $node->attr('sourcePdfGeometryStreams'));
+        $t->same(17, $node->attr('sourcePdfSourceOrderStart'));
+        $t->same(18, $node->attr('sourcePdfSourceOrderEnd'));
+        $t->same(
+            ['x1' => 12.0, 'y1' => 100.0, 'x2' => 48.0, 'y2' => 110.0],
+            $node->attr('sourcePdfGeometryBounds')
+        );
+        $t->same(10.0, $node->attr('sourcePdfGeometryFontSize'));
+        $t->same([], $node->attr('attributes', []));
+        $t->same([], $node->attr('htmlAttributes', []));
+    },
+    'coalesces contiguous exact ranges across positioned table row and cell merges' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $mergeRows = (function (array $rows): array {
+            return $this->mergePositionedRowFragments($rows);
+        })->bindTo($reader, PdfReader::class);
+        $cellFromRun = (function (array $run): array {
+            return $this->positionedCellFromRun($run);
+        })->bindTo($reader, PdfReader::class);
+        $mergeCells = (function (?array $left, array $right): array {
+            return $this->mergePositionedCells($left, $right);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($mergeRows instanceof \Closure);
+        $t->true($cellFromRun instanceof \Closure);
+        $t->true($mergeCells instanceof \Closure);
+
+        $run = static fn (string $text, float $x1, float $x2, int $order, array $range): array => [
+            'page' => 1,
+            'stream' => 4,
+            'text' => $text,
+            'x1' => $x1,
+            'y1' => 100.0,
+            'x2' => $x2,
+            'y2' => 110.0,
+            'textX1' => $x1,
+            'textY1' => 100.0,
+            'textX2' => $x2,
+            'textY2' => 110.0,
+            'fontSize' => 10.0,
+            'startsWithWhitespace' => false,
+            'endsWithWhitespace' => false,
+            'hasWordBoundaryBefore' => false,
+            'wordBoundaryBefore' => false,
+            'wordBoundarySource' => null,
+            'startsAfterTextBoundary' => false,
+            'order' => $order,
+            'lastOrder' => $order,
+            'sourcePdfExactSourceRanges' => [$range],
+        ];
+        $left = $run('abc', 10.0, 28.0, 5, ['sourceIndex' => 70, 'sourceStart' => 0, 'sourceEnd' => 3]);
+        $right = $run('def', 28.0, 46.0, 6, ['sourceIndex' => 70, 'sourceStart' => 3, 'sourceEnd' => 6]);
+        $expected = [['sourceIndex' => 70, 'sourceStart' => 0, 'sourceEnd' => 6]];
+
+        $rows = $mergeRows([['center' => 105.0, 'runs' => [$left, $right]]]);
+        $t->same(1, count($rows[0]['runs']));
+        $t->same($expected, $rows[0]['runs'][0]['sourcePdfExactSourceRanges'] ?? null);
+        $t->same([4], $rows[0]['runs'][0]['sourcePdfStreams'] ?? null);
+        $t->same(5, $rows[0]['runs'][0]['sourceOrderStart'] ?? null);
+        $t->same(6, $rows[0]['runs'][0]['sourceOrderEnd'] ?? null);
+
+        $cell = $mergeCells($cellFromRun($left), $cellFromRun($right));
+        $t->same($expected, $cell['sourcePdfExactSourceRanges'] ?? null);
+        $t->same([4], $cell['sourcePdfStreams'] ?? null);
+        $t->same(5, $cell['sourceOrderStart'] ?? null);
+        $t->same(6, $cell['sourceOrderEnd'] ?? null);
+        $t->same(['x1' => 10.0, 'x2' => 46.0], [
+            'x1' => $cell['contentX1'] ?? null,
+            'x2' => $cell['contentX2'] ?? null,
+        ]);
+    },
+    'drops positioned table proof attributes for overlapping or invalid source ranges' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $mergeRows = (function (array $rows): array {
+            return $this->mergePositionedRowFragments($rows);
+        })->bindTo($reader, PdfReader::class);
+        $cellFromRun = (function (array $run): array {
+            return $this->positionedCellFromRun($run);
+        })->bindTo($reader, PdfReader::class);
+        $mergeCells = (function (?array $left, array $right): array {
+            return $this->mergePositionedCells($left, $right);
+        })->bindTo($reader, PdfReader::class);
+        $astFromCell = (function (array $cell): AstNode {
+            return $this->tableCellFromValue($cell);
+        })->bindTo($reader, PdfReader::class);
+
+        $run = static fn (string $text, float $x1, float $x2, int $order, array $range): array => [
+            'page' => 1,
+            'stream' => 3,
+            'text' => $text,
+            'x1' => $x1,
+            'y1' => 80.0,
+            'x2' => $x2,
+            'y2' => 90.0,
+            'textX1' => $x1,
+            'textY1' => 80.0,
+            'textX2' => $x2,
+            'textY2' => 90.0,
+            'fontSize' => 9.0,
+            'startsWithWhitespace' => false,
+            'endsWithWhitespace' => false,
+            'hasWordBoundaryBefore' => false,
+            'wordBoundaryBefore' => false,
+            'wordBoundarySource' => null,
+            'startsAfterTextBoundary' => false,
+            'order' => $order,
+            'lastOrder' => $order,
+            'sourcePdfExactSourceRanges' => [$range],
+        ];
+        $left = $run('abcd', 10.0, 34.0, 1, ['sourceIndex' => 80, 'sourceStart' => 0, 'sourceEnd' => 4]);
+        $overlap = $run('def', 34.0, 52.0, 2, ['sourceIndex' => 80, 'sourceStart' => 3, 'sourceEnd' => 6]);
+        $invalid = $run('x', 52.0, 58.0, 3, ['sourceIndex' => 81, 'sourceStart' => 1, 'sourceEnd' => 1]);
+
+        $overlappingCell = $mergeCells($cellFromRun($left), $cellFromRun($overlap));
+        $t->same(null, $overlappingCell['sourcePdfExactSourceRanges'] ?? null);
+        $t->same(null, $astFromCell($overlappingCell)->attr('sourcePdfExactSourceRanges', null));
+
+        $invalidCell = $cellFromRun($invalid);
+        $t->same(null, $invalidCell['sourcePdfExactSourceRanges'] ?? null);
+        $partiallyProvedCell = $mergeCells($cellFromRun($left), $invalidCell);
+        $t->same(null, $partiallyProvedCell['sourcePdfExactSourceRanges'] ?? null);
+
+        $rows = $mergeRows([['center' => 85.0, 'runs' => [$left, $overlap]]]);
+        $t->same(1, count($rows[0]['runs']));
+        $t->same(null, $rows[0]['runs'][0]['sourcePdfExactSourceRanges'] ?? null);
+    },
+    'restores unmatched exact-geometry source occurrences only under a complete page inventory proof' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $prove = (function (array $sourceItems, array $items): ?array {
+            return $this->sourcePdfPageItemsWithCompleteExactSourceInventory($sourceItems, $items);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($prove instanceof \Closure);
+
+        $source = static fn (string $text, int $globalIndex, float $y, bool $exact = true): array => array_filter([
+            'page' => 1,
+            'stream' => 1,
+            'text' => $text,
+            'sourcePdfGlobalSourceIndex' => $globalIndex,
+            'sourceGeometryMethod' => $exact ? 'exact-page-stream-character-offset' : null,
+            'sourceGeometry' => $exact ? [
+                'page' => 1,
+                'stream' => 1,
+                'x1' => 72.0,
+                'y1' => $y,
+                'x2' => 220.0,
+                'y2' => $y + 10.0,
+                'orientation' => 'horizontal',
+            ] : null,
+        ], static fn (mixed $value): bool => $value !== null);
+        $sourceItems = [
+            $source('Heading', 70, 300.0),
+            $source('$2,200 . . .', 71, 280.0),
+            $source('Employers', 72, 260.0),
+        ];
+        $items = [[
+            'text' => 'Heading',
+            'page' => 1,
+            'sourceStream' => 1,
+            'sourcePdfSourceIndex' => 0,
+            'x1' => 72.0,
+            'y1' => 300.0,
+            'x2' => 220.0,
+            'y2' => 310.0,
+            'fontSize' => 10.0,
+        ]];
+
+        $restored = $prove($sourceItems, $items);
+        $t->true(is_array($restored));
+        $t->same(['Heading', '$2,200 . . .', 'Employers'], array_column($restored, 'text'));
+        $t->same([0, 1, 2], array_column($restored, 'sourcePdfSourceIndex'));
+        $t->same(true, $restored[1]['sourcePdfExactGeometryFallback'] ?? null);
+        $t->same(true, $restored[1]['sourcePdfProtectedSemanticContent'] ?? null);
+        $t->same(true, $restored[2]['sourcePdfPageExactInventoryPreserved'] ?? null);
+
+        $incompleteSource = $sourceItems;
+        unset($incompleteSource[2]['sourceGeometry'], $incompleteSource[2]['sourceGeometryMethod']);
+        $t->same(
+            null,
+            $prove($incompleteSource, $items),
+            'A repaired page with an unproven missing occurrence must fall back to complete source order.'
+        );
+
+        $mismatched = $items;
+        $mismatched[0]['text'] = 'Changed heading';
+        $t->same(null, $prove($sourceItems, $mismatched), 'Inventory mismatch must reject repaired geometry.');
+
+        $supplemented = $items;
+        $supplemented[] = [
+            'text' => 'A positioned supplement is not a source disposition.',
+            'page' => 1,
+            'x1' => 72.0,
+            'y1' => 240.0,
+            'x2' => 320.0,
+            'y2' => 250.0,
+            'fontSize' => 10.0,
+            'sourceSupplementalPositioned' => true,
+        ];
+        $t->same(null, $prove($sourceItems, $supplemented), 'Supplements must remain outside source-inventory proof.');
+    },
+    'repositions an exact punctuation continuation after stable-column inventory recovery' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $prove = (function (array $sourceItems, array $items): ?array {
+            return $this->sourcePdfPageItemsWithCompleteExactSourceInventory($sourceItems, $items);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($prove instanceof \Closure);
+
+        $sourceItems = [];
+        $items = [];
+        for ($index = 0; $index < 20; $index++) {
+            $column = $index < 10 ? 0 : 1;
+            $row = $column === 0 ? $index : $index - 10;
+            $x1 = $column === 0 ? 72.0 : 300.0;
+            $y1 = 700.0 - ($row * 14.0);
+            $text = match ($index) {
+                4 => 'The reporting rule continues',
+                5 => ', later, for additional details.',
+                default => sprintf('Column %d source line %02d remains fully readable here.', $column + 1, $index),
+            };
+            $geometryX1 = $index === 5 ? 560.0 : $x1;
+            $significant = preg_replace('/\s+/u', '', $text) ?? '';
+            $sourceItems[] = [
+                'page' => 1,
+                'stream' => 1,
+                'text' => $text,
+                'sourcePdfGlobalSourceIndex' => $index,
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                'sourceGeometry' => [
+                    'page' => 1,
+                    'stream' => 1,
+                    'x1' => $geometryX1,
+                    'y1' => $y1,
+                    'x2' => $geometryX1 + ($index === 5 ? 60.0 : 140.0),
+                    'y2' => $y1 + 10.0,
+                    'orientation' => 'horizontal',
+                ],
+            ];
+            if ($index === 5) {
+                continue;
+            }
+            $items[] = [
+                'text' => $text,
+                'page' => 1,
+                'sourceStream' => 1,
+                'sourcePdfSourceIndex' => $index,
+                'sourcePdfGlobalSourceIndex' => $index,
+                'sourcePdfExactPositionedText' => true,
+                'sourcePdfExactSourceRanges' => [[
+                    'sourceIndex' => $index,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen($significant),
+                ]],
+                'x1' => $x1,
+                'y1' => $y1,
+                'x2' => $x1 + 140.0,
+                'y2' => $y1 + 10.0,
+                'fontSize' => 10.0,
+            ];
+        }
+
+        $restored = $prove($sourceItems, $items);
+        $t->true(is_array($restored));
+        $sourceIndexes = array_column($restored, 'sourcePdfSourceIndex');
+        $predecessor = array_search(4, $sourceIndexes, true);
+        $t->true(is_int($predecessor));
+        $t->same(5, $sourceIndexes[$predecessor + 1] ?? null);
+        $t->same(true, $restored[$predecessor + 1]['sourcePdfCrossPanelContinuation'] ?? null);
+        $t->same(', later, for additional details.', $restored[$predecessor + 1]['text'] ?? null);
+
+        $uppercaseSourceItems = $sourceItems;
+        $uppercaseSourceItems[5]['text'] = 'Later, a separate statement begins.';
+        $uppercaseSignificant = preg_replace('/\s+/u', '', $uppercaseSourceItems[5]['text']) ?? '';
+        $uppercaseSourceItems[5]['sourceGeometry']['x2'] = 620.0;
+        $uppercase = $prove($uppercaseSourceItems, $items);
+        $t->true(is_array($uppercase));
+        $uppercaseIndexes = array_column($uppercase, 'sourcePdfSourceIndex');
+        $uppercasePredecessor = array_search(4, $uppercaseIndexes, true);
+        $t->true(is_int($uppercasePredecessor));
+        $t->true(($uppercaseIndexes[$uppercasePredecessor + 1] ?? null) !== 5);
+        $uppercaseCarrier = array_search(5, $uppercaseIndexes, true);
+        $t->true(is_int($uppercaseCarrier));
+        $t->same(strlen($uppercaseSignificant),
+            ($uppercase[$uppercaseCarrier]['sourcePdfExactSourceRanges'][0]['sourceEnd'] ?? 0)
+                - ($uppercase[$uppercaseCarrier]['sourcePdfExactSourceRanges'][0]['sourceStart'] ?? 0));
+    },
+    'repositions an exact painted punctuation carrier after complete inventory verification' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $prove = (function (array $sourceItems, array $items): ?array {
+            return $this->sourcePdfPageItemsWithCompleteExactSourceInventory($sourceItems, $items);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($prove instanceof \Closure);
+
+        $source = static function (string $text, float $x1, float $y1): array {
+            return [
+                'page' => 1,
+                'stream' => 4,
+                'text' => $text,
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                'sourceGeometry' => [
+                    'page' => 1,
+                    'stream' => 4,
+                    'x1' => $x1,
+                    'y1' => $y1,
+                    'x2' => $x1 + 180.0,
+                    'y2' => $y1 + 12.0,
+                    'orientation' => 'horizontal',
+                ],
+            ];
+        };
+        $sourceItems = [
+            $source('•', 45.0, 100.0),
+            $source('To get help any time with general tax topics, visit', 56.0, 100.0),
+            $source('. The site can help', 199.0, 90.0),
+            $source('you with common tax issues.', 56.0, 80.0),
+        ];
+        $range = static fn (int $sourceIndex, string $text): array => [
+            'sourceIndex' => $sourceIndex,
+            'sourceStart' => 0,
+            'sourceEnd' => strlen(preg_replace('/\s+/u', '', $text) ?? ''),
+        ];
+        $markerAndAnchor = $sourceItems[0]['text'] . ' ' . $sourceItems[1]['text'];
+        $items = [[
+            'text' => $markerAndAnchor,
+            'page' => 1,
+            'x1' => 45.0,
+            'y1' => 100.0,
+            'x2' => 274.0,
+            'y2' => 112.0,
+            'fontSize' => 10.0,
+            'sourceOrderStart' => 0,
+            'sourceOrderEnd' => 1,
+            'sourcePdfExactSourceRanges' => [
+                $range(0, $sourceItems[0]['text']),
+                $range(1, $sourceItems[1]['text']),
+            ],
+        ], [
+            'text' => $sourceItems[3]['text'],
+            'page' => 1,
+            'x1' => 56.0,
+            'y1' => 80.0,
+            'x2' => 250.0,
+            'y2' => 92.0,
+            'fontSize' => 10.0,
+            'sourceOrderStart' => 3,
+            'sourceOrderEnd' => 3,
+            'sourcePdfExactSourceRanges' => [$range(3, $sourceItems[3]['text'])],
+        ], [
+            'text' => $sourceItems[2]['text'],
+            'page' => 1,
+            'x1' => 199.0,
+            'y1' => 90.0,
+            'x2' => 287.0,
+            'y2' => 102.0,
+            'fontSize' => 10.0,
+            'sourceOrderStart' => 2,
+            'sourceOrderEnd' => 2,
+            'sourcePdfExactSourceRanges' => [$range(2, $sourceItems[2]['text'])],
+        ]];
+
+        $restored = $prove($sourceItems, $items);
+        $t->true(is_array($restored));
+        $t->same([
+            $markerAndAnchor,
+            $sourceItems[2]['text'],
+            $sourceItems[3]['text'],
+        ], array_column($restored, 'text'));
+        $t->same(true, $restored[1]['sourcePdfCrossPanelContinuation'] ?? null);
+        $t->same(true, $restored[1]['sourcePdfExactPaintedPunctuationContinuation'] ?? null);
+
+        $nonAdjacentPaint = $items;
+        $nonAdjacentPaint[2]['sourceOrderStart'] = 8;
+        $nonAdjacentPaint[2]['sourceOrderEnd'] = 8;
+        $unmoved = $prove($sourceItems, $nonAdjacentPaint);
+        $t->true(is_array($unmoved));
+        $t->same(array_column($nonAdjacentPaint, 'text'), array_column($unmoved, 'text'));
+        $t->true(!isset($unmoved[2]['sourcePdfExactPaintedPunctuationContinuation']));
+
+        $partialRange = $items;
+        $partialRange[2]['sourcePdfExactSourceRanges'][0]['sourceEnd']--;
+        $t->same(null, $prove($sourceItems, $partialRange));
+    },
+    'does not reinterpret an already joined exact-range list marker as omitted' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $restore = (function (array $items, array $sourceItems): array {
+            return $this->restoreSourcePdfStandaloneListMarkerPrefixes($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($restore instanceof \Closure);
+
+        $sourceItems = [
+            ['page' => 1, 'stream' => 1, 'text' => '•'],
+            ['page' => 1, 'stream' => 1, 'text' => 'I'],
+            ['page' => 1, 'stream' => 1, 'text' => 'RS.gov'],
+        ];
+        $joined = [[
+            'text' => '•IRS.gov',
+            'page' => 1,
+            'sourcePdfSourceIndex' => 0,
+            'sourcePdfSourceIndexEnd' => 2,
+        ]];
+        $t->same($joined, $restore($joined, $sourceItems));
+
+        $omitted = $restore([
+            ['text' => '•', 'page' => 1, 'sourcePdfSourceIndex' => 0],
+            ['text' => 'IRS.gov', 'page' => 1, 'sourcePdfSourceIndex' => 1, 'sourcePdfSourceIndexEnd' => 2],
+        ], $sourceItems);
+        $t->same(1, count($omitted));
+        $t->same('• IRS.gov', $omitted[0]['text']);
+        $t->same(true, $omitted[0]['sourceStandaloneListMarkerPrefix'] ?? null);
+
     },
     'uses positioned whitespace only for the exact matched source occurrence' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -7312,6 +13265,340 @@ return [
             ])],
         ]));
     },
+    'requires immutable whole occurrence proof for page exact inventory carriers' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $stampWholeExactProof = (function (array $layouts, array $sourceItems): array {
+            return $this->pdfSourceLayoutsWithWholeExactOccurrenceProofs($layouts, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $normalizeSelectionFlags = (function (array $records): array {
+            return $this->normalizePdfExactSourceSemanticRecoveryRecords($records);
+        })->bindTo($reader, PdfReader::class);
+        $merge = (function (array $records): array {
+            return $this->mergeRepairedProseLines($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($stampWholeExactProof instanceof \Closure);
+        $t->true($normalizeSelectionFlags instanceof \Closure);
+        $t->true($merge instanceof \Closure);
+
+        $text = 'Schedules for quarterly distribution results and adjustments';
+        $significant = preg_replace('/\s+/u', '', $text) ?? '';
+        $sourceItems = [[
+            'page' => 1,
+            'stream' => 1,
+            'text' => $text,
+            'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            'sourceGeometry' => [
+                'x1' => 72.0,
+                'y1' => 700.0,
+                'x2' => 420.0,
+                'y2' => 712.0,
+                'orientation' => 'horizontal',
+            ],
+        ]];
+        $layout = [
+            'text' => $text,
+            'page' => 1,
+            'sourceStream' => 1,
+            'sourceGeometryColumn' => 0,
+            'sourceStructuredGeometry' => true,
+            'sourcePdfPageExactInventoryPreserved' => true,
+            'sourcePdfExactSourceRanges' => [[
+                'sourceIndex' => 0,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen($significant),
+            ]],
+            'x1' => 72.0,
+            'y1' => 700.0,
+            'x2' => 420.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+        ];
+        $stamped = $stampWholeExactProof([$layout], $sourceItems)[0];
+        $t->true(is_array($stamped['sourcePdfWholeExactOccurrenceProof'] ?? null));
+        $normalizedRecord = $normalizeSelectionFlags([[
+            'text' => $text,
+            'layout' => $stamped,
+        ]])[0];
+        $t->true(!isset($normalizedRecord['layout']['sourcePdfPageExactInventoryPreserved']));
+
+        $selectionOnly = $normalizeSelectionFlags([[
+            'text' => $text,
+            'layout' => array_replace($layout, [
+                'sourcePdfFallbackOrderProjection' => true,
+                'sourcePdfProtectedSemanticContent' => true,
+            ]),
+        ]])[0]['layout'];
+        $t->true(!isset($selectionOnly['sourcePdfFallbackOrderProjection']));
+        $t->true(!isset($selectionOnly['sourcePdfProtectedSemanticContent']));
+        foreach ([
+            ['sourcePdfFrontMatter' => true],
+            ['sourcePdfInlineMarkerCount' => 1],
+        ] as $semanticRole) {
+            $semantic = $normalizeSelectionFlags([[
+                'text' => $text,
+                'layout' => array_replace($layout, $semanticRole, [
+                    'sourcePdfFallbackOrderProjection' => true,
+                    'sourcePdfProtectedSemanticContent' => true,
+                ]),
+            ]])[0]['layout'];
+            $t->true(!isset($semantic['sourcePdfFallbackOrderProjection']));
+            $t->same(true, $semantic['sourcePdfProtectedSemanticContent'] ?? null);
+        }
+
+        $nextBlock = 'The next visual block remains complete.';
+        $forced = [
+            'text' => $nextBlock,
+            'page' => 1,
+            'sourceStream' => 1,
+            'sourceGeometryColumn' => 0,
+            'sourceStructuredGeometry' => true,
+            'x1' => 72.0,
+            'y1' => 660.0,
+            'x2' => 420.0,
+            'y2' => 672.0,
+            'fontSize' => 10.0,
+            'forceBlockBreakBefore' => true,
+        ];
+        $t->same([$text, $nextBlock], $merge([
+            $normalizedRecord,
+            ['text' => $nextBlock, 'layout' => $forced],
+        ]));
+
+        foreach (['sourcePdfExactGeometryFallback', 'sourceUnmatchedFallback'] as $fallbackFlag) {
+            $fallback = array_replace($layout, [$fallbackFlag => true]);
+            $fallback = $stampWholeExactProof([$fallback], $sourceItems)[0];
+            $t->true(!isset($fallback['sourcePdfWholeExactOccurrenceProof']));
+        }
+
+        $partial = $layout;
+        $partial['sourcePdfExactSourceRanges'][0]['sourceEnd']--;
+        $partial = $stampWholeExactProof([$partial], $sourceItems)[0];
+        $t->true(!isset($partial['sourcePdfWholeExactOccurrenceProof']));
+
+        $mismatched = array_replace($layout, ['text' => $text . ' extra']);
+        $mismatched = $stampWholeExactProof([$mismatched], $sourceItems)[0];
+        $t->true(!isset($mismatched['sourcePdfWholeExactOccurrenceProof']));
+    },
+    'preserves a whole exact positioned source carrier before a forced visual boundary' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $merge = (function (array $records): array {
+            return $this->mergeRepairedProseLines($records);
+        })->bindTo($reader, PdfReader::class);
+        $mergeWithFollowing = (function (array $records, array $following): array {
+            return $this->mergeRepairedProseLines($records, $following);
+        })->bindTo($reader, PdfReader::class);
+        $stampWholeExactProof = (function (array $layouts, array $sourceItems): array {
+            $layouts = $this->pdfSourceLayoutsWithExactWholeOccurrenceRanges($layouts, $sourceItems);
+
+            return $this->pdfSourceLayoutsWithWholeExactOccurrenceProofs($layouts, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($merge instanceof \Closure);
+        $t->true($mergeWithFollowing instanceof \Closure);
+        $t->true($stampWholeExactProof instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'sourceStream' => 1,
+            'sourceGeometryColumn' => 0,
+            'sourceStructuredGeometry' => true,
+            'x1' => 72.0,
+            'x2' => 420.0,
+            'fontSize' => 10.0,
+        ];
+        $exactLayout = static function (
+            array $base,
+            string $text,
+            int $sourceIndex,
+            float $y1
+        ) use ($stampWholeExactProof): array {
+            $significant = preg_replace('/\s+/u', '', $text) ?? '';
+
+            $layout = array_replace($base, [
+                'text' => $text,
+                'sourcePdfExactPositionedText' => true,
+                'sourcePdfSourceIndex' => $sourceIndex,
+                'sourcePdfGlobalSourceIndex' => $sourceIndex,
+                'sourcePdfExactSourceRanges' => [[
+                    'sourceIndex' => $sourceIndex,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen($significant),
+                ]],
+                'y1' => $y1,
+                'y2' => $y1 + 12.0,
+            ]);
+
+            return $stampWholeExactProof([$layout], [
+                $sourceIndex => [
+                    'page' => (int) ($layout['page'] ?? 1),
+                    'stream' => (int) ($layout['sourceStream'] ?? 1),
+                    'text' => $text,
+                    'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                    'sourceGeometry' => [
+                        'x1' => (float) ($layout['x1'] ?? 72.0),
+                        'y1' => (float) ($layout['y1'] ?? 0.0),
+                        'x2' => (float) ($layout['x2'] ?? 420.0),
+                        'y2' => (float) ($layout['y2'] ?? 12.0),
+                        'orientation' => 'horizontal',
+                    ],
+                ],
+            ])[0];
+        };
+        $forcedLayout = static fn (array $base, string $text, float $y1): array => array_replace(
+            $base,
+            [
+                'text' => $text,
+                'y1' => $y1,
+                'y2' => $y1 + 12.0,
+                'forceBlockBreakBefore' => true,
+            ]
+        );
+
+        $shortTail = 'The first statement is complete. But see';
+        $nextBlock = 'The next visual block remains complete.';
+        $t->same([$shortTail, $nextBlock], $merge([
+            ['text' => $shortTail, 'layout' => $exactLayout($layout, $shortTail, 40, 700.0)],
+            ['text' => $nextBlock, 'layout' => $forcedLayout($layout, $nextBlock, 660.0)],
+        ]));
+
+        $generalLead = 'General requirements for any system set up to electronically receive a Form W-4 or Form W-4P are discussed';
+        $generalTail = 'earlier under';
+        $section = 'This section begins an independent visual block.';
+        $t->same([$generalLead . ' ' . $generalTail, $section], $merge([
+            ['text' => $generalLead, 'layout' => $exactLayout($layout, $generalLead, 91, 700.0)],
+            ['text' => $generalTail, 'layout' => $exactLayout($layout, $generalTail, 92, 688.0)],
+            ['text' => $section, 'layout' => $forcedLayout($layout, $section, 640.0)],
+        ]));
+
+        $irsLayout = array_replace($layout, ['page' => 4, 'sourceStream' => 11]);
+        $hyphenLead = 'General requirements for any system set up to electroni-';
+        $hyphenContinuation = 'cally receive a Form W-4 or Form W-4P are discussed';
+        $hyphenTail = 'earlier under';
+        $hyphenSection = '. This section provides specific requirements for substitute submissions of Form W-4.';
+        $hyphenPair = "4\0" . "11\0" . "371\0" . '372';
+        $hyphenLeadLayout = array_replace(
+            $exactLayout($irsLayout, $hyphenLead, 371, 700.0),
+            [
+                'forceBlockBreakBefore' => true,
+                'sourcePdfWrappedHyphenPairAfter' => $hyphenPair,
+            ]
+        );
+        $hyphenContinuationLayout = array_replace(
+            $exactLayout($irsLayout, $hyphenContinuation, 372, 688.0),
+            ['sourcePdfWrappedHyphenPairBefore' => $hyphenPair]
+        );
+        $hyphenTailLayout = $exactLayout($irsLayout, $hyphenTail, 373, 676.0);
+        $hyphenSectionLayout = $forcedLayout($irsLayout, $hyphenSection, 640.0);
+        $dehyphenatedCarrier = 'General requirements for any system set up to electronically receive a Form W-4 or Form W-4P are discussed earlier under';
+        $t->same([$dehyphenatedCarrier, $hyphenSection], $merge([
+            ['text' => $hyphenLead, 'layout' => $hyphenLeadLayout],
+            ['text' => $hyphenContinuation, 'layout' => $hyphenContinuationLayout],
+            ['text' => $hyphenTail, 'layout' => $hyphenTailLayout],
+            ['text' => $hyphenSection, 'layout' => $hyphenSectionLayout],
+        ]));
+
+        $partialHyphenLeadLayout = $hyphenLeadLayout;
+        $partialHyphenLeadLayout['sourcePdfExactSourceRanges'][0]['sourceEnd']--;
+        $t->same([$hyphenSection], $merge([
+            ['text' => $hyphenLead, 'layout' => $partialHyphenLeadLayout],
+            ['text' => $hyphenContinuation, 'layout' => $hyphenContinuationLayout],
+            ['text' => $hyphenTail, 'layout' => $hyphenTailLayout],
+            ['text' => $hyphenSection, 'layout' => $hyphenSectionLayout],
+        ]));
+
+        $unprovedHyphenContinuationLayout = $hyphenContinuationLayout;
+        unset($unprovedHyphenContinuationLayout['sourcePdfWholeExactOccurrenceProof']);
+        $t->same([$hyphenSection], $merge([
+            ['text' => $hyphenLead, 'layout' => $hyphenLeadLayout],
+            ['text' => $hyphenContinuation, 'layout' => $unprovedHyphenContinuationLayout],
+            ['text' => $hyphenTail, 'layout' => $hyphenTailLayout],
+            ['text' => $hyphenSection, 'layout' => $hyphenSectionLayout],
+        ]));
+
+        $paintedHyphenCarrier = $hyphenLead . ' ' . $hyphenContinuation . ' ' . $hyphenTail;
+        $mismatchedHyphenContinuationLayout = array_replace(
+            $hyphenContinuationLayout,
+            ['sourcePdfWrappedHyphenPairBefore' => $hyphenPair . '-mismatch']
+        );
+        $t->same([$paintedHyphenCarrier, $hyphenSection], $merge([
+            ['text' => $hyphenLead, 'layout' => $hyphenLeadLayout],
+            ['text' => $hyphenContinuation, 'layout' => $mismatchedHyphenContinuationLayout],
+            ['text' => $hyphenTail, 'layout' => $hyphenTailLayout],
+            ['text' => $hyphenSection, 'layout' => $hyphenSectionLayout],
+        ]));
+
+        $absentHyphenLeadLayout = $hyphenLeadLayout;
+        $absentHyphenContinuationLayout = $hyphenContinuationLayout;
+        unset($absentHyphenLeadLayout['sourcePdfWrappedHyphenPairAfter']);
+        unset($absentHyphenContinuationLayout['sourcePdfWrappedHyphenPairBefore']);
+        $t->same([$paintedHyphenCarrier, $hyphenSection], $merge([
+            ['text' => $hyphenLead, 'layout' => $absentHyphenLeadLayout],
+            ['text' => $hyphenContinuation, 'layout' => $absentHyphenContinuationLayout],
+            ['text' => $hyphenTail, 'layout' => $hyphenTailLayout],
+            ['text' => $hyphenSection, 'layout' => $hyphenSectionLayout],
+        ]));
+
+        $unprovedLead = array_replace($layout, [
+            'text' => $generalLead,
+            'y1' => 700.0,
+            'y2' => 712.0,
+        ]);
+        $t->same([$section], $merge([
+            ['text' => $generalLead, 'layout' => $unprovedLead],
+            ['text' => $generalTail, 'layout' => $exactLayout($layout, $generalTail, 92, 688.0)],
+            ['text' => $section, 'layout' => $forcedLayout($layout, $section, 640.0)],
+        ]));
+
+        $partialLead = $exactLayout($layout, $generalLead, 91, 700.0);
+        $partialLead['sourcePdfExactSourceRanges'][0]['sourceEnd']--;
+        $t->same([$section], $merge([
+            ['text' => $generalLead, 'layout' => $partialLead],
+            ['text' => $generalTail, 'layout' => $exactLayout($layout, $generalTail, 92, 688.0)],
+            ['text' => $section, 'layout' => $forcedLayout($layout, $section, 640.0)],
+        ]));
+
+        $partialTail = $exactLayout($layout, $generalTail, 92, 688.0);
+        $partialTail['sourcePdfExactSourceRanges'][0]['sourceEnd']--;
+        $t->same([$section], $merge([
+            ['text' => $generalLead, 'layout' => $exactLayout($layout, $generalLead, 91, 700.0)],
+            ['text' => $generalTail, 'layout' => $partialTail],
+            ['text' => $section, 'layout' => $forcedLayout($layout, $section, 640.0)],
+        ]));
+
+        $t->same([], $mergeWithFollowing([
+            ['text' => $generalLead, 'layout' => $unprovedLead],
+            ['text' => $generalTail, 'layout' => $exactLayout($layout, $generalTail, 92, 688.0)],
+        ], [
+            'text' => $section,
+            'layout' => $forcedLayout($layout, $section, 640.0),
+        ]));
+
+        $address = '1111 Constitution Ave. NW, IR-6526';
+        $addressFollowing = 'A separate contact block follows.';
+        $t->same([$address, $addressFollowing], $merge([
+            ['text' => $address, 'layout' => $exactLayout($layout, $address, 73, 700.0)],
+            ['text' => $addressFollowing, 'layout' => $forcedLayout($layout, $addressFollowing, 660.0)],
+        ]));
+
+        $partial = $exactLayout($layout, $shortTail, 40, 700.0);
+        $partial['sourcePdfExactSourceRanges'][0]['sourceEnd']--;
+        $t->same(['The first statement is complete.', $nextBlock], $merge([
+            ['text' => $shortTail, 'layout' => $partial],
+            ['text' => $nextBlock, 'layout' => $forcedLayout($layout, $nextBlock, 660.0)],
+        ]));
+
+        $unproved = $exactLayout($layout, $shortTail, 40, 700.0);
+        unset($unproved['sourcePdfWholeExactOccurrenceProof']);
+        $t->same(['The first statement is complete.', $nextBlock], $merge([
+            ['text' => $shortTail, 'layout' => $unproved],
+            ['text' => $nextBlock, 'layout' => $forcedLayout($layout, $nextBlock, 660.0)],
+        ]));
+
+        $stale = $exactLayout($layout, 'The first statement is complete. But now', 40, 700.0);
+        $t->same(['The first statement is complete.', $nextBlock], $merge([
+            ['text' => $shortTail, 'layout' => $stale],
+            ['text' => $nextBlock, 'layout' => $forcedLayout($layout, $nextBlock, 660.0)],
+        ]));
+    },
     'merges wrapped lower-case display text across a forced pdf boundary' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $merge = (function (array $records): array {
@@ -7353,12 +13640,48 @@ return [
             ['text' => 'to stay safe.', 'layout' => array_replace($layout, ['x1' => 72.0, 'x2' => 170.0, 'y1' => 686.0, 'y2' => 704.0])],
         ]));
     },
-    'drops incomplete oversized unstructured pdf display fragments' => static function (TestRunner $t): void {
+    'dispositions only provenance-bound clipped pdf display fragments as artifacts' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $looksIncomplete = (function (array $record, float $medianFontSize): bool {
             return $this->pdfUnstructuredDisplayFragmentLooksIncomplete($record, $medianFontSize);
         })->bindTo($reader, PdfReader::class);
+        $audit = (function (array $sourceItems, array $layouts): array {
+            $this->sourceSha256 = str_repeat('a', 64);
+            $layouts = $this->pdfSourceLayoutsWithWholeExactOccurrenceProofs(
+                $layouts,
+                $sourceItems
+            );
+            $layouts = $this->pdfSourceLayoutsWithClippedDisplayArtifactEvidence(
+                $layouts,
+                $sourceItems
+            );
+            $records = array_map(
+                static fn (array $layout): array => [
+                    'text' => (string) $layout['text'],
+                    'layout' => $layout,
+                ],
+                $layouts
+            );
+            $snapshot = $this->pdfExactSourceSemanticRecoverySnapshot($records);
+            $filtered = $this->removeLowCoherencePdfFloatingRegions($records);
+            $recovered = $this->restoreDroppedExactSourceSemanticRecords($filtered, $snapshot);
+
+            return [
+                'sourceItems' => $sourceItems,
+                'layouts' => $layouts,
+                'snapshot' => $snapshot,
+                'recovered' => $recovered,
+                'dispositions' => $this->explicitPdfSourceDispositions($sourceItems),
+            ];
+        })->bindTo($reader, PdfReader::class);
+        $dispositionsFor = (function (array $sourceItems): array {
+            $this->sourceSha256 = str_repeat('a', 64);
+
+            return $this->explicitPdfSourceDispositions($sourceItems);
+        })->bindTo($reader, PdfReader::class);
         $t->true($looksIncomplete instanceof \Closure);
+        $t->true($audit instanceof \Closure);
+        $t->true($dispositionsFor instanceof \Closure);
 
         $layout = [
             'page' => 1,
@@ -7371,6 +13694,120 @@ return [
         $t->true($looksIncomplete(['text' => 'fragment Display', 'layout' => $layout], 10.0));
         $t->true(!$looksIncomplete(['text' => 'Complete Display', 'layout' => $layout], 10.0));
         $t->true(!$looksIncomplete(['text' => 'fragment Display', 'layout' => array_replace($layout, ['sourceStructuredGeometry' => true])], 10.0));
+
+        $source = static function (
+            int $index,
+            string $text,
+            float $x1,
+            float $y1,
+            float $x2,
+            float $y2,
+            int $page = 1
+        ): array {
+            return [
+                'id' => 'source-' . $index,
+                'page' => $page,
+                'stream' => 1,
+                'text' => $text,
+                'sourcePdfGlobalSourceIndex' => $index,
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                'sourceGeometry' => [
+                    'page' => $page,
+                    'stream' => 1,
+                    'x1' => $x1,
+                    'y1' => $y1,
+                    'x2' => $x2,
+                    'y2' => $y2,
+                    'orientation' => 'horizontal',
+                ],
+            ];
+        };
+        $positioned = static function (array $source, int $index, float $fontSize): array {
+            $geometry = $source['sourceGeometry'];
+            $projection = preg_replace('/[^\p{L}\p{N}]+/u', '', (string) $source['text']) ?? '';
+
+            return [
+                'id' => $source['id'],
+                'text' => $source['text'],
+                'page' => $source['page'],
+                'sourceStream' => $source['stream'],
+                'sourcePdfGlobalSourceIndex' => $index,
+                'x1' => $geometry['x1'],
+                'y1' => $geometry['y1'],
+                'x2' => $geometry['x2'],
+                'y2' => $geometry['y2'],
+                'fontSize' => $fontSize,
+                'code' => false,
+                'sourcePdfExactPositionedText' => true,
+                'sourcePdfExactSourceRanges' => [[
+                    'sourceIndex' => $index,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen($projection),
+                ]],
+            ];
+        };
+
+        $sourceItems = [
+            $source(0, 'A Start Title remains complete.', 72.0, 700.0, 330.0, 710.0),
+            $source(1, 'art Title', 480.0, 300.0, 620.0, 336.0),
+        ];
+        for ($index = 2; $index < 8; $index++) {
+            $sourceItems[] = $source(
+                $index,
+                'Ordinary body prose line ' . $index . ' remains readable.',
+                72.0,
+                680.0 - $index * 14.0,
+                390.0,
+                690.0 - $index * 14.0
+            );
+        }
+        $layouts = array_map(
+            static fn (array $item, int $index): array => $positioned(
+                $item,
+                $index,
+                $index === 1 ? 32.0 : 10.0
+            ),
+            $sourceItems,
+            array_keys($sourceItems)
+        );
+
+        $result = $audit($sourceItems, $layouts);
+        $t->same(true, $result['layouts'][1]['sourcePdfArtifact'] ?? null);
+        $t->same(
+            'whole-source-clipped-display-artifact',
+            $result['sourceItems'][1]['sourcePdfClippedDisplayArtifactEvidence']['method'] ?? null
+        );
+        $t->same(
+            'source-0',
+            $result['sourceItems'][1]['sourcePdfClippedDisplayArtifactEvidence']['completeDisplayCounterpart']['sourceOccurrenceId'] ?? null
+        );
+        $t->true(!in_array('art Title', array_column($result['snapshot'], 'text'), true));
+        $t->true(!in_array('art Title', array_column($result['recovered'], 'text'), true));
+        $t->same('artifact', $result['dispositions']['source-1']['disposition'] ?? null);
+
+        $noCounterpart = $sourceItems;
+        $noCounterpart[0]['text'] = 'Ordinary complete prose remains here.';
+        $noCounterpartLayouts = $layouts;
+        $noCounterpartLayouts[0] = $positioned($noCounterpart[0], 0, 10.0);
+        $noCounterpartResult = $audit($noCounterpart, $noCounterpartLayouts);
+        $t->true(!isset($noCounterpartResult['layouts'][1]['sourcePdfArtifact']));
+        $t->true(in_array('art Title', array_column($noCounterpartResult['recovered'], 'text'), true));
+
+        $ordinaryFontLayouts = $layouts;
+        $ordinaryFontLayouts[1]['fontSize'] = 12.0;
+        $t->true(!isset($audit($sourceItems, $ordinaryFontLayouts)['layouts'][1]['sourcePdfArtifact']));
+
+        $structuredLayouts = $layouts;
+        $structuredLayouts[1]['sourceStructuredGeometry'] = true;
+        $t->true(!isset($audit($sourceItems, $structuredLayouts)['layouts'][1]['sourcePdfArtifact']));
+
+        $partialLayouts = $layouts;
+        $partialLayouts[1]['sourcePdfExactSourceRanges'][0]['sourceEnd']--;
+        $t->true(!isset($audit($sourceItems, $partialLayouts)['layouts'][1]['sourcePdfArtifact']));
+
+        $forgedSource = $result['sourceItems'];
+        $forgedSource[1]['sourcePdfClippedDisplayArtifactEvidence']['sourceSha256'] = str_repeat('b', 64);
+        $t->true(!isset($dispositionsFor($forgedSource)['source-1']));
     },
     'trims an unfinished pdf prose tail before a stacked table boundary' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -7426,6 +13863,284 @@ return [
         $t->same('The complete sentence remains readable.', $repaired[0] ?? null);
         $t->true(!str_contains(implode("\n", $repaired), 'formula tail is unresolved'));
     },
+    'preserves a repeated source table header before stacked pdf grids' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $repeatedHeader = 'Plus this percentage of the amount that exceeds';
+        $stackedGrid = [
+            'Code',
+            'Type',
+            'Meaning',
+            'A1',
+            'alpha',
+            'first compact entry',
+            'B2',
+            'beta',
+            'second compact entry',
+            'C3',
+            'gamma',
+            'third compact entry',
+        ];
+        $repaired = $repair(array_merge(
+            [$repeatedHeader],
+            $stackedGrid,
+            [$repeatedHeader],
+            $stackedGrid
+        ));
+
+        $t->same(
+            2,
+            count(array_filter(
+                $repaired,
+                static fn (string $line): bool => $line === $repeatedHeader
+            ))
+        );
+    },
+    'carries an exact unfinished pdf suffix to its continuation after a side table' => static function (TestRunner $t) use ($exactSideTableContinuationFixture): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $fallback = (function (array $sourceItem, int $sourceIndex): ?array {
+            return $this->sourcePdfExactGeometryFallbackLineItem($sourceItem, $sourceIndex);
+        })->bindTo($reader, PdfReader::class);
+        $mark = (function (array $items, array $sourceItems): array {
+            return $this->markSourcePdfExactSideTableContinuationPairs($items, $sourceItems, []);
+        })->bindTo($reader, PdfReader::class);
+        $normalize = (function (array $records): array {
+            return $this->normalizePdfExactSourceSemanticRecoveryRecords($records);
+        })->bindTo($reader, PdfReader::class);
+        $merge = (function (array $records): array {
+            return $this->mergeRepairedProseLinesPreservingStackedTables($records);
+        })->bindTo($reader, PdfReader::class);
+        $trim = (function (array $lines): array {
+            return $this->trimIncompletePdfMergedLinesBeforeStackedTables($lines);
+        })->bindTo($reader, PdfReader::class);
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($setSourceSha256 instanceof \Closure);
+        $t->true($fallback instanceof \Closure);
+        $t->true($mark instanceof \Closure);
+        $t->true($normalize instanceof \Closure);
+        $t->true($merge instanceof \Closure);
+        $t->true($trim instanceof \Closure);
+        $t->true($blocksFromLines instanceof \Closure);
+
+        $setSourceSha256(str_repeat('a', 64));
+        $sourceItems = $exactSideTableContinuationFixture();
+        $items = [];
+        foreach ($sourceItems as $sourceIndex => $sourceItem) {
+            $item = $fallback($sourceItem, $sourceIndex);
+            $t->true(is_array($item));
+            $items[] = $item;
+        }
+        $items = $mark($items, $sourceItems);
+        $t->true(is_array($items[0]['sourcePdfExactSideTableContinuationAfter'] ?? null));
+        $t->true(is_array($items[15]['sourcePdfExactSideTableContinuationBefore'] ?? null));
+
+        $records = $normalize(array_map(
+            static fn (array $item): array => ['text' => $item['text'], 'layout' => $item],
+            $items
+        ));
+        $repaired = $trim($merge($records));
+        $continuation = 'Then the heuristic selects value with minimum rank';
+        $caption = 'Figure 4. Verified side table. The caption sentence is complete.';
+        $t->same('The completed explanation remains readable.', $repaired[0] ?? null);
+        $t->same(1, count(array_filter(
+            $repaired,
+            static fn (string $line): bool => $line === $continuation
+        )));
+        $captionIndex = array_search($caption, $repaired, true);
+        $continuationIndex = array_search($continuation, $repaired, true);
+        $t->true(is_int($captionIndex) && is_int($continuationIndex) && $captionIndex < $continuationIndex);
+        $t->same(1, count(array_filter(
+            $blocksFromLines($repaired),
+            static fn (object $block): bool => $block->type === 'table'
+        )));
+    },
+    'carries an exact unfinished pdf suffix to a composite continuation after a side table' => static function (TestRunner $t) use ($exactSideTableContinuationFixture): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $fallback = (function (array $sourceItem, int $sourceIndex): ?array {
+            return $this->sourcePdfExactGeometryFallbackLineItem($sourceItem, $sourceIndex);
+        })->bindTo($reader, PdfReader::class);
+        $mark = (function (array $items, array $sourceItems): array {
+            return $this->markSourcePdfExactSideTableContinuationPairs($items, $sourceItems, []);
+        })->bindTo($reader, PdfReader::class);
+        $normalize = (function (array $records): array {
+            return $this->normalizePdfExactSourceSemanticRecoveryRecords($records);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $records): array {
+            return $this->trimIncompletePdfMergedLinesBeforeStackedTables(
+                $this->mergeRepairedProseLinesPreservingStackedTables($records)
+            );
+        })->bindTo($reader, PdfReader::class);
+        foreach ([$setSourceSha256, $fallback, $mark, $normalize, $repair] as $closure) {
+            $t->true($closure instanceof \Closure);
+        }
+        $setSourceSha256(str_repeat('c', 64));
+
+        $sourceItems = $exactSideTableContinuationFixture();
+        $sourceItems[15]['text'] = 'heuristic selects value with minimum v';
+        $sourceItems[15]['sourceGeometry']['x2'] = 540.0;
+        foreach ([
+            ['m', 542.0],
+            ['. The composite continuation remains complete.', 550.0],
+        ] as [$text, $x1]) {
+            $sourceIndex = count($sourceItems);
+            $sourceItem = $sourceItems[15];
+            $sourceItem['text'] = $text;
+            $sourceItem['sourcePdfGlobalSourceIndex'] = $sourceIndex;
+            $sourceItem['sourceGeometry']['x1'] = $x1;
+            $sourceItem['sourceGeometry']['x2'] = $x1 + max(12.0, strlen($text) * 4.0);
+            $sourceItems[] = $sourceItem;
+        }
+        $items = [];
+        for ($sourceIndex = 0; $sourceIndex < 15; $sourceIndex++) {
+            $items[] = $fallback($sourceItems[$sourceIndex], $sourceIndex);
+        }
+        $compact = static fn (string $text): string => preg_replace('/\s+/u', '', $text) ?? '';
+        $ranges = [];
+        foreach ([15, 16, 17] as $sourceIndex) {
+            $ranges[] = [
+                'sourceIndex' => $sourceIndex,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen($compact($sourceItems[$sourceIndex]['text'])),
+            ];
+        }
+        $composite = [
+            'text' => 'heuristic selects value with minimum vm. The composite continuation remains complete.',
+            'page' => 1,
+            'sourceStream' => 7,
+            'x1' => 330.0,
+            'y1' => 568.0,
+            'x2' => 720.0,
+            'y2' => 580.0,
+            'fontSize' => 10.0,
+            'sourceOrderStart' => 15,
+            'sourceOrderEnd' => 17,
+            'sourcePdfExactSourceRanges' => $ranges,
+            'sourcePdfGlobalSourceIndexes' => [15, 16, 17],
+            'sourcePdfSourceIndex' => 15,
+            'sourcePdfSourceIndexEnd' => 17,
+            'sourcePdfSourceIndexes' => [15, 16, 17],
+            'sourcePdfExactRangeFragmentSequence' => true,
+            'sourcePdfExactPositionedText' => true,
+            'sourceVerifiedGeometryText' => true,
+            'sourcePdfFallbackOrderProjection' => true,
+        ];
+        $items[] = $composite;
+
+        $marked = $mark($items, $sourceItems);
+        $proof = $marked[0]['sourcePdfExactSideTableContinuationAfter'] ?? null;
+        $t->true(is_array($proof));
+        $t->same(3, $proof['version'] ?? null);
+        $t->same(17, $proof['continuationSourceEnd'] ?? null);
+        $t->same(array_map(
+            static fn (array $range): array => $range + [
+                'projectionDigest' => hash(
+                    'sha256',
+                    $compact($sourceItems[$range['sourceIndex']]['text'])
+                ),
+            ],
+            $ranges
+        ), $proof['continuationExactRanges'] ?? null);
+        $t->same($proof, $marked[15]['sourcePdfExactSideTableContinuationBefore'] ?? null);
+        $records = $normalize(array_map(
+            static fn (array $item): array => ['text' => $item['text'], 'layout' => $item],
+            $marked
+        ));
+        $repaired = $repair($records);
+        $t->contains(
+            'Then the heuristic selects value with minimum vm. The composite continuation remains complete.',
+            implode("\n", $repaired)
+        );
+
+        $sameTotalTampered = $marked;
+        $sameTotalTampered[15]['sourcePdfExactSourceRanges'][0]['sourceEnd']--;
+        $sameTotalTampered[15]['sourcePdfExactSourceRanges'][1]['sourceEnd']++;
+        $sameTotalRepaired = $repair($normalize(array_map(
+            static fn (array $item): array => ['text' => $item['text'], 'layout' => $item],
+            $sameTotalTampered
+        )));
+        $t->true(!str_contains(implode("\n", $sameTotalRepaired), 'Then the heuristic'));
+
+        $partialItems = $items;
+        $partialItems[15]['sourcePdfExactSourceRanges'][1]['sourceEnd']--;
+        $partial = $mark($partialItems, $sourceItems);
+        $t->true(!isset($partial[0]['sourcePdfExactSideTableContinuationAfter']));
+
+        $nonconsecutiveItems = $items;
+        [$nonconsecutiveItems[15]['sourcePdfExactSourceRanges'][1], $nonconsecutiveItems[15]['sourcePdfExactSourceRanges'][2]] = [
+            $nonconsecutiveItems[15]['sourcePdfExactSourceRanges'][2],
+            $nonconsecutiveItems[15]['sourcePdfExactSourceRanges'][1],
+        ];
+        $nonconsecutive = $mark($nonconsecutiveItems, $sourceItems);
+        $t->true(!isset($nonconsecutive[0]['sourcePdfExactSideTableContinuationAfter']));
+    },
+    'rejects incomplete or tampered exact pdf side-table continuation proofs' => static function (TestRunner $t) use ($exactSideTableContinuationFixture): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $fallback = (function (array $sourceItem, int $sourceIndex): ?array {
+            return $this->sourcePdfExactGeometryFallbackLineItem($sourceItem, $sourceIndex);
+        })->bindTo($reader, PdfReader::class);
+        $mark = (function (array $items, array $sourceItems): array {
+            return $this->markSourcePdfExactSideTableContinuationPairs($items, $sourceItems, []);
+        })->bindTo($reader, PdfReader::class);
+        $normalize = (function (array $records): array {
+            return $this->normalizePdfExactSourceSemanticRecoveryRecords($records);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $records): array {
+            return $this->trimIncompletePdfMergedLinesBeforeStackedTables(
+                $this->mergeRepairedProseLinesPreservingStackedTables($records)
+            );
+        })->bindTo($reader, PdfReader::class);
+        $setSourceSha256(str_repeat('b', 64));
+
+        $sourceItems = $exactSideTableContinuationFixture();
+        $items = [];
+        foreach ($sourceItems as $sourceIndex => $sourceItem) {
+            $items[] = $fallback($sourceItem, $sourceIndex);
+        }
+        $items[15]['sourcePdfExactSourceRanges'][0]['sourceEnd']--;
+        $partial = $mark($items, $sourceItems);
+        $t->true(!isset($partial[0]['sourcePdfExactSideTableContinuationAfter']));
+        $partialRepaired = $repair($normalize(array_map(
+            static fn (array $item): array => ['text' => $item['text'], 'layout' => $item],
+            $partial
+        )));
+        $t->true(!str_contains(implode("\n", $partialRepaired), 'Then the heuristic'));
+        $t->contains('The completed explanation remains readable.', implode("\n", $partialRepaired));
+
+        $items = [];
+        foreach ($sourceItems as $sourceIndex => $sourceItem) {
+            $items[] = $fallback($sourceItem, $sourceIndex);
+        }
+        $tampered = $mark($items, $sourceItems);
+        $tampered[15]['sourcePdfExactSideTableContinuationBefore']['proofDigest'] = str_repeat('0', 64);
+        $tamperedRepaired = $repair($normalize(array_map(
+            static fn (array $item): array => ['text' => $item['text'], 'layout' => $item],
+            $tampered
+        )));
+        $t->true(!str_contains(implode("\n", $tamperedRepaired), 'Then the heuristic'));
+
+        $nearbySourceItems = $exactSideTableContinuationFixture(598.0);
+        $nearbyItems = [];
+        foreach ($nearbySourceItems as $sourceIndex => $sourceItem) {
+            $nearbyItems[] = $fallback($sourceItem, $sourceIndex);
+        }
+        $nearby = $mark($nearbyItems, $nearbySourceItems);
+        $t->true(!isset($nearby[0]['sourcePdfExactSideTableContinuationAfter']));
+    },
     'drops interrupted pdf continuation runs between complete visual blocks' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $remove = (function (array $records): array {
@@ -7467,8 +14182,8 @@ return [
     },
     'restores adjacent source PDF continuations without joining intervening panels' => static function (TestRunner $t): void {
         $reader = new PdfReader();
-        $restore = (function (array $items): array {
-            return $this->restoreSourcePdfAdjacentVisualContinuations($items);
+        $restore = (function (array $items, array $sourceItems): array {
+            return $this->restoreSourcePdfAdjacentVisualContinuations($items, $sourceItems);
         })->bindTo($reader, PdfReader::class);
         $merge = (function (array $records): array {
             return $this->mergeRepairedProseLines($records);
@@ -7483,10 +14198,32 @@ return [
             'x2' => 420.0,
             'fontSize' => 10.0,
         ];
+        $leadText = 'Camping is only permitted in developed campgrounds. For backcountry';
+        $tailText = 'camping options require a permit from the Backcountry Information Center.';
+        $sourceItems = [];
+        for ($index = 0; $index <= 20; $index++) {
+            $sourceItems[] = [
+                'page' => 1,
+                'stream' => $index === 20 ? 9 : 4,
+                'text' => 'Unused source record ' . $index,
+                'sourcePdfGlobalSourceIndex' => $index,
+            ];
+        }
+        $sourceItems[10]['text'] = $leadText;
+        $sourceItems[11]['text'] = $tailText;
+        $sourceItems[20]['text'] = 'Map legend';
+        $range = static fn (int $index, string $text): array => [[
+            'sourceIndex' => $index,
+            'sourceStart' => 0,
+            'sourceEnd' => strlen(preg_replace('/\s+/u', '', $text) ?? ''),
+        ]];
         $items = $restore([
             array_replace($body, [
-                'text' => 'Camping is only permitted in developed campgrounds. For backcountry',
+                'text' => $leadText,
                 'sourcePdfSourceIndex' => 10,
+                'sourcePdfGlobalSourceIndex' => 10,
+                'sourcePdfExactPositionedText' => true,
+                'sourcePdfExactSourceRanges' => $range(10, $leadText),
                 'y1' => 700.0,
                 'y2' => 712.0,
             ]),
@@ -7502,15 +14239,28 @@ return [
                 'fontSize' => 9.0,
             ],
             array_replace($body, [
-                'text' => 'camping options require a permit from the Backcountry Information Center.',
+                'text' => $tailText,
                 'sourcePdfSourceIndex' => 11,
+                'sourcePdfGlobalSourceIndex' => 11,
+                'sourcePdfExactSourceRanges' => $range(11, $tailText),
+                'sourcePdfExactGeometryFallback' => true,
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                'sourceGeometry' => [
+                    'page' => 1,
+                    'stream' => 4,
+                    'x1' => 340.0,
+                    'y1' => 320.0,
+                    'x2' => 590.0,
+                    'y2' => 332.0,
+                    'orientation' => 'horizontal',
+                ],
                 'x1' => 340.0,
                 'x2' => 590.0,
                 'y1' => 320.0,
                 'y2' => 332.0,
                 'forceBlockBreakBefore' => true,
             ]),
-        ]);
+        ], $sourceItems);
 
         $t->same([
             'Camping is only permitted in developed campgrounds. For backcountry',
@@ -7600,6 +14350,244 @@ return [
             $items
         )));
     },
+    'keeps an exact source continuation adjacent when verified columns are rebuilt' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $prioritize = (function (array $items, array $sourceItems): array {
+            return $this->prioritizeSourcePdfVerifiedCrossColumnContinuationPages($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $restore = (function (array $items, array $sourceItems): array {
+            return $this->restoreSourcePdfAdjacentVisualContinuations($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $minorPanelMatches = (function (array $item, array $sourceItem, int $sourceIndex): bool {
+            return $this->sourcePdfItemIsExactMinorFontPanelSuccessor(
+                $item,
+                $sourceItem,
+                $sourceIndex
+            );
+        })->bindTo($reader, PdfReader::class);
+        $t->true($prioritize instanceof \Closure);
+        $t->true($restore instanceof \Closure);
+        $t->true($minorPanelMatches instanceof \Closure);
+
+        $predecessorText = 'The verified body sentence remains unfinished';
+        $fallbackText = ', later, for additional requirements';
+        $continuationText = 'continues at the top of the second body column.';
+        $sourceItems = [];
+        for ($index = 0; $index <= 30; $index++) {
+            $sourceItems[] = [
+                'page' => 1,
+                'stream' => 4,
+                'text' => 'Unused source record ' . $index,
+                'sourcePdfGlobalSourceIndex' => $index,
+            ];
+        }
+        $sourceItems[28]['text'] = $predecessorText;
+        $sourceItems[29]['text'] = $fallbackText;
+        $sourceItems[30]['text'] = $continuationText;
+        $exactRange = static fn (int $index, string $text): array => [[
+            'sourceIndex' => $index,
+            'sourceStart' => 0,
+            'sourceEnd' => strlen(preg_replace('/\s+/u', '', $text) ?? ''),
+        ]];
+
+        $layout = [
+            'page' => 1,
+            'sourceStream' => 4,
+            'sourceStructuredGeometry' => true,
+            'sourceVerifiedGeometryText' => true,
+            'x1' => 72.0,
+            'x2' => 300.0,
+            'fontSize' => 10.0,
+        ];
+        $predecessor = array_replace($layout, [
+            'text' => $predecessorText,
+            'sourceGeometryColumn' => 0,
+            'sourcePdfSourceIndex' => 28,
+            'sourcePdfGlobalSourceIndex' => 28,
+            'sourcePdfExactPositionedText' => true,
+            'sourcePdfExactSourceRanges' => $exactRange(28, $predecessorText),
+            'y1' => 300.0,
+            'y2' => 312.0,
+        ]);
+        $continuation = array_replace($layout, [
+            'text' => $continuationText,
+            'sourceGeometryColumn' => 1,
+            'sourcePdfSourceIndex' => 30,
+            'x1' => 330.0,
+            'x2' => 560.0,
+            'y1' => 700.0,
+            'y2' => 712.0,
+        ]);
+        $fallback = [
+            'text' => $fallbackText,
+            'page' => 1,
+            'sourceStream' => 4,
+            'sourcePdfSourceIndex' => 29,
+            'sourcePdfGlobalSourceIndex' => 29,
+            'sourcePdfExactSourceRanges' => $exactRange(29, $fallbackText),
+            'sourcePdfExactGeometryFallback' => true,
+            'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            'sourceGeometry' => [
+                'page' => 1,
+                'stream' => 4,
+                'x1' => 570.0,
+                'y1' => 300.0,
+                'x2' => 610.0,
+                'y2' => 312.0,
+                'orientation' => 'horizontal',
+            ],
+            'forceBlockBreakBefore' => true,
+        ];
+
+        $rebuilt = $prioritize([$predecessor, $fallback, $continuation], $sourceItems);
+        $t->same([28, 29, 30], array_column($rebuilt, 'sourcePdfSourceIndex'));
+        $t->same(true, $rebuilt[1]['sourcePdfCrossPanelContinuation'] ?? null);
+        $t->true(!isset($rebuilt[1]['forceBlockBreakBefore']));
+
+        $uppercaseFallback = $fallback;
+        $uppercaseFallback['text'] = ', Later, a separate statement begins';
+        $uppercaseSourceItems = $sourceItems;
+        $uppercaseSourceItems[29]['text'] = $uppercaseFallback['text'];
+        $uppercaseFallback['sourcePdfExactSourceRanges'] = $exactRange(29, $uppercaseFallback['text']);
+        $uppercase = $prioritize(
+            [$predecessor, $uppercaseFallback, $continuation],
+            $uppercaseSourceItems
+        );
+        $t->same([28, 30, 29], array_column($uppercase, 'sourcePdfSourceIndex'));
+        $t->true(!isset($uppercase[2]['sourcePdfCrossPanelContinuation']));
+
+        $partialFallback = $fallback;
+        $partialFallback['sourcePdfExactSourceRanges'][0]['sourceEnd']--;
+        $partial = $prioritize([$predecessor, $partialFallback, $continuation], $sourceItems);
+        $t->same([28, 30, 29], array_column($partial, 'sourcePdfSourceIndex'));
+
+        $unprovedPredecessor = $predecessor;
+        unset($unprovedPredecessor['sourcePdfExactPositionedText']);
+        $unproved = $prioritize([$unprovedPredecessor, $fallback, $continuation], $sourceItems);
+        $t->same([28, 30, 29], array_column($unproved, 'sourcePdfSourceIndex'));
+
+        $minorTailText = 'A verified body sentence remains unfinished here';
+        $minorPanelText = '2';
+        $minorContinuationText = 'continues at the top of the second body column.';
+        $minorSource = static function (
+            string $text,
+            int $sourceIndex,
+            float $x1,
+            float $y1,
+            float $x2,
+            float $y2
+        ): array {
+            return [
+                'page' => 3,
+                'stream' => 8,
+                'text' => $text,
+                'sourcePdfGlobalSourceIndex' => $sourceIndex,
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                'sourceGeometry' => [
+                    'page' => 3,
+                    'stream' => 8,
+                    'x1' => $x1,
+                    'y1' => $y1,
+                    'x2' => $x2,
+                    'y2' => $y2,
+                    'orientation' => 'horizontal',
+                ],
+            ];
+        };
+        $minorSourceItems = [
+            $minorSource($minorTailText, 0, 72.0, 300.0, 300.0, 312.0),
+            $minorSource($minorPanelText, 1, 72.0, 288.0, 78.0, 294.0),
+            $minorSource($minorContinuationText, 2, 330.0, 700.0, 560.0, 712.0),
+        ];
+        $minorBase = [
+            'page' => 3,
+            'sourceStream' => 8,
+            'sourceStructuredGeometry' => true,
+            'sourceVerifiedGeometryText' => true,
+            'fontSize' => 10.0,
+        ];
+        $minorTail = array_replace($minorBase, [
+            'text' => $minorTailText,
+            'sourceGeometryColumn' => 0,
+            'sourcePdfSourceIndex' => 0,
+            'sourcePdfGlobalSourceIndex' => 0,
+            'sourcePdfExactPositionedText' => true,
+            'sourcePdfExactSourceRanges' => $exactRange(0, $minorTailText),
+            'x1' => 72.0,
+            'y1' => 300.0,
+            'x2' => 300.0,
+            'y2' => 312.0,
+        ]);
+        $minorPanel = [
+            'text' => $minorPanelText,
+            'page' => 3,
+            'sourceStream' => 8,
+            'sourcePdfSourceIndex' => 1,
+            'sourcePdfGlobalSourceIndex' => 1,
+            'sourcePdfExactSourceRanges' => $exactRange(1, $minorPanelText),
+            'sourceMinorFontFlow' => true,
+            'x1' => 72.0,
+            'y1' => 288.0,
+            'x2' => 78.0,
+            'y2' => 294.0,
+            'fontSize' => 6.0,
+        ];
+        $minorContinuation = array_replace($minorBase, [
+            'text' => $minorContinuationText,
+            'sourceGeometryColumn' => 1,
+            'sourcePdfSourceIndex' => 2,
+            'sourcePdfGlobalSourceIndex' => 2,
+            'sourcePdfExactPositionedText' => true,
+            'sourcePdfExactSourceRanges' => $exactRange(2, $minorContinuationText),
+            'x1' => 330.0,
+            'y1' => 700.0,
+            'x2' => 560.0,
+            'y2' => 712.0,
+        ]);
+
+        $t->same(true, $minorPanelMatches($minorPanel, $minorSourceItems[1], 1));
+        $minorRebuilt = $prioritize(
+            [$minorTail, $minorPanel, $minorContinuation],
+            $minorSourceItems
+        );
+        $t->same([0, 2, 1], array_column($minorRebuilt, 'sourcePdfSourceIndex'));
+
+        $shiftedMinorPanel = $minorPanel;
+        $shiftedMinorPanel['y1'] += 1.0;
+        $t->same(false, $minorPanelMatches($shiftedMinorPanel, $minorSourceItems[1], 1));
+        $partialMinorPanel = $minorPanel;
+        $partialMinorPanel['sourcePdfExactSourceRanges'][0]['sourceEnd']--;
+        $t->same(false, $minorPanelMatches($partialMinorPanel, $minorSourceItems[1], 1));
+
+        $duplicateFallback = $fallback;
+        $duplicateFallback['forceBlockBreakBefore'] = false;
+        $duplicate = $prioritize(
+            [$predecessor, $fallback, $duplicateFallback, $continuation],
+            $sourceItems
+        );
+        $t->same([28, 30, 29, 29], array_column($duplicate, 'sourcePdfSourceIndex'));
+        $t->true(!isset($duplicate[2]['sourcePdfCrossPanelContinuation']));
+
+        $adjacentSource = [];
+        $adjacentItems = [];
+        for ($index = 0; $index < 200; $index++) {
+            $text = 'Exact adjacent source record ' . $index . '.';
+            $adjacentSource[] = [
+                'page' => 2,
+                'stream' => 7,
+                'text' => $text,
+                'sourcePdfGlobalSourceIndex' => 1000 + $index,
+            ];
+            $adjacentItems[] = [
+                'text' => $text,
+                'page' => 2,
+                'sourceStream' => 7,
+                'sourcePdfSourceIndex' => $index,
+                'sourcePdfGlobalSourceIndex' => 1000 + $index,
+            ];
+        }
+        $t->same($adjacentItems, $restore($adjacentItems, $adjacentSource));
+    },
     'restores source pdf continuations separated by a smaller footer panel' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $restore = (function (array $items, array $sourceItems): array {
@@ -7628,15 +14616,32 @@ return [
             'x2' => 290.0,
             'fontSize' => 8.0,
         ];
+        $leadText = 'The body flow reaches the end of its first column';
+        $continuationText = 'continues at the top of the next body column.';
         $sourceItems = [];
         for ($index = 0; $index <= 7; $index++) {
-            $sourceItems[] = ['page' => 1, 'stream' => 4, 'text' => 'source record ' . $index];
+            $sourceItems[] = [
+                'page' => 1,
+                'stream' => 4,
+                'text' => 'source record ' . $index,
+                'sourcePdfGlobalSourceIndex' => $index,
+            ];
         }
-        $items = $restore([
+        $sourceItems[3]['text'] = $leadText;
+        $sourceItems[7]['text'] = $continuationText;
+        $range = static fn (int $index, string $text): array => [[
+            'sourceIndex' => $index,
+            'sourceStart' => 0,
+            'sourceEnd' => strlen(preg_replace('/\s+/u', '', $text) ?? ''),
+        ]];
+        $inputItems = [
             array_replace($body, [
-                'text' => 'The body flow reaches the end of its first column',
+                'text' => $leadText,
                 'sourceGeometryColumn' => 0,
                 'sourcePdfSourceIndex' => 3,
+                'sourcePdfGlobalSourceIndex' => 3,
+                'sourcePdfExactPositionedText' => true,
+                'sourcePdfExactSourceRanges' => $range(3, $leadText),
                 'y1' => 300.0,
                 'y2' => 312.0,
             ]),
@@ -7660,16 +14665,20 @@ return [
                 'y2' => 250.0,
             ]),
             array_replace($body, [
-                'text' => 'continues at the top of the next body column.',
+                'text' => $continuationText,
                 'sourceGeometryColumn' => 1,
                 'sourcePdfSourceIndex' => 7,
+                'sourcePdfGlobalSourceIndex' => 7,
+                'sourcePdfExactPositionedText' => true,
+                'sourcePdfExactSourceRanges' => $range(7, $continuationText),
                 'x1' => 330.0,
                 'x2' => 560.0,
                 'y1' => 700.0,
                 'y2' => 712.0,
                 'forceBlockBreakBefore' => true,
             ]),
-        ], $sourceItems);
+        ];
+        $items = $restore($inputItems, $sourceItems);
 
         $t->same([
             'The body flow reaches the end of its first column',
@@ -7679,19 +14688,42 @@ return [
             'Small footer line three.',
         ], array_column($items, 'text'));
         $t->true(($items[1]['sourcePdfCrossPanelContinuation'] ?? false) === true);
+        $duplicateTargetItems = $inputItems;
+        $duplicateTargetItems[] = $inputItems[4];
+        $duplicateTargetItems[5]['forceBlockBreakBefore'] = false;
+        $duplicateTarget = $restore($duplicateTargetItems, $sourceItems);
+        $t->same([
+            $leadText,
+            'Small footer line one.',
+            'Small footer line two.',
+            'Small footer line three.',
+            $continuationText,
+            $continuationText,
+        ], array_column($duplicateTarget, 'text'));
+        $t->true(!isset($duplicateTarget[4]['sourcePdfCrossPanelContinuation']));
         $t->same('The body flow reaches the end of its first column continues at the top of the next body column.', $merge(array_map(
             static fn (array $item): array => ['text' => $item['text'], 'layout' => $item],
             $items
         ))[0] ?? null);
     },
-    'drops isolated unproven geometry-only PDF fragments' => static function (TestRunner $t): void {
+    'preserves isolated unproven geometry-only PDF fragments' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $trim = (function (array $records): array {
             return $this->trimIncompletePdfUnstructuredFragments($records);
         })->bindTo($reader, PdfReader::class);
         $t->true($trim instanceof \Closure);
 
-        $t->same([], $trim([[
+        $t->same([[
+            'text' => 'prohibited.',
+            'layout' => [
+                'page' => 1,
+                'x1' => 420.0,
+                'x2' => 470.0,
+                'y1' => 120.0,
+                'y2' => 132.0,
+                'fontSize' => 9.0,
+            ],
+        ]], $trim([[
             'text' => 'prohibited.',
             'layout' => [
                 'page' => 1,
@@ -7765,10 +14797,38 @@ return [
         $t->same('heading', $blocks[0]->type);
         $t->same('paragraph', $blocks[1]->type);
 
-        $list = $blocksFromLines(['1. First item', '2. Second item']);
+        $sourceOnlyLayout = static fn (int $index): array => [
+            'page' => 8,
+            'sourceStream' => 8,
+            'sourcePdfGlobalSourceIndex' => $index,
+        ];
+        $listLines = $merge([
+            ['text' => '1. First item', 'layout' => $sourceOnlyLayout(100)],
+            ['text' => '2. Second item', 'layout' => $sourceOnlyLayout(101)],
+        ]);
+        $list = $blocksFromLines($listLines);
         $t->same(1, count($list));
         $t->same('ordered_list', $list[0]->type);
         $t->same(2, count($list[0]->children));
+        $t->same(0, count(array_filter($list, static fn (AstNode $block): bool => $block->type === 'heading')));
+
+        $subsections = $merge([
+            ['text' => 'Previous prose ends here.', 'layout' => $sourceOnlyLayout(200)],
+            ['text' => '5.2 Register Allocation', 'layout' => $sourceOnlyLayout(201)],
+            ['text' => 'Allocation details continue here.', 'layout' => $sourceOnlyLayout(202)],
+            ['text' => '6.1 Calling Compiled Traces', 'layout' => $sourceOnlyLayout(203)],
+            ['text' => 'Compiled trace details continue here.', 'layout' => $sourceOnlyLayout(204)],
+        ]);
+        $t->same([
+            'Previous prose ends here.',
+            '5.2 Register Allocation',
+            'Allocation details continue here.',
+            '6.1 Calling Compiled Traces',
+            'Compiled trace details continue here.',
+        ], $subsections);
+        $subsectionBlocks = $blocksFromLines($subsections);
+        $t->same('heading', $subsectionBlocks[1]->type);
+        $t->same('heading', $subsectionBlocks[3]->type);
     },
     'preserves unproven soft hyphens visibly in repaired pdf prose' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -7783,7 +14843,8 @@ return [
 
         $t->same([
             'A hard-to-treat condition remains.',
-            'An alcohol-based hand rub helps.',
+            'An alcohol-',
+            'based hand rub helps.',
         ], $repair([
             "A hard\u{00AD}to\u{00AD}treat condition remains.",
             "An alcohol\u{00AD}",
@@ -7816,7 +14877,7 @@ return [
         $t->same('During the 20th century, human use changed.', $repair('During the 20th century, human use changed.'));
         $t->same('Meet at 12:30, then leave.', $repair('Meet at 12:30,then leave.'));
         $t->same('Published in 2019, 2020.', $repair('Published in 2019,2020.'));
-        $t->same('The ratio is 1: 2 ratio.', $repair('The ratio is 1:2ratio.'));
+        $t->same('The ratio is 1:2 ratio.', $repair('The ratio is 1:2ratio.'));
         $t->same('The report includes 20 years of data.', $repair('The report includes 20years of data.'));
     },
     'repairs numeric prose boundaries before capitalized continuations' => static function (TestRunner $t): void {
@@ -7827,7 +14888,7 @@ return [
         $t->true($repair instanceof \Closure);
 
         $t->same('Section 1. A capitalized continuation follows.', $repair('Section 1.A capitalized continuation follows.'));
-        $t->same('The trace T 45. T 16 loops back to its header.', $repair('The trace T 45.T16 loops back to its header.'));
+        $t->same('The trace T 45. T16 loops back to its header.', $repair('The trace T 45.T16 loops back to its header.'));
     },
     'keeps title-like pdf text in an unfinished wrapped body line' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -7901,7 +14962,7 @@ return [
             ])],
         ]);
 
-        $t->same(['The 3d-raytrace workload remains.'], $merged);
+        $t->same(['The 3d- raytrace workload remains.'], $merged);
 
         $compound = $merge([
             ['text' => 'The date-format-', 'layout' => $layout],
@@ -7910,7 +14971,7 @@ return [
                 'y2' => 700.0,
             ])],
         ]);
-        $t->same(['The date-format-xparb workload remains.'], $compound);
+        $t->same(['The date-format- xparb workload remains.'], $compound);
     },
     'separates inline greek pdf variables from following latin prose' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -7938,8 +14999,10 @@ return [
         $t->true($repair instanceof \Closure);
 
         $t->same([
-            'resources were most abundant, includ -ing the floodplain.',
-            'They bring deep-ocean nutrients to the red -wood forest.',
+            'resources were most abundant, includ -',
+            'ing the floodplain.',
+            'They bring deep-ocean nutrients to the red -',
+            'wood forest.',
         ], $repair([
             'resources were most abundant, includ -',
             'ing the floodplain.',
@@ -7948,7 +15011,9 @@ return [
         ]));
 
         $t->same([
-            'efficient type-specialized machine code hard-to-treat infections',
+            'efficient type-',
+            'specialized machine code hard-',
+            'to-treat infections',
         ], $repair([
             'efficient type-',
             'specialized machine code',
@@ -8171,7 +15236,7 @@ return [
         $t->same([
             '[3] SPECJVM98 - http://www.spec.org/jvm98/.',
             '[1] LuaJIT roadmap 2008 - http://lua-users.org/lists/lua-l/2008-02/msg00051.html.',
-            'The report section 20 remained readable.',
+            'The report section20 remained readable.',
         ], $repaired);
     },
     'preserves bibliography dash before pdf url continuation lines' => static function (TestRunner $t): void {
@@ -8192,7 +15257,8 @@ return [
 
         $t->same([
             'Mozilla browser and Thunderbird email client - http://www.mozilla.com.',
-            'efficient type-specialized machine code',
+            'efficient type-',
+            'specialized machine code',
             'More information - www.example.org/path',
         ], $repaired);
     },
@@ -8220,6 +15286,11 @@ return [
         $t->same(1, $meta['pdfDetectedTables']);
         $t->same(1, $meta['pdfGeometryTables']);
         $t->same('geometry', $meta['pdfTableReconstruction']);
+        $t->same(true, $meta['pdfSourceBindingComplete'] ?? null);
+        $t->same(null, $meta['pdfSourceBindingFailureReason'] ?? null);
+        $t->same(0, $meta['pdfSourceDisposition']['unresolvedOccurrenceCount'] ?? null);
+        $t->same(0, $meta['pdfSourceDisposition']['unclaimedEmittedSignificantCharacterCount'] ?? null);
+        $t->same(true, $meta['pdfSemanticTextComplete'] ?? null);
         $t->contains('Project summary for case CASE-104', $blocks);
         $t->contains('<!-- wp:table -->', $blocks);
         $t->contains('<th>Product</th><th>Qty</th><th>Size</th>', $blocks);
@@ -8259,6 +15330,70 @@ return [
         $t->contains('<td>Alpha</td><td>2</td><td>$6.00</td>', $blocks);
         $t->true(!str_contains($html, '</p><p>may affect'));
         $t->true(!str_contains($html, '</p><p>without turning every visual line'));
+    },
+    'composes the canonical independent and geometry candidate page union' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $compose = (function (
+            array $independentPages,
+            array $geometryPages,
+            array $sourceLines,
+            array $sourceLayouts
+        ): array {
+            $this->sourceSha256 = str_repeat('4', 64);
+            $selected = $this->pdfCanonicalSelectedCandidatePages(
+                $independentPages,
+                $geometryPages
+            );
+            $blocks = $this->blocksWithPositionedPdfTablePages(
+                $sourceLines,
+                $sourceLayouts,
+                $selected
+            );
+            $proofs = $this->pdfFinalOutputPageProofs($blocks);
+
+            return [
+                'selected' => $selected,
+                'blocks' => $this->pdfBlocksWithoutOutputPageProofs($blocks),
+                'proofs' => $proofs,
+            ];
+        })->bindTo($reader, PdfReader::class);
+        $t->true($compose instanceof \Closure);
+
+        $candidateParagraph = static fn (string $sentinel, string $text): AstNode => new AstNode(
+            'paragraph',
+            ['candidateSentinel' => $sentinel, 'text' => $text],
+            [new AstNode('text', ['text' => $text])]
+        );
+        $independentPages = [
+            1 => [$candidateParagraph('independent', 'Independent candidate')],
+            2 => [$candidateParagraph('overridden-independent', 'Wrong candidate')],
+        ];
+        $geometryPages = [
+            2 => [new AstNode('table', ['candidateSentinel' => 'geometry'], [
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', ['text' => 'Geometry candidate'], [
+                            new AstNode('text', ['text' => 'Geometry candidate']),
+                        ]),
+                    ]),
+                ]),
+            ])],
+        ];
+        $result = $compose(
+            $independentPages,
+            $geometryPages,
+            ['Fallback page one', 'Fallback page two'],
+            [['page' => 1], ['page' => 2]]
+        );
+
+        $t->same([1, 2], array_keys($result['selected']));
+        $t->same(2, count($result['blocks']));
+        $t->same('independent', $result['blocks'][0]->attr('candidateSentinel'));
+        $t->same('geometry', $result['blocks'][1]->attr('candidateSentinel'));
+        $t->same('Independentcandidate', $result['proofs'][1]['projection'] ?? null);
+        $t->same('Geometrycandidate', $result['proofs'][2]['projection'] ?? null);
+        $t->true(!$result['blocks'][0]->hasAttr('sourcePdfOutputPageProof'));
+        $t->true(!$result['blocks'][1]->hasAttr('sourcePdfOutputPageProof'));
     },
     'preserves non table pdf pages when later pages contain geometry tables' => static function (TestRunner $t): void {
         $pageOne = 'BT /F1 12 Tf '
@@ -8320,6 +15455,29 @@ return [
         $t->true(($meta['pdfGeometryLayoutHypothesisCount'] ?? 0) > 0);
         $t->same('independent-columns', $meta['pdfGeometryLayoutHypotheses'][0]['selected'] ?? null);
         $t->true(($meta['pdfGeometryLayoutHypotheses'][0]['columnMinusTableMargin'] ?? 0) >= 0.12);
+        $t->same('mapped-occurrence-exact', $meta['pdfSourceDisposition']['orderProofStrength'] ?? null);
+        $t->same(true, $meta['pdfSourceDisposition']['sourceEdgeMappingComplete'] ?? null);
+        $t->same(6, $meta['pdfSourceDisposition']['sourceEdgeCount'] ?? null);
+        $t->same(true, $meta['pdfSemanticTextComplete'] ?? null);
+        foreach ($document->children as $block) {
+            $t->true(str_starts_with((string) $block->attr('sourceNodeId', ''), 'pdf-source-node-'));
+            $t->true(is_array($block->attr('sourceLineIds')) && $block->attr('sourceLineIds') !== []);
+            $t->true(is_array($block->attr('sourceLineEdges')) && $block->attr('sourceLineEdges') !== []);
+        }
+        $t->true(!str_contains(
+            json_encode($meta['pdfSourceDisposition']['sourceEdges'] ?? []) ?: '',
+            'Morning begins'
+        ));
+        $repeat = (new PdfReader(['pdfGeometryTables' => true, 'pdfRepairProseText' => true]))->read($pdf);
+        $repeatMeta = $repeat->attr('meta');
+        $t->same(
+            array_map(static fn (AstNode $node): mixed => $node->attr('sourceNodeId'), $document->children),
+            array_map(static fn (AstNode $node): mixed => $node->attr('sourceNodeId'), $repeat->children)
+        );
+        $t->same(
+            $meta['pdfSourceDisposition']['sourceEdgeDigest'] ?? null,
+            $repeatMeta['pdfSourceDisposition']['sourceEdgeDigest'] ?? null
+        );
         $t->true(!str_contains($blocks, '<!-- wp:table -->'));
         $t->true(!str_contains($blocks, '<!-- wp:code -->'));
         $t->true(!str_contains($blocks, '<pre'));
@@ -8634,9 +15792,20 @@ return [
     },
     'requires occurrence-local geometry for independent columns and recurring furniture dispositions' => static function (TestRunner $t): void {
         $reader = new PdfReader();
-        $dispositionsFor = (function (array $hypotheses, array $profile, array $items): array {
+        $dispositionsFor = (function (
+            array $hypotheses,
+            array $profile,
+            array $items,
+            array $acceptedPages = []
+        ): array {
             $this->geometryLayoutHypotheses = $hypotheses;
             $this->documentLayoutProfile = $profile;
+            $this->sourceProofCandidateBlocksByPage = [];
+            foreach ($acceptedPages as $page) {
+                $this->sourceProofCandidateBlocksByPage[(int) $page] = [
+                    new AstNode('paragraph', ['text' => 'Binding-verified page candidate.']),
+                ];
+            }
 
             return $this->explicitPdfSourceDispositions($items);
         })->bindTo($reader, PdfReader::class);
@@ -8747,13 +15916,21 @@ return [
                 '2' => ['bbox' => [0, 0, 612, 792], 'edgeCandidates' => [$edgeCandidate]],
             ],
         ];
-        $dispositions = $dispositionsFor([[
+        $hypotheses = [[
             'page' => 1,
             'bounds' => ['x1' => 60, 'y1' => 150, 'x2' => 540, 'y2' => 260],
             'columnMinusTableMargin' => 0.32,
             'selected' => 'independent-columns',
             'features' => ['cueRatio' => 0.4],
-        ]], $profile, $items);
+        ]];
+        $scoredOnly = $dispositionsFor($hypotheses, $profile, $items);
+        $t->same(
+            ['footer-edge'],
+            array_keys($scoredOnly),
+            'A scored column hypothesis cannot authorize a source disposition before its page candidate passes binding.'
+        );
+
+        $dispositions = $dispositionsFor($hypotheses, $profile, $items, [1]);
 
         $t->same(['column-inside', 'footer-edge'], array_keys($dispositions));
         $t->same('semantic-structure', $dispositions['column-inside']['disposition']);
@@ -8826,6 +16003,11 @@ return [
         $t->same(1, $meta['pdfDetectedTables']);
         $t->same(1, substr_count($blocks, '<!-- wp:table -->'));
         $t->true(($meta['pdfIndependentColumnRegions'] ?? 0) > 0);
+        $t->same(true, $meta['pdfSourceBindingComplete'] ?? null);
+        $t->same(null, $meta['pdfSourceBindingFailureReason'] ?? null);
+        $t->same(0, $meta['pdfSourceDisposition']['unresolvedOccurrenceCount'] ?? null);
+        $t->same(0, $meta['pdfSourceDisposition']['unclaimedEmittedSignificantCharacterCount'] ?? null);
+        $t->same(true, $meta['pdfSemanticTextComplete'] ?? null);
         $t->contains('<th>Item</th><th>Qty</th><th>Total</th>', $blocks);
         $t->contains('<td>Lantern</td><td>2</td><td>$8.00</td>', $blocks);
         $t->true(strpos($blocks, 'Left four.') < strpos($blocks, '<!-- wp:table -->'));
@@ -10460,6 +17642,9 @@ return [
         $meta = $document->attr('meta');
 
         $t->same(0, $meta['pdfTextLines']);
+        $t->same(false, $meta['pdfNoTextClassificationComplete']);
+        $t->same('incomplete', $meta['pdfTextLayerStatus']);
+        $t->same(false, $meta['pdfNeedsOcr']);
         $t->same(['Fcid', 'Fvert'], $meta['pdfMissingUnicodeFonts']);
         $t->same(['Fcid' => 'Identity-H', 'Fvert' => 'Identity-V'], $meta['pdfMissingUnicodeFontEncodings']);
         $t->same(2, $meta['pdfSuppressedGlyphRuns']);
@@ -11281,6 +18466,42 @@ return [
         $t->same(0, $meta['pdfSuppressedGlyphRuns']);
         $t->contains('PDF OK', $blocks);
         $t->true(!str_contains($blocks, 'z'));
+    },
+    'decorates an untagged Hebrew pdf paragraph before WordPress serialization without changing text order' => static function (TestRunner $t): void {
+        $content = 'BT /Frtl 12 Tf 72 720 Td <0001> Tj ET';
+        $cmap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "1 begincodespacerange\n"
+            . "<0000> <FFFF>\n"
+            . "endcodespacerange\n"
+            . "1 beginbfchar\n"
+            . "<0001> <05E905DC05D505DD002005E205D505DC05DD>\n"
+            . "endbfchar\n"
+            . "endcmap\n"
+            . "CMapName currentdict /RtlParagraphCMap defineresource pop\n"
+            . "end\n"
+            . "end\n";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /Frtl 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /RtlParagraph /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "trailer << /Root 1 0 R >>\n%%EOF";
+
+        $document = (new PdfReader())->read($pdf);
+        $wordpress = PandocConverter::write($document, 'blocks');
+        $plain = trim(PandocConverter::write($document, 'plain'));
+        $disposition = $document->attr('meta')['pdfSourceDisposition'];
+
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('rtl', $document->children[0]->attr('htmlAttributes')['dir'] ?? null);
+        $t->same('שלום עולם', $plain);
+        $t->contains('<p dir="rtl">שלום עולם</p>', $wordpress);
+        $t->same(0, $disposition['unresolvedOccurrenceCount']);
+        $t->same(true, $disposition['orderedSignificantCharactersPreserved']);
     },
     'does not emit blocks from unmapped custom subset glyph streams' => static function (TestRunner $t): void {
         $content = "BT /F1 12 Tf 72 720 Td "

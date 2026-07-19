@@ -47,6 +47,36 @@ function pandoc_layout_fixture_image_object(int $width = 100, int $height = 100)
         . $jpeg . "\nendstream";
 }
 
+function pandoc_layout_fixture_page_image_object(string $extraDictionary = ''): string
+{
+    $jpeg = base64_decode(
+        '/9j/4AAQSkZJRgABAQEAYABgAAD//gA7Q1JFQVRPUjogZ2QtanBlZyB2MS4wICh1c2luZyBJSkcgSlBF'
+        . 'RyB2ODApLCBxdWFsaXR5ID0gODAK/9sAQwAGBAUGBQQGBgUGBwcGCAoQCgoJCQoUDg8MEBcUGBgXFBYW'
+        . 'Gh0lHxobIxwWFiAsICMmJykqKRkfLTAtKDAlKCko/9sAQwEHBwcKCAoTCgoTKBoWGigoKCgoKCgoKCgo'
+        . 'KCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgo/8AAEQgAZABkAwEiAAIRAQMRAf/E'
+        . 'AB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUS'
+        . 'ITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RV'
+        . 'VldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TF'
+        . 'xsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgME'
+        . 'BQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1Lw'
+        . 'FWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKD'
+        . 'hIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp'
+        . '6vLz9PX29/j5+v/aAAwDAQACEQMRAD8A+qaKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooo'
+        . 'oAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooo'
+        . 'oAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooo'
+        . 'oAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/9k=',
+        true
+    );
+    if (!is_string($jpeg)) {
+        throw new RuntimeException('Unable to build full-page JPEG fixture.');
+    }
+
+    return '<< /Type /XObject /Subtype /Image /Width 100 /Height 100'
+        . ' /ColorSpace /DeviceRGB /BitsPerComponent 8' . $extraDictionary
+        . ' /Filter /DCTDecode /Length ' . strlen($jpeg) . " >>\nstream\n"
+        . $jpeg . "\nendstream";
+}
+
 function pandoc_avif_raster_fixture(int $width, int $height): string
 {
     // A minimal bounded AVIF container for media-path verification. The
@@ -66,18 +96,104 @@ function pandoc_png_raster_fixture(int $width, int $height): string
 /**
  * @param array<int, string> $extraObjects
  */
-function pandoc_single_page_layout_fixture(string $content, string $xObjects, array $extraObjects, string $extraResources = ''): string
+function pandoc_single_page_layout_fixture(
+    string $content,
+    string $xObjects,
+    array $extraObjects,
+    string $extraResources = '',
+    string $extraPageEntries = ''
+): string
 {
     $pdf = "%PDF-1.4\n"
         . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
         . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] /Resources << /Font << /F1 9 0 R >> /XObject << {$xObjects} >> {$extraResources} >> >>\nendobj\n"
-        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R {$extraPageEntries} >>\nendobj\n"
         . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
     foreach ($extraObjects as $number => $body) {
         $pdf .= $number . " 0 obj\n" . $body . "\nendobj\n";
     }
 
     return $pdf . "9 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF\n";
+}
+
+/** @return array{pdf:string,selected:string,decoy:string} */
+function pandoc_incremental_image_decoy_fixture(): array
+{
+    $selected = base64_decode('/9j/4AAQSkZJRgABAQAAAQABAAD/2w==', true);
+    if (!is_string($selected)) {
+        throw new RuntimeException('Unable to build selected JPEG fixture.');
+    }
+    $decoy = "\xff\xd8STALE-UNREFERENCED-IMAGE\xff\xd9";
+    $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
+        . "q 100 0 0 40 72 620 cm /A Do Q\n"
+        . "BT /F1 12 Tf 72 540 Td (After) Tj ET";
+    $objects = [
+        1 => '<< /Type /Catalog /Pages 2 0 R >>',
+        2 => '<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] '
+            . '/Resources << /Font << /F1 6 0 R >> /XObject << /A 5 1 R >> >> >>',
+        3 => '<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>',
+        4 => '<< /Length ' . strlen($content) . ">>\nstream\n{$content}\nendstream",
+        5 => '<< /Type /XObject /Subtype /Image /Width 100 /Height 40 /ColorSpace /DeviceRGB '
+            . '/BitsPerComponent 8 /Filter /DCTDecode /Length ' . strlen($selected)
+            . ">>\nstream\n{$selected}\nendstream",
+        6 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    ];
+
+    $pdf = "%PDF-1.4\n";
+    $offsets = [0 => 0];
+    foreach ($objects as $number => $body) {
+        $offsets[$number] = strlen($pdf);
+        $generation = $number === 5 ? 1 : 0;
+        $pdf .= $number . ' ' . $generation . " obj\n{$body}\nendobj\n";
+    }
+    $xrefOffset = strlen($pdf);
+    $pdf .= "xref\n0 7\n0000000000 65535 f \n";
+    for ($number = 1; $number <= 6; $number++) {
+        $generation = $number === 5 ? 1 : 0;
+        $pdf .= sprintf('%010d %05d n ', $offsets[$number], $generation) . "\n";
+    }
+    $pdf .= "trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n{$xrefOffset}\n%%EOF\n";
+    // An incremental section carries a stale duplicate body but its newest
+    // xref deliberately keeps the original selected offset authoritative.
+    // A raw object regex sees the decoy last and used to reselect its bytes.
+    $pdf .= "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 999 /Height 999 "
+        . '/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' . strlen($decoy)
+        . ">>\nstream\n{$decoy}\nendstream\nendobj\n";
+    $incrementalXrefOffset = strlen($pdf);
+    $pdf .= "xref\n5 1\n" . sprintf('%010d 00001 n ', $offsets[5]) . "\n"
+        . "trailer\n<< /Size 7 /Root 1 0 R /Prev {$xrefOffset} >>\n"
+        . "startxref\n{$incrementalXrefOffset}\n%%EOF\n";
+
+    return ['pdf' => $pdf, 'selected' => $selected, 'decoy' => $decoy];
+}
+
+/** @param list<string> $pageContents */
+function pandoc_repeated_image_pages_fixture(array $pageContents): string
+{
+    $pageObjects = [];
+    $objects = [];
+    $nextObject = 3;
+    foreach ($pageContents as $content) {
+        $pageObject = $nextObject++;
+        $contentObject = $nextObject++;
+        $pageObjects[] = $pageObject . ' 0 R';
+        $objects[$pageObject] = '<< /Type /Page /Parent 2 0 R /Contents ' . $contentObject . ' 0 R >>';
+        $objects[$contentObject] = '<< /Length ' . strlen($content) . ">>\nstream\n{$content}\nendstream";
+    }
+    $imageObject = $nextObject;
+    $imageBody = pandoc_layout_fixture_image_object(100, 40);
+    $objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+    $objects[2] = '<< /Type /Pages /Kids [' . implode(' ', $pageObjects) . '] /Count ' . count($pageObjects)
+        . ' /MediaBox [0 0 612 792] /Resources << /XObject << /A ' . $imageObject . ' 0 R >> >> >>';
+    $objects[$imageObject] = $imageBody;
+    ksort($objects, SORT_NUMERIC);
+
+    $pdf = "%PDF-1.4\n";
+    foreach ($objects as $number => $body) {
+        $pdf .= $number . " 0 obj\n{$body}\nendobj\n";
+    }
+
+    return $pdf . "%%EOF\n";
 }
 
 return [
@@ -328,6 +444,334 @@ return [
         $t->contains('style="width:120pt; height:30pt"', $output);
         $t->true(in_array('extract-media-pdf-image-loaded:7:small', $result['diagnostics'], true));
         $t->true(in_array('extract-media-pdf-image-loaded:8:small', $result['diagnostics'], true));
+        $t->same(false, $result['sourceIntegrity']['complete'] ?? null);
+        $t->same(true, $result['sourceIntegrity']['pdfDocumentComplete'] ?? null);
+        $t->same(true, $result['sourceIntegrity']['pdfTextComplete'] ?? null);
+        $t->same(false, $result['sourceIntegrity']['pdfSemanticTextComplete'] ?? null);
+        $t->same(true, $result['sourceIntegrity']['pdfSourceBindingComplete'] ?? null);
+        $t->same(true, $result['sourceIntegrity']['pdfSourceEdgeMappingComplete'] ?? null);
+        $t->same(true, $result['sourceIntegrity']['pdfOrderedSignificantCharactersPreserved'] ?? null);
+        $t->same(0, $result['sourceIntegrity']['pdfUnresolvedSourceOccurrences'] ?? null);
+        $t->same('incomplete', $result['sourceIntegrity']['pdfTextLayerStatus'] ?? null);
+        $t->same([1], $result['sourceIntegrity']['pdfTextRepresentedPageNumbers'] ?? null);
+        $t->same([], $result['sourceIntegrity']['pdfPagesNeedingImageRepresentation'] ?? null);
+        $t->same([1], $result['sourceIntegrity']['pdfRepresentedPageNumbers'] ?? null);
+        $t->same(true, $result['sourceIntegrity']['pdfPageRepresentationComplete'] ?? null);
+    },
+    'selects painted image bytes from the active xref rather than a trailing stale object' => static function (TestRunner $t): void {
+        $fixture = pandoc_incremental_image_decoy_fixture();
+        $result = PandocConverter::convertWithMedia($fixture['pdf'], 'pdf', 'wordpress', [
+            'extractMedia' => ['destination' => 'media', 'imageMode' => 'all'],
+        ]);
+
+        $t->same(1, count($result['media']));
+        $t->same(sha1($fixture['selected']), $result['media'][0]['sha1'] ?? null);
+        $t->true(($result['media'][0]['sha1'] ?? null) !== sha1($fixture['decoy']));
+        $t->contains('data-pandoc-pdf-occurrence-id="pdf-image-p1-n1-o', $result['output']);
+        $t->contains('data-pandoc-pdf-page="1"', $result['output']);
+        $t->contains('data-pandoc-pdf-paint-order="1"', $result['output']);
+        $t->contains('data-pandoc-pdf-image-x1="72"', $result['output']);
+        $occurrenceDiagnostics = array_values(array_filter(
+            $result['diagnostics'],
+            static fn (string $diagnostic): bool => str_starts_with($diagnostic, 'extract-media-pdf-occurrence:')
+        ));
+        $t->same(1, count($occurrenceDiagnostics));
+        $t->contains(':bbox-72-620-172-660:', $occurrenceDiagnostics[0]);
+        $t->contains(':resolved:placed-media-attachment', $occurrenceDiagnostics[0]);
+    },
+    'keeps repeated cross-page paintings distinct and records no-caption and missing-page occurrences' => static function (TestRunner $t): void {
+        $content = 'q 100 0 0 40 72 620 cm /A Do Q';
+        $pdf = pandoc_repeated_image_pages_fixture([$content, $content, $content, $content]);
+        $imageObject = 11;
+        $placements = [];
+        for ($page = 1; $page <= 4; $page++) {
+            $placements[] = [
+                'id' => 'pdf-image-p' . $page . '-n1-o' . $imageObject,
+                'kind' => 'image-xobject',
+                'page' => $page,
+                'paintOrder' => 1,
+                'object' => $imageObject,
+                'bbox' => ['x1' => 72.0, 'y1' => 620.0, 'x2' => 172.0, 'y2' => 660.0],
+                'visible' => true,
+                'confidence' => 'high',
+                'placementEligible' => true,
+                'precedingText' => null,
+                'followingText' => $page < 3 ? 'Repeated caption' : null,
+                'disposition' => 'pending',
+                'dispositionReason' => null,
+            ];
+        }
+        $document = new AstNode('document', ['meta' => [
+            'pdfImagePlacements' => $placements,
+            'pdfProcessedPageNumbers' => [1, 2, 3],
+        ]], [
+            new AstNode('paragraph', ['text' => 'Repeated caption']),
+            new AstNode('paragraph', ['text' => 'Repeated caption']),
+        ]);
+
+        $result = (new \PortLibs\Pandoc\PandocMediaExtractor())->extract(
+            $document,
+            $pdf,
+            'pdf',
+            ['destination' => 'media', 'imageMode' => 'all']
+        );
+        $html = PandocConverter::write($result['document'], 'html');
+        $meta = $result['document']->attr('meta', []);
+        $dispositions = $meta['pdfMediaOccurrenceDispositions'] ?? [];
+
+        $t->same(1, count($result['entries']));
+        $t->same(2, substr_count($html, '<img'));
+        $t->same([
+            'pdf-image-p1-n1-o11',
+            'pdf-image-p2-n1-o11',
+            'pdf-image-p3-n1-o11',
+            'pdf-image-p4-n1-o11',
+        ], array_column($dispositions, 'id'));
+        $t->same(['resolved', 'resolved', 'unresolved', 'unresolved'], array_column($dispositions, 'disposition'));
+        $t->same('image-placement-unanchored', $dispositions[2]['reason'] ?? null);
+        $t->same('missing-page-occurrence', $dispositions[3]['reason'] ?? null);
+        $t->same(false, $meta['pdfMediaOccurrenceComplete'] ?? null);
+        $t->contains('data-pandoc-pdf-occurrence-id="pdf-image-p1-n1-o11"', $html);
+        $t->contains('data-pandoc-pdf-occurrence-id="pdf-image-p2-n1-o11"', $html);
+        $t->same(4, count(array_filter(
+            $result['diagnostics'],
+            static fn (string $diagnostic): bool => str_starts_with($diagnostic, 'extract-media-pdf-occurrence:')
+        )));
+    },
+    'maps repeated captions by source page and uses page-region geometry for captionless siblings' => static function (TestRunner $t): void {
+        $content = "q 100 0 0 40 72 650 cm /A Do Q\nq 100 0 0 40 72 570 cm /A Do Q";
+        $pdf = pandoc_repeated_image_pages_fixture([$content, $content]);
+        $placements = [];
+        foreach ([1, 2] as $page) {
+            foreach ([1 => 650.0, 2 => 570.0] as $paintOrder => $y) {
+                $placements[] = [
+                    'id' => 'pdf-image-p' . $page . '-n' . $paintOrder . '-o7',
+                    'kind' => 'image-xobject',
+                    'page' => $page,
+                    'paintOrder' => $paintOrder,
+                    'object' => 7,
+                    'bbox' => ['x1' => 72.0, 'y1' => $y, 'x2' => 172.0, 'y2' => $y + 40.0],
+                    'visible' => true,
+                    'confidence' => 'high',
+                    'placementEligible' => true,
+                    'precedingText' => $paintOrder === 1 ? 'Repeated caption' : null,
+                    'followingText' => null,
+                    'disposition' => 'pending',
+                    'dispositionReason' => null,
+                ];
+            }
+        }
+        $document = new AstNode('document', ['meta' => [
+            'pdfImagePlacements' => $placements,
+            'pdfProcessedPageNumbers' => [1, 2],
+        ]], [
+            new AstNode('paragraph', ['text' => 'Repeated caption']),
+            new AstNode('paragraph', ['text' => 'Repeated caption']),
+        ]);
+
+        $result = (new \PortLibs\Pandoc\PandocMediaExtractor())->extract(
+            $document,
+            $pdf,
+            'pdf',
+            ['destination' => 'media', 'imageMode' => 'all']
+        );
+        $html = PandocConverter::write($result['document'], 'html');
+        $dispositions = $result['document']->attr('meta', [])['pdfMediaOccurrenceDispositions'] ?? [];
+
+        $t->same(1, count($result['entries']));
+        $t->same(4, substr_count($html, '<img'));
+        $t->same(['resolved', 'resolved', 'resolved', 'resolved'], array_column($dispositions, 'disposition'));
+        $t->same([0, 0, 1, 1], array_column($dispositions, 'anchorIndex'));
+        $t->same(2, count(array_filter(
+            $result['diagnostics'],
+            static fn (string $diagnostic): bool => str_starts_with(
+                $diagnostic,
+                'extract-media-pdf-image-region-fallback:7:page-'
+            )
+        )));
+    },
+    'important mode keeps strong semantic image anchors and explicitly omits weak or unsafe occurrences' => static function (TestRunner $t): void {
+        $content = "q 100 0 0 100 72 620 cm /A Do Q\n"
+            . "q 100 0 0 100 72 480 cm /A Do Q\n"
+            . 'q 100 0 0 100 72 340 cm /A Do Q';
+        $pdf = pandoc_single_page_layout_fixture(
+            $content,
+            '/A 7 0 R',
+            [7 => pandoc_layout_fixture_image_object(100, 100)]
+        );
+        $base = [
+            'kind' => 'image-xobject',
+            'page' => 1,
+            'object' => 7,
+            'visible' => true,
+            'confidence' => 'high',
+        ];
+        $placements = [
+            array_replace($base, [
+                'id' => 'pdf-image-p1-n1-o7',
+                'paintOrder' => 1,
+                'bbox' => ['x1' => 72.0, 'y1' => 620.0, 'x2' => 172.0, 'y2' => 720.0],
+                'placementEligible' => true,
+                'precedingText' => 'Strong caption',
+                'followingText' => null,
+            ]),
+            array_replace($base, [
+                'id' => 'pdf-image-p1-n2-o7',
+                'paintOrder' => 2,
+                'bbox' => ['x1' => 72.0, 'y1' => 480.0, 'x2' => 172.0, 'y2' => 580.0],
+                'placementEligible' => true,
+                'precedingText' => 'weak fragment',
+                'followingText' => null,
+            ]),
+            array_replace($base, [
+                'id' => 'pdf-image-p1-n3-o7',
+                'paintOrder' => 3,
+                'bbox' => ['x1' => 72.0, 'y1' => 340.0, 'x2' => 172.0, 'y2' => 440.0],
+                'placementEligible' => false,
+                'disposition' => 'unresolved',
+                'dispositionReason' => 'image-placement-uncertain',
+            ]),
+        ];
+        $document = new AstNode('document', ['meta' => ['pdfImagePlacements' => $placements]], [
+            new AstNode('paragraph', ['text' => 'Strong caption extended']),
+            new AstNode('paragraph', ['text' => 'A larger sentence with weak fragment inside']),
+        ]);
+
+        $result = (new \PortLibs\Pandoc\PandocMediaExtractor())->extract(
+            $document,
+            $pdf,
+            'pdf',
+            ['destination' => 'media', 'imageMode' => 'important']
+        );
+        $html = PandocConverter::write($result['document'], 'html');
+        $dispositions = $result['document']->attr('meta', [])['pdfMediaOccurrenceDispositions'] ?? [];
+
+        $t->same(1, count($result['entries']));
+        $t->same(1, substr_count($html, '<img'));
+        $t->same(['resolved', 'intentional_omission', 'intentional_omission'], array_column($dispositions, 'disposition'));
+        $t->same([
+            'placed-media-attachment',
+            'image-mode-weak-semantic-anchor',
+            'image-mode-placement-ineligible',
+        ], array_column($dispositions, 'reason'));
+        $t->same(true, $result['document']->attr('meta', [])['pdfMediaOccurrenceComplete'] ?? null);
+    },
+    'records ineligible conflict and decoder failures against their exact painted occurrences' => static function (TestRunner $t): void {
+        $content = "q 20 0 0 20 72 680 cm /A Do Q\n"
+            . "q 20 0 0 20 72 620 cm /A Do Q\n"
+            . 'q 20 0 0 20 72 560 cm /A Do Q';
+        $opaque = 'abc';
+        $image = '<< /Type /XObject /Subtype /Image /Width 100 /Height 100 /ColorSpace /DeviceGray '
+            . '/BitsPerComponent 1 /Filter /JBIG2Decode /Length ' . strlen($opaque)
+            . ">>\nstream\n{$opaque}\nendstream";
+        $pdf = pandoc_single_page_layout_fixture($content, '/A 7 0 R', [7 => $image]);
+        $base = [
+            'kind' => 'image-xobject',
+            'page' => 1,
+            'object' => 7,
+            'visible' => true,
+            'confidence' => 'high',
+            'bbox' => ['x1' => 72.0, 'y1' => 560.0, 'x2' => 92.0, 'y2' => 580.0],
+        ];
+        $placements = [
+            array_replace($base, [
+                'id' => 'pdf-image-p1-n1-o7',
+                'paintOrder' => 1,
+                'placementEligible' => false,
+                'disposition' => 'unresolved',
+                'dispositionReason' => 'image-placement-uncertain',
+            ]),
+            array_replace($base, [
+                'id' => 'pdf-image-p1-n2-o7',
+                'paintOrder' => 2,
+                'placementEligible' => true,
+                'precedingText' => 'After',
+                'followingText' => 'Before',
+                'disposition' => 'pending',
+                'dispositionReason' => null,
+            ]),
+            array_replace($base, [
+                'id' => 'pdf-image-p1-n3-o7',
+                'paintOrder' => 3,
+                'placementEligible' => true,
+                'precedingText' => 'Before',
+                'followingText' => 'After',
+                'disposition' => 'pending',
+                'dispositionReason' => null,
+            ]),
+        ];
+        $document = new AstNode('document', ['meta' => ['pdfImagePlacements' => $placements]], [
+            new AstNode('paragraph', ['text' => 'Before']),
+            new AstNode('paragraph', ['text' => 'After']),
+        ]);
+
+        $result = (new \PortLibs\Pandoc\PandocMediaExtractor())->extract(
+            $document,
+            $pdf,
+            'pdf',
+            ['destination' => 'media', 'imageMode' => 'all']
+        );
+        $dispositions = $result['document']->attr('meta', [])['pdfMediaOccurrenceDispositions'] ?? [];
+
+        $t->same(0, count($result['entries']));
+        $t->same([
+            'image-placement-uncertain',
+            'image-anchor-order-conflict',
+            'image-decoder-unavailable-JBIG2Decode',
+        ], array_column($dispositions, 'reason'));
+        $t->same(['unresolved', 'unresolved', 'unresolved'], array_column($dispositions, 'disposition'));
+        $t->same(3, count(array_filter(
+            $result['diagnostics'],
+            static fn (string $diagnostic): bool => str_starts_with($diagnostic, 'extract-media-pdf-occurrence:')
+        )));
+    },
+    'accounts for every one of fifty painted occurrences when the page placement cap is reached' => static function (TestRunner $t): void {
+        $commands = [];
+        $placements = [];
+        for ($paintOrder = 1; $paintOrder <= 50; $paintOrder++) {
+            $y = 740 - ($paintOrder * 5);
+            $commands[] = 'q 30 0 0 20 72 ' . $y . ' cm /A Do Q';
+            $placements[] = [
+                'id' => 'pdf-image-p1-n' . $paintOrder . '-o5',
+                'kind' => 'image-xobject',
+                'page' => 1,
+                'paintOrder' => $paintOrder,
+                'object' => 5,
+                'bbox' => ['x1' => 72.0, 'y1' => (float) $y, 'x2' => 102.0, 'y2' => (float) ($y + 20)],
+                'visible' => true,
+                'confidence' => 'high',
+                'placementEligible' => true,
+                'precedingText' => 'Before',
+                'followingText' => 'After',
+                'disposition' => 'pending',
+                'dispositionReason' => null,
+            ];
+        }
+        $pdf = pandoc_repeated_image_pages_fixture([implode("\n", $commands)]);
+        $document = new AstNode('document', ['meta' => ['pdfImagePlacements' => $placements]], [
+            new AstNode('paragraph', ['text' => 'Before']),
+            new AstNode('paragraph', ['text' => 'After']),
+        ]);
+
+        $result = (new \PortLibs\Pandoc\PandocMediaExtractor())->extract(
+            $document,
+            $pdf,
+            'pdf',
+            ['destination' => 'media', 'imageMode' => 'all']
+        );
+        $html = PandocConverter::write($result['document'], 'html');
+        $dispositions = $result['document']->attr('meta', [])['pdfMediaOccurrenceDispositions'] ?? [];
+        $reasons = array_count_values(array_column($dispositions, 'reason'));
+
+        $t->same(50, count($dispositions));
+        $t->same(16, count(array_filter($dispositions, static fn (array $record): bool => ($record['disposition'] ?? '') === 'resolved')));
+        $t->same(34, $reasons['image-placement-page-limit'] ?? 0);
+        $t->same(16, substr_count($html, '<img'));
+        $t->same(50, count(array_filter(
+            $result['diagnostics'],
+            static fn (string $diagnostic): bool => str_starts_with($diagnostic, 'extract-media-pdf-occurrence:')
+        )));
+        $t->true(in_array('extract-media-pdf-image-placement-page-limit:1', $result['diagnostics'], true));
     },
     'collects image placement anchors when geometry tables and prose repair are disabled' => static function (TestRunner $t): void {
         $document = PandocConverter::read(pandoc_positioned_pdf_image_fixture(), 'pdf', [
@@ -385,6 +829,292 @@ return [
         $t->true($before !== false && $image !== false && $after !== false);
         $t->true($before < $image && $image < $after);
     },
+    'represents a single image-backed page without exposing its non-painting text layer' => static function (TestRunner $t): void {
+        $content = "q 612 0 0 792 0 0 cm /Scan Do Q\n"
+            . "BT /F1 12 Tf 3 Tr 72 720 Td (SECRET-INVISIBLE) Tj ET";
+        $pageImage = pandoc_layout_fixture_page_image_object();
+        $pdf = pandoc_single_page_layout_fixture(
+            $content,
+            '/Scan 7 0 R',
+            [7 => $pageImage]
+        );
+        $document = PandocConverter::read($pdf, 'pdf', ['pdfCollectImagePlacements' => true]);
+        $meta = $document->attr('meta', []);
+
+        $t->same(0, count($document->children));
+        $t->same('unsupported_no_text', $meta['pdfTextLayerStatus'] ?? null);
+        $t->same(true, $meta['pdfNeedsOcr'] ?? null);
+        $t->same(1, $meta['pdfTextVisibility']['suppressedNonPaintingRuns'] ?? null);
+        $t->same([0.0, 0.0, 612.0, 792.0], array_values($meta['pdfImagePlacements'][0]['pageBox'] ?? []));
+        $t->same('MediaBox', $meta['pdfImagePlacements'][0]['pageBoxSource'] ?? null);
+        $t->same(false, $meta['pdfImagePlacements'][0]['sourceImageHasSoftMask'] ?? null);
+        $t->same(false, $meta['pdfImagePlacements'][0]['sourceImageHasExplicitMask'] ?? null);
+        $t->same(false, $meta['pdfImagePlacements'][0]['sourceImageHasOptionalContent'] ?? null);
+        $t->same(false, $meta['pdfImagePlacements'][0]['sourceImageHasIntent'] ?? null);
+        $t->same(false, $meta['pdfImagePlacements'][0]['sourceImageHasInterpolate'] ?? null);
+        $t->same(1.0, $meta['pdfImagePlacements'][0]['nonStrokingAlpha'] ?? null);
+        $t->same(true, $meta['pdfImagePlacements'][0]['graphicsStateBlendModeNormal'] ?? null);
+        $t->same(true, $meta['pdfImagePlacements'][0]['pageImageGraphicsStateSafe'] ?? null);
+        $t->same(false, $meta['pdfImagePlacements'][0]['pageHasGroup'] ?? null);
+        $t->same(false, $meta['pdfImagePlacements'][0]['pageHasDefaultDeviceColorSpace'] ?? null);
+        $t->same(false, $meta['pdfImagePlacements'][0]['requiresCompositing'] ?? null);
+        $t->same([], $meta['pdfTextRepresentedPageNumbers'] ?? null);
+        $t->same([1], $meta['pdfPagesNeedingImageRepresentation'] ?? null);
+        $t->same([], $meta['pdfRepresentedPageNumbers'] ?? null);
+        $t->same(false, $meta['pdfPageRepresentationComplete'] ?? null);
+
+        $result = PandocConverter::convertWithMedia($pdf, 'pdf', 'wordpress', [
+            'extractMedia' => ['destination' => 'media', 'imageMode' => 'important'],
+        ]);
+
+        $t->same(1, count($result['media']));
+        $t->contains('src="media/pdf/image-7.jpg"', $result['output']);
+        $t->contains('alt="PDF page 1 image; editable text unavailable"', $result['output']);
+        $t->contains('data-pandoc-pdf-image-placement="page"', $result['output']);
+        $t->true(!str_contains($result['output'], 'SECRET-INVISIBLE'));
+        $t->true(in_array('extract-media-pdf-page-image-anchor:7:page-1', $result['diagnostics'], true));
+        $t->true(in_array('extract-media-pdf-page-image-jpeg-sanitized:7', $result['diagnostics'], true));
+        preg_match('/stream\n(.*)\nendstream/s', $pageImage, $sourceImageMatch);
+        $sourceImageBytes = $sourceImageMatch[1] ?? '';
+        $t->contains('CREATOR', $sourceImageBytes);
+        $t->true(($result['media'][0]['sha1'] ?? '') !== sha1($sourceImageBytes));
+        $extractedPage = (new \PortLibs\Pandoc\PandocMediaExtractor())->extract(
+            $document,
+            $pdf,
+            'pdf',
+            ['destination' => 'media', 'imageMode' => 'important']
+        );
+        $t->true(!str_contains($extractedPage['entries'][0]['contents'] ?? '', 'CREATOR'));
+        $t->same(true, $result['sourceIntegrity']['complete'] ?? null);
+        $t->same('unsupported_no_text', $result['sourceIntegrity']['pdfTextLayerStatus'] ?? null);
+        $t->same(true, $result['sourceIntegrity']['pdfNeedsOcr'] ?? null);
+        $t->same([1], $result['sourceIntegrity']['pdfRepresentedPageNumbers'] ?? null);
+        $t->same(true, $result['sourceIntegrity']['pdfPageRepresentationComplete'] ?? null);
+    },
+    'keeps a sparse visible stamp after an OCR-backed page image' => static function (TestRunner $t): void {
+        $content = "q 612 0 0 792 0 0 cm /Scan Do Q\n"
+            . "BT /F1 12 Tf 3 Tr 72 720 Td (HIDDEN-OCR-ONE) Tj "
+            . "0 -16 Td (HIDDEN-OCR-TWO) Tj 0 -16 Td (HIDDEN-OCR-THREE) Tj "
+            . "0 -16 Td (HIDDEN-OCR-FOUR) Tj 0 Tr 0 -680 Td (Visible source stamp) Tj ET";
+        $pdf = pandoc_single_page_layout_fixture(
+            $content,
+            '/Scan 7 0 R',
+            [7 => pandoc_layout_fixture_page_image_object()]
+        );
+        $document = PandocConverter::read($pdf, 'pdf', ['pdfCollectImagePlacements' => true]);
+        $meta = $document->attr('meta', []);
+        $t->same([1], $meta['pdfTextRepresentedPageNumbers'] ?? null);
+        $t->same([1], $meta['pdfPagesNeedingImageRepresentation'] ?? null);
+        $t->same([], $meta['pdfRepresentedPageNumbers'] ?? null);
+        $t->same(false, $meta['pdfPageRepresentationComplete'] ?? null);
+
+        $result = PandocConverter::convertWithMedia($pdf, 'pdf', 'wordpress', [
+            'extractMedia' => ['destination' => 'media', 'imageMode' => 'important'],
+        ]);
+        $output = $result['output'];
+        $image = strpos($output, 'data-pandoc-pdf-image-placement="page"');
+        $stamp = strpos($output, 'Visible source stamp');
+
+        $t->same(1, count($result['media']));
+        $t->true($image !== false && $stamp !== false && $image < $stamp);
+        $t->true(!str_contains($output, 'HIDDEN-OCR'));
+        $t->true(array_filter(
+            $result['diagnostics'],
+            static fn (string $diagnostic): bool => str_ends_with(
+                $diagnostic,
+                ':resolved:page-image-with-sparse-visible-overlay'
+            )
+        ) !== []);
+        $t->same('unsupported_no_text', $result['sourceIntegrity']['pdfTextLayerStatus'] ?? null);
+        $t->same(true, $result['sourceIntegrity']['pdfNeedsOcr'] ?? null);
+        $t->same([1], $result['sourceIntegrity']['pdfRepresentedPageNumbers'] ?? null);
+        $t->same(true, $result['sourceIntegrity']['pdfPageRepresentationComplete'] ?? null);
+    },
+    'fails closed for page images whose raw stream cannot reproduce page compositing' => static function (TestRunner $t): void {
+        $safeImage = pandoc_layout_fixture_page_image_object();
+        $invalidJpeg = 'not-a-jpeg';
+        $cases = [
+            'image-soft-mask' => [
+                'image' => pandoc_layout_fixture_page_image_object(' /SMask 8 0 R'),
+                'objects' => [8 => pandoc_layout_fixture_page_image_object()],
+                'placementKey' => 'sourceImageHasSoftMask',
+                'placementValue' => true,
+            ],
+            'image-explicit-mask' => [
+                'image' => pandoc_layout_fixture_page_image_object(' /Mask [0 255 0 255 0 255]'),
+                'placementKey' => 'sourceImageHasExplicitMask',
+                'placementValue' => true,
+            ],
+            'image-optional-content-and-visual-overrides' => [
+                'image' => pandoc_layout_fixture_page_image_object(
+                    ' /OC 8 0 R /Intent /RelativeColorimetric /Interpolate true'
+                ),
+                'objects' => [8 => '<< /Type /OCG /Name (Optional page raster) >>'],
+                'placementKey' => 'sourceImageHasOptionalContent',
+                'placementValue' => true,
+                'requiresCompositingValue' => false,
+            ],
+            'graphics-alpha' => [
+                'image' => $safeImage,
+                'resources' => '/ExtGState << /Unsafe << /ca 0.001 >> >>',
+                'graphicsState' => '/Unsafe gs ',
+                'placementKey' => 'nonStrokingAlpha',
+                'placementValue' => 0.001,
+            ],
+            'graphics-blend-mode' => [
+                'image' => $safeImage,
+                'resources' => '/ExtGState << /Unsafe << /BM /Multiply >> >>',
+                'graphicsState' => '/Unsafe gs ',
+                'placementKey' => 'graphicsStateBlendModeNormal',
+                'placementValue' => false,
+            ],
+            'graphics-transfer-and-overprint' => [
+                'image' => $safeImage,
+                'resources' => '/ExtGState << /Unsafe << /OP true /TR /Identity >> >>',
+                'graphicsState' => '/Unsafe gs ',
+                'placementKey' => 'pageImageGraphicsStateSafe',
+                'placementValue' => false,
+                'requiresCompositingValue' => false,
+            ],
+            'nondefault-decode' => [
+                'image' => pandoc_layout_fixture_page_image_object(' /Decode [1 0 1 0 1 0]'),
+            ],
+            'decode-parameters' => [
+                'image' => pandoc_layout_fixture_page_image_object(
+                    ' /DecodeParms << /Predictor 2 /Colors 3 /BitsPerComponent 8 /Columns 100 >>'
+                ),
+            ],
+            'device-cmyk' => [
+                'image' => str_replace('/DeviceRGB', '/DeviceCMYK', $safeImage),
+            ],
+            'invalid-dct-payload' => [
+                'image' => '<< /Type /XObject /Subtype /Image /Width 100 /Height 100'
+                    . ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '
+                    . strlen($invalidJpeg) . ">>\nstream\n" . $invalidJpeg . "\nendstream",
+            ],
+            'page-annotation' => [
+                'image' => $safeImage,
+                'objects' => [
+                    8 => '<< /Type /Annot /Subtype /Link /Rect [0 0 612 792]'
+                        . ' /A << /S /URI /URI (https://example.test/) >> >>',
+                ],
+                'pageEntries' => '/Annots [8 0 R]',
+            ],
+            'page-group' => [
+                'image' => $safeImage,
+                'pageEntries' => '/Group << /S /Transparency /I true /K false >>',
+                'placementKey' => 'pageHasGroup',
+                'placementValue' => true,
+                'requiresCompositingValue' => false,
+            ],
+            'page-default-device-color-space' => [
+                'image' => $safeImage,
+                'resources' => '/ColorSpace << /DefaultRGB /DeviceRGB >>',
+                'placementKey' => 'pageHasDefaultDeviceColorSpace',
+                'placementValue' => true,
+                'requiresCompositingValue' => false,
+            ],
+        ];
+
+        foreach ($cases as $name => $case) {
+            $content = 'q ' . ($case['graphicsState'] ?? '') . "612 0 0 792 0 0 cm /Scan Do Q\n"
+                . 'BT /F1 12 Tf 3 Tr 72 720 Td (NONPAINTING-OCR) Tj ET';
+            $pdf = pandoc_single_page_layout_fixture(
+                $content,
+                '/Scan 7 0 R',
+                [7 => $case['image']] + ($case['objects'] ?? []),
+                (string) ($case['resources'] ?? ''),
+                (string) ($case['pageEntries'] ?? '')
+            );
+            $document = PandocConverter::read($pdf, 'pdf', ['pdfCollectImagePlacements' => true]);
+            $placement = $document->attr('meta', [])['pdfImagePlacements'][0] ?? [];
+            if (isset($case['placementKey'])) {
+                $t->same(
+                    $case['placementValue'],
+                    $placement[$case['placementKey']] ?? null,
+                    $name . ' must retain its exact compositing fact.'
+                );
+                $t->same(
+                    $case['requiresCompositingValue'] ?? true,
+                    $placement['requiresCompositing'] ?? null,
+                    $name . ' must retain the independent image-compositing fact.'
+                );
+            }
+
+            $result = PandocConverter::convertWithMedia($pdf, 'pdf', 'wordpress', [
+                'extractMedia' => ['destination' => 'media', 'imageMode' => 'important'],
+            ]);
+
+            $t->same([], $result['media'], $name . ' must not expose the raw XObject as a page image.');
+            $t->true(
+                !str_contains($result['output'], 'data-pandoc-pdf-image-placement="page"'),
+                $name . ' must not claim page-image placement.'
+            );
+            $t->same(false, $result['sourceIntegrity']['complete'] ?? null, $name . ' must fail source integrity.');
+            $t->same([], $result['sourceIntegrity']['pdfRepresentedPageNumbers'] ?? null, $name . ' has no represented page.');
+            $t->same(
+                false,
+                $result['sourceIntegrity']['pdfPageRepresentationComplete'] ?? null,
+                $name . ' must leave page representation incomplete.'
+            );
+        }
+    },
+    'revalidates full page-image occurrence geometry instead of trusting a matching id and object' => static function (TestRunner $t): void {
+        $content = "q 612 0 0 792 0 0 cm /Scan Do Q\n"
+            . 'BT /F1 12 Tf 3 Tr 72 720 Td (NONPAINTING-OCR) Tj ET';
+        $pdf = pandoc_single_page_layout_fixture(
+            $content,
+            '/Scan 7 0 R',
+            [7 => pandoc_layout_fixture_page_image_object()]
+        );
+        $document = PandocConverter::read($pdf, 'pdf', ['pdfCollectImagePlacements' => true]);
+        $attrs = $document->attrs;
+        $meta = is_array($attrs['meta'] ?? null) ? $attrs['meta'] : [];
+        $original = $meta['pdfImagePlacements'][0] ?? [];
+        $meta['pdfImagePlacements'][0]['matrix'][0] = 611.9;
+        $meta['pdfImagePlacements'][0]['bbox']['x2'] = 611.9;
+        $attrs['meta'] = $meta;
+        $tampered = new AstNode($document->type, $attrs, $document->children);
+
+        $t->same($original['id'] ?? null, $meta['pdfImagePlacements'][0]['id'] ?? null);
+        $t->same($original['object'] ?? null, $meta['pdfImagePlacements'][0]['object'] ?? null);
+        $t->true(($original['matrix'][0] ?? null) !== ($meta['pdfImagePlacements'][0]['matrix'][0] ?? null));
+        $t->true(($original['bbox']['x2'] ?? null) !== ($meta['pdfImagePlacements'][0]['bbox']['x2'] ?? null));
+
+        $result = (new \PortLibs\Pandoc\PandocMediaExtractor())->extract(
+            $tampered,
+            $pdf,
+            'pdf',
+            ['destination' => 'media', 'imageMode' => 'important']
+        );
+        $resultMeta = $result['document']->attr('meta', []);
+
+        $t->same([], $result['entries']);
+        $t->true(!str_contains(PandocConverter::write($result['document'], 'wordpress'), '<img'));
+        $t->true(!in_array('extract-media-pdf-page-image-anchor:7:page-1', $result['diagnostics'], true));
+        $t->same([], $resultMeta['pdfRepresentedPageNumbers'] ?? null);
+        $t->same(false, $resultMeta['pdfPageRepresentationComplete'] ?? null);
+    },
+    'does not expose a raw page image when later vector paint can hide its pixels' => static function (TestRunner $t): void {
+        $content = "q 612 0 0 792 0 0 cm /Scan Do Q\n"
+            . "0 0 612 792 re f\n"
+            . "BT /F1 12 Tf 3 Tr 72 720 Td (SECRET-BEHIND-PAINT) Tj ET";
+        $pdf = pandoc_single_page_layout_fixture(
+            $content,
+            '/Scan 7 0 R',
+            [7 => pandoc_layout_fixture_page_image_object()]
+        );
+        $result = PandocConverter::convertWithMedia($pdf, 'pdf', 'wordpress', [
+            'extractMedia' => ['destination' => 'media', 'imageMode' => 'important'],
+        ]);
+
+        $t->same([], $result['media']);
+        $t->same('', $result['output']);
+        $t->true(!in_array('extract-media-pdf-page-image-anchor:7:page-1', $result['diagnostics'], true));
+        $t->same(false, $result['sourceIntegrity']['complete'] ?? null);
+        $t->same([], $result['sourceIntegrity']['pdfRepresentedPageNumbers'] ?? null);
+        $t->same(false, $result['sourceIntegrity']['pdfPageRepresentationComplete'] ?? null);
+    },
     'uses a dimension-validated AVIF supplemental raster for a painted PDF image' => static function (TestRunner $t): void {
         $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
             . "q 100 0 0 100 72 580 cm /A Do Q\n"
@@ -398,7 +1128,7 @@ return [
                     'destination' => 'media',
                     'imageMode' => 'all',
                     'pdfRasterImages' => [[
-                        'object' => '7',
+                        'object' => '00007',
                         'contents' => pandoc_avif_raster_fixture(100, 100),
                         'mimeType' => 'image/avif',
                         'width' => 100,

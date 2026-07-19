@@ -66,6 +66,16 @@ final class PdfFormulaSemanticProcessor implements PdfSemanticRecordProcessor
             return false;
         }
 
+        $firstIndex = $indexes[0] ?? null;
+        if (!is_int($firstIndex)) {
+            return false;
+        }
+        foreach ($indexes as $offset => $index) {
+            if (!is_int($index) || $index !== $firstIndex + $offset) {
+                return false;
+            }
+        }
+
         $sourceOrderSpan = (int) $positionedItem['sourceOrderEnd']
             - (int) $positionedItem['sourceOrderStart'] + 1;
         if ($sourceOrderSpan < count($indexes) || $sourceOrderSpan > 12) {
@@ -89,6 +99,14 @@ final class PdfFormulaSemanticProcessor implements PdfSemanticRecordProcessor
             $sourceText .= (string) ($sourceItem['text'] ?? '');
         }
 
+        if ($page === null
+            || $page < 1
+            || $page !== (int) ($positionedItem['page'] ?? 0)
+            || (isset($positionedItem['sourceStream'])
+                && $stream !== (int) $positionedItem['sourceStream'])) {
+            return false;
+        }
+
         return $this->compact($sourceText)
             === $this->compact((string) ($positionedItem['text'] ?? ''));
     }
@@ -110,6 +128,7 @@ final class PdfFormulaSemanticProcessor implements PdfSemanticRecordProcessor
             $layout['sourcePdfRegionRole'] = 'formula';
             $layout['sourcePdfFormulaGroup'] = $this->regionCount;
             $layout['sourcePdfFormulaText'] = $formula['text'];
+            unset($layout['sourcePdfWholeExactOccurrenceProof']);
             $processed[] = ['text' => $formula['text'], 'layout' => $layout];
             $index += $formula['consumed'];
         }

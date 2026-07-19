@@ -66,10 +66,10 @@ final class PdfTextFidelityLedger
     private static function fromChunkStreams(iterable $sourceChunks, iterable $emittedChunks): array
     {
         $source = self::inventoryFromChunks($sourceChunks);
-        $emitted = self::inventoryFromChunks($emittedChunks);
-        $unresolvedTokens = self::positiveDifference($source['tokenCounts'], $emitted['tokenCounts']);
-        $addedTokens = self::positiveDifference($emitted['tokenCounts'], $source['tokenCounts']);
-        $unresolvedAdjacencies = self::positiveDifference($source['adjacencyCounts'], $emitted['adjacencyCounts']);
+        $emitted = self::reconcileChunksAgainstSourceInventory($emittedChunks, $source);
+        $unresolvedTokens = $source['tokenCounts'];
+        $addedTokens = $emitted['addedTokenCounts'];
+        $unresolvedAdjacencies = $source['adjacencyCounts'];
         $sourceTokenCount = $source['tokenCount'];
         $emittedTokenCount = $emitted['tokenCount'];
         $unresolvedTokenCount = array_sum($unresolvedTokens);
@@ -77,18 +77,33 @@ final class PdfTextFidelityLedger
         $unresolvedAdjacencyCount = array_sum($unresolvedAdjacencies);
         $unresolvedTokenSample = self::sampleCounts($unresolvedTokens);
         $addedTokenSample = self::sampleCounts($addedTokens);
-        $unresolvedCharacters = self::positiveDifference(
-            $source['characterCounts'],
-            $emitted['characterCounts']
-        );
-        $addedCharacters = self::positiveDifference(
-            $emitted['characterCounts'],
-            $source['characterCounts']
-        );
+        $unresolvedCharacters = $source['characterCounts'];
+        $addedCharacters = $emitted['addedCharacterCounts'];
         $sourceCharacterCount = $source['characterCount'];
         $emittedCharacterCount = $emitted['characterCount'];
         $unresolvedCharacterCount = array_sum($unresolvedCharacters);
         $sourceAccounted = $unresolvedTokenCount === 0 && $unresolvedCharacterCount === 0;
+        $sourceTokenDigest = $source['tokenDigest'];
+        $emittedTokenDigest = $emitted['tokenDigest'];
+        $addedTokenCount = array_sum($addedTokens);
+        $addedCharacterCount = array_sum($addedCharacters);
+        $unresolvedCharacterSample = self::sampleCharacterCounts($unresolvedCharacters);
+        $exactProjection = $sourceAccounted
+            && $addedTokens === []
+            && $addedCharacters === []
+            && $unresolvedAdjacencies === [];
+        unset($source, $emitted);
+        // Empty PHP hash tables retain their bucket allocation. None of the
+        // complete residual maps is public, so release them after scalarizing
+        // the counts/samples instead of carrying their peak capacity through
+        // construction of the returned metadata graph.
+        unset(
+            $unresolvedTokens,
+            $addedTokens,
+            $unresolvedAdjacencies,
+            $unresolvedCharacters,
+            $addedCharacters
+        );
 
         return [
             'version' => 1,
@@ -96,28 +111,25 @@ final class PdfTextFidelityLedger
             'emittedTokenCount' => $emittedTokenCount,
             'accountedSourceTokenCount' => max(0, $sourceTokenCount - $unresolvedTokenCount),
             'unresolvedTokenCount' => $unresolvedTokenCount,
-            'addedTokenCount' => array_sum($addedTokens),
+            'addedTokenCount' => $addedTokenCount,
             'tokenCoverage' => self::coverage($sourceTokenCount, $unresolvedTokenCount),
             'sourceSignificantCharacterCount' => $sourceCharacterCount,
             'emittedSignificantCharacterCount' => $emittedCharacterCount,
             'accountedSourceSignificantCharacterCount' => max(0, $sourceCharacterCount - $unresolvedCharacterCount),
             'unresolvedSignificantCharacterCount' => $unresolvedCharacterCount,
-            'addedSignificantCharacterCount' => array_sum($addedCharacters),
+            'addedSignificantCharacterCount' => $addedCharacterCount,
             'significantCharacterCoverage' => self::coverage($sourceCharacterCount, $unresolvedCharacterCount),
             'sourceTokenAdjacencyCount' => $sourceAdjacencyCount,
             'accountedSourceTokenAdjacencyCount' => max(0, $sourceAdjacencyCount - $unresolvedAdjacencyCount),
             'unresolvedTokenAdjacencyCount' => $unresolvedAdjacencyCount,
             'tokenAdjacencyCoverage' => self::coverage($sourceAdjacencyCount, $unresolvedAdjacencyCount),
             'sourceAccounted' => $sourceAccounted,
-            'exactProjection' => $sourceAccounted
-                && $addedTokens === []
-                && $addedCharacters === []
-                && $unresolvedAdjacencies === [],
+            'exactProjection' => $exactProjection,
             'unresolvedTokenSample' => $unresolvedTokenSample,
             'addedTokenSample' => $addedTokenSample,
-            'unresolvedCharacterSample' => self::sampleCharacterCounts($unresolvedCharacters),
-            'sourceTokenDigest' => $source['tokenDigest'],
-            'emittedTokenDigest' => $emitted['tokenDigest'],
+            'unresolvedCharacterSample' => $unresolvedCharacterSample,
+            'sourceTokenDigest' => $sourceTokenDigest,
+            'emittedTokenDigest' => $emittedTokenDigest,
         ];
     }
 
@@ -198,6 +210,80 @@ final class PdfTextFidelityLedger
         ];
     }
 
+    /**
+     * Consume emitted counts directly from the source inventory. Retaining a
+     * second complete token, adjacency, and character inventory until the
+     * final differences are calculated doubles the end-of-import peak; dense
+     * documents make nearly every adjacency a distinct PHP array key. The
+     * residual source maps are exactly the prior positive differences, while
+     * only genuinely added token/character counts need separate storage.
+     *
+     * @param iterable<string> $chunks
+     * @param array{tokenCounts:array<string,int>,adjacencyCounts:array<string,int>,tokenCount:int,tokenDigest:string,characterCounts:array<string,int>,characterCount:int} $source
+     * @return array{addedTokenCounts:array<string,int>,tokenCount:int,tokenDigest:string,addedCharacterCounts:array<string,int>,characterCount:int}
+     */
+    private static function reconcileChunksAgainstSourceInventory(iterable $chunks, array &$source): array
+    {
+        $addedTokenCounts = [];
+        $tokenCount = 0;
+        $previousToken = null;
+        $tokenHash = hash_init('sha256');
+        $addedCharacterCounts = [];
+        $characterCount = 0;
+        foreach ($chunks as $chunk) {
+            if (!is_string($chunk) || $chunk === '') {
+                continue;
+            }
+            $normalized = self::normalizeText($chunk);
+            foreach (self::tokensFromNormalizedText($normalized) as $token) {
+                $availableTokenCount = $source['tokenCounts'][$token] ?? 0;
+                if ($availableTokenCount > 1) {
+                    $source['tokenCounts'][$token] = $availableTokenCount - 1;
+                } elseif ($availableTokenCount === 1) {
+                    unset($source['tokenCounts'][$token]);
+                } else {
+                    $addedTokenCounts[$token] = ($addedTokenCounts[$token] ?? 0) + 1;
+                }
+                if ($previousToken !== null) {
+                    $adjacency = $previousToken . "\0" . $token;
+                    $availableAdjacencyCount = $source['adjacencyCounts'][$adjacency] ?? 0;
+                    if ($availableAdjacencyCount > 1) {
+                        $source['adjacencyCounts'][$adjacency] = $availableAdjacencyCount - 1;
+                    } elseif ($availableAdjacencyCount === 1) {
+                        unset($source['adjacencyCounts'][$adjacency]);
+                    }
+                    hash_update($tokenHash, "\0");
+                }
+                hash_update($tokenHash, $token);
+                $previousToken = $token;
+                $tokenCount++;
+            }
+            $characters = self::significantCharacterInventory($normalized);
+            $characterCount += $characters['total'];
+            foreach ($characters['counts'] as $character => $count) {
+                $availableCharacterCount = $source['characterCounts'][$character] ?? 0;
+                $consumed = min($availableCharacterCount, $count);
+                if ($consumed === $availableCharacterCount) {
+                    unset($source['characterCounts'][$character]);
+                } else {
+                    $source['characterCounts'][$character] = $availableCharacterCount - $consumed;
+                }
+                $added = $count - $consumed;
+                if ($added > 0) {
+                    $addedCharacterCounts[$character] = ($addedCharacterCounts[$character] ?? 0) + $added;
+                }
+            }
+        }
+
+        return [
+            'addedTokenCounts' => $addedTokenCounts,
+            'tokenCount' => $tokenCount,
+            'tokenDigest' => hash_final($tokenHash),
+            'addedCharacterCounts' => $addedCharacterCounts,
+            'characterCount' => $characterCount,
+        ];
+    }
+
     /** @return list<string> */
     private static function tokensFromNormalizedText(string $text): array
     {
@@ -249,24 +335,6 @@ final class PdfTextFidelityLedger
         }
 
         return function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
-    }
-
-    /**
-     * @param array<string, int> $minuend
-     * @param array<string, int> $subtrahend
-     * @return array<string, int>
-     */
-    private static function positiveDifference(array $minuend, array $subtrahend): array
-    {
-        $difference = [];
-        foreach ($minuend as $value => $count) {
-            $remaining = $count - ($subtrahend[$value] ?? 0);
-            if ($remaining > 0) {
-                $difference[$value] = $remaining;
-            }
-        }
-
-        return $difference;
     }
 
     private static function coverage(int $sourceCount, int $unresolvedCount): float

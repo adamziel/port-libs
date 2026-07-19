@@ -1,0 +1,30 @@
+{
+    "version": 1,
+    "samplePath": "samples/pdf-layout-docling-right-to-left-right_to_left_01.pdf",
+    "requests": [
+        {
+            "version": 1,
+            "method": "pdfjs-whole-page-raster",
+            "sourceSha256": "30d675db2a5c9613f2b12cb03e74c8f9384f473274216ee6a271cf0c99301f14",
+            "page": 1,
+            "pageObject": 3,
+            "pageBox": [
+                0,
+                0,
+                612,
+                792
+            ],
+            "pageBoxSource": "MediaBox",
+            "pageRotation": 0,
+            "width": 1224,
+            "height": 1584,
+            "mimeType": "image/png",
+            "id": "pdf-page-raster-0915105e3982913a88411966ec862bcc",
+            "requestDigest": "0915105e3982913a88411966ec862bccc2f96e213cdb8973269554ab8dc57715",
+            "path": "samples/pdf-layout-docling-right-to-left-right_to_left_01.pdf",
+            "label": "PDF page 1",
+            "precedingText": null,
+            "followingText": null
+        }
+    ]
+}

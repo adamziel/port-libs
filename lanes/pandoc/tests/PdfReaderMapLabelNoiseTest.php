@@ -37,14 +37,14 @@ return [
 
         $t->contains('<h1>29</h1>', $html);
         $t->contains('<h2>Magazine section</h2>', $html);
-        $t->contains('<p>Legend</p>', $html);
+        $t->contains('<p class="pdf-map-label">Legend</p>', $html);
         $t->contains('x = 1', $html);
         $t->contains('sample()', $html);
         $t->contains('A spoken line.', $html);
         $t->true(!str_contains($html, 'PDF-MAP-LABEL'), 'Internal role names must never become reader output.');
         $t->same(0, preg_match_all('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', $html), 'Internal C0 delimiters must never become reader output.');
     },
-    'filters sustained map label noise from positioned PDF prose repair' => static function (TestRunner $t): void {
+    'preserves visible prose while isolating sustained map labels from PDF prose repair' => static function (TestRunner $t): void {
         $path = dirname(__DIR__, 3) . '/pandoc-showcase/samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf';
         $t->true(is_file($path), 'Expected Muir Beach brochure sample to be available in the showcase corpus.');
         $pdf = file_get_contents($path);
@@ -63,7 +63,12 @@ return [
         $t->contains('<p>Muir Beach is halfway between Stinson Beach and the Marin Headlands, where Shoreline Highway (Hwy. 1) meets Muir Woods Road. The Coastal, Redwood Creek, and Dias Ridge Trails connect with Muir Beach.</p>', $html);
         $t->true(!str_contains($html, 'wwwww.wnp'), 'Overprinted footer text must not be interleaved into corrupted URLs.');
         $t->true(!str_contains($html, 'Plhaaanrrd'), 'Garbled map prose must not be imported.');
-        $t->true(!str_contains($html, 'PIRATES'), 'Map labels must not be imported as body prose.');
+        $t->same(
+            1,
+            preg_match('/<div class="line-block">.*PIRATES.*<\/div>/su', $html),
+            'Source-preserved map labels must remain isolated in one editable line block.'
+        );
+        $t->true(!str_contains($html, '<p>PIRATES'), 'Map labels must not be imported as body prose.');
         $t->true(!str_contains($html, '<h2>Muir Beach is halfway'), 'Wrapped paragraph rows must not become headings.');
     },
 ];

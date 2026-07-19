@@ -50,7 +50,7 @@
             "object": 58,
             "paintOrder": 2,
             "precedingText": "ic Trail",
-            "followingText": "Ari",
+            "followingText": "0.3mi",
             "label": "PDF figure on page 2"
         },
         {
@@ -67,7 +67,7 @@
             "object": 92,
             "paintOrder": 3,
             "precedingText": null,
-            "followingText": null,
+            "followingText": "Distances and hiking times vary; ask",
             "label": "PDF figure on page 2"
         },
         {
@@ -135,7 +135,7 @@
             "object": 230,
             "paintOrder": 8,
             "precedingText": null,
-            "followingText": null,
+            "followingText": "Stock use",
             "label": "PDF figure on page 2"
         },
         {
@@ -152,7 +152,7 @@
             "object": 269,
             "paintOrder": 9,
             "precedingText": "ic Trail",
-            "followingText": "a N",
+            "followingText": "0.3mi",
             "label": "PDF figure on page 2"
         },
         {
@@ -169,7 +169,7 @@
             "object": 305,
             "paintOrder": 10,
             "precedingText": null,
-            "followingText": null,
+            "followingText": "Stock use",
             "label": "PDF figure on page 2"
         },
         {
@@ -202,7 +202,7 @@
             "formId": "pdf-form-p2-n77-o245",
             "object": 245,
             "paintOrder": 77,
-            "precedingText": null,
+            "precedingText": "ic Trail",
             "followingText": null,
             "label": "PDF figure on page 2"
         },
@@ -220,7 +220,24 @@
             "object": 279,
             "paintOrder": 81,
             "precedingText": null,
-            "followingText": null,
+            "followingText": "Stock use",
+            "label": "PDF figure on page 2"
+        },
+        {
+            "id": "form-a5a17eb94da925210482a73b3992",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "page": 2,
+            "bbox": {
+                "x1": 896.308,
+                "y1": 895.242,
+                "x2": 1162.07,
+                "y2": 1028.31
+            },
+            "formId": "pdf-form-p2-n89-o295",
+            "object": 295,
+            "paintOrder": 89,
+            "precedingText": null,
+            "followingText": "Stock use",
             "label": "PDF figure on page 2"
         }
     ]

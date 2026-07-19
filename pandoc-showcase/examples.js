@@ -1,8 +1,12 @@
 import {
+  pdfFormRendererResourceSnapshot,
   renderPdfFormRequests,
   renderPdfFormRequestsIncrementally,
+  renderPdfPageRasterRequests,
+  renderPdfPageRasterRequestsIncrementally,
 } from './pdfjs-form-rasterizer.mjs';
 import {
+  cancelImportMutationDurably,
   createImportJobSession,
   createPlaygroundPersistence,
   recoverImportMutation,
@@ -22,15 +26,18 @@ const playgroundUploadDirectory = '/tmp/port-libs-converter';
 const playgroundPdfRasterByteLimit = 24_000_000;
 const playgroundPdfFormTotalPixelLimit = 48_000_000;
 const playgroundPdfFormTotalImageByteLimit = 24_000_000;
+const playgroundPdfPageTotalPixelLimit = 128_000_000;
+const playgroundPdfPageTotalImageByteLimit = 64 * 1024 * 1024;
+const pdfPageRasterMethod = 'pdfjs-whole-page-raster';
 const ownFileStatusPollIntervalMs = 1_000;
 const ownFileAdvanceRecoveryAttempts = 3;
 // The static example browser runs on the visitor's device, including phones.
-// Keep Form-XObject enrichment deliberately smaller than the importer handoff:
+// Keep optional PDF visual enrichment deliberately smaller than the importer handoff:
 // it is an optional preview, never a reason to exhaust the browser.
 const staticPdfPreviewMaxSourceBytes = 4_000_000;
 const staticPdfPreviewMaxRequests = 8;
-const staticPdfPreviewMaxPixels = 2_000_000;
-const staticPdfPreviewMaxTotalPixels = 8_000_000;
+const staticPdfPreviewMaxPixels = 2_100_000;
+const staticPdfPreviewMaxTotalPixels = 8_400_000;
 const staticPdfPreviewMaxImageBytes = 8_000_000;
 
 const examplePicker = document.getElementById('example-picker');
@@ -40,6 +47,7 @@ const viewButtons = Array.from(document.querySelectorAll('[data-example-view]'))
 const viewerStatus = document.getElementById('viewer-status');
 const downloadSource = document.getElementById('download-source');
 const tryOwnFileButton = document.getElementById('try-own-file');
+const cancelOwnFileButton = document.getElementById('cancel-own-file');
 const ownFileInput = document.getElementById('own-file-input');
 const ownPdfOutputDialog = document.getElementById('own-pdf-output-dialog');
 const ownPdfOutputMessage = document.getElementById('own-pdf-output-message');
@@ -65,6 +73,7 @@ const state = {
   loadToken: 0,
   ownFileToken: 0,
   ownFileBusy: false,
+  ownFileCancelRequested: false,
   frameMode: 'example',
   playgroundClient: null,
   playgroundReady: false,
@@ -211,15 +220,24 @@ function updateControls() {
   downloadSource.setAttribute('aria-disabled', String(busy));
   downloadSource.tabIndex = busy ? -1 : 0;
   tryOwnFileButton.disabled = busy;
+  const cancellable = busy
+    && String(state.lastOwnFileJob?.jobId || '') !== ''
+    && !['complete', 'failed', 'cancelled'].includes(String(state.lastOwnFileJob?.status || ''));
+  cancelOwnFileButton.hidden = !cancellable;
+  cancelOwnFileButton.disabled = !cancellable || state.ownFileCancelRequested;
+  cancelOwnFileButton.textContent = state.ownFileCancelRequested ? 'Cancelling after this step…' : 'Cancel import';
   ownFileInput.disabled = busy;
   updateViewButtons();
 }
 
 function setOwnFileBusy(busy, label = '') {
   state.ownFileBusy = busy;
+  const savedImport = ownFileImportSession.load();
   tryOwnFileButton.textContent = busy
     ? label
-    : (ownFileImportSession.load() ? 'Resume saved import' : 'Try your own file');
+    : (savedImport?.cancellationRequested
+      ? 'Finish cancelling import'
+      : (savedImport ? 'Resume saved import' : 'Try your own file'));
   updateControls();
 }
 
@@ -255,7 +273,7 @@ function staticPdfPreviewAbortError(signal) {
   if (signal?.reason instanceof Error) {
     return signal.reason;
   }
-  const error = new Error('PDF chart preview was cancelled.');
+  const error = new Error('PDF figure/page-image preview was cancelled.');
   error.name = 'AbortError';
   return error;
 }
@@ -459,9 +477,12 @@ function staticPdfFormFigure(previewDocument, request, rendered, ordinal) {
     figure.dataset.pdfFormObject = String(request.object);
   }
   const label = String(request?.alt || request?.label || request?.title || '').trim();
+  const fallbackLabel = request?.method === pdfPageRasterMethod
+    ? 'PDF page image ' + (ordinal + 1)
+    : 'PDF figure ' + (ordinal + 1);
   if (rendered?.bytes instanceof Uint8Array) {
     const image = previewDocument.createElement('img');
-    image.alt = label || 'PDF figure ' + (ordinal + 1);
+    image.alt = label || fallbackLabel;
     image.dataset.pandocPdfFormRendered = 'true';
     image.decoding = 'async';
     const mimeType = String(rendered.mimeType || 'image/png');
@@ -471,7 +492,7 @@ function staticPdfFormFigure(previewDocument, request, rendered, ordinal) {
     figure.classList.add('pandoc-pdf-form-placeholder');
     const message = previewDocument.createElement('p');
     const detail = String(rendered?.error || '').replace(/\s+/g, ' ').trim().slice(0, 240);
-    message.textContent = (label || 'PDF figure ' + (ordinal + 1)) + ' could not be rendered in this browser'
+    message.textContent = (label || fallbackLabel) + ' could not be rendered in this browser'
       + (detail ? ': ' + detail : '.');
     figure.append(message);
   }
@@ -531,11 +552,28 @@ function staticPdfFormPlaceholderResults(requests, message) {
   }));
 }
 
+function staticPdfResultsInManifestOrder(requests, rendered) {
+  const resultsById = new Map();
+  for (const item of rendered || []) {
+    const requestId = String(item?.requestId || '');
+    if (!resultsById.has(requestId)) resultsById.set(requestId, []);
+    resultsById.get(requestId).push(item);
+  }
+  return requests.map((request) => {
+    const requestId = String(request?.id || '');
+    const queue = resultsById.get(requestId) || [];
+    return queue.shift() || {
+      requestId,
+      error: 'This PDF figure/page image did not return a browser render result.',
+    };
+  });
+}
+
 function staticPdfFormRequestPlan(requests) {
   const renderable = requests.slice(0, staticPdfPreviewMaxRequests);
   const skipped = staticPdfFormPlaceholderResults(
     requests.slice(staticPdfPreviewMaxRequests),
-    'This static preview renders at most ' + staticPdfPreviewMaxRequests + ' PDF charts to keep browser memory bounded.',
+    'This static preview renders at most ' + staticPdfPreviewMaxRequests + ' PDF figures/page images to keep browser memory bounded.',
   );
   return { renderable, skipped };
 }
@@ -549,19 +587,19 @@ async function buildStaticPdfFormPreview(example, view, reportProgress, signal) 
   const formMetadata = example.pdfFormRenders;
   const [staticOutput, manifestOutput] = await Promise.all([
     fetchStaticPreviewText(view.path, 'The static preview', signal),
-    fetchStaticPreviewText(formMetadata.path, 'The PDF figure manifest', signal),
+    fetchStaticPreviewText(formMetadata.path, 'The PDF visual/page-image manifest', signal),
   ]);
   throwIfStaticPdfPreviewAborted(signal);
   let manifest;
   try {
     manifest = JSON.parse(manifestOutput.text);
   } catch {
-    throw new Error('The PDF figure manifest is not valid JSON.');
+    throw new Error('The PDF visual/page-image manifest is not valid JSON.');
   }
   const requests = Array.isArray(manifest?.requests) ? manifest.requests : [];
   const samplePath = String(manifest?.samplePath || example.samplePath || '').trim();
   if (requests.length === 0 || !samplePath) {
-    throw new Error('The PDF figure manifest has no renderable source.');
+    throw new Error('The PDF visual/page-image manifest has no renderable source.');
   }
 
   const plan = staticPdfFormRequestPlan(requests);
@@ -569,26 +607,54 @@ async function buildStaticPdfFormPreview(example, view, reportProgress, signal) 
   if (staticPdfSourceIsTooLarge(example)) {
     rendered = staticPdfFormPlaceholderResults(
       requests,
-      'This PDF exceeds the static preview size limit; its chart is shown as a placeholder.',
+      'This PDF exceeds the static preview size limit; its visual/page image is shown as a placeholder.',
     );
   } else {
     try {
-      reportProgress('Opening the original PDF for its charts…');
+      reportProgress('Opening the original PDF for its figures/page images…');
       const sourceBytes = await fetchStaticPdfSource(samplePath, manifestOutput.url, signal);
-      const renderedRequests = await renderPdfFormRequests({
-        filesByPath: staticPdfFilesByPath(plan.renderable, samplePath, sourceBytes),
-        requests: plan.renderable,
-        pdfjs: playgroundPdfJsConfig(),
-        maxPixels: staticPdfPreviewMaxPixels,
-        maxTotalPixels: staticPdfPreviewMaxTotalPixels,
-        maxTotalImageBytes: staticPdfPreviewMaxImageBytes,
-        signal,
-        onProgress({ completed, total, label }) {
-          reportProgress(total > 0 ? label + ' (' + completed + ' of ' + total + ')' : label);
-        },
-      });
+      const renderedRequests = [];
+      let remainingPixels = staticPdfPreviewMaxTotalPixels;
+      let remainingImageBytes = staticPdfPreviewMaxImageBytes;
+      for (const group of pdfRenderRequestGroups(plan.renderable)) {
+        const pageRaster = group.method === pdfPageRasterMethod;
+        const filesByPath = staticPdfFilesByPath(group.requests, samplePath, sourceBytes);
+        const renderOptions = {
+          ...(pageRaster
+            ? {
+              source: pdfPageRasterSource(filesByPath, group.requests),
+              requests: group.requests.map(pdfPageRasterRequestForRenderer),
+            }
+            : { filesByPath, requests: group.requests }),
+          pdfjs: playgroundPdfJsConfig(),
+          maxPixels: staticPdfPreviewMaxPixels,
+          maxTotalPixels: remainingPixels,
+          maxTotalImageBytes: remainingImageBytes,
+          signal,
+          onProgress({ completed, total, label }) {
+            reportProgress(total > 0 ? label + ' (' + completed + ' of ' + total + ')' : label);
+          },
+        };
+        const groupResults = pageRaster
+          ? await renderPdfPageRasterRequests(renderOptions)
+          : await renderPdfFormRequests(renderOptions);
+        for (const renderedItem of groupResults) {
+          const item = pdfRenderedMediaItem(renderedItem);
+          renderedRequests.push(item);
+          if (!item.error && item.bytes instanceof Uint8Array) {
+            const pixels = Math.max(0, Number(item.width) || 0) * Math.max(0, Number(item.height) || 0);
+            remainingPixels = Math.max(0, remainingPixels - pixels);
+            remainingImageBytes = Math.max(0, remainingImageBytes - item.bytes.byteLength);
+          }
+          if (item.budgetExhausted === 'pixels') remainingPixels = 0;
+          if (item.budgetExhausted === 'image-bytes') remainingImageBytes = 0;
+        }
+      }
       throwIfStaticPdfPreviewAborted(signal);
-      rendered = [...renderedRequests, ...plan.skipped];
+      rendered = staticPdfResultsInManifestOrder(
+        requests,
+        [...renderedRequests, ...plan.skipped],
+      );
     } catch (error) {
       if (signal?.aborted) {
         throw staticPdfPreviewAbortError(signal);
@@ -598,7 +664,7 @@ async function buildStaticPdfFormPreview(example, view, reportProgress, signal) 
       }
       rendered = staticPdfFormPlaceholderResults(
         requests,
-        'This PDF exceeds the static preview size limit; its chart is shown as a placeholder.',
+        'This PDF exceeds the static preview size limit; its visual/page image is shown as a placeholder.',
       );
     }
   }
@@ -608,7 +674,7 @@ async function buildStaticPdfFormPreview(example, view, reportProgress, signal) 
   addStaticPdfFormStyles(previewDocument);
   const counts = injectStaticPdfFormFigures(previewDocument, requests, rendered);
   if (counts.successful === 0 && counts.failed === 0) {
-    throw new Error('The PDF figure renderer returned no chart results.');
+    throw new Error('The PDF renderer returned no figure/page-image results.');
   }
 
   return {
@@ -687,8 +753,8 @@ async function loadStaticPdfFormPreview(example, view, viewName, token) {
     }
     frame.dataset.previewMode = 'pdf-forms';
     frame.dataset.previewStatus = 'Loaded ' + example.label + ' with ' + preview.successful
-      + ' PDF chart' + (preview.successful === 1 ? '' : 's')
-      + (preview.failed > 0 ? '; ' + preview.failed + ' chart placeholder' + (preview.failed === 1 ? ' is' : 's are') + ' shown.' : '.');
+      + ' PDF figure/page image' + (preview.successful === 1 ? '' : 's')
+      + (preview.failed > 0 ? '; ' + preview.failed + ' figure/page-image placeholder' + (preview.failed === 1 ? ' is' : 's are') + ' shown.' : '.');
     frame.removeAttribute('src');
     frame.srcdoc = preview.html;
   } catch (error) {
@@ -700,7 +766,7 @@ async function loadStaticPdfFormPreview(example, view, viewName, token) {
       example,
       view,
       token,
-      'Could not render PDF charts here (' + detail + '). Showing the static preview instead.',
+      'Could not render PDF figures/page images here (' + detail + '). Showing the static preview instead.',
     );
   }
 }
@@ -867,6 +933,7 @@ function createOwnFileJobReporter(token) {
 
   return (snapshot) => {
     ownFileImportSession.remember(snapshot);
+    state.lastOwnFileJob = snapshot;
     if (!ownFileRequestIsCurrent(token)) {
       return;
     }
@@ -880,11 +947,22 @@ function createOwnFileJobReporter(token) {
 
 async function driveOwnFileImport(playgroundClient, initialJob, token, reportJob, file = null, bytes = null) {
   let job = initialJob;
-  let remainingPixels = playgroundPdfFormTotalPixelLimit;
-  let remainingImageBytes = playgroundPdfFormTotalImageByteLimit;
-  while (!['complete', 'failed'].includes(String(job.status || ''))) {
+  const formBudget = {
+    remainingPixels: playgroundPdfFormTotalPixelLimit,
+    remainingImageBytes: playgroundPdfFormTotalImageByteLimit,
+  };
+  const pageBudget = {
+    remainingPixels: playgroundPdfPageTotalPixelLimit,
+    remainingImageBytes: playgroundPdfPageTotalImageByteLimit,
+  };
+  while (!['complete', 'failed', 'cancelled'].includes(String(job.status || ''))) {
     if (!ownFileRequestIsCurrent(token)) {
       return job;
+    }
+    if (state.ownFileCancelRequested) {
+      job = await cancelOwnFileImport(playgroundClient, job, reportJob, token);
+      reportJob(job);
+      break;
     }
     if (job.status === 'awaiting_output_mode') {
       const recoveredMode = await chooseOwnPdfOutputMode({ recovery: true, job });
@@ -901,16 +979,23 @@ async function driveOwnFileImport(playgroundClient, initialJob, token, reportJob
       continue;
     }
     if (Array.isArray(job.renderRequests) && job.renderRequests.length > 0) {
-      for (const requests of pdfRenderRequestGroups(job.renderRequests)) {
-        const filesByPath = remainingPixels <= 0 || remainingImageBytes <= 0
+      for (const group of pdfRenderRequestGroups(job.renderRequests)) {
+        const requests = group.requests;
+        const pageRaster = group.method === pdfPageRasterMethod;
+        const budget = pageRaster ? pageBudget : formBudget;
+        const filesByPath = budget.remainingPixels <= 0 || budget.remainingImageBytes <= 0
           ? new Map()
           : await pdfFilesForOwnFile(playgroundClient, job, file, bytes, requests);
-        for await (const item of renderPdfFormRequestsIncrementally({
-          filesByPath,
-          requests,
+        const renderOptions = {
+          ...(pageRaster
+            ? {
+              source: pdfPageRasterSource(filesByPath, requests),
+              requests: requests.map(pdfPageRasterRequestForRenderer),
+            }
+            : { filesByPath, requests }),
           pdfjs: playgroundPdfJsConfig(),
-          maxTotalPixels: remainingPixels,
-          maxTotalImageBytes: remainingImageBytes,
+          maxTotalPixels: budget.remainingPixels,
+          maxTotalImageBytes: budget.remainingImageBytes,
           onProgress({ completed, total, label }) {
             if (!ownFileRequestIsCurrent(token)) {
               return;
@@ -919,31 +1004,41 @@ async function driveOwnFileImport(playgroundClient, initialJob, token, reportJob
             setOwnFileBusy(true, progress);
             setStatus(progress, { visible: true });
           },
-        })) {
+        };
+        const renderer = pageRaster
+          ? renderPdfPageRasterRequestsIncrementally
+          : renderPdfFormRequestsIncrementally;
+        for await (const renderedItem of renderer(renderOptions)) {
+          const item = pdfRenderedMediaItem(renderedItem);
           if (!ownFileRequestIsCurrent(token)) {
             return job;
           }
+          if (state.ownFileCancelRequested) {
+            job = await cancelOwnFileImport(playgroundClient, job, reportJob, token);
+            reportJob(job);
+            break;
+          }
           if (!item.error && item.bytes instanceof Uint8Array) {
             const pixels = Math.max(0, Number(item.width) || 0) * Math.max(0, Number(item.height) || 0);
-            remainingPixels = Math.max(0, remainingPixels - pixels);
-            remainingImageBytes = Math.max(0, remainingImageBytes - item.bytes.byteLength);
+            budget.remainingPixels = Math.max(0, budget.remainingPixels - pixels);
+            budget.remainingImageBytes = Math.max(0, budget.remainingImageBytes - item.bytes.byteLength);
           }
-          if (item.budgetExhausted === 'pixels') remainingPixels = 0;
-          if (item.budgetExhausted === 'image-bytes') remainingImageBytes = 0;
-          job = await submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob);
+          if (item.budgetExhausted === 'pixels') budget.remainingPixels = 0;
+          if (item.budgetExhausted === 'image-bytes') budget.remainingImageBytes = 0;
+          job = await submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob, token);
           reportJob(job);
-          if (['complete', 'failed'].includes(String(job.status || ''))) {
+          if (['complete', 'failed', 'cancelled'].includes(String(job.status || ''))) {
             break;
           }
         }
-        if (['complete', 'failed'].includes(String(job.status || ''))) {
+        if (['complete', 'failed', 'cancelled'].includes(String(job.status || ''))) {
           break;
         }
       }
       continue;
     }
     if (job.status === 'awaiting_renderer') {
-      throw new Error('WordPress requested a PDF figure, but did not provide a renderable crop. Please try the file again.');
+      throw new Error('WordPress requested a PDF figure/page image, but did not provide a renderable request. Please try the file again.');
     }
     job = await advanceOwnFileImport(playgroundClient, job, token, reportJob);
     reportJob(job);
@@ -952,11 +1047,29 @@ async function driveOwnFileImport(playgroundClient, initialJob, token, reportJob
   return job;
 }
 
-async function submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob) {
+async function cancelOwnFileImport(playgroundClient, job, reportJob = () => {}, token = state.ownFileToken) {
+  const jobId = encodeURIComponent(String(job?.jobId || ''));
+  if (!jobId) {
+    throw new Error('WordPress did not return an import job identifier to cancel.');
+  }
+  return cancelImportMutationDurably({
+    cancel: () => ownFilePluginRequest(playgroundClient, `/imports/${jobId}/cancel`, {}),
+    readStatus: () => ownFilePluginRequest(playgroundClient, `/imports/${jobId}`, undefined, 'GET'),
+    onSnapshot: reportJob,
+    isActive: () => ownFileRequestIsCurrent(token) && state.ownFileCancelRequested,
+    onRetry({ attempt }) {
+      const label = `Cancellation is waiting for the current checkpoint (${attempt}). Checking again…`;
+      setOwnFileBusy(true, label);
+      setStatus(label, { visible: true });
+    },
+  });
+}
+
+async function submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob, token) {
   const jobId = encodeURIComponent(String(job?.jobId || ''));
   const requestId = String(item?.requestId || '');
   if (!jobId || !requestId) {
-    throw new Error('WordPress returned an invalid PDF figure request.');
+    throw new Error('WordPress returned an invalid PDF visual/page-image request.');
   }
   const rendererPayload = item.error
     ? { requestId, error: item.error }
@@ -967,6 +1080,9 @@ async function submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob
       width: item.width,
       height: item.height,
     };
+  if (state.ownFileCancelRequested) {
+    return cancelOwnFileImport(playgroundClient, job, reportJob, token);
+  }
   try {
     return await ownFilePluginRequest(
       playgroundClient,
@@ -974,12 +1090,18 @@ async function submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob
       rendererPayload,
     );
   } catch (error) {
+    if (state.ownFileCancelRequested) {
+      return cancelOwnFileImport(playgroundClient, job, reportJob, token);
+    }
     const recovered = await ownFilePluginRequest(playgroundClient, `/imports/${jobId}`, undefined, 'GET');
     reportJob(recovered);
     const stillOutstanding = (recovered.renderRequests || [])
       .some((request) => String(request?.id || '') === requestId);
-    if (!stillOutstanding || ['complete', 'failed'].includes(String(recovered.status || ''))) {
+    if (!stillOutstanding || ['complete', 'failed', 'cancelled'].includes(String(recovered.status || ''))) {
       return recovered;
+    }
+    if (state.ownFileCancelRequested) {
+      return cancelOwnFileImport(playgroundClient, recovered, reportJob, token);
     }
     try {
       return await ownFilePluginRequest(
@@ -988,8 +1110,11 @@ async function submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob
         rendererPayload,
       );
     } catch (retryError) {
+      if (state.ownFileCancelRequested) {
+        return cancelOwnFileImport(playgroundClient, recovered, reportJob, token);
+      }
       const detail = retryError instanceof Error ? retryError.message : String(retryError);
-      throw new Error(`${detail} The rendered figure remains saved for a later Resume saved import attempt.`);
+      throw new Error(`${detail} The rendered PDF visual/page image remains saved for a later Resume saved import attempt.`);
     }
   }
 }
@@ -1031,6 +1156,7 @@ async function resumeSavedOwnFileImport() {
   }
 
   abortStaticPdfPreview({ clearCache: true });
+  state.ownFileCancelRequested = saved.cancellationRequested === true;
   const token = state.ownFileToken + 1;
   state.ownFileToken = token;
   const reusingPlayground = state.frameMode === 'playground'
@@ -1069,6 +1195,11 @@ async function resumeSavedOwnFileImport() {
     if (job.status === 'awaiting_output_mode') {
       return;
     }
+    if (job.status === 'cancelled') {
+      ownFileImportSession.forget(job.jobId);
+      setStatus('Import cancelled. No further WordPress page or media work will run.', { visible: true });
+      return;
+    }
     if (job.status === 'failed' || !job.result) {
       throw new Error(job.message || 'The saved conversion failed.');
     }
@@ -1096,6 +1227,7 @@ async function openOwnFile(file, pdfOutputMode = 'single') {
 
   abortStaticPdfPreview({ clearCache: true });
   state.lastOwnFileJob = null;
+  state.ownFileCancelRequested = false;
   const token = state.ownFileToken + 1;
   state.ownFileToken = token;
   const reusingPlayground = state.frameMode === 'playground'
@@ -1158,6 +1290,11 @@ async function openOwnFile(file, pdfOutputMode = 'single') {
     reportJob(job);
     job = await driveOwnFileImport(playgroundClient, job, token, reportJob, file, prepared.bytes);
     if (job.status === 'awaiting_output_mode') {
+      return;
+    }
+    if (job.status === 'cancelled') {
+      ownFileImportSession.forget(job.jobId);
+      setStatus('Import cancelled. No further WordPress page or media work will run.', { visible: true });
       return;
     }
     if (job.status === 'failed' || !job.result) {
@@ -1245,6 +1382,7 @@ if (new URL(window.location.href).searchParams.has('e2e')) {
         pdfOutputMode: String(job.output?.pdfOutputMode || job.pdfOutputMode || ''),
         pageCount: Math.max(0, Number(job.result.pageCount) || 0),
         childPostCount: children.length,
+        rendererResources: pdfFormRendererResourceSnapshot(),
         posts,
       };
     },
@@ -1273,7 +1411,9 @@ async function ownFilePluginRequest(playgroundClient, path, payload = {}, method
     && String(data.jobId || '') !== ''
     && ['failed', 'retryable_failure'].includes(String(data.status || ''));
   if (!data.ok && !jobErrorSnapshot) {
-    throw new Error(data.message || 'Conversion failed.');
+    const error = new Error(data.message || 'Conversion failed.');
+    error.status = Number(data?.data?.status || response?.httpStatusCode || response?.status || 0);
+    throw error;
   }
 
   return data;
@@ -1290,7 +1430,9 @@ async function advanceOwnFileImport(playgroundClient, job, token, reportJob) {
       mutate: () => ownFilePluginRequest(playgroundClient, `/imports/${jobId}/advance`, {}),
       readStatus: () => ownFilePluginRequest(playgroundClient, `/imports/${jobId}`, undefined, 'GET'),
       onSnapshot: reportJob,
-      isActive: () => ownFileRequestIsCurrent(token),
+      isActive: () => ownFileRequestIsCurrent(token) && !state.ownFileCancelRequested,
+      shouldCancel: () => state.ownFileCancelRequested,
+      cancel: () => cancelOwnFileImport(playgroundClient, job, reportJob, token),
       maxMutationRetries: ownFileAdvanceRecoveryAttempts,
       statusChecksPerRetry: 3,
       onRecovery({ mutationAttempt, maxMutationRetries, statusAttempt, statusChecks }) {
@@ -1388,13 +1530,55 @@ function pdfRenderRequestGroups(requests) {
   for (const request of Array.isArray(requests) ? requests : []) {
     const path = String(request?.path || '');
     const sourceKey = String(request?.sourceKey || path);
-    if (!groups.has(sourceKey)) {
-      groups.set(sourceKey, []);
+    const method = request?.method === pdfPageRasterMethod
+      ? pdfPageRasterMethod
+      : 'pdf-form-xobject';
+    const groupKey = `${method}\u001f${sourceKey}`;
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, { method, requests: [] });
     }
-    groups.get(sourceKey).push(request);
+    groups.get(groupKey).requests.push(request);
   }
 
   return Array.from(groups.values());
+}
+
+function pdfPageRasterSource(filesByPath, requests) {
+  for (const request of requests || []) {
+    const path = String(request?.path || '');
+    if (path && filesByPath?.has(path)) return filesByPath.get(path);
+  }
+  return filesByPath instanceof Map ? filesByPath.values().next().value : undefined;
+}
+
+function pdfPageRasterRequestForRenderer(request) {
+  return {
+    version: request?.version,
+    method: request?.method,
+    id: request?.id,
+    sourceSha256: request?.sourceSha256,
+    page: request?.page,
+    pageObject: request?.pageObject,
+    pageBox: request?.pageBox,
+    pageBoxSource: request?.pageBoxSource,
+    pageRotation: request?.pageRotation,
+    width: request?.width,
+    height: request?.height,
+    mimeType: request?.mimeType,
+    requestDigest: request?.requestDigest,
+  };
+}
+
+function pdfRenderedMediaItem(item) {
+  if (item?.error || item?.bytes instanceof Uint8Array) return item;
+  if (!(item?.contents instanceof Uint8Array)) return item;
+  return {
+    requestId: String(item.requestId || ''),
+    bytes: item.contents,
+    mimeType: item.mimeType,
+    width: item.width,
+    height: item.height,
+  };
 }
 
 async function pdfFilesForOwnFile(playgroundClient, job, file, bytes, renderRequests = null) {
@@ -1450,8 +1634,8 @@ async function ownFilePdfRenderSource(playgroundClient, job, request) {
     return bytesFromBase64(encoded);
   } catch {
     // Older plugin builds do not expose a stored ZIP member. PDF.js will
-    // report the unavailable crop to WordPress, which leaves a visible
-    // placeholder while the rest of the document is still imported.
+    // report the unavailable figure/page image to WordPress, which leaves the
+    // available fallback in place while the rest of the document is imported.
     return null;
   }
 }
@@ -1674,6 +1858,16 @@ tryOwnFileButton.addEventListener('click', () => {
   }
   ownFileInput.value = '';
   ownFileInput.click();
+});
+
+cancelOwnFileButton.addEventListener('click', () => {
+  if (!state.ownFileBusy || !state.lastOwnFileJob?.jobId || state.ownFileCancelRequested) {
+    return;
+  }
+  state.ownFileCancelRequested = true;
+  ownFileImportSession.requestCancellation(state.lastOwnFileJob.jobId);
+  updateControls();
+  setStatus('Cancellation requested. Finishing only the current bounded checkpoint…', { visible: true });
 });
 
 ownFileInput.addEventListener('change', async () => {

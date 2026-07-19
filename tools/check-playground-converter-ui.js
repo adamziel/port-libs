@@ -42,6 +42,77 @@ function executableNamedFunction(source, name) {
   throw new Error(`Could not read the complete ${name} function.`);
 }
 
+function namedFunctionSource(source, name) {
+  const start = source.indexOf(`function ${name}(`);
+  if (start < 0) {
+    throw new Error(`Could not find ${name} for its source regression.`);
+  }
+  const openingBrace = source.indexOf('{', start);
+  let depth = 0;
+  for (let index = openingBrace; index < source.length; index += 1) {
+    if (source[index] === '{') depth += 1;
+    if (source[index] !== '}') continue;
+    depth -= 1;
+    if (depth === 0) return source.slice(start, index + 1);
+  }
+  throw new Error(`Could not read the complete ${name} function source.`);
+}
+
+function checkMixedPdfRenderAdapters(source, clientLabel) {
+  const requestForRenderer = executableNamedFunction(source, 'pdfPageRasterRequestForRenderer');
+  const immutableRequest = {
+    version: 1,
+    method: 'pdfjs-whole-page-raster',
+    id: 'pdf-page-raster-test',
+    sourceSha256: 'a'.repeat(64),
+    page: 2,
+    pageObject: 7,
+    pageBox: [0, 0, 612, 792],
+    pageBoxSource: 'CropBox',
+    pageRotation: 0,
+    width: 1224,
+    height: 1584,
+    mimeType: 'image/png',
+    requestDigest: 'b'.repeat(64),
+  };
+  const rendererRequest = requestForRenderer({
+    ...immutableRequest,
+    sourceKey: 'routing-only',
+    path: 'routing-only.pdf',
+    label: 'routing-only',
+  });
+  assert(JSON.stringify(Object.keys(rendererRequest).sort()) === JSON.stringify(Object.keys(immutableRequest).sort())
+    && !('path' in rendererRequest)
+    && !('sourceKey' in rendererRequest)
+    && !('label' in rendererRequest), `${clientLabel} must remove all transport-only fields before exact page-request validation.`);
+
+  const renderedMediaItem = executableNamedFunction(source, 'pdfRenderedMediaItem');
+  const contents = new Uint8Array([1, 2, 3]);
+  const mediaItem = renderedMediaItem({
+    ...immutableRequest,
+    requestId: immutableRequest.id,
+    contents,
+    byteLength: contents.byteLength,
+    sha256: 'c'.repeat(64),
+    proofDigest: 'd'.repeat(64),
+  });
+  assert(mediaItem.bytes === contents
+    && JSON.stringify(Object.keys(mediaItem).sort()) === JSON.stringify(['bytes', 'height', 'mimeType', 'requestId', 'width']), `${clientLabel} must send page images through the existing requestId/bytes/mime/dimensions media shape without client-supplied immutable metadata.`);
+
+  const groupingSource = namedFunctionSource(source, 'pdfRenderRequestGroups');
+  const groupRequests = Function(
+    'pdfPageRasterMethod',
+    `"use strict"; return (${groupingSource});`,
+  )('pdfjs-whole-page-raster');
+  const groups = groupRequests([
+    { id: 'form-a', sourceKey: 'source-a' },
+    { id: 'page-a', sourceKey: 'source-a', method: 'pdfjs-whole-page-raster' },
+    { id: 'page-b', sourceKey: 'source-b', method: 'pdfjs-whole-page-raster' },
+  ]);
+  assert(groups.length === 3
+    && groups.map((group) => group.requests[0].id).join(',') === 'form-a,page-a,page-b', `${clientLabel} must keep source and render method as independent grouping dimensions without disturbing first-seen order.`);
+}
+
 function checkPdfDecoderSignatureGate(source, clientLabel) {
   const signatureSearch = executableNamedFunction(source, 'pdfBytesContainAscii');
   const bytes = (value) => new Uint8Array(Buffer.from(value, 'ascii'));
@@ -87,7 +158,9 @@ assert(js.includes('const pdfRasterPayloadByteLimit = 24_000_000;'), 'Expected b
 assert(js.includes('const pdfRasterBudget = { remainingBytes: pdfRasterPayloadByteLimit };') && js.includes('browserPdfRasterImages(bytes, imageMode, reportProgress, pdfRasterBudget)'), 'Expected a collection to share one browser PDF-raster byte budget across every source file.');
 assert(js.includes('maxPngBytes: remainingBytes'), 'Expected browser PDF decoders to share one raster byte budget.');
 assert(js.includes('pdfRasterImages'), 'Expected browser-decoded PDF rasters to be included in the import payload.');
-assert(js.includes("import { renderPdfFormRequestsIncrementally } from './pdfjs-form-rasterizer.mjs';"), 'Expected the incremental PDF.js Form renderer in the Playground importer.');
+assert(js.includes('renderPdfFormRequestsIncrementally,')
+  && js.includes('renderPdfPageRasterRequestsIncrementally,')
+  && js.includes("from './pdfjs-form-rasterizer.mjs';"), 'Expected incremental PDF.js renderers for both Form figures and whole-page images in the Playground importer.');
 assert(js.includes("from './import-job-session.mjs';"), 'Expected GitHub Pages imports to share durable job recovery helpers.');
 assert(!js.includes('playgroundPersistence.forget()'), 'A transient Playground boot failure must retain the saved OPFS WordPress tree for retry.');
 assert(!js.includes('collectPdfJsFacts'), 'Playground must not eagerly parse PDF.js text facts before a consumer exists.');
@@ -99,8 +172,8 @@ assert(!js.includes('function payloadFromUpload('), 'The Playground importer mus
 assert(js.includes('const pdfRasterSourceByteLimit = 24 * 1024 * 1024;'), 'Expected optional PDF raster decoding to skip over-limit sources before allocating decoder state.');
 assert(js.includes('/rendered-media'), 'Expected browser-rendered PDF figures to be sent back to the import job.');
 assert(js.includes('/render-source/'), 'Expected an expanded ZIP PDF source to be fetched only for its outstanding renderer request.');
-assert(js.includes('for (const requests of pdfRenderRequestGroups(job.renderRequests))'), 'Expected Playground to render one source PDF group at a time.');
-assert(js.includes('remainingPixels <= 0 || remainingImageBytes <= 0\n          ? new Map()'), 'Expected Playground to skip later PDF source fetches after a figure budget is exhausted.');
+assert(js.includes('for (const group of pdfRenderRequestGroups(job.renderRequests))'), 'Expected Playground to render one source-and-method PDF group at a time.');
+assert(js.includes('budget.remainingPixels <= 0 || budget.remainingImageBytes <= 0\n          ? new Map()'), 'Expected Playground to skip later PDF source fetches after that rendering method exhausts its budget.');
 assert(js.includes('function advanceImportJob(jobId, reportJob)'), 'Expected imports to advance through bounded server work units.');
 assert(js.includes("['failed', 'retryable_failure'].includes(String(data.status || ''))"), 'Expected Playground to resume a retryable server checkpoint instead of treating it as a malformed response.');
 assert(js.includes("undefined, 'GET'"), 'Expected the UI to poll the persisted job while a conversion request is running.');
@@ -115,6 +188,7 @@ assert(js.includes("'awaiting_output_mode'"), 'Expected the standalone importer 
 assert(js.includes('/output-mode`'), 'Expected the standalone importer to resume an oversized job without re-uploading it.');
 assert(!js.includes('unsupportedMessage'), 'Supported document formats must not carry a client-side blanket rejection.');
 checkPdfDecoderSignatureGate(js, 'Playground');
+checkMixedPdfRenderAdapters(js, 'Playground');
 
 assert(adminImporter.includes("new URL('./pdf-jbig2-rasterizer.mjs', import.meta.url)"), 'Expected the WordPress admin importer to load the bundled JBIG2 rasterizer relative to its module.');
 assert(!adminImporter.includes("import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';"), 'WordPress admin must not eagerly load the PDF.js facts provider.');
@@ -133,17 +207,36 @@ assert(adminImporter.includes("root.searchParams.set('rest_route'"), 'Expected t
 assert(adminImporter.includes('response.json().catch(() => null)'), 'Expected a non-JSON REST response to stop the UI rather than silently stalling an import.');
 assert(adminImporter.includes('const maxAdvanceRecoveryAttempts = 2;'), 'Expected bounded recovery when a foreground advance request ends unexpectedly.');
 assert(adminImporter.includes('async function advanceImportJob(snapshot)'), 'Expected the admin importer to re-check a durable job after an interrupted advance request.');
-assert(adminImporter.includes('for (const requests of pdfRenderRequestGroups(snapshot.renderRequests))'), 'Expected wp-admin to release each PDF.js source before fetching another PDF from a collection.');
-assert(adminImporter.includes('remainingPixels <= 0 || remainingImageBytes <= 0\n              ? new Map()'), 'Expected wp-admin to skip later PDF source fetches after a figure budget is exhausted.');
+assert(adminImporter.includes('for (const group of pdfRenderRequestGroups(snapshot.renderRequests))'), 'Expected wp-admin to release each source-and-method PDF.js group before fetching another one.');
+assert(adminImporter.includes('budget.remainingPixels <= 0 || budget.remainingImageBytes <= 0\n              ? new Map()'), 'Expected wp-admin to skip later PDF source fetches after that rendering method exhausts its budget.');
 assert(adminImporter.includes("['failed', 'retryable_failure'].includes(String(data.status || ''))"), 'Expected wp-admin to pass retryable job snapshots back to its resumable driver.');
 assert(adminImporter.includes('The importer stopped retrying automatically to avoid duplicating work.'), 'Expected advance recovery to stop with an actionable message instead of retrying forever.');
 assert(adminImporter.includes('createAdminImportJobSession(config)'), 'Expected wp-admin to persist a pointer to the active server-owned job.');
 assert(adminImporter.includes('Resume saved import'), 'Expected wp-admin to surface a durable resume action after reload or interruption.');
 assert(adminImporter.includes('for (let statusAttempt = 1; statusAttempt <= 3; statusAttempt += 1)'), 'Expected wp-admin to re-check an uncertain mutation before retransmitting /advance.');
+assert(adminImporter.includes('async function cancelImportJob(snapshot)') && adminImporter.includes('/cancel`'), 'Expected wp-admin to stop a persisted import at a durable unit boundary.');
+assert(adminImporter.includes('cancellationRequested') && adminImporter.includes("'cancelled'"), 'Expected wp-admin to retain an explicit cancellation request until the current bounded step returns.');
+const adminCancellation = namedFunctionSource(adminImporter, 'cancelImportJob');
+const adminAdvance = namedFunctionSource(adminImporter, 'advanceImportJob');
+const adminRenderedMedia = namedFunctionSource(adminImporter, 'submitRenderedMedia');
+assert(adminCancellation.includes('while (cancellationRequested && active && activeJobId === jobId)')
+  && adminCancellation.includes('method: \'POST\'')
+  && adminCancellation.includes('method: \'GET\'')
+  && adminCancellation.includes('await pause(Math.min(2_000, 400 * attempt))'), 'Expected wp-admin to poll and retry /cancel while another request owns the job lock.');
+assert(adminAdvance.includes('if (cancellationRequested)')
+  && (adminAdvance.match(/return cancelImportJob\(/g) || []).length >= 4, 'Expected every uncertain /advance replay boundary to yield to cancellation first.');
+assert(adminRenderedMedia.includes('if (cancellationRequested)')
+  && (adminRenderedMedia.match(/return cancelImportJob\(/g) || []).length >= 2, 'Expected wp-admin rendered-media recovery to cancel instead of replaying after cancellation intent.');
+assert(adminImporter.includes('jobSession.requestCancellation(activeJobId);')
+  && adminImporter.includes('cancellationRequested: record?.cancellationRequested === true')
+  && adminImporter.includes('cancellationRequested = saved.cancellationRequested === true')
+  && adminImporter.includes('submit.disabled = !selected || active || jobSession.load()?.cancellationRequested === true;'), 'Expected wp-admin to persist cancellation intent and restore it without starting another import.');
 assert(adminImporter.includes('function updateSelection({ clearResult = false } = {})'), 'Expected the admin importer to distinguish a new selection from ending an active import.');
 assert(adminImporter.includes('if (clearResult) {'), 'Expected completed admin import links to remain visible until the user chooses another file.');
 checkPdfDecoderSignatureGate(adminImporter, 'WordPress admin');
+checkMixedPdfRenderAdapters(adminImporter, 'WordPress admin');
 assert(plugin.includes('data-plpc-pdf-output-options'), 'Expected wp-admin to expose the PDF publication shape beside its PDF-only controls.');
+assert(plugin.includes('data-plpc-cancel') && plugin.includes("'/imports/(?P<jobId>[A-Za-z0-9_-]+)/cancel'"), 'Expected the admin UI and REST state machine to expose owner-scoped cancellation.');
 assert(adminImporter.includes("checkedValue('plpc-pdf-output-mode', 'single')"), 'Expected wp-admin to default PDF publication to one page.');
 assert(adminImporter.includes('showOutputModeRecovery(snapshot, pdfFiles)'), 'Expected wp-admin to offer a same-job page-tree recovery after the size guard.');
 assert(adminImporter.includes('/output-mode`'), 'Expected wp-admin recovery to reuse the persisted job.');
@@ -154,6 +247,8 @@ assert(!plugin.includes("@ini_set('memory_limit', '512M')"), 'The plugin must no
 assert(!plugin.includes('@set_time_limit(120)'), 'The plugin must not override a host execution-time limit while an import is running.');
 assert(plugin.includes('function plpc_import_request_deadline(): ?float'), 'Expected the server to reserve time for a durable import checkpoint before PHP reaches its limit.');
 assert(plugin.includes('function plpc_import_job_checkpoint_for_deadline('), 'Expected conversion phase progress to yield safely before the server execution deadline.');
+assert(plugin.includes('function plpc_import_job_generate_next_media_metadata(') && plugin.includes("'ready_for_media_metadata'"), 'Expected WordPress media metadata to run as one resumable attachment per advance request.');
+assert(adminImporter.includes('media metadata records prepared'), 'Expected wp-admin to report the durable media-metadata cursor.');
 assert(plugin.includes('PLPC_IMPORT_JOB_MAX_DEADLINE_YIELDS_PER_DOCUMENT'), 'Expected deadline handoffs to be capped instead of spinning forever.');
 assert(plugin.includes('function plpc_import_job_store_browser_facts('), 'Expected browser PDF facts to be stored outside the WordPress options table.');
 assert(plugin.includes('plpc_pdf_raster_images_from_payload($records, $remainingBytes)') && plugin.includes('$totalBytes + strlen($contents) > PLPC_MAX_PDF_RASTER_BYTES'), 'Expected server raster decoding and storage to enforce one aggregate collection budget.');
@@ -182,10 +277,26 @@ assert(plugin.includes('function plpc_pdf_form_placement_covers_page('), 'Expect
 assert(plugin.includes('pdfPageSizedFormsSkipped'), 'Expected skipped page-layout wrappers to be visible in import metrics.');
 assert(plugin.includes("'sourceKey' => substr(hash('sha256', (string) ($request['path'] ?? '')), 0, 32)"), 'Expected long collection paths to retain an unambiguous PDF.js source-group identity.');
 assert(plugin.includes('Reaching an enhancement budget is not a document failure.'), 'Expected an exhausted optional figure budget to continue the text import.');
-assert(js.includes('const pdfFormRenderTotalPixelLimit = 48_000_000;') && js.includes('let remainingPixels = pdfFormRenderTotalPixelLimit;') && js.includes('maxTotalPixels: remainingPixels'), 'Expected the Playground converter to apply a cumulative figure pixel budget.');
-assert(js.includes('const pdfFormRenderTotalImageByteLimit = 24_000_000;') && js.includes('let remainingImageBytes = pdfFormRenderTotalImageByteLimit;') && js.includes('maxTotalImageBytes: remainingImageBytes') && js.includes('remainingImageBytes = Math.max(0, remainingImageBytes - item.bytes.byteLength);'), 'Expected the Playground converter to apply a cumulative figure byte budget across source groups.');
-assert(adminImporter.includes('const pdfFormRenderTotalPixelLimit = 48_000_000;') && adminImporter.includes('let remainingPixels = pdfFormRenderTotalPixelLimit;') && adminImporter.includes('maxTotalPixels: remainingPixels'), 'Expected wp-admin to bound cumulative PDF figure pixels.');
-assert(adminImporter.includes('const pdfFormRenderTotalImageByteLimit = 24_000_000;') && adminImporter.includes('let remainingImageBytes = pdfFormRenderTotalImageByteLimit;') && adminImporter.includes('maxTotalImageBytes: remainingImageBytes') && adminImporter.includes('remainingImageBytes = Math.max(0, remainingImageBytes - item.bytes.byteLength);'), 'Expected wp-admin to bound cumulative PDF figure bytes across source groups.');
+for (const [source, clientLabel] of [[js, 'Playground'], [adminImporter, 'wp-admin']]) {
+  assert(source.includes('const pdfFormRenderTotalPixelLimit = 48_000_000;')
+    && source.includes('const pdfFormRenderTotalImageByteLimit = 24_000_000;')
+    && source.includes('remainingPixels: pdfFormRenderTotalPixelLimit')
+    && source.includes('remainingImageBytes: pdfFormRenderTotalImageByteLimit'), `${clientLabel} must retain the cumulative 48M-pixel/24M-byte Form-figure budget.`);
+  assert(source.includes('const pdfPageRenderTotalPixelLimit = 128_000_000;')
+    && source.includes('const pdfPageRenderTotalImageByteLimit = 64 * 1024 * 1024;')
+    && source.includes('remainingPixels: pdfPageRenderTotalPixelLimit')
+    && source.includes('remainingImageBytes: pdfPageRenderTotalImageByteLimit'), `${clientLabel} must use a separate cumulative 128M-pixel/64MiB whole-page budget.`);
+  assert(source.includes('const budget = pageRaster ? pageBudget : formBudget;')
+    && source.includes('maxTotalPixels: budget.remainingPixels')
+    && source.includes('maxTotalImageBytes: budget.remainingImageBytes')
+    && source.includes('budget.remainingImageBytes = Math.max(0, budget.remainingImageBytes - item.bytes.byteLength);'), `${clientLabel} must debit only the selected render method's cumulative budget across source groups and status pages.`);
+  assert(source.includes('const groupKey = `${method}\\u001f${sourceKey}`;')
+    && source.includes("const pdfPageRasterMethod = 'pdfjs-whole-page-raster';"), `${clientLabel} must split PDF.js work by immutable source and rendering method.`);
+  assert(source.includes('? renderPdfPageRasterRequestsIncrementally')
+    && source.includes(': renderPdfFormRequestsIncrementally;'), `${clientLabel} must dispatch each render group to the matching incremental API.`);
+  assert(source.includes('requests: requests.map(pdfPageRasterRequestForRenderer)')
+    && source.includes('bytes: item.contents,'), `${clientLabel} must strip routing metadata before exact page validation and adapt page contents to the existing media upload shape.`);
+}
 assert(pdfFormRasterizer.includes('const DEFAULT_MAX_SOURCE_BYTES = 24 * 1024 * 1024;'), 'Expected PDF.js figure rendering to cap source bytes before copying a large PDF in the browser.');
 assert(pdfFormRasterizer.includes('pdfBytes(filesByPath.get(path), maxSourceBytes)'), 'Expected the PDF.js figure renderer to enforce its source-byte cap for every requested crop.');
 assert(pdfFormRasterizer.includes('maxTotalPixels = Number.POSITIVE_INFINITY') && pdfFormRasterizer.includes('totalPixelsLimit - renderedPixels'), 'Expected callers to be able to bound aggregate PDF figure pixels without changing the importer default.');

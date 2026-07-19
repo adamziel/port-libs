@@ -14,7 +14,40 @@
     "license": {"status": "review-required", "spdx": null, "reference": "https://quickbooks.intuit.com/au/invoicing/invoice-templates/"},
     "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": ["License terms need maintainer review before redistributing newer revisions"]},
     "failureClasses": ["C3", "D8"],
-    "success": {"expectedLogicalTables": 1, "expectedPhysicalTables": 7, "expectedLogicalInstances": 2, "expectedLogicalFamilies": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "expectedPhysicalTables": 7, "expectedLogicalInstances": 2, "expectedLogicalFamilies": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {
+      "schemaVersion": 1,
+      "status": "verified_baseline",
+      "baseline": {"sources": ["pandoc-showcase/outputs/pdf-quickbooks-invoice-template/pdfkit-reference.json", "pandoc-showcase/outputs/pdf-quickbooks-invoice-template/wordpress-blocks.html", "pandoc-showcase/outputs/pdf-quickbooks-invoice-template/pdf-form-renders.json"], "asOf": "2026-07-16"},
+      "reason": null,
+      "expected": {
+        "headings": [{"text": "Invoice template", "level": 1, "occurrences": 1}, {"text": "Description", "level": 1, "occurrences": 2}, {"text": "Total AUD", "level": 2, "occurrences": 2}],
+        "paragraphs": [{"text": "These invoice templates can be used to bill your clients in order to collect payment.", "occurrences": 1}, {"text": "Start a free 30-day QuickBooks Online trial today at www.quickbooks.intuit.com/au/", "occurrences": 1}, {"text": "Regards,", "occurrences": 2}],
+        "listStarts": [],
+        "tableHeaders": [{"tableIndex": 0, "cells": ["Enter company name", "Phone (02) 9999-9999"]}, {"tableIndex": 1, "cells": ["Bill to", "Ship to", "Details"]}],
+        "tableCells": [{"tableIndex": 0, "text": "ABN 123456789", "occurrences": 1}, {"tableIndex": 1, "text": "Due date: dd/mm/yyyy", "occurrences": 1}, {"tableIndex": 2, "text": "Enter your product or service description", "occurrences": 2}],
+        "spans": [{"tableIndex": 0, "text": "Enter company name", "rowspan": 1, "colspan": 1, "occurrences": 1}],
+        "order": [{"sequence": [{"kind": "heading", "text": "Invoice template"}, {"kind": "paragraph", "text": "These invoice templates can be used to bill your clients in order to collect payment."}, {"kind": "table_cell", "text": "Enter company name"}, {"kind": "heading", "text": "Description"}, {"kind": "table_cell", "text": "Enter your product or service description"}, {"kind": "paragraph", "text": "Regards,"}]}],
+        "links": [{"text": "at www.quickbooks.intuit.com/au/", "url": "http://www.quickbooks.intuit.com/au/", "occurrences": 1}],
+        "pageCoverage": {"pageCount": 3, "processedPages": [1, 2, 3]},
+        "mediaOccurrences": [{"id": "pdf-image-p2-n1-o24", "page": 2, "object": 24, "disposition": "intentional_omission"}, {"id": "pdf-image-p2-n2-o26", "page": 2, "object": 26, "disposition": "intentional_omission"}, {"id": "pdf-image-p2-n3-o28", "page": 2, "object": 28, "disposition": "resolved"}, {"id": "pdf-image-p3-n1-o26", "page": 3, "object": 26, "disposition": "intentional_omission"}, {"id": "pdf-image-p3-n2-o34", "page": 3, "object": 34, "disposition": "resolved"}],
+        "unresolvedDispositions": []
+      },
+      "forbidden": {
+        "headings": [{"text": "Tax nvoice", "level": 1}],
+        "paragraphs": [{"text": "Taxinvoice"}],
+        "listStarts": [{"text": "Invoice#12345", "ordered": false}],
+        "tableHeaders": [{"tableIndex": 0, "cells": ["Phone (02) 9999-9999", "Enter company name"]}],
+        "tableCells": [{"tableIndex": 1, "text": "Invoice#12345"}],
+        "spans": [{"tableIndex": 0, "text": "Enter company name", "rowspan": 2, "colspan": 1}],
+        "order": [{"sequence": [{"kind": "paragraph", "text": "Regards,"}, {"kind": "heading", "text": "Invoice template"}]}],
+        "links": [{"text": "Invoice template", "url": "javascript:alert(1)"}],
+        "pageCoverage": [4],
+        "mediaOccurrences": [{"id": "pdf-image-p2-n3-o28", "page": 2, "object": 28, "disposition": "unresolved"}],
+        "unresolvedDispositions": [{"domain": "source"}, {"domain": "media"}]
+      },
+      "exactCounts": {"headings": 14, "paragraphs": 14, "listStarts": 0, "tables": 7, "links": 1, "mediaOccurrences": 5, "unresolvedSourceDispositions": 0, "unresolvedMediaDispositions": 0}
+    }
   },
   {
     "id": "azure-document-intelligence-invoice",
@@ -28,7 +61,8 @@
     "license": {"status": "review-required", "spdx": null, "reference": "https://documentintelligence.ai.azure.com/"},
     "review": {"status": "blocked", "asOf": "2026-07-16", "visual": "blocked", "unresolved": ["artifact-sha256", "license-review"]},
     "failureClasses": ["C2", "C3"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "excluded_license_blocked", "baseline": null, "reason": "Artifact execution is excluded until licensing review permits retrieval and an immutable hash can be recorded.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "chase-sample-statement",
@@ -42,7 +76,8 @@
     "license": {"status": "review-required", "spdx": null, "reference": "https://www.chase.com/digital/resources/privacy-security/legal"},
     "review": {"status": "blocked", "asOf": "2026-07-16", "visual": "blocked", "unresolved": ["artifact-sha256", "license-review"]},
     "failureClasses": ["C2", "C3", "C6"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "excluded_license_blocked", "baseline": null, "reason": "Artifact execution is excluded until licensing review permits retrieval and an immutable hash can be recorded.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "irs-publication-15t",
@@ -56,7 +91,8 @@
     "license": {"status": "us-government-work", "spdx": "LicenseRef-US-Government-Work", "reference": "https://www.usa.gov/government-copyright"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C3", "C6", "C8"],
-    "success": {"expectedLogicalTables": 3, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 3, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "irs-tax-table-1040",
@@ -70,7 +106,8 @@
     "license": {"status": "us-government-work", "spdx": "LicenseRef-US-Government-Work", "reference": "https://www.usa.gov/government-copyright"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C2", "C3", "C8"],
-    "success": {"expectedLogicalTables": 3, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 3, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "we-energies-electric-rates",
@@ -84,7 +121,8 @@
     "license": {"status": "review-required", "spdx": null, "reference": "https://www.we-energies.com/company/terms"},
     "review": {"status": "blocked", "asOf": "2026-07-16", "visual": "blocked", "unresolved": ["artifact-sha256", "license-review"]},
     "failureClasses": ["C2", "C3", "C6"],
-    "success": {"expectedLogicalTables": 2, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 2, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "excluded_license_blocked", "baseline": null, "reason": "Artifact execution is excluded until licensing review permits retrieval and an immutable hash can be recorded.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "uscis-i9-form",
@@ -98,7 +136,8 @@
     "license": {"status": "us-government-work", "spdx": "LicenseRef-US-Government-Work", "reference": "https://www.usa.gov/government-copyright"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": ["E6: static AcroForm appearances and safe field values require explicit assertions"]},
     "failureClasses": ["D9", "E6"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "cdc-hand-hygiene-brochure",
@@ -110,9 +149,42 @@
     "artifact": {"pinStatus": "checked-in", "bytes": 347256, "sha256": "b3c1c88eb59606cef0b34c3a0ca7bb23b43bb8ebd0314443972f8b1c6c17c15b", "localPath": "pandoc-showcase/samples/pdf-cdc-hand-hygiene-brochure-cdc-handhygiene-brochure.pdf"},
     "provenance": {"sourceType": "us-government-brochure", "project": "Centers for Disease Control and Prevention", "upstreamPath": "clean-hands/media/pdfs/cdc-handhygiene-brochure-508.pdf"},
     "license": {"status": "us-government-work", "spdx": "LicenseRef-US-Government-Work", "reference": "https://www.cdc.gov/other/agencymaterials.html"},
-    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": []},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-17", "visual": "screenshots-recorded", "unresolved": []},
     "failureClasses": ["B3", "C1", "C4"],
-    "success": {"expectedLogicalTables": 0, "maxTables": 0, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 0, "maxTables": 0, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {
+      "schemaVersion": 1,
+      "status": "verified_baseline",
+      "baseline": {"sources": ["pandoc-showcase/outputs/pdf-cdc-hand-hygiene-brochure/pdfkit-reference.json", "pandoc-showcase/outputs/pdf-cdc-hand-hygiene-brochure/wordpress-blocks.html"], "asOf": "2026-07-17"},
+      "reason": null,
+      "expected": {
+        "headings": [{"text": "Hand Hygiene is the #1 way to prevent the spread of infections", "level": 1, "occurrences": 1}, {"text": "Why?", "level": 2, "occurrences": 2}, {"text": "How?", "level": 2, "occurrences": 2}],
+        "paragraphs": [{"text": "You can take action by practicing hand hygiene regularly and by asking those around you to practice it as well.", "occurrences": 1}, {"text": "Remember: Hand hygiene saves lives.", "occurrences": 1}, {"text": "Remember: Ask your doctors and nurses to clean their hands before they examine you.", "occurrences": 1}],
+        "listStarts": [{"text": "Washing hands with soap and water.", "ordered": false, "occurrences": 1}, {"text": "Wet your hands with warm water.", "ordered": true, "start": 1, "occurrences": 1}, {"text": "Rub your hands together until soap forms a lather and then rub all over the top of your hands, in between your fingers and the area around and under the fingernails.", "ordered": true, "start": 2, "occurrences": 1}, {"text": "Follow directions on the bottle for how much of the product to use.", "ordered": true, "start": 1, "occurrences": 1}],
+        "tableHeaders": [],
+        "tableCells": [],
+        "spans": [],
+        "order": [{"sequence": [{"kind": "heading", "text": "Hand Hygiene is the #1 way to prevent the spread of infections"}, {"kind": "heading", "text": "Why?"}, {"kind": "paragraph", "text": "You can take action by practicing hand hygiene regularly and by asking those around you to practice it as well."}, {"kind": "heading", "text": "When?"}]}],
+        "links": [],
+        "pageCoverage": {"pageCount": 2, "processedPages": [1, 2]},
+        "mediaOccurrences": [{"id": "pdf-image-p1-n1-o208", "page": 1, "object": 208, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n2-o210", "page": 1, "object": 210, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n3-o225", "page": 1, "object": 225, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n4-o237", "page": 1, "object": 237, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n5-o241", "page": 1, "object": 241, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n6-o243", "page": 1, "object": 243, "disposition": "resolved"}, {"id": "pdf-image-p1-n7-o245", "page": 1, "object": 245, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n8-o247", "page": 1, "object": 247, "disposition": "resolved"}, {"id": "pdf-image-p1-n9-o248", "page": 1, "object": 248, "disposition": "resolved"}, {"id": "pdf-image-p1-n10-o249", "page": 1, "object": 249, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n11-o211", "page": 1, "object": 211, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n12-o212", "page": 1, "object": 212, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n13-o247", "page": 1, "object": 247, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n14-o213", "page": 1, "object": 213, "disposition": "resolved"}, {"id": "pdf-image-p1-n15-o214", "page": 1, "object": 214, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n16-o215", "page": 1, "object": 215, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n17-o217", "page": 1, "object": 217, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n18-o219", "page": 1, "object": 219, "disposition": "resolved"}, {"id": "pdf-image-p1-n19-o220", "page": 1, "object": 220, "disposition": "resolved"}, {"id": "pdf-image-p1-n20-o221", "page": 1, "object": 221, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n21-o223", "page": 1, "object": 223, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n22-o226", "page": 1, "object": 226, "disposition": "resolved"}, {"id": "pdf-image-p1-n23-o227", "page": 1, "object": 227, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n24-o228", "page": 1, "object": 228, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n25-o229", "page": 1, "object": 229, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n26-o230", "page": 1, "object": 230, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n27-o231", "page": 1, "object": 231, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n28-o232", "page": 1, "object": 232, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n29-o233", "page": 1, "object": 233, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n30-o234", "page": 1, "object": 234, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n31-o235", "page": 1, "object": 235, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n32-o238", "page": 1, "object": 238, "disposition": "intentional_omission"}, {"id": "pdf-image-p1-n33-o239", "page": 1, "object": 239, "disposition": "intentional_omission"}, {"id": "pdf-image-p2-n1-o5", "page": 2, "object": 5, "disposition": "intentional_omission"}, {"id": "pdf-image-p2-n2-o6", "page": 2, "object": 6, "disposition": "intentional_omission"}],
+        "unresolvedDispositions": []
+      },
+      "forbidden": {
+        "headings": [{"text": "Hospital infections are harmless", "level": 2}, {"text": "they examine you.", "level": 2}, {"text": "they examine you. }", "level": 2}],
+        "paragraphs": [{"text": "hospitalpatientsgetnearly2millioninfections"}, {"text": "Remember: Ask your doctors and nurses to clean their hands before they examine you. }"}],
+        "listStarts": [{"text": "Never wash your hands.", "ordered": false}],
+        "tableHeaders": [{"tableIndex": 0, "cells": ["Why?", "When?"]}],
+        "tableCells": [{"tableIndex": 0, "text": "Hand hygiene"}],
+        "spans": [{"tableIndex": 0, "text": "Hand hygiene", "rowspan": 2, "colspan": 2}],
+        "order": [{"sequence": [{"kind": "heading", "text": "Who?"}, {"kind": "heading", "text": "Hand Hygiene is the #1 way to prevent the spread of infections"}]}],
+        "links": [{"text": "CDC", "url": "javascript:alert(1)"}],
+        "pageCoverage": [3],
+        "mediaOccurrences": [{"id": "pdf-image-p1-n5-o241", "page": 1, "object": 241, "disposition": "unresolved"}],
+        "unresolvedDispositions": [{"domain": "source"}, {"domain": "media"}]
+      },
+      "exactCounts": {"headings": 11, "paragraphs": 26, "listStarts": 14, "tables": 0, "links": 0, "mediaOccurrences": 35, "unresolvedSourceDispositions": 0, "unresolvedMediaDispositions": 0}
+    }
   },
   {
     "id": "tabula-schools",
@@ -126,7 +198,8 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C2", "C3"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "tabula-12s0324",
@@ -140,7 +213,8 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C2", "C5"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "tabula-campaign-donors",
@@ -154,7 +228,8 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C2", "C3"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "tabula-eu-017",
@@ -168,7 +243,8 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C2", "C3"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "tabula-frx-disclosure",
@@ -182,7 +258,8 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C2", "C3"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "tabula-award-of-bids",
@@ -196,7 +273,8 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C3", "C8"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "tabula-multicolumn",
@@ -210,7 +288,40 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": []},
     "failureClasses": ["C1", "C2", "C3"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {
+      "schemaVersion": 1,
+      "status": "verified_baseline",
+      "baseline": {"sources": ["pandoc-showcase/outputs/pdf-tabula-multicolumn/pdfkit-reference.json", "pandoc-showcase/outputs/pdf-tabula-multicolumn/wordpress-blocks.html"], "asOf": "2026-07-16"},
+      "reason": null,
+      "expected": {
+        "headings": [],
+        "paragraphs": [],
+        "listStarts": [],
+        "tableHeaders": [{"tableIndex": 0, "cells": ["1", "100", "200", "25", "124", "224"]}],
+        "tableCells": [{"tableIndex": 0, "text": "24", "occurrences": 1}, {"tableIndex": 0, "text": "123", "occurrences": 1}, {"tableIndex": 0, "text": "223", "occurrences": 1}],
+        "spans": [{"tableIndex": 0, "text": "1", "rowspan": 1, "colspan": 1, "occurrences": 1}],
+        "order": [{"sequence": [{"kind": "table_cell", "text": "1"}, {"kind": "table_cell", "text": "100"}, {"kind": "table_cell", "text": "200"}, {"kind": "table_cell", "text": "25"}, {"kind": "table_cell", "text": "124"}, {"kind": "table_cell", "text": "224"}, {"kind": "table_cell", "text": "2"}]}],
+        "links": [],
+        "pageCoverage": {"pageCount": 1, "processedPages": [1]},
+        "mediaOccurrences": [],
+        "unresolvedDispositions": []
+      },
+      "forbidden": {
+        "headings": [{"text": "1 100 200", "level": 1}],
+        "paragraphs": [{"text": "1 100 200 25 124 224"}],
+        "listStarts": [{"text": "1", "ordered": true}],
+        "tableHeaders": [{"tableIndex": 0, "cells": ["25", "124", "224", "1", "100", "200"]}],
+        "tableCells": [{"tableIndex": 0, "text": "224223"}],
+        "spans": [{"tableIndex": 0, "text": "1", "rowspan": 1, "colspan": 2}],
+        "order": [{"sequence": [{"kind": "table_cell", "text": "224"}, {"kind": "table_cell", "text": "1"}]}],
+        "links": [{"text": "1", "url": "javascript:alert(1)"}],
+        "pageCoverage": [2],
+        "mediaOccurrences": [{"id": "pdf-image-p1-n1-o1", "page": 1, "object": 1, "disposition": "resolved"}],
+        "unresolvedDispositions": [{"domain": "source"}, {"domain": "media"}]
+      },
+      "exactCounts": {"headings": 0, "paragraphs": 0, "listStarts": 0, "tables": 1, "links": 0, "mediaOccurrences": 0, "unresolvedSourceDispositions": 0, "unresolvedMediaDispositions": 0}
+    }
   },
   {
     "id": "tabula-spanning-cells",
@@ -224,7 +335,8 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C3", "D8"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "tabula-us-007",
@@ -238,7 +350,8 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C2", "C3"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "tabula-us-017",
@@ -252,7 +365,8 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C2", "C3"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "tabula-twotables",
@@ -266,7 +380,8 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C3", "C5"],
-    "success": {"expectedLogicalTables": 2, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 2, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "tabula-argentina-voting",
@@ -280,7 +395,8 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C3", "E1", "E4"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "tabula-labor",
@@ -294,7 +410,8 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C2", "C3"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "tabula-spreadsheet-no-frame",
@@ -308,7 +425,40 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": []},
     "failureClasses": ["C1", "C2", "C3"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {
+      "schemaVersion": 1,
+      "status": "verified_baseline",
+      "baseline": {"sources": ["pandoc-showcase/outputs/pdf-tabula-spreadsheet-no-frame/pdfkit-reference.json", "pandoc-showcase/outputs/pdf-tabula-spreadsheet-no-frame/wordpress-blocks.html"], "asOf": "2026-07-16"},
+      "reason": null,
+      "expected": {
+        "headings": [{"text": "Table 1 BRAZIL", "level": 1, "occurrences": 1}, {"text": "PLANTED AREA ESTIMATE", "level": 2, "occurrences": 1}],
+        "paragraphs": [{"text": "2011/2012 AND 2012/2013 CROPS (In 1000 ha)", "occurrences": 1}, {"text": "Followup of the Brazilian Grain Crops 2012/2013 Ninth Assessment– Jun/2013", "occurrences": 1}],
+        "listStarts": [{"text": "YIELD ESTIMATE (184.30 million tons) The estimated yield is of 184.30 million tons, 10.9% higher than in 2011/12, when it reached 166.17 million tons (Table 2). This outcome represents an increment of 18.13 million tons due, mostly to soybeans and corn second crop that present increase in yield of 22.4% and 11.5%, respectively.", "ordered": true, "occurrences": 1}],
+        "tableHeaders": [{"tableIndex": 0, "cells": ["", "HARVEST", "", "", "VARIATION", ""]}],
+        "tableCells": [{"tableIndex": 0, "text": "COTTON", "occurrences": 1}, {"tableIndex": 0, "text": "1.393,4", "occurrences": 1}, {"tableIndex": 0, "text": "(498,5)", "occurrences": 1}],
+        "spans": [{"tableIndex": 0, "text": "HARVEST", "rowspan": 1, "colspan": 1, "occurrences": 1}],
+        "order": [{"sequence": [{"kind": "heading", "text": "Table 1 BRAZIL"}, {"kind": "heading", "text": "PLANTED AREA ESTIMATE"}, {"kind": "paragraph", "text": "2011/2012 AND 2012/2013 CROPS (In 1000 ha)"}, {"kind": "table_cell", "text": "HARVEST"}, {"kind": "table_cell", "text": "VARIATION"}, {"kind": "table_cell", "text": "COTTON"}, {"kind": "table_cell", "text": "1.393,4"}, {"kind": "table_cell", "text": "(498,5)"}, {"kind": "list_start", "text": "YIELD ESTIMATE (184.30 million tons) The estimated yield is of 184.30 million tons, 10.9% higher than in 2011/12, when it reached 166.17 million tons (Table 2). This outcome represents an increment of 18.13 million tons due, mostly to soybeans and corn second crop that present increase in yield of 22.4% and 11.5%, respectively."}]}],
+        "links": [],
+        "pageCoverage": {"pageCount": 1, "processedPages": [1]},
+        "mediaOccurrences": [],
+        "unresolvedDispositions": []
+      },
+      "forbidden": {
+        "headings": [{"text": "Table1BRAZIL", "level": 1}],
+        "paragraphs": [{"text": "2011/2012AND2012/2013CROPS"}],
+        "listStarts": [{"text": "YIELDESTIMATE", "ordered": true}],
+        "tableHeaders": [{"tableIndex": 0, "cells": ["VARIATION", "HARVEST"]}],
+        "tableCells": [{"tableIndex": 0, "text": "1.393,4886,7"}],
+        "spans": [{"tableIndex": 0, "text": "HARVEST", "rowspan": 2, "colspan": 1}],
+        "order": [{"sequence": [{"kind": "table_cell", "text": "(498,5)"}, {"kind": "table_cell", "text": "COTTON"}]}],
+        "links": [{"text": "Table 1 BRAZIL", "url": "javascript:alert(1)"}],
+        "pageCoverage": [2],
+        "mediaOccurrences": [{"id": "pdf-image-p1-n1-o1", "page": 1, "object": 1, "disposition": "resolved"}],
+        "unresolvedDispositions": [{"domain": "source"}, {"domain": "media"}]
+      },
+      "exactCounts": {"headings": 2, "paragraphs": 3, "listStarts": 1, "tables": 1, "links": 0, "mediaOccurrences": 0, "unresolvedSourceDispositions": 0, "unresolvedMediaDispositions": 0}
+    }
   },
   {
     "id": "tabula-us-020",
@@ -322,7 +472,8 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C3", "C8"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   },
   {
     "id": "tabula-us-024",
@@ -336,6 +487,7 @@
     "license": {"status": "verified-project-license", "spdx": "MIT", "reference": "https://github.com/tabulapdf/tabula-java/blob/master/LICENSE"},
     "review": {"status": "candidate", "asOf": "2026-07-16", "visual": "required", "unresolved": []},
     "failureClasses": ["C2", "C3"],
-    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true}
+    "success": {"expectedLogicalTables": 1, "minTables": 1, "maxCodeBlocks": 0, "preserveCellOrder": true, "forbidControlCharacters": true},
+    "semanticExpectations": {"schemaVersion": 1, "status": "pending_manual_review", "baseline": null, "reason": "Hash-pinned artifact is executable, but exact semantic assertions await recorded conversion output and manual source comparison.", "expected": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": null, "mediaOccurrences": [], "unresolvedDispositions": []}, "forbidden": {"headings": [], "paragraphs": [], "listStarts": [], "tableHeaders": [], "tableCells": [], "spans": [], "order": [], "links": [], "pageCoverage": [], "mediaOccurrences": [], "unresolvedDispositions": []}, "exactCounts": {}}
   }
 ]

@@ -505,7 +505,18 @@ if (!function_exists('get_posts')) {
 if (!function_exists('get_post_meta')) {
     function get_post_meta(int $postId, string $key = '', bool $single = false): mixed
     {
-        $post = $GLOBALS['plpc_test_posts'][$postId] ?? $GLOBALS['plpc_test_attachments'][$postId] ?? [];
+        // The production posts table has one global ID namespace. These
+        // lightweight fixtures keep pages and attachments separately, so an
+        // attachment-only key must disambiguate an artificial numeric clash.
+        $attachmentKey = in_array($key, [
+            '_plpc_import_metadata_complete',
+            '_plpc_import_source_file',
+            '_plpc_content_key',
+            '_plpc_content_sha1',
+        ], true);
+        $post = $attachmentKey
+            ? ($GLOBALS['plpc_test_attachments'][$postId] ?? $GLOBALS['plpc_test_posts'][$postId] ?? [])
+            : ($GLOBALS['plpc_test_posts'][$postId] ?? $GLOBALS['plpc_test_attachments'][$postId] ?? []);
         $meta = is_array($post['meta_input'] ?? null) ? $post['meta_input'] : [];
         if ($key === '') {
             return $meta;
@@ -513,6 +524,40 @@ if (!function_exists('get_post_meta')) {
         $value = $meta[$key] ?? '';
 
         return $single ? $value : [$value];
+    }
+}
+
+if (!function_exists('update_post_meta')) {
+    function update_post_meta(int $postId, string $key, mixed $value): bool
+    {
+        $collection = isset($GLOBALS['plpc_test_attachments'][$postId])
+            ? 'plpc_test_attachments'
+            : 'plpc_test_posts';
+        if (!isset($GLOBALS[$collection][$postId])) {
+            return false;
+        }
+        $GLOBALS[$collection][$postId]['meta_input'] ??= [];
+        if (($GLOBALS[$collection][$postId]['meta_input'][$key] ?? null) === $value) {
+            return false;
+        }
+        $GLOBALS[$collection][$postId]['meta_input'][$key] = $value;
+
+        return true;
+    }
+}
+
+if (!function_exists('delete_post_meta')) {
+    function delete_post_meta(int $postId, string $key): bool
+    {
+        $collection = isset($GLOBALS['plpc_test_attachments'][$postId])
+            ? 'plpc_test_attachments'
+            : 'plpc_test_posts';
+        if (!isset($GLOBALS[$collection][$postId]['meta_input'][$key])) {
+            return false;
+        }
+        unset($GLOBALS[$collection][$postId]['meta_input'][$key]);
+
+        return true;
     }
 }
 
@@ -550,14 +595,103 @@ if (!function_exists('wp_insert_attachment')) {
 if (!function_exists('wp_generate_attachment_metadata')) {
     function wp_generate_attachment_metadata(int $attachmentId, string $file): array
     {
-        return ['file' => basename($file), 'id' => $attachmentId];
+        $GLOBALS['plpc_test_attachment_metadata_generate_calls'][] = $attachmentId;
+        if (($GLOBALS['plpc_test_attachment_metadata_fail_id'] ?? null) === $attachmentId) {
+            return [];
+        }
+        if (!file_is_displayable_image($file)) {
+            return [];
+        }
+        $metadata = [
+            'file' => basename($file),
+            'id' => $attachmentId,
+            'sizes' => [],
+        ];
+        // Match WordPress core: base metadata and every generated subsize are
+        // persisted before the function returns.
+        $GLOBALS['plpc_test_attachment_metadata'][$attachmentId] = $metadata;
+        foreach ($GLOBALS['plpc_test_required_image_subsizes'] ?? ['thumbnail', 'medium'] as $size) {
+            $metadata['sizes'][(string) $size] = ['file' => (string) $size . '-' . basename($file)];
+            $GLOBALS['plpc_test_attachment_metadata'][$attachmentId] = $metadata;
+        }
+
+        return $metadata;
     }
 }
 
 if (!function_exists('wp_update_attachment_metadata')) {
-    function wp_update_attachment_metadata(int $attachmentId, array $metadata): void
+    function wp_update_attachment_metadata(int $attachmentId, array $metadata): bool
     {
+        $GLOBALS['plpc_test_attachment_metadata_update_calls'][] = $attachmentId;
+        if (($GLOBALS['plpc_test_attachment_metadata'][$attachmentId] ?? null) === $metadata) {
+            $GLOBALS['plpc_test_attachment_metadata_unchanged_calls'][] = $attachmentId;
+            return false;
+        }
         $GLOBALS['plpc_test_attachment_metadata'][$attachmentId] = $metadata;
+
+        return true;
+    }
+}
+
+if (!function_exists('file_is_displayable_image')) {
+    function file_is_displayable_image(string $file): bool
+    {
+        return in_array(strtolower(pathinfo($file, PATHINFO_EXTENSION)), ['avif', 'gif', 'jpeg', 'jpg', 'png', 'webp'], true);
+    }
+}
+
+if (!function_exists('wp_get_missing_image_subsizes')) {
+    function wp_get_missing_image_subsizes(int $attachmentId): array
+    {
+        $file = (string) ($GLOBALS['plpc_test_attachments'][$attachmentId]['file'] ?? '');
+        if (!file_is_displayable_image($file)) {
+            return [];
+        }
+        $metadata = $GLOBALS['plpc_test_attachment_metadata'][$attachmentId] ?? [];
+        $sizes = is_array($metadata['sizes'] ?? null) ? $metadata['sizes'] : [];
+        $missing = [];
+        foreach ($GLOBALS['plpc_test_required_image_subsizes'] ?? ['thumbnail', 'medium'] as $size) {
+            if (!isset($sizes[(string) $size])) {
+                $missing[(string) $size] = ['width' => 100, 'height' => 100, 'crop' => false];
+            }
+        }
+
+        return $missing;
+    }
+}
+
+if (!function_exists('wp_update_image_subsizes')) {
+    function wp_update_image_subsizes(int $attachmentId): array
+    {
+        $GLOBALS['plpc_test_attachment_metadata_resume_calls'][] = $attachmentId;
+        $file = (string) ($GLOBALS['plpc_test_attachments'][$attachmentId]['file'] ?? '');
+        $metadata = $GLOBALS['plpc_test_attachment_metadata'][$attachmentId] ?? [];
+        if (!is_array($metadata) || $metadata === [] || !file_is_displayable_image($file)) {
+            return [];
+        }
+        $metadata['sizes'] = is_array($metadata['sizes'] ?? null) ? $metadata['sizes'] : [];
+        foreach (array_keys(wp_get_missing_image_subsizes($attachmentId)) as $size) {
+            $metadata['sizes'][$size] = ['file' => $size . '-' . basename($file)];
+            $GLOBALS['plpc_test_attachment_metadata'][$attachmentId] = $metadata;
+        }
+
+        return $metadata;
+    }
+}
+
+if (!function_exists('wp_get_attachment_metadata')) {
+    function wp_get_attachment_metadata(int $attachmentId): array|false
+    {
+        return $GLOBALS['plpc_test_attachment_metadata'][$attachmentId] ?? false;
+    }
+}
+
+if (!function_exists('get_attached_file')) {
+    function get_attached_file(int $attachmentId, bool $unfiltered = false): string|false
+    {
+        $file = $GLOBALS['plpc_test_attachments'][$attachmentId]['file'] ?? '';
+
+        return is_string($file) && $file !== '' ? $file : false;
     }
 }
 
@@ -694,6 +828,10 @@ function plpc_test_reset_import_job_state(): void
     $GLOBALS['plpc_test_uploads'] = [];
     $GLOBALS['plpc_test_attachments'] = [];
     $GLOBALS['plpc_test_attachment_metadata'] = [];
+    $GLOBALS['plpc_test_attachment_metadata_generate_calls'] = [];
+    $GLOBALS['plpc_test_attachment_metadata_update_calls'] = [];
+    $GLOBALS['plpc_test_attachment_metadata_unchanged_calls'] = [];
+    $GLOBALS['plpc_test_attachment_metadata_resume_calls'] = [];
     $GLOBALS['plpc_imported_media_by_hash'] = [];
     $GLOBALS['plpc_test_uuid_sequence'] = 0;
     unset(
@@ -701,7 +839,10 @@ function plpc_test_reset_import_job_state(): void
         $GLOBALS['plpc_test_update_option_failure'],
         $GLOBALS['plpc_test_wp_update_failures'],
         $GLOBALS['plpc_test_wp_update_failure_injector'],
-        $GLOBALS['plpc_import_request_time_limit_fallback']
+        $GLOBALS['plpc_import_request_time_limit_fallback'],
+        $GLOBALS['plpc_test_attachment_metadata_fail_id'],
+        $GLOBALS['plpc_test_required_image_subsizes'],
+        $GLOBALS['plpc_import_media_metadata_capture']
     );
 
     foreach ([plpc_test_import_job_upload_dir(), plpc_test_private_import_job_dir()] as $directory) {
@@ -738,6 +879,86 @@ function plpc_test_renderable_form_xobject_pdf(): string
         . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}endstream\nendobj\n"
         . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 100 50] /Resources << >> /Length " . strlen($formContent) . " >>\nstream\n{$formContent}endstream\nendobj\n"
         . "%%EOF\n";
+}
+
+function plpc_test_whole_page_raster_jpeg(): string
+{
+    $jpeg = base64_decode(
+        '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////'
+        . '2wBDAf//////////////////////////////////////////////////////////////////////////////////////'
+        . 'wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAF//8QAFBAB'
+        . 'AAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABBQJ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwF//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/a'
+        . 'AAgBAgEBPwF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9oADAMBAAIA'
+        . 'AwAAABAf/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPxB//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPxB//8QAFBABAAAAAAAA'
+        . 'AAAAAAAAAAAAAP/aAAgBAQABPxB//9k=',
+        true
+    );
+    if (!is_string($jpeg)) {
+        throw new RuntimeException('Unable to build the page-raster PDF fixture.');
+    }
+
+    return $jpeg;
+}
+
+function plpc_test_whole_page_raster_pdf(): string
+{
+    $jpeg = plpc_test_whole_page_raster_jpeg();
+    $content = "q 1 0 0 1 0 0 cm /Scan Do Q\n";
+    $image = '<< /Type /XObject /Subtype /Image /Width 1 /Height 1'
+        . ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode'
+        . ' /Length ' . strlen($jpeg) . ">>\nstream\n" . $jpeg . "\nendstream";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 1 1]"
+        . " /Resources << /XObject << /Scan 5 0 R >> >> >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . ">>\nstream\n{$content}endstream\nendobj\n"
+        . "5 0 obj\n{$image}\nendobj\n%%EOF\n";
+}
+
+function plpc_test_whole_page_raster_boundary_pdf(): string
+{
+    $jpeg = plpc_test_whole_page_raster_jpeg();
+    $pageOne = 'BT /F1 12 Tf 72 720 Td (First physical boundary page) Tj ET';
+    $pageTwo = "q 612 0 0 792 0 0 cm /Scan Do Q\n"
+        . "0 0 612 792 re f\n"
+        . 'BT /F1 12 Tf 3 Tr 72 720 Td (HIDDEN-BOUNDARY-OCR) Tj ET';
+    $pageThree = 'BT /F1 12 Tf 72 720 Td (Third physical boundary page) Tj ET';
+    $objects = [
+        1 => '<< /Type /Catalog /Pages 2 0 R >>',
+        2 => '<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R] /Count 3 /MediaBox [0 0 612 792] '
+            . '/Resources << /Font << /F1 9 0 R >> /XObject << /Scan 10 0 R >> >> >>',
+        3 => '<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>',
+        4 => '<< /Length ' . strlen($pageOne) . ">>\nstream\n{$pageOne}\nendstream",
+        5 => '<< /Type /Page /Parent 2 0 R /Contents 6 0 R >>',
+        6 => '<< /Length ' . strlen($pageTwo) . ">>\nstream\n{$pageTwo}\nendstream",
+        7 => '<< /Type /Page /Parent 2 0 R /Contents 8 0 R >>',
+        8 => '<< /Length ' . strlen($pageThree) . ">>\nstream\n{$pageThree}\nendstream",
+        9 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+        10 => '<< /Type /XObject /Subtype /Image /Width 100 /Height 100'
+            . ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode'
+            . ' /Length ' . strlen($jpeg) . ">>\nstream\n{$jpeg}\nendstream",
+    ];
+    $pdf = "%PDF-1.4\n";
+    foreach ($objects as $number => $body) {
+        $pdf .= $number . " 0 obj\n{$body}\nendobj\n";
+    }
+
+    return $pdf . "%%EOF\n";
+}
+
+function plpc_test_rgb_png(int $width, int $height): string
+{
+    $chunk = static function (string $type, string $data): string {
+        return pack('N', strlen($data)) . $type . $data . pack('N', crc32($type . $data));
+    };
+    $scanline = "\x00" . str_repeat("\x00", $width * 3);
+
+    return "\x89PNG\r\n\x1a\n"
+        . $chunk('IHDR', pack('NNCCCCC', $width, $height, 8, 2, 0, 0, 0))
+        . $chunk('IDAT', gzcompress(str_repeat($scanline, $height)))
+        . $chunk('IEND', '');
 }
 
 function plpc_test_page_wrapper_form_xobject_pdf(): string
@@ -1677,6 +1898,7 @@ return [
         $createHandlers = plpc_test_rest_route_handlers('port-libs/v1/imports');
         $jobHandlers = plpc_test_rest_route_handlers('port-libs/v1/imports/(?P<jobId>[A-Za-z0-9_-]+)');
         $advanceHandlers = plpc_test_rest_route_handlers('port-libs/v1/imports/(?P<jobId>[A-Za-z0-9_-]+)/advance');
+        $cancelHandlers = plpc_test_rest_route_handlers('port-libs/v1/imports/(?P<jobId>[A-Za-z0-9_-]+)/cancel');
         $outputHandlers = plpc_test_rest_route_handlers('port-libs/v1/imports/(?P<jobId>[A-Za-z0-9_-]+)/output-mode');
         $renderHandlers = plpc_test_rest_route_handlers('port-libs/v1/imports/(?P<jobId>[A-Za-z0-9_-]+)/rendered-media');
         $sourceHandlers = plpc_test_rest_route_handlers('port-libs/v1/imports/(?P<jobId>[A-Za-z0-9_-]+)/render-source/(?P<requestId>form-[a-f0-9]+)');
@@ -1684,6 +1906,7 @@ return [
         $t->same(1, count(array_filter($createHandlers, static fn (array $handler): bool => ($handler['methods'] ?? null) === 'POST' && ($handler['callback'] ?? null) === 'plpc_create_import_job')));
         $t->same(1, count(array_filter($jobHandlers, static fn (array $handler): bool => ($handler['methods'] ?? null) === 'GET' && ($handler['callback'] ?? null) === 'plpc_import_job_status')));
         $t->same(1, count(array_filter($advanceHandlers, static fn (array $handler): bool => ($handler['methods'] ?? null) === 'POST' && ($handler['callback'] ?? null) === 'plpc_advance_import_job')));
+        $t->same(1, count(array_filter($cancelHandlers, static fn (array $handler): bool => ($handler['methods'] ?? null) === 'POST' && ($handler['callback'] ?? null) === 'plpc_cancel_import_job')));
         $t->same(1, count(array_filter($outputHandlers, static fn (array $handler): bool => ($handler['methods'] ?? null) === 'POST' && ($handler['callback'] ?? null) === 'plpc_switch_import_output_mode')));
         $t->same(1, count(array_filter($renderHandlers, static fn (array $handler): bool => ($handler['methods'] ?? null) === 'POST' && ($handler['callback'] ?? null) === 'plpc_submit_import_rendered_media')));
         $t->same(1, count(array_filter($sourceHandlers, static fn (array $handler): bool => ($handler['methods'] ?? null) === 'GET' && ($handler['callback'] ?? null) === 'plpc_import_job_render_source')));
@@ -1719,6 +1942,311 @@ return [
         $t->same($created['events'], $snapshot['events']);
         $t->true(!array_key_exists('bytes', $snapshot), 'Status polling must never echo the uploaded source bytes back to the browser.');
     },
+    'persisted import cancellation is durable idempotent and prevents future work' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'cancel-me.md',
+            'bytes' => base64_encode("# Cancel me\n\nThis source must remain private."),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $option = PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId;
+        $job = get_option($option);
+        $job['renderRequests'] = [[
+            'id' => 'form-' . str_repeat('a', 24),
+            'path' => 'cancel-me.pdf',
+            'page' => 1,
+            'bbox' => ['x1' => 0, 'y1' => 0, 'x2' => 10, 'y2' => 10],
+        ]];
+        plpc_import_job_save($job);
+
+        $first = plpc_cancel_import_job(plpc_test_import_job_request([], $jobId));
+        $firstSnapshot = $first->get_data();
+        $stored = get_option($option);
+        $revision = (int) ($stored['stateRevision'] ?? 0);
+
+        $t->same(200, $first->get_status());
+        $t->same('cancelled', $firstSnapshot['status'] ?? null);
+        $t->same('cancelled', $firstSnapshot['stage'] ?? null);
+        $t->same([], $firstSnapshot['renderRequests'] ?? null);
+        $t->same([], $stored['renderRequests'] ?? null);
+        $t->true((int) ($stored['cancelledAt'] ?? 0) > 0);
+        $t->same([
+            'postsRetainedAsDraft' => 0,
+            'mediaAttachmentsRetained' => 0,
+            'policy' => 'wordpress_artifacts_retained_for_review_or_reuse',
+        ], $firstSnapshot['cancellation'] ?? null);
+        $t->same(true, plpc_import_job_state_digest_is_valid($stored));
+
+        $second = plpc_cancel_import_job(plpc_test_import_job_request([], $jobId));
+        $advanced = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $t->same('cancelled', $second->get_data()['status'] ?? null);
+        $t->same('cancelled', $advanced->get_data()['status'] ?? null);
+        $t->same($revision, (int) (get_option($option)['stateRevision'] ?? 0), 'Idempotent cancel/advance reads must not rewrite a terminal job.');
+        $t->same([], $GLOBALS['plpc_test_posts'], 'A cancelled queued import must never create a post.');
+    },
+    'cancellation discovers a publication committed after the last saved cursor and returns it to draft' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'cancel-crash.md',
+            'bytes' => base64_encode('# Cancel after a committed transition'),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $postId = plpc_insert_verified_page([
+            'post_type' => 'page',
+            'post_title' => 'Crash-window page',
+            'post_content' => '<!-- wp:paragraph --><p>Verified private content.</p><!-- /wp:paragraph -->',
+            'meta_input' => ['_plpc_import_job_id' => $jobId],
+        ]);
+        $job = plpc_import_job_from_request(plpc_test_import_job_request([], $jobId));
+        $job['documents'] = [['path' => 'cancel-crash.md', 'completed' => true]];
+        $job['nextDocument'] = 1;
+        $job['results'] = [[
+            'postId' => $postId,
+            'documentIndex' => 0,
+            'kind' => 'document',
+            'title' => 'Crash-window page',
+        ]];
+        plpc_import_job_begin_publication($job);
+        plpc_import_job_save($job);
+
+        $workerCopy = plpc_import_job_from_request(plpc_test_import_job_request([], $jobId));
+        plpc_import_job_publish_next_result($workerCopy);
+        $t->same('publish', get_post_status($postId));
+        $t->same(0, get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId)['publishNextResult'] ?? null, 'The simulated worker terminates before saving its publication cursor.');
+
+        $cancelled = plpc_cancel_import_job(plpc_test_import_job_request([], $jobId));
+        $snapshot = $cancelled->get_data();
+        $t->same(200, $cancelled->get_status());
+        $t->same('cancelled', $snapshot['status'] ?? null);
+        $t->same('draft', get_post_status($postId), 'Cancellation must reconcile WordPress state rather than trust the stale cursor.');
+        $t->same(1, $snapshot['cancellation']['postsRetainedAsDraft'] ?? null);
+        $advanced = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $t->same('cancelled', $advanced->get_data()['status'] ?? null);
+        $t->same('draft', get_post_status($postId));
+    },
+    'cancellation retries an incomplete rollback and reports retained drafts and media explicitly' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'cancel-partial.md',
+            'bytes' => base64_encode('# Cancel a partially published batch'),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $results = [];
+        for ($index = 1; $index <= 2; $index++) {
+            $postId = plpc_insert_verified_page([
+                'post_type' => 'page',
+                'post_title' => 'Partial page ' . $index,
+                'post_content' => '<!-- wp:paragraph --><p>Verified page ' . $index . '.</p><!-- /wp:paragraph -->',
+                'meta_input' => ['_plpc_import_job_id' => $jobId],
+            ]);
+            $results[] = [
+                'postId' => $postId,
+                'documentIndex' => $index - 1,
+                'kind' => 'document',
+                'title' => 'Partial page ' . $index,
+            ];
+        }
+        $attachmentId = wp_insert_attachment([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'meta_input' => ['_plpc_import_job_id' => $jobId],
+        ], '/tmp/cancelled-retained.png');
+        $job = plpc_import_job_from_request(plpc_test_import_job_request([], $jobId));
+        $job['documents'] = [
+            ['path' => 'one.md', 'completed' => true],
+            ['path' => 'two.md', 'completed' => true],
+        ];
+        $job['nextDocument'] = 2;
+        $job['results'] = $results;
+        plpc_import_job_begin_publication($job);
+        plpc_import_job_publish_next_result($job);
+        plpc_import_job_save($job);
+        $publishedId = (int) $results[0]['postId'];
+        $t->same('publish', get_post_status($publishedId));
+
+        $GLOBALS['plpc_test_wp_update_failure_injector'] = static fn (int $postId, array $update): bool =>
+            $postId === $publishedId && ($update['post_status'] ?? '') === 'draft';
+        $contended = plpc_cancel_import_job(plpc_test_import_job_request([], $jobId));
+        $t->same(409, $contended->get_status(), 'Cancellation must remain retryable until every public artifact is private.');
+        $t->same('ready_to_publish', get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId)['status'] ?? null);
+        $t->same('publish', get_post_status($publishedId));
+        unset($GLOBALS['plpc_test_wp_update_failure_injector']);
+
+        $cancelled = plpc_cancel_import_job(plpc_test_import_job_request([], $jobId));
+        $snapshot = $cancelled->get_data();
+        $t->same(200, $cancelled->get_status());
+        $t->same('cancelled', $snapshot['status'] ?? null);
+        $t->same('draft', get_post_status($publishedId));
+        $t->same('draft', get_post_status((int) $results[1]['postId']));
+        $t->same(2, $snapshot['cancellation']['postsRetainedAsDraft'] ?? null);
+        $t->same(1, $snapshot['cancellation']['mediaAttachmentsRetained'] ?? null);
+        $t->same('wordpress_artifacts_retained_for_review_or_reuse', $snapshot['cancellation']['policy'] ?? null);
+        $t->true(isset($GLOBALS['plpc_test_attachments'][$attachmentId]), 'Retained media remains explicit instead of becoming an unreported orphan.');
+    },
+    'persisted imports generate media metadata one attachment per resumable request' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'metadata.md',
+            'bytes' => base64_encode('# Metadata queue'),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $firstAttachment = wp_insert_attachment([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'meta_input' => [],
+        ], '/tmp/metadata-first.png');
+        $secondAttachment = wp_insert_attachment([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'meta_input' => [],
+        ], '/tmp/metadata-second.png');
+        $job = plpc_import_job_from_request(plpc_test_import_job_request([], $jobId));
+        $job['status'] = 'ready_for_media_metadata';
+        $job['stage'] = 'ready_for_media_metadata';
+        $job['documents'] = [[
+            'path' => 'metadata.md',
+            'format' => 'markdown',
+            'completed' => true,
+        ]];
+        $job['results'] = [[
+            'postId' => 99,
+            'documentIndex' => 0,
+            'kind' => 'document',
+        ]];
+        $job['mediaMetadataQueue'] = [
+            ['attachmentId' => $firstAttachment, 'file' => '/tmp/metadata-first.png'],
+            ['attachmentId' => $secondAttachment, 'file' => '/tmp/metadata-second.png'],
+        ];
+        $job['mediaMetadataTotal'] = 2;
+        $job['mediaMetadataCompleted'] = 0;
+        $job['progress'] = ['completed' => 1, 'total' => 4, 'label' => 'Preparing media metadata.'];
+        plpc_import_job_save($job);
+
+        $first = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('ready_for_media_metadata', $first['status'] ?? null);
+        $t->same(['completed' => 1, 'pending' => 1, 'total' => 2, 'perRequest' => 1], $first['mediaMetadata'] ?? null);
+        $t->same([$firstAttachment], $GLOBALS['plpc_test_attachment_metadata_generate_calls']);
+        $t->same($firstAttachment, $GLOBALS['plpc_test_attachment_metadata'][$firstAttachment]['id'] ?? null);
+
+        $GLOBALS['plpc_test_attachment_metadata_fail_id'] = $secondAttachment;
+        $failed = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('retryable_failure', $failed['status'] ?? null);
+        $t->same('media_metadata_generation_failed', $failed['failure']['code'] ?? null);
+        $t->same(1, $failed['mediaMetadata']['pending'] ?? null);
+        unset($GLOBALS['plpc_test_attachment_metadata_fail_id']);
+
+        $resumed = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('ready_for_media_metadata', $resumed['status'] ?? null, 'The first retry only acknowledges the durable resume cursor.');
+        $finished = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('ready_to_publish', $finished['status'] ?? null);
+        $t->same(['completed' => 2, 'pending' => 0, 'total' => 2, 'perRequest' => 1], $finished['mediaMetadata'] ?? null);
+        $t->same(
+            [$firstAttachment, $secondAttachment, $secondAttachment],
+            $GLOBALS['plpc_test_attachment_metadata_generate_calls'],
+            'A failed attachment may retry, but no request may advance more than one queue item.'
+        );
+        $t->same(true, plpc_import_job_state_digest_is_valid(get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId)));
+    },
+    'persisted media metadata accepts core unchanged writes without exhausting the global retry budget' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'metadata-core.md',
+            'bytes' => base64_encode('# Core metadata behavior'),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $queue = [];
+        $attachmentIds = [];
+        for ($index = 1; $index <= 4; $index++) {
+            $file = '/tmp/metadata-core-' . $index . '.png';
+            $attachmentId = wp_insert_attachment([
+                'post_type' => 'attachment',
+                'post_status' => 'inherit',
+                'meta_input' => ['_plpc_import_source_file' => $file],
+            ], $file);
+            $attachmentIds[] = $attachmentId;
+            $queue[] = ['attachmentId' => $attachmentId, 'file' => $file];
+        }
+        $job = plpc_import_job_from_request(plpc_test_import_job_request([], $jobId));
+        $job['status'] = 'ready_for_media_metadata';
+        $job['stage'] = 'ready_for_media_metadata';
+        $job['documents'] = [['path' => 'metadata-core.md', 'format' => 'markdown', 'completed' => true]];
+        $job['results'] = [['postId' => 99, 'documentIndex' => 0, 'kind' => 'document']];
+        $job['mediaMetadataQueue'] = $queue;
+        $job['mediaMetadataTotal'] = 4;
+        $job['mediaMetadataCompleted'] = 0;
+        $job['progress'] = ['completed' => 1, 'total' => 6, 'label' => 'Preparing media metadata.'];
+        plpc_import_job_save($job);
+
+        $snapshot = [];
+        for ($request = 1; $request <= 4; $request++) {
+            $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+            $t->true(($snapshot['status'] ?? '') !== 'retryable_failure', 'An unchanged core metadata write must not consume a retry.');
+            $t->same(4 - $request, $snapshot['mediaMetadata']['pending'] ?? null);
+        }
+
+        $t->same('ready_to_publish', $snapshot['status'] ?? null);
+        $t->same($attachmentIds, $GLOBALS['plpc_test_attachment_metadata_generate_calls']);
+        $t->same($attachmentIds, $GLOBALS['plpc_test_attachment_metadata_unchanged_calls']);
+        foreach ($attachmentIds as $attachmentId) {
+            $t->same('1', get_post_meta($attachmentId, '_plpc_import_metadata_complete', true));
+            $t->same('', get_post_meta($attachmentId, '_plpc_import_source_file', true), 'The absolute source path must be removed after readback completes.');
+            $t->same([], wp_get_missing_image_subsizes($attachmentId));
+        }
+        $stored = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+        $t->same([], $stored['retryCounts'] ?? []);
+        $t->same(true, plpc_import_job_state_digest_is_valid($stored));
+    },
+    'persisted media metadata repairs partial subsizes and explicitly completes unsupported images' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'metadata-resume.md',
+            'bytes' => base64_encode('# Resume metadata'),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $partialFile = '/tmp/metadata-partial.png';
+        $partialId = wp_insert_attachment([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'meta_input' => [],
+        ], $partialFile);
+        $GLOBALS['plpc_test_attachment_metadata'][$partialId] = [
+            'file' => basename($partialFile),
+            'id' => $partialId,
+            'sizes' => ['thumbnail' => ['file' => 'thumbnail-' . basename($partialFile)]],
+        ];
+        $svgFile = '/tmp/metadata-vector.svg';
+        $svgId = wp_insert_attachment([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'meta_input' => [],
+        ], $svgFile);
+        $job = plpc_import_job_from_request(plpc_test_import_job_request([], $jobId));
+        $job['status'] = 'ready_for_media_metadata';
+        $job['stage'] = 'ready_for_media_metadata';
+        $job['documents'] = [['path' => 'metadata-resume.md', 'format' => 'markdown', 'completed' => true]];
+        $job['results'] = [['postId' => 99, 'documentIndex' => 0, 'kind' => 'document']];
+        $job['mediaMetadataQueue'] = [
+            ['attachmentId' => $partialId, 'file' => $partialFile],
+            ['attachmentId' => $svgId, 'file' => $svgFile],
+        ];
+        $job['mediaMetadataTotal'] = 2;
+        $job['mediaMetadataCompleted'] = 0;
+        $job['progress'] = ['completed' => 1, 'total' => 4, 'label' => 'Preparing media metadata.'];
+        plpc_import_job_save($job);
+
+        $partial = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('ready_for_media_metadata', $partial['status'] ?? null);
+        $t->same([$partialId], $GLOBALS['plpc_test_attachment_metadata_resume_calls']);
+        $t->same([], wp_get_missing_image_subsizes($partialId), 'The cursor may shift only after the missing medium subsize is persisted.');
+        $t->same('1', get_post_meta($partialId, '_plpc_import_metadata_complete', true));
+        $t->same([], $GLOBALS['plpc_test_attachment_metadata_generate_calls'], 'Partial core metadata must resume rather than start generation over.');
+
+        $svg = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('ready_to_publish', $svg['status'] ?? null);
+        $t->same([$svgId], $GLOBALS['plpc_test_attachment_metadata_generate_calls']);
+        $t->same('1', get_post_meta($svgId, '_plpc_import_metadata_complete', true), 'An unsupported empty-metadata format needs a durable completion marker.');
+        $t->same(true, plpc_import_attachment_metadata_complete($svgId));
+    },
     'persisted import jobs verify each option checkpoint by revision and digest readback' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
         $created = plpc_create_import_job(plpc_test_import_job_request([
@@ -1744,6 +2272,138 @@ return [
         $t->same('job_state_commit_failed', $error instanceof PlpcImportFailure ? $error->failureCode : null);
         $t->same($storedRevision, get_option($option)['stateRevision'] ?? null, 'An unverified write must not advance the durable cursor.');
         $t->same(true, plpc_import_job_state_digest_is_valid(get_option($option)));
+    },
+    'durable import files commit atomically and retain the previous checkpoint after a staged-write fault' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $directory = plpc_test_private_import_job_dir() . '/atomic-write-fixture';
+        $relative = 'state/checkpoint.json';
+        plpc_import_job_write_file($directory, $relative, 'previous checkpoint');
+        $target = plpc_import_job_storage_target($directory, $relative);
+        $faultInjected = false;
+        add_action('plpc_import_job_file_staged', static function (string $temporary, string $committed) use ($target, &$faultInjected): void {
+            if ($committed !== $target || $faultInjected) {
+                return;
+            }
+            $faultInjected = true;
+            file_put_contents($temporary, 'short');
+        });
+
+        $error = null;
+        try {
+            plpc_import_job_write_file($directory, $relative, 'replacement checkpoint that must not be partially committed');
+        } catch (Throwable $throwable) {
+            $error = $throwable;
+        } finally {
+            unset($GLOBALS['plpc_test_actions']['plpc_import_job_file_staged']);
+        }
+
+        $t->true($faultInjected, 'The failure injection must occur after the temporary file is flushed.');
+        $t->true($error instanceof RuntimeException);
+        $t->contains('verify the staged import file', (string) $error?->getMessage());
+        $t->same('previous checkpoint', file_get_contents($target), 'A corrupt staged write must never replace the last complete checkpoint.');
+        $t->same([], glob($target . '.tmp-*') ?: [], 'Failed temporary files must not leak into private job storage.');
+
+        plpc_import_job_write_file($directory, $relative, 'replacement checkpoint');
+        $t->same('replacement checkpoint', file_get_contents($target));
+        $t->same([], glob($target . '.tmp-*') ?: []);
+    },
+    'a failed job creation removes its unacknowledged source directory, option, and index entry' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $expectedJobId = str_replace('-', '', sprintf('00000000-0000-4000-8000-%012d', 1));
+        add_action('plpc_import_job_file_staged', static function (string $temporary, string $target): void {
+            if (str_contains(str_replace('\\', '/', $target), '/source/')) {
+                file_put_contents($temporary, 'corrupt');
+            }
+        });
+        try {
+            $response = plpc_create_import_job(plpc_test_import_job_request([
+                'filename' => 'unacknowledged.md',
+                'bytes' => base64_encode('# This source must be rolled back'),
+            ]));
+        } finally {
+            unset($GLOBALS['plpc_test_actions']['plpc_import_job_file_staged']);
+        }
+
+        $directory = plpc_import_job_directory($expectedJobId);
+        $index = get_option(PLPC_IMPORT_JOB_INDEX_OPTION, []);
+        $t->same(400, $response->get_status());
+        $t->contains('verify the staged import file', (string) ($response->get_data()['message'] ?? ''));
+        $t->same(false, is_dir($directory), 'A client that never received a job id must not leave private source files behind.');
+        $t->same(null, get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $expectedJobId, null));
+        $t->true(!is_array($index) || !array_key_exists($expectedJobId, $index));
+    },
+    'file-backed browser uploads survive an interruption between staging and atomic commit' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $directory = plpc_test_private_import_job_dir() . '/external-write-fixture';
+        wp_mkdir_p($directory);
+        $source = $directory . '/browser-staged.bin';
+        $target = $directory . '/durable-source.bin';
+        file_put_contents($source, 'new immutable source bytes');
+        file_put_contents($target, 'previous durable source');
+        add_action('plpc_import_job_external_file_staged', static function (): void {
+            throw new RuntimeException('simulated worker termination after staging');
+        });
+
+        $error = null;
+        try {
+            plpc_import_job_commit_external_file($source, $target, false);
+        } catch (Throwable $throwable) {
+            $error = $throwable;
+        } finally {
+            unset($GLOBALS['plpc_test_actions']['plpc_import_job_external_file_staged']);
+        }
+
+        $t->contains('simulated worker termination', (string) $error?->getMessage());
+        $t->same('new immutable source bytes', file_get_contents($source), 'The selected source must remain retryable after the interrupted move.');
+        $t->same('previous durable source', file_get_contents($target), 'An interrupted staged move must not replace the prior durable file.');
+        $t->same([], glob($target . '.tmp-*') ?: []);
+
+        $identity = plpc_import_job_commit_external_file($source, $target, false);
+        $t->same('new immutable source bytes', file_get_contents($target));
+        $t->same(strlen('new immutable source bytes'), $identity['bytes']);
+        $t->same(hash('sha256', 'new immutable source bytes'), $identity['sha256']);
+        $t->same(false, is_file($source), 'A committed move must remove the browser staging copy.');
+    },
+    'persisted import jobs return 409 under a real per-job file lock and resume from the unchanged checkpoint' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'contended.md',
+            'bytes' => base64_encode("# Contended\n\nAdvance exactly once after the lock releases."),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $request = plpc_test_import_job_request([], $jobId);
+        $before = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId, null);
+        $job = plpc_import_job_from_request($request);
+        $heldLock = plpc_import_job_acquire_lock($job);
+
+        try {
+            $contended = plpc_advance_import_job($request);
+        } finally {
+            plpc_import_job_release_lock($heldLock);
+        }
+
+        $t->same(409, $contended->get_status());
+        $t->same(false, $contended->get_data()['ok'] ?? null);
+        $t->contains('already being updated', (string) ($contended->get_data()['message'] ?? ''));
+        $t->same(
+            $before,
+            get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId, null),
+            'A rejected concurrent advance must not mutate the authoritative job checkpoint.'
+        );
+
+        $resumed = plpc_advance_import_job($request);
+        $resumedData = $resumed->get_data();
+        $t->same(200, $resumed->get_status());
+        $t->same(true, $resumedData['ok'] ?? null);
+        $t->true(
+            in_array((string) ($resumedData['status'] ?? ''), ['ready_to_convert', 'converting'], true),
+            'The fresh request must resume the queued job after the operating-system lock releases.'
+        );
+        $t->true(
+            (int) (get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId, [])['stateRevision'] ?? 0)
+                > (int) ($before['stateRevision'] ?? 0),
+            'Only the successful retry may advance the durable revision.'
+        );
     },
     'persisted import job index serializes interleaved writers and retains both entries after bounded retry' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
@@ -1921,6 +2581,34 @@ return [
         $t->same(false, is_dir($expiredDirectory));
         $t->true(is_array(get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $activeId, null)), 'An active resumable job must survive cleanup.');
     },
+    'a stale loaded job cannot recreate private storage after retention cleanup' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'stale-lock.md',
+            'bytes' => base64_encode('# Stale lock owner'),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $stale = plpc_import_job_from_request(plpc_test_import_job_request([], $jobId));
+        $directory = plpc_import_job_directory($stale);
+        $now = time();
+        $index = get_option(PLPC_IMPORT_JOB_INDEX_OPTION, []);
+        $index[$jobId]['updatedAt'] = $now - PLPC_IMPORT_JOB_RETENTION_ACTIVE_SECONDS - 10;
+        $index[$jobId]['status'] = 'queued';
+        update_option(PLPC_IMPORT_JOB_INDEX_OPTION, $index, false);
+
+        $cleaned = plpc_cleanup_import_jobs($now);
+        $t->same(1, $cleaned['removed'] ?? null);
+        $t->same(false, is_dir($directory));
+        $error = null;
+        try {
+            plpc_import_job_acquire_lock($stale);
+        } catch (Throwable $throwable) {
+            $error = $throwable;
+        }
+        $t->true($error instanceof RuntimeException);
+        $t->contains('no longer has private storage', (string) $error?->getMessage());
+        $t->same(false, is_dir($directory), 'A stale caller must not resurrect an unindexed lock directory.');
+    },
     'persisted import jobs store bounded PDF js facts privately with native fallback evidence' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
         $pdf = plpc_test_multipage_pdf(['Native browser handoff']);
@@ -1961,9 +2649,23 @@ return [
         $t->true(is_array($record), 'The job should retain only a private browser-facts descriptor.');
         $t->true(str_starts_with((string) ($record['storage'] ?? ''), 'facts/'));
         $t->same(1, $record['pages'] ?? null);
+        $t->same(
+            hash('sha256', plpc_import_job_read_file($job, (string) ($record['storage'] ?? ''))),
+            $record['sha256'] ?? null,
+            'The descriptor digest must bind the exact serialized facts bytes committed to private storage.'
+        );
         $t->true(!array_key_exists('pages', $record) || is_int($record['pages']), 'Browser page payloads must not be stored in the WordPress option.');
         $loaded = plpc_import_job_load_browser_facts($job, 'browser.pdf');
         $t->same(json_decode(json_encode($browserFacts, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR), $loaded);
+
+        $factsStorage = (string) ($record['storage'] ?? '');
+        $factsPath = plpc_import_job_storage_path($job, $factsStorage);
+        $savedFacts = (string) file_get_contents($factsPath);
+        $tamperedFacts = str_replace('Browser handoff', 'Browzer handoff', $savedFacts);
+        $t->same(strlen($savedFacts), strlen($tamperedFacts));
+        file_put_contents($factsPath, $tamperedFacts, LOCK_EX);
+        $t->same(null, plpc_import_job_load_browser_facts($job, 'browser.pdf'), 'A same-size browser-facts replacement must not enter native reconciliation.');
+        plpc_import_job_write_file(plpc_import_job_directory($job), $factsStorage, $savedFacts);
 
         $merged = (new \PortLibs\MarkerPDF\BrowserPdfFactsProvider())->extract($pdf, ['browserFacts' => $loaded]);
         $t->same('applied', $merged->diagnostics()['browserFacts']['status'] ?? null);
@@ -1982,6 +2684,35 @@ return [
         $mergedFacts = plpc_import_job_load_pdf_document_facts($mergedJob, $mergedJob['documents'][0]);
         $t->same('native-php-v1+pdfjs-v1', $mergedFacts->provider());
         $t->same('Browser handoff', $mergedFacts->page(1)?->text()['browser']['spans'][0]['text'] ?? null);
+    },
+    'persisted jobs discard browser facts whose source digest does not match the immutable upload' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $pdf = plpc_test_multipage_pdf(['Native source identity']);
+        $response = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'browser-source-mismatch.pdf',
+            'bytes' => base64_encode($pdf),
+            'pdfBrowserFacts' => ['browser-source-mismatch.pdf' => [
+                'schemaVersion' => 1,
+                'provider' => 'pdfjs-v1',
+                'sourceSha256' => hash('sha256', $pdf . 'different'),
+                'pageCount' => 1,
+                'pages' => [[
+                    'pageNumber' => 1,
+                    'viewport' => ['width' => 1.0, 'height' => 1.0, 'rotation' => 0, 'viewBox' => [0.0, 0.0, 1.0, 1.0]],
+                    'spans' => [],
+                    'markedContent' => [],
+                    'styles' => [],
+                    'structure' => null,
+                ]],
+                'failures' => [],
+            ]],
+        ]));
+        $snapshot = $response->get_data();
+        $job = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . (string) ($snapshot['jobId'] ?? ''));
+
+        $t->same(201, $response->get_status());
+        $t->same([], $job['browserFacts'] ?? null, 'Stale browser observations must not be checkpointed beside another source version.');
+        $t->same(hash('sha256', $pdf), $job['sourceFiles'][0]['sha256'] ?? null);
     },
     'playground converter scopes persisted import jobs to their WordPress owner' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
@@ -2029,7 +2760,7 @@ return [
         $snapshot = $created;
         $stages = [];
 
-        for ($attempt = 0; $attempt < 8 && !in_array($snapshot['status'] ?? '', ['complete', 'completed'], true); $attempt++) {
+        for ($attempt = 0; $attempt < 12 && !in_array($snapshot['status'] ?? '', ['complete', 'completed'], true); $attempt++) {
             $response = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
             $t->same(200, $response->get_status());
             $snapshot = $response->get_data();
@@ -2072,6 +2803,46 @@ return [
         $t->same(1, count($job['documents'][0]['pdfChunkMetrics'] ?? []), 'Three pages should share one measured parse request.');
         $t->same(3, $snapshot['metrics']['pdfPagesExtracted'] ?? null);
         $t->same(1, $snapshot['metrics']['pdfExtractionRequests'] ?? null);
+    },
+    'resumable pdf jobs reject a same-length source replacement before mixing it with saved page facts' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        add_filter('plpc_pdf_pages_per_request', static fn (mixed $pages): int => 1);
+        add_filter('plpc_pdf_adaptive_pages_per_request', static fn (mixed $pages): int => 1);
+        $pdf = plpc_test_multipage_pdf([
+            'IMMUTABLE FIRST PAGE',
+            'IMMUTABLE SECOND PAGE',
+            'IMMUTABLE THIRD PAGE',
+        ]);
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'immutable-source.pdf',
+            'imageMode' => 'none',
+            'pdfMode' => 'layout',
+            'bytes' => base64_encode($pdf),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $request = plpc_test_import_job_request([], $jobId);
+        plpc_advance_import_job($request);
+        plpc_advance_import_job($request);
+        $job = plpc_import_job_from_request($request);
+        $document = is_array($job['documents'][0] ?? null) ? $job['documents'][0] : [];
+        $t->same(1, count($document['pdfChunks'] ?? []), 'The fixture must have one authoritative page-facts checkpoint before tampering.');
+        $t->same(hash('sha256', $pdf), $document['sourceSha256'] ?? null);
+        $sourcePath = plpc_import_job_storage_path($job, (string) ($document['storage'] ?? ''));
+        $replacement = str_replace('IMMUTABLE SECOND PAGE', 'IMMUTABLF SECOND PAGE', $pdf);
+        $t->same(strlen($pdf), strlen($replacement), 'The replacement must evade a length-only checkpoint check.');
+        file_put_contents($sourcePath, $replacement, LOCK_EX);
+
+        $failed = plpc_advance_import_job($request);
+        $snapshot = $failed->get_data();
+        $stored = plpc_import_job_from_request($request);
+
+        $t->same(500, $failed->get_status());
+        $t->same('failed', $snapshot['status'] ?? null);
+        $t->same('source_identity_mismatch', $snapshot['failure']['code'] ?? null);
+        $t->same('validating_source', $snapshot['failure']['stage'] ?? null);
+        $t->same(false, $snapshot['failure']['recoverable'] ?? null);
+        $t->same(1, count($stored['documents'][0]['pdfChunks'] ?? []), 'No page facts from the replaced source may be appended.');
+        $t->same(0, count($GLOBALS['plpc_test_posts']), 'A mixed-version PDF must never reach publication.');
     },
     'playground pdf jobs checkpoint page chunks without publishing partial documents and resume idempotently' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
@@ -2157,6 +2928,7 @@ return [
         $t->true(is_array($jobAfterSemantics['documents'][0]['pdfFinalBundle'] ?? null), 'The one global semantic pass should become a durable private bundle before publication.');
         $t->same(0, count($GLOBALS['plpc_test_posts']));
         $durableBundle = plpc_import_job_load_pdf_final_bundle($jobAfterSemantics, $jobAfterSemantics['documents'][0]);
+        $t->same(true, $durableBundle['semanticSourceComplete'] ?? null, 'The durable PDF bundle must carry its verified source-disposition gate.');
         foreach (['FIRST', 'SECOND', 'THIRD'] as $ordinal) {
             $sentinel = $ordinal . ' PAGE CHECKPOINT SENTINEL';
             $t->same(1, substr_count($durableBundle['blocks'], $sentinel), $sentinel . ' should occur exactly once after global semantics.');
@@ -2962,6 +3734,65 @@ return [
         $t->same('complete', $snapshot['status'] ?? null);
         $t->true(is_array($snapshot['result'] ?? null), 'A retried durable document unit should still produce an import result.');
     },
+    'a terminated PHP worker releases the operating-system job lock and the next request resumes once' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'terminated-worker.md',
+            'bytes' => base64_encode("# Terminated worker\n\nResume from the saved cursor.\n"),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $option = PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId;
+        $job = plpc_import_job_from_request(plpc_test_import_job_request([], $jobId));
+        $job['status'] = 'converting';
+        $job['stage'] = 'inspecting';
+        $job['progress'] = ['completed' => 0, 'total' => 1, 'label' => 'A worker held this checkpoint.'];
+        update_option($option, $job, false);
+        $before = get_option($option);
+        $lockPath = plpc_import_job_directory($job) . DIRECTORY_SEPARATOR . '.import.lock';
+        $childCode = <<<'PHP'
+$handle = fopen($argv[1], 'c');
+if (!is_resource($handle) || !flock($handle, LOCK_EX)) {
+    exit(71);
+}
+fwrite(STDOUT, "LOCKED\n");
+fflush(STDOUT);
+sleep(30);
+PHP;
+        $pipes = [];
+        $process = proc_open(
+            [PHP_BINARY, '-r', $childCode, '--', $lockPath],
+            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+            dirname(__DIR__, 3)
+        );
+        if (!is_resource($process)) {
+            throw new RuntimeException('Could not start the lock-holding PHP worker.');
+        }
+
+        try {
+            $ready = is_resource($pipes[1]) ? fgets($pipes[1]) : false;
+            $t->same("LOCKED\n", $ready, 'The child must own the exact per-job lock before contention is tested.');
+            $contended = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+            $t->same(409, $contended->get_status());
+            $t->same($before, get_option($option), 'A live worker lock must leave the durable revision unchanged.');
+        } finally {
+            @proc_terminate($process, 9);
+            foreach ($pipes as $pipe) {
+                if (is_resource($pipe)) {
+                    @fclose($pipe);
+                }
+            }
+            @proc_close($process);
+        }
+
+        $resumed = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $snapshot = $resumed->get_data();
+        $t->same(200, $resumed->get_status());
+        $t->same('ready_to_convert', $snapshot['status'] ?? null);
+        $t->true(in_array('resuming', array_column($snapshot['events'] ?? [], 'stage'), true));
+        $t->same(0, count($GLOBALS['plpc_test_posts']), 'Lock recovery must not duplicate or prematurely publish a page.');
+        $t->true((int) (get_option($option)['stateRevision'] ?? 0) > (int) ($before['stateRevision'] ?? 0));
+    },
     'playground converter yields a durable conversion checkpoint before the PHP deadline and finishes on the next request' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
         $created = plpc_create_import_job(plpc_test_import_job_request([
@@ -3173,6 +4004,299 @@ return [
         $t->same(PLPC_IMPORT_JOB_MAX_FORM_RENDER_BYTES, $afterBudget['renderedFormBytes'] ?? null, 'A rejected over-budget render must not increment the counter.');
         $t->contains('budget was reached', (string) ($afterBudget['renderedForms'][$budgetId]['error'] ?? ''));
     },
+    'playground job durably binds an exact whole-page PNG response to its immutable request' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL0oAAAAABJRU5ErkJggg==', true);
+        $t->true(is_string($png) && $png !== '');
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'page-raster-state.md',
+            'bytes' => base64_encode('# Page raster state'),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $option = PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId;
+        $job = get_option($option);
+        $sourceSha256 = hash('sha256', 'immutable-pdf-source');
+        $job['documents'][0]['path'] = 'scan.pdf';
+        $job['documents'][0]['sourceSha256'] = $sourceSha256;
+        $request = [
+            'version' => 1,
+            'method' => 'pdfjs-whole-page-raster',
+            'sourceSha256' => $sourceSha256,
+            'page' => 2,
+            'pageObject' => 17,
+            'pageBox' => [0.0, 0.0, 1.0, 1.0],
+            'pageBoxSource' => 'CropBox',
+            'pageRotation' => 90,
+            'width' => 1,
+            'height' => 1,
+            'mimeType' => 'image/png',
+        ];
+        $request['requestDigest'] = plpc_import_job_pdf_page_raster_request_digest($request);
+        $request['id'] = 'pdf-page-raster-' . substr($request['requestDigest'], 0, 32);
+        $ast = new \PortLibs\Pandoc\AstNode('document', [
+            'meta' => ['pdfPageRasterRequests' => [$request]],
+        ]);
+
+        $t->same(1, plpc_import_job_queue_pdf_page_raster_requests($job, 0, $job['documents'][0], $ast, 2, 2));
+        $snapshot = plpc_import_job_response($job)->get_data();
+        $public = $snapshot['renderRequests'][0] ?? [];
+        $t->same('pdfjs-whole-page-raster', $public['method'] ?? null);
+        $t->same($request['id'], $public['id'] ?? null);
+        $t->same($request['requestDigest'], $public['requestDigest'] ?? null);
+        $t->same($request['pageBox'], $public['pageBox'] ?? null);
+        $t->same(90, $public['pageRotation'] ?? null);
+        $t->true(!array_key_exists('bbox', $public));
+
+        $job['status'] = 'awaiting_renderer';
+        $job['stage'] = 'awaiting_renderer';
+        update_option($option, $job, false);
+        $submitted = plpc_submit_import_rendered_media(plpc_test_import_job_request([
+            'requestId' => $request['id'],
+            'bytes' => base64_encode($png),
+            'mimeType' => 'image/png',
+            'width' => 1,
+            'height' => 1,
+        ], $jobId));
+        $t->same(200, $submitted->get_status());
+        $stored = get_option($option);
+        $t->same([], $stored['renderRequests'] ?? null);
+        $t->same(strlen($png), $stored['renderedPageRasterBytes'] ?? null);
+        $t->same(hash('sha256', $png), $stored['renderedPageRasters'][$request['id']]['sha256'] ?? null);
+        $responses = plpc_import_job_load_rendered_page_rasters($stored, 'scan.pdf', 2, 2);
+        $t->same(1, count($responses));
+        $response = $responses[0];
+        $t->same($png, $response['contents'] ?? null);
+        $t->same($request['requestDigest'], $response['requestDigest'] ?? null);
+        $t->same(
+            hash('sha256', implode("\n", [
+                'pdf-page-raster-proof-v1',
+                'requestDigest=' . $request['requestDigest'],
+                'byteLength=' . strlen($png),
+                'sha256=' . hash('sha256', $png),
+            ])),
+            $response['proofDigest'] ?? null
+        );
+        $t->same(
+            0,
+            plpc_import_job_queue_pdf_page_raster_requests($stored, 0, $stored['documents'][0], $ast, 2, 2),
+            'A reload must not enqueue an acknowledged page a second time.'
+        );
+
+        $tamperedRequest = $request;
+        $tamperedRequest['width'] = 2;
+        $tamperedAst = new \PortLibs\Pandoc\AstNode('document', [
+            'meta' => ['pdfPageRasterRequests' => [$tamperedRequest]],
+        ]);
+        $t->throws(
+            RuntimeException::class,
+            static fn (): int => plpc_import_job_queue_pdf_page_raster_requests(
+                $stored,
+                0,
+                $stored['documents'][0],
+                $tamperedAst,
+                2,
+                2
+            ),
+            'Changing dimensions without recomputing the immutable request digest must fail.'
+        );
+    },
+    'playground converter resumes through an exact whole-page browser raster handoff' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $pdf = plpc_test_whole_page_raster_pdf();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'image-only-page.pdf',
+            'title' => 'Image-only page',
+            'imageMode' => 'important',
+            'pdfMode' => 'layout',
+            'bytes' => base64_encode($pdf),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $snapshot = $created;
+        for ($attempt = 0; $attempt < 12 && ($snapshot['renderRequests'] ?? []) === []; $attempt++) {
+            $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        }
+        $request = $snapshot['renderRequests'][0] ?? [];
+        $t->same('awaiting_renderer', $snapshot['status'] ?? null);
+        $t->same('pdfjs-whole-page-raster', $request['method'] ?? null);
+        $t->same(1, $request['page'] ?? null);
+        $t->same(3, $request['pageObject'] ?? null);
+        $t->same([0.0, 0.0, 1.0, 1.0], $request['pageBox'] ?? null);
+        $t->same(2, $request['width'] ?? null);
+        $t->same(2, $request['height'] ?? null);
+        $png = plpc_test_rgb_png(2, 2);
+
+        $submitted = plpc_submit_import_rendered_media(plpc_test_import_job_request([
+            'requestId' => $request['id'] ?? '',
+            'bytes' => base64_encode($png),
+            'mimeType' => 'image/png',
+            'width' => 2,
+            'height' => 2,
+        ], $jobId));
+        $t->same(200, $submitted->get_status());
+        $snapshot = $submitted->get_data();
+        for ($attempt = 0; $attempt < 12 && ($snapshot['status'] ?? '') !== 'complete'; $attempt++) {
+            $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        }
+
+        $t->same('complete', $snapshot['status'] ?? null, (string) ($snapshot['message'] ?? ''));
+        $t->same(1, $snapshot['result']['imagesImported'] ?? null);
+        $t->true(count($GLOBALS['plpc_test_uploads']) >= 1);
+        $t->same($png, $GLOBALS['plpc_test_uploads'][0]['bits'] ?? null);
+        $postId = max(0, (int) ($snapshot['result']['postId'] ?? 0));
+        $blocks = (string) ($GLOBALS['plpc_test_posts'][$postId]['post_content'] ?? '');
+        $t->contains('data-pandoc-pdf-page-raster="browser-pdfjs"', $blocks);
+        $t->same(1, substr_count($blocks, '<img'));
+
+        $stored = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+        $record = $stored['renderedPageRasters'][$request['id']] ?? [];
+        $t->same(hash('sha256', $png), $record['sha256'] ?? null);
+        $t->true(!array_key_exists('contents', $record), 'Raw page bytes belong in private file storage, not the job option.');
+    },
+    'playground converter completes an unavailable whole-page raster with one exact original fallback' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $pdf = plpc_test_whole_page_raster_boundary_pdf();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'unavailable-page.pdf',
+            'title' => 'Unavailable page fallback',
+            'imageMode' => 'important',
+            'pdfMode' => 'layout',
+            'bytes' => base64_encode($pdf),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $snapshot = $created;
+        for ($attempt = 0; $attempt < 16 && ($snapshot['renderRequests'] ?? []) === []; $attempt++) {
+            $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        }
+        $request = $snapshot['renderRequests'][0] ?? [];
+        $requestId = (string) ($request['id'] ?? '');
+
+        $t->same('awaiting_renderer', $snapshot['status'] ?? null, (string) ($snapshot['message'] ?? ''));
+        $t->same(1, count($snapshot['renderRequests'] ?? []));
+        $t->same('pdfjs-whole-page-raster', $request['method'] ?? null);
+        $t->same('unavailable-page.pdf', $request['path'] ?? null);
+        $t->same(hash('sha256', $pdf), $request['sourceSha256'] ?? null);
+        $t->same(2, $request['page'] ?? null);
+        $t->same(5, $request['pageObject'] ?? null);
+        $t->same([0.0, 0.0, 612.0, 792.0], $request['pageBox'] ?? null);
+        $t->same('MediaBox', $request['pageBoxSource'] ?? null);
+        $t->same(0, $request['pageRotation'] ?? null);
+        $t->same(1224, $request['width'] ?? null);
+        $t->same(1584, $request['height'] ?? null);
+        $t->true(preg_match('/^[a-f0-9]{64}$/D', (string) ($request['requestDigest'] ?? '')) === 1);
+        $t->same([], $GLOBALS['plpc_test_uploads']);
+        $t->same([], $GLOBALS['plpc_test_attachments']);
+
+        $reload = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $t->same(200, $reload->get_status());
+        $reloaded = $reload->get_data();
+        $t->same('awaiting_renderer', $reloaded['status'] ?? null);
+        $t->same([$requestId], array_column($reloaded['renderRequests'] ?? [], 'id'));
+        $t->same([], $GLOBALS['plpc_test_uploads'], 'Reloading while awaiting the browser must not materialize media.');
+
+        $renderError = 'Synthetic browser page renderer unavailable.';
+        $submitted = plpc_submit_import_rendered_media(plpc_test_import_job_request([
+            'requestId' => $requestId,
+            'error' => $renderError,
+        ], $jobId));
+        $t->same(200, $submitted->get_status());
+        $snapshot = $submitted->get_data();
+        $t->same('ready_to_convert', $snapshot['status'] ?? null);
+        $t->same([], $snapshot['renderRequests'] ?? null);
+
+        $stored = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+        $record = $stored['renderedPageRasters'][$requestId] ?? [];
+        $t->same(1, count($stored['renderedPageRasters'] ?? []));
+        $t->same($requestId, $record['requestId'] ?? null);
+        $t->same('pdfjs-whole-page-raster', $record['method'] ?? null);
+        $t->same('unavailable-page.pdf', $record['path'] ?? null);
+        $t->same(2, $record['page'] ?? null);
+        $t->same($request['requestDigest'] ?? null, $record['requestDigest'] ?? null);
+        $t->same($renderError, $record['error'] ?? null);
+        $t->same(0, $stored['renderedPageRasterBytes'] ?? null);
+        foreach (['storage', 'byteLength', 'sha256', 'proofDigest', 'contents'] as $successOnlyField) {
+            $t->true(
+                !array_key_exists($successOnlyField, $record),
+                'An unavailable acknowledgement must not acquire successful raster proof field ' . $successOnlyField . '.'
+            );
+        }
+
+        $duplicate = plpc_submit_import_rendered_media(plpc_test_import_job_request([
+            'requestId' => $requestId,
+            'error' => $renderError,
+        ], $jobId));
+        $t->same(422, $duplicate->get_status());
+        $stored = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+        $t->same(1, count($stored['renderedPageRasters'] ?? []));
+        $t->same([], $GLOBALS['plpc_test_uploads']);
+
+        $GLOBALS['plpc_imported_media_by_hash'] = [];
+        for ($attempt = 0; $attempt < 24 && ($snapshot['status'] ?? '') !== 'complete'; $attempt++) {
+            $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        }
+
+        $t->same('complete', $snapshot['status'] ?? null, (string) ($snapshot['message'] ?? ''));
+        $t->same(1, count($GLOBALS['plpc_test_posts']));
+        $t->same(1, count($GLOBALS['plpc_test_uploads']));
+        $t->same(1, count($GLOBALS['plpc_test_attachments']));
+        $t->same($pdf, $GLOBALS['plpc_test_uploads'][0]['bits'] ?? null);
+        $t->same(
+            'original-' . hash('sha256', $pdf) . '.pdf',
+            $GLOBALS['plpc_test_uploads'][0]['filename'] ?? null
+        );
+        $t->same('application/pdf', $GLOBALS['plpc_test_attachments'][1]['post_mime_type'] ?? null);
+        $t->same(
+            'application/pdf:' . sha1($pdf),
+            $GLOBALS['plpc_test_attachments'][1]['meta_input']['_plpc_content_key'] ?? null
+        );
+
+        $postId = max(0, (int) ($snapshot['result']['postId'] ?? 0));
+        $blocks = (string) ($GLOBALS['plpc_test_posts'][$postId]['post_content'] ?? '');
+        $first = strpos($blocks, 'First physical boundary page');
+        $fallback = strpos($blocks, 'PDF page 2 image is unavailable.');
+        $third = strpos($blocks, 'Third physical boundary page');
+        $t->true($first !== false && $fallback !== false && $third !== false);
+        $t->true(
+            $first < $fallback && $fallback < $third,
+            'The visible page-numbered fallback must remain at physical page 2 rather than moving to a gallery tail.'
+        );
+        $t->same(1, substr_count($blocks, 'data-pandoc-pdf-page-raster-fallback="renderer-unavailable"'));
+        $t->same(1, substr_count($blocks, 'data-pandoc-pdf-page-raster-fallback-download="true"'));
+        $t->same(1, substr_count($blocks, 'data-pandoc-pdf-original-download="true"'));
+        $t->same(1, substr_count($blocks, 'href="https://playground.test/uploads/attachment-1.png"'));
+        $t->same(1, substr_count($blocks, 'data-pandoc-pdf-page-represented="false"'));
+        $t->contains('data-pandoc-pdf-page-raster-fallback-request="' . $requestId . '"', $blocks);
+        $t->true(!str_contains($blocks, '<img'), 'An unavailable renderer response must not become a raster image.');
+        $t->true(!str_contains($blocks, 'data-pandoc-pdf-page-raster="browser-pdfjs"'));
+        $t->true(!str_contains($blocks, 'data-pandoc-pdf-page-raster-proof'));
+        $t->true(!str_contains($blocks, 'proofDigest'));
+        $t->true(!str_contains($blocks, 'HIDDEN-BOUNDARY-OCR'));
+        $diagnostics = $snapshot['result']['diagnostics'] ?? [];
+        $t->true(in_array('extract-media-pdf-page-raster-fallback-validated:page-2', $diagnostics, true));
+        $t->true(in_array('extract-media-pdf-page-raster-fallback-inserted:page-2', $diagnostics, true));
+        $t->same(1, count(array_filter(
+            $diagnostics,
+            static fn (string $diagnostic): bool => $diagnostic
+                === 'extract-media-pdf-page-raster-fallback-original-attached'
+        )));
+
+        $uploadCount = count($GLOBALS['plpc_test_uploads']);
+        $attachmentCount = count($GLOBALS['plpc_test_attachments']);
+        $postCount = count($GLOBALS['plpc_test_posts']);
+        $GLOBALS['plpc_imported_media_by_hash'] = [];
+        $firstRetry = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $secondRetry = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $t->same(200, $firstRetry->get_status());
+        $t->same(200, $secondRetry->get_status());
+        $t->same('complete', $secondRetry->get_data()['status'] ?? null);
+        $t->same($uploadCount, count($GLOBALS['plpc_test_uploads']));
+        $t->same($attachmentCount, count($GLOBALS['plpc_test_attachments']));
+        $t->same($postCount, count($GLOBALS['plpc_test_posts']));
+        $t->same($blocks, $GLOBALS['plpc_test_posts'][$postId]['post_content'] ?? null);
+        $stored = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+        $t->same([], $stored['renderRequests'] ?? null);
+        $t->same(1, count($stored['renderedPageRasters'] ?? []));
+        $t->same(1, substr_count((string) ($GLOBALS['plpc_test_posts'][$postId]['post_content'] ?? ''), 'data-pandoc-pdf-original-download="true"'));
+    },
     'playground converter round trips a PDF Form XObject through the browser renderer job protocol' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
         $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL0oAAAAABJRU5ErkJggg==', true);
@@ -3244,7 +4368,22 @@ return [
         ]));
         $t->same(404, $consumedSource->get_status(), 'A PDF source handoff is available only while its render request is outstanding.');
 
-        for ($attempt = 0; $attempt < 8 && !in_array($snapshot['status'] ?? '', ['complete', 'completed'], true); $attempt++) {
+        for ($attempt = 0; $attempt < 12 && !in_array($snapshot['status'] ?? '', ['complete', 'completed'], true); $attempt++) {
+            $pendingPageRaster = array_values(array_filter(
+                is_array($snapshot['renderRequests'] ?? null) ? $snapshot['renderRequests'] : [],
+                static fn (mixed $request): bool => is_array($request)
+                    && ($request['method'] ?? null) === 'pdfjs-whole-page-raster'
+            ));
+            if ($pendingPageRaster !== []) {
+                // This fixture's Form remains the asserted subject. A later
+                // whole-page request is a separate representation handoff;
+                // acknowledge it as unavailable in this legacy Form test.
+                $snapshot = plpc_submit_import_rendered_media(plpc_test_import_job_request([
+                    'requestId' => $pendingPageRaster[0]['id'] ?? '',
+                    'error' => 'Whole-page renderer intentionally unavailable in the Form protocol test.',
+                ], $jobId))->get_data();
+                continue;
+            }
             $response = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
             $t->same(200, $response->get_status());
             $snapshot = $response->get_data();
@@ -3265,7 +4404,10 @@ return [
             'The browser crop and uploaded attachment must reconcile to the same source occurrence.'
         );
         $t->true(count($GLOBALS['plpc_test_uploads']) >= 1, 'The returned browser render should be written through the normal media importer.');
-        $t->same($png, $GLOBALS['plpc_test_uploads'][0]['bits'] ?? null);
+        $t->true(
+            in_array($png, array_column($GLOBALS['plpc_test_uploads'], 'bits'), true),
+            'The Form PNG must be imported even when a later whole-page failure also attaches the original PDF.'
+        );
     },
     'playground converter records a browser renderer failure against its stable PDF occurrence' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
@@ -3516,6 +4658,46 @@ return [
         $t->same(true, $options['readerOptions']['pdfGeometryTables'] ?? null);
         $t->same(true, $options['readerOptions']['pdfRepairProseText'] ?? null);
         $t->same(true, $options['readerOptions']['pdfCollectImagePlacements'] ?? null);
+    },
+    'playground pdf prose repair preserves uncertain source syntax beside a genuine geometry table' => static function (TestRunner $t): void {
+        $pageOne = 'BT /F1 11 Tf '
+            . '1 0 0 1 72 740 Tm (Model2024 {) Tj '
+            . '1 0 0 1 84 724 Tm (A1 + B2 = C3;) Tj '
+            . '1 0 0 1 72 708 Tm (}) Tj '
+            . '1 0 0 1 72 676 Tm (Keep this exact terminal-token-) Tj '
+            . '1 0 0 1 72 660 Tm (The ratio 1:2 remains source notation.) Tj ET';
+        $pageTwo = 'BT /F1 11 Tf '
+            . '1 0 0 1 72 720 Tm (Product) Tj 1 0 0 1 260 720 Tm (Qty) Tj 1 0 0 1 340 720 Tm (Total) Tj '
+            . '1 0 0 1 72 704 Tm (Alpha) Tj 1 0 0 1 260 704 Tm (2) Tj 1 0 0 1 340 704 Tm ($6.00) Tj '
+            . '1 0 0 1 72 688 Tm (Beta) Tj 1 0 0 1 260 688 Tm (4) Tj 1 0 0 1 340 688 Tm ($8.00) Tj '
+            . '1 0 0 1 72 672 Tm (Gamma) Tj 1 0 0 1 260 672 Tm (6) Tj 1 0 0 1 340 672 Tm ($9.00) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+            . "2 0 obj<</Type/Pages/Kids[3 0 R 4 0 R]/Count 2>>endobj\n"
+            . "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 5 0 R>>>>/Contents 6 0 R>>endobj\n"
+            . "4 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 5 0 R>>>>/Contents 7 0 R>>endobj\n"
+            . "5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>endobj\n"
+            . '6 0 obj<</Length ' . strlen($pageOne) . ">>stream\n{$pageOne}\nendstream\nendobj\n"
+            . '7 0 obj<</Length ' . strlen($pageTwo) . ">>stream\n{$pageTwo}\nendstream\nendobj\n"
+            . "trailer<</Root 1 0 R>>\n%%EOF";
+
+        $options = plpc_converter_options('pdf');
+        $document = \PortLibs\Pandoc\PandocConverter::read($pdf, 'pdf', $options['readerOptions']);
+        $plain = \PortLibs\Pandoc\PandocConverter::write($document, 'plain');
+        $blocks = \PortLibs\Pandoc\PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same(1, $meta['pdfDetectedTables'] ?? null);
+        $t->contains('<!-- wp:table -->', $blocks);
+        $t->contains('Model2024 {', $plain);
+        $t->true(!str_contains($plain, 'Model 2024'), 'A letter-digit source identifier needs local boundary evidence before it can be changed.');
+        $t->contains('A1 + B2 = C3;', $plain);
+        $t->contains("\n}\n", "\n{$plain}\n", 'A standalone source brace must not be discarded as punctuation noise.');
+        $t->contains('Keep this exact terminal-token-', $plain);
+        $t->contains('The ratio 1:2 remains source notation.', $plain);
+        $t->same(0, $meta['pdfTextFidelity']['unresolvedSignificantCharacterCount'] ?? null);
+        $t->same(0, $meta['pdfSourceDisposition']['unresolvedOccurrenceCount'] ?? null);
+        $t->same(true, $meta['pdfSemanticTextComplete'] ?? null);
     },
     'playground pdf importer can retry in text only mode without geometry tables' => static function (TestRunner $t): void {
         $options = plpc_converter_options('pdf', 'text-only');
@@ -3894,7 +5076,7 @@ return [
 
         $t->same(1, $result['imageTagCount'] ?? null);
         $t->same(1, $result['imagesImported'] ?? null);
-        $t->true(in_array('extract-media-pdf-image-raster-loaded:00017:important', $result['diagnostics'] ?? [], true));
+        $t->true(in_array('extract-media-pdf-image-raster-loaded:17:important', $result['diagnostics'] ?? [], true));
         $t->same(1, count($GLOBALS['plpc_test_attachments']));
         $t->contains('https://playground.test/uploads/attachment-1.png', $GLOBALS['plpc_test_posts'][1]['post_content'] ?? '');
     },
@@ -3959,8 +5141,8 @@ return [
         $t->contains('pandoc-pdf-image-placeholder', $blocks);
         $t->contains('href="https://playground.test/uploads/attachment-1.png"', $blocks);
         $t->true(!str_contains($blocks, '<img'));
-        $t->true(in_array('extract-media-pdf-image-placeholder:00017:jpeg2000-raster-unavailable', $result['diagnostics'] ?? [], true));
-        $t->true(in_array('image-imported:media/pdf/image-00017.jp2=>1', $result['diagnostics'] ?? [], true));
+        $t->true(in_array('extract-media-pdf-image-placeholder:17:jpeg2000-raster-unavailable', $result['diagnostics'] ?? [], true));
+        $t->true(in_array('image-imported:media/pdf/image-17.jp2=>1', $result['diagnostics'] ?? [], true));
     },
     'playground importer normalizes pdf retry modes' => static function (TestRunner $t): void {
         $t->same('layout', plpc_normalize_pdf_mode(''));
@@ -4045,7 +5227,118 @@ return [
         ], $diagnostics);
         $t->same('truncated', $quality['status']);
         $t->same(['best_effort', 'layout_uncertain', 'truncated', 'partial', 'ocr_needed'], $quality['flags']);
-        $t->contains('Scanned pages may need OCR before import.', implode("\n", $quality['warnings']));
+        $t->contains(
+            'OCR is outside this importer; every page must remain represented by an original asset or visible placeholder.',
+            implode("\n", $quality['warnings'])
+        );
+    },
+    'playground importer blocks pdf publication when required source occurrences remain unresolved' => static function (TestRunner $t): void {
+        $failureFor = static function (object $document, ?array $expectedRange = null): ?Throwable {
+            try {
+                plpc_import_assert_pdf_semantic_source_complete($document, 'pdf', $expectedRange);
+            } catch (Throwable $throwable) {
+                return $throwable;
+            }
+
+            return null;
+        };
+        $incomplete = new PortLibs\Pandoc\AstNode('document', [
+            'meta' => [
+                'pdfSemanticTextComplete' => false,
+                'pdfDocumentComplete' => true,
+                'pdfSourceDisposition' => [
+                    'unresolvedOccurrenceCount' => 2,
+                    'unclaimedEmittedTokenCount' => 1,
+                ],
+            ],
+        ]);
+        $error = $failureFor($incomplete);
+
+        $t->true($error instanceof PlpcImportFailure);
+        $t->same('pdf_semantic_source_incomplete', $error instanceof PlpcImportFailure ? $error->failureCode : null);
+        $t->same('verifying_pdf_source_disposition', $error instanceof PlpcImportFailure ? $error->failureStage : null);
+        $t->same(false, $error instanceof PlpcImportFailure ? $error->recoverable : null);
+        $t->contains('unresolved occurrences: 2', $error instanceof Throwable ? $error->getMessage() : '');
+
+        $diagnostics = plpc_document_diagnostics($incomplete, 'pdf');
+        $quality = plpc_import_quality_report('pdf', $diagnostics);
+        $t->same(['pdf-semantic-source-incomplete'], $diagnostics);
+        $t->same('source_incomplete', $quality['status'] ?? null);
+        $t->contains('cannot be published', implode("\n", $quality['warnings'] ?? []));
+
+        $complete = new PortLibs\Pandoc\AstNode('document', [
+            'meta' => [
+                'pdfSemanticTextComplete' => true,
+                'pdfDocumentComplete' => true,
+            ],
+        ]);
+        plpc_import_assert_pdf_semantic_source_complete($complete, 'pdf');
+        $t->same([], plpc_document_diagnostics($complete, 'pdf'));
+
+        $partialDirect = new PortLibs\Pandoc\AstNode('document', [
+            'meta' => [
+                'pdfSemanticTextComplete' => true,
+                'pdfDocumentComplete' => false,
+                'pdfRangeComplete' => true,
+                'pdfProcessedPageNumbers' => [2],
+                'pdfPageStart' => 2,
+                'pdfPageEnd' => 2,
+                'pdfPageCount' => 3,
+                'pdfPagesProcessed' => 1,
+                'pdfHasMorePages' => true,
+                'pdfNextPage' => 3,
+            ],
+        ]);
+        $t->true($failureFor($partialDirect) instanceof PlpcImportFailure);
+
+        $expectedSecondPage = [
+            'totalPages' => 3,
+            'startPage' => 2,
+            'endPage' => 2,
+            'pageNumbers' => [2],
+            'hasMorePages' => true,
+            'nextPage' => 3,
+        ];
+        plpc_import_assert_pdf_semantic_source_complete($partialDirect, 'pdf', $expectedSecondPage);
+        $t->true($failureFor($partialDirect, ['pageNumbers' => [2, 1], 'totalPages' => 3]) instanceof PlpcImportFailure);
+        $wrongTotalRange = array_replace($expectedSecondPage, ['totalPages' => 4, 'nextPage' => 3]);
+        $t->true($failureFor($partialDirect, $wrongTotalRange) instanceof PlpcImportFailure);
+        $wrongEndpointRange = array_replace($expectedSecondPage, ['startPage' => 1]);
+        $t->true($failureFor($partialDirect, $wrongEndpointRange) instanceof PlpcImportFailure);
+
+        $wrongProcessedPage = new PortLibs\Pandoc\AstNode('document', [
+            'meta' => array_replace(
+                $partialDirect->attr('meta', []),
+                ['pdfProcessedPageNumbers' => [3]]
+            ),
+        ]);
+        $t->true($failureFor($wrongProcessedPage, $expectedSecondPage) instanceof PlpcImportFailure);
+
+        $wholeRangeWithoutDocumentProof = new PortLibs\Pandoc\AstNode('document', [
+            'meta' => [
+                'pdfSemanticTextComplete' => true,
+                'pdfDocumentComplete' => false,
+                'pdfRangeComplete' => true,
+                'pdfProcessedPageNumbers' => [1, 2, 3],
+                'pdfPageStart' => 1,
+                'pdfPageEnd' => 3,
+                'pdfPageCount' => 3,
+                'pdfPagesProcessed' => 3,
+                'pdfHasMorePages' => false,
+                'pdfNextPage' => null,
+            ],
+        ]);
+        $t->true($failureFor(
+            $wholeRangeWithoutDocumentProof,
+            [
+                'totalPages' => 3,
+                'startPage' => 1,
+                'endPage' => 3,
+                'pageNumbers' => [1, 2, 3],
+                'hasMorePages' => false,
+                'nextPage' => null,
+            ]
+        ) instanceof PlpcImportFailure);
     },
     'playground importer reports scanned pdfs as needing ocr' => static function (TestRunner $t): void {
         $quality = plpc_import_quality_report('pdf', ['pdf-scanned-or-image-only']);
@@ -4091,6 +5384,45 @@ return [
 HTML;
 
         $t->same(['media/photo & one.png', 'media/second.png'], plpc_rendered_image_sources($blocks));
+    },
+    'playground importer uploads and rewrites only marked page-raster original PDF links' => static function (TestRunner $t): void {
+        $blocks = <<<'HTML'
+<!-- wp:html -->
+<p class="pandoc-pdf-page-raster-fallback">Page 2 could not be rendered. <a href="media/pdf/original-document.pdf" data-pandoc-pdf-page-raster-fallback-download="true" data-pandoc-pdf-original-download="true">Download the original PDF.</a></p>
+<p><a href="ordinary-reference.pdf">Ordinary reference</a></p>
+<!-- /wp:html -->
+HTML;
+
+        $t->same(['media/pdf/original-document.pdf'], plpc_rendered_image_sources($blocks));
+        $occurrences = plpc_rendered_media_occurrences($blocks);
+        $t->same(1, count($occurrences));
+        $t->same('original-pdf-download', $occurrences[0]['kind'] ?? null);
+        $t->same('media/pdf/original-document.pdf', $occurrences[0]['source'] ?? null);
+
+        $parsed = parse_blocks($blocks);
+        $changed = false;
+        plpc_replace_image_source_in_blocks(
+            $parsed,
+            'media/pdf/original-document.pdf',
+            'https://playground.test/uploads/original-document.pdf',
+            73,
+            $changed
+        );
+        $rewritten = serialize_blocks($parsed);
+        $t->true($changed);
+        $t->contains('href="https://playground.test/uploads/original-document.pdf"', $rewritten);
+        $t->contains('data-pandoc-pdf-original-download="true"', $rewritten);
+        $t->contains('href="ordinary-reference.pdf"', $rewritten, 'Ordinary PDF links must remain untouched.');
+
+        $missing = false;
+        $unresolved = plpc_replace_unresolved_image_source_in_html(
+            '<p><a href="media/pdf/original-document.pdf" data-pandoc-pdf-original-download="true">Original</a></p>',
+            'media/pdf/original-document.pdf',
+            $missing
+        );
+        $t->true($missing);
+        $t->contains('Original PDF could not be stored.', $unresolved);
+        $t->true(!str_contains($unresolved, '<a'));
     },
     'playground importer marks imported wp image blocks with attachment metadata' => static function (TestRunner $t): void {
         $blocks = [

@@ -138,7 +138,16 @@ return [
         }
         $lines[] = 'LAST PAGE TEXT SENTINEL AFTER ONE HUNDRED TWENTY THOUSAND BYTES';
 
-        $document = (new PdfReader())->read($buildPdf([implode("\n", $lines)]));
+        // Keep every stress-test line inside a page's visible box. Packing the
+        // complete corpus into one content stream paints most lines below the
+        // MediaBox, where visible-text extraction must correctly suppress
+        // them; spreading the same >120 KB payload over pages tests the
+        // document-wide byte behavior without relying on invisible text.
+        $pageTexts = array_map(
+            static fn (array $pageLines): string => implode("\n", $pageLines),
+            array_chunk($lines, 48)
+        );
+        $document = (new PdfReader())->read($buildPdf($pageTexts));
         $meta = $document->attr('meta');
         $html = PandocConverter::write($document, 'html');
 
@@ -152,8 +161,9 @@ return [
         $first = 'First complete line.';
         $second = 'Second café conclusion must not be sliced.';
         $limit = strlen($first) + 1 + strlen('Second caf');
+        $pdf = $buildPdf([$first . "\n" . $second]);
 
-        $document = (new PdfReader(['maxTextBytes' => $limit]))->read($buildPdf([$first . "\n" . $second]));
+        $document = (new PdfReader(['maxTextBytes' => $limit]))->read($pdf);
         $meta = $document->attr('meta');
         $html = PandocConverter::write($document, 'html');
 
@@ -165,6 +175,13 @@ return [
         $t->same(false, $meta['pdfRangeComplete'] ?? null);
         $t->same(false, $meta['pdfDocumentComplete'] ?? null);
         $t->true(in_array('text-bytes', $meta['pdfLimitReasons'] ?? [], true), 'The exact completeness failure must be machine-readable.');
+
+        $converted = PandocConverter::convertWithMedia($pdf, 'pdf', 'wordpress', [
+            'readerOptions' => ['maxTextBytes' => $limit],
+        ]);
+        $t->same(false, $converted['sourceIntegrity']['complete'] ?? null);
+        $t->same(false, $converted['sourceIntegrity']['pdfDocumentComplete'] ?? null);
+        $t->same(true, $converted['sourceIntegrity']['pdfSemanticTextComplete'] ?? null);
     },
 
     'selects resumable page ranges while preserving original page numbers and next-page metadata' => static function (TestRunner $t) use ($buildPdf): void {
@@ -186,6 +203,18 @@ return [
         $t->same(true, $meta['pdfRangeComplete'] ?? null);
         $t->same(false, $meta['pdfDocumentComplete'] ?? null);
         $t->same([2], $meta['pdfProcessedPageNumbers'] ?? null);
+
+        $converted = PandocConverter::convertWithMedia($pdf, 'pdf', 'wordpress', [
+            'readerOptions' => ['pdfStartPage' => 2, 'pdfMaxPages' => 1],
+        ]);
+        $t->same(false, $converted['sourceIntegrity']['complete'] ?? null);
+        $t->same(false, $converted['sourceIntegrity']['pdfDocumentComplete'] ?? null);
+        $t->same(true, $converted['sourceIntegrity']['pdfSemanticTextComplete'] ?? null);
+
+        $fullConverted = PandocConverter::convertWithMedia($pdf, 'pdf', 'wordpress');
+        $t->same(true, $fullConverted['sourceIntegrity']['complete'] ?? null);
+        $t->same(true, $fullConverted['sourceIntegrity']['pdfDocumentComplete'] ?? null);
+        $t->same(true, $fullConverted['sourceIntegrity']['pdfSemanticTextComplete'] ?? null);
     },
 
     'reports a positioned-text cap instead of silently claiming complete geometry' => static function (TestRunner $t) use ($buildPdf): void {

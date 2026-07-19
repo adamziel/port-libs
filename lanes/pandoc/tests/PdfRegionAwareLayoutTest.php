@@ -266,7 +266,7 @@ return [
         $t->same('The article body begins here with enough words.', $parts[1]['text']);
     },
 
-    'removes aligned numeric page furniture only after it repeats across pages' => static function (TestRunner $t) use ($invoke, $layout): void {
+    'keeps repeated numeric furniture candidates without signed source provenance' => static function (TestRunner $t) use ($invoke, $layout): void {
         $reader = new PdfReader();
         $footer = static function (int $page, string $text) use ($layout): array {
             $geometry = $layout(0, 300.0, $page);
@@ -284,7 +284,11 @@ return [
 
         $filtered = $invoke($reader, 'removeRepeatedPdfPageNumberRecords', $records);
 
-        $t->same(['First page body text.', 'Second page body text.'], array_column($filtered, 'text'));
+        $t->same(
+            ['First page body text.', '1', 'Second page body text.', '2'],
+            array_column($filtered, 'text'),
+            'Geometry repetition alone cannot delete source text; the signed-provenance positive is covered separately.'
+        );
     },
 
     'keeps a lone numeric body or footer record without cross-page evidence' => static function (TestRunner $t) use ($invoke, $layout): void {

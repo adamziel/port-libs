@@ -26,6 +26,104 @@ $readerFactsPdf = static function (): string {
 };
 
 /**
+ * Eighteen pages keep 2/8/16-page semantic windows distinct from a complete
+ * bounded pass. The only cross-page prose relation starts on page 8 and ends
+ * on page 9, exactly across the historical eight-page partition.
+ */
+$semanticWindowInvariantPdf = static function (): string {
+    $pageCount = 18;
+    $objects = [
+        1 => '',
+        2 => '',
+        3 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    ];
+    $kids = [];
+    $nextObject = 4;
+    for ($page = 1; $page <= $pageCount; $page++) {
+        $pageObject = $nextObject++;
+        $contentObject = $nextObject++;
+        $kids[] = $pageObject . ' 0 R';
+        $y = 720;
+        if ($page === 8) {
+            $text = 'A verified cross page semantic relation remains seman-';
+            $y = 54;
+        } elseif ($page === 9) {
+            $text = 'tically connected with stable provenance after the boundary.';
+            $y = 738;
+        } elseif ($page === 4 || $page === 12) {
+            $text = 'Repeated source spelling must retain both stable occurrences.';
+            $y = $page === 4 ? 680 : 640;
+        } else {
+            $text = sprintf('A complete unique sentence appears on source page %02d.', $page);
+        }
+        $content = sprintf('BT /F1 12 Tf 1 0 0 1 72 %d Tm (%s) Tj ET', $y, $text);
+        $objects[$pageObject] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] '
+            . '/Resources << /Font << /F1 3 0 R >> >> /Contents ' . $contentObject . ' 0 R >>';
+        $objects[$contentObject] = '<< /Length ' . strlen($content) . ">>\nstream\n{$content}\nendstream";
+    }
+    $objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+    $objects[2] = '<< /Type /Pages /Kids [' . implode(' ', $kids) . '] /Count ' . $pageCount . ' >>';
+    ksort($objects, SORT_NUMERIC);
+
+    $pdf = "%PDF-1.4\n";
+    foreach ($objects as $number => $body) {
+        $pdf .= $number . " 0 obj\n{$body}\nendobj\n";
+    }
+
+    return $pdf . "%%EOF\n";
+};
+
+/** A page-local source-row to column-major reorder with ordinary neighbors. */
+$semanticLocalReorderPdf = static function (): string {
+    $dialogue = 'BT /F1 11 Tf '
+        . '1 0 0 1 72 760 Tm (A full width introduction brackets the locally reordered dialogue.) Tj '
+        . '1 0 0 1 72 720 Tm (MARA: Morning begins.) Tj '
+        . '1 0 0 1 340 720 Tm (ELI: Bells answer.) Tj '
+        . '1 0 0 1 72 704 Tm (ELI : We should leave.) Tj '
+        . '1 0 0 1 340 704 Tm (MARA: The path is clear.) Tj '
+        . '1 0 0 1 72 688 Tm (MARA: Then let us go.) Tj '
+        . '1 0 0 1 340 688 Tm (ELI: I will follow.) Tj '
+        . '1 0 0 1 72 672 Tm (ELI: Bring the lantern.) Tj '
+        . '1 0 0 1 340 672 Tm (MARA : It is ready.) Tj '
+        . '1 0 0 1 72 632 Tm (A full width closing sentence follows both dialogue columns.) Tj ET';
+    $contents = [];
+    for ($page = 1; $page <= 6; $page++) {
+        $contents[] = $page === 3
+            ? $dialogue
+            : sprintf(
+                'BT /F1 12 Tf 1 0 0 1 72 720 Tm (Ordinary semantic neighbor on page %d.) Tj ET',
+                $page
+            );
+    }
+
+    $objects = [
+        1 => '',
+        2 => '',
+        3 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    ];
+    $kids = [];
+    $nextObject = 4;
+    foreach ($contents as $content) {
+        $pageObject = $nextObject++;
+        $contentObject = $nextObject++;
+        $kids[] = $pageObject . ' 0 R';
+        $objects[$pageObject] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] '
+            . '/Resources << /Font << /F1 3 0 R >> >> /Contents ' . $contentObject . ' 0 R >>';
+        $objects[$contentObject] = '<< /Length ' . strlen($content) . ">>\nstream\n{$content}\nendstream";
+    }
+    $objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+    $objects[2] = '<< /Type /Pages /Kids [' . implode(' ', $kids) . '] /Count 6 >>';
+    ksort($objects, SORT_NUMERIC);
+
+    $pdf = "%PDF-1.4\n";
+    foreach ($objects as $number => $body) {
+        $pdf .= $number . " 0 obj\n{$body}\nendobj\n";
+    }
+
+    return $pdf . "%%EOF\n";
+};
+
+/**
  * Two independent composite table families live in different deterministic
  * semantic windows. This exercises metadata union rather than merely block
  * concatenation in PdfSemanticChunkReconciler.
@@ -258,20 +356,34 @@ $normalizePdfAstValue = static function (mixed $value) use (&$normalizePdfAstVal
 
     return $value;
 };
-$normalizePdfAst = static function (AstNode $node) use (&$normalizePdfAst, $normalizePdfAstValue): array {
+$normalizePdfAst = static function (
+    AstNode $node,
+    int $depth = 0
+) use (&$normalizePdfAst, $normalizePdfAstValue): array {
     $children = [];
     foreach ($node->children() as $child) {
-        $children[] = $normalizePdfAst($child);
+        $children[] = $normalizePdfAst($child, $depth + 1);
     }
+    $attrs = $node->type === 'document' ? [] : $node->baseAttrs();
+    if ($depth > 1) {
+        // Inline IDs include a reader-local AST path. Exact descendant line
+        // IDs/edges and the stable top-level node IDs remain compared.
+        unset($attrs['sourceNodeId']);
+    }
+    // Table-cell proof coordinates are local to each Reader context. Stable
+    // source IDs/edges below remain part of this semantic comparison.
+    unset(
+        $attrs['sourcePdfExactSourceRanges'],
+        $attrs['sourcePdfSourceOrderStart'],
+        $attrs['sourcePdfSourceOrderEnd']
+    );
 
     return [
         'type' => $node->type,
         // A bounded range necessarily has different extraction diagnostics.
         // Every semantic/block attribute, including page anchors, remains in
         // the comparison because those are part of the import contract.
-        'attrs' => $node->type === 'document'
-            ? []
-            : $normalizePdfAstValue($node->baseAttrs()),
+        'attrs' => $normalizePdfAstValue($attrs),
         'children' => $children,
     ];
 };
@@ -407,6 +519,17 @@ $tests = [
             static fn () => (new PdfSemanticChunkReconciler($pdfReaderOptions()))->reconcile(
                 $pdf,
                 [PdfDocumentFacts::fromArray($contradictoryPage), $pageTwo]
+            )
+        );
+
+        $duplicateSourceId = $pageTwo->toArray();
+        $duplicateSourceId['pages'][0]['text']['lines'][0]['id'] =
+            $pageOne->toArray()['pages'][0]['text']['lines'][0]['id'];
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => (new PdfSemanticChunkReconciler($pdfReaderOptions()))->reconcile(
+                $pdf,
+                [$pageOne, PdfDocumentFacts::fromArray($duplicateSourceId)]
             )
         );
     },
@@ -699,6 +822,279 @@ $tests['keeps tagged heading list and table AST invariant across 1/2/8-page extr
         $t->same(2, $reconciler->stats()['semanticPasses'] ?? null, 'Ten pages must exercise the eight-page semantic boundary.');
     }
     $t->same(1, count(array_unique($hashes, SORT_STRING)));
+};
+
+$tests['uses exact Reader edges for a page-local evidenced reorder across semantic windows'] = static function (
+    TestRunner $t
+) use (
+    $semanticLocalReorderPdf,
+    $pdfReaderOptions,
+    $pdfFactsRange,
+    $normalizePdfAst
+): void {
+    $pdf = $semanticLocalReorderPdf();
+    $options = $pdfReaderOptions();
+    $facts = (new NativePdfFactsProvider())->extract($pdf, $options);
+    $baseline = (new PdfReader($options + ['pdfDocumentFacts' => $facts]))->read($pdf);
+    $baselineMetadata = $baseline->attr('meta', []);
+    $t->same(
+        'evidenced-layout-reorder',
+        $baselineMetadata['pdfSourceDisposition']['orderedSignificantCharacterBasis'] ?? null
+    );
+    $t->same('mapped-occurrence-exact', $baselineMetadata['pdfSourceDisposition']['orderProofStrength'] ?? null);
+    $t->same(true, $baselineMetadata['pdfSemanticTextComplete'] ?? null);
+    $baselineNormalized = $normalizePdfAst($baseline);
+    $baselineNodeIds = array_map(
+        static fn (AstNode $block): mixed => $block->attr('sourceNodeId'),
+        $baseline->children()
+    );
+    $digests = [];
+
+    foreach ([2, 4, 6] as $semanticWindowPages) {
+        foreach ([1, 2] as $extractionChunkPages) {
+            $ranges = (static function () use (
+                $facts,
+                $extractionChunkPages,
+                $pdfFactsRange
+            ): Generator {
+                for ($startPage = 1; $startPage <= 6; $startPage += $extractionChunkPages) {
+                    yield $pdfFactsRange(
+                        $facts,
+                        $startPage,
+                        min(6, $startPage + $extractionChunkPages - 1)
+                    );
+                }
+            })();
+            $reconciler = new PdfSemanticChunkReconciler($options, $semanticWindowPages);
+            $document = $reconciler->reconcile($pdf, $ranges);
+            $metadata = $document->attr('meta', []);
+            $sourceEdges = is_array($metadata['pdfSemanticSourceEdges'] ?? null)
+                ? $metadata['pdfSemanticSourceEdges']
+                : [];
+            $sourceLineUseCounts = [];
+            foreach ($sourceEdges as $sourceEdge) {
+                foreach (is_array($sourceEdge['sourceLineIds'] ?? null) ? $sourceEdge['sourceLineIds'] : [] as $id) {
+                    $sourceLineUseCounts[$id] = ($sourceLineUseCounts[$id] ?? 0) + 1;
+                }
+            }
+            $case = sprintf('semantic=%d extraction=%d', $semanticWindowPages, $extractionChunkPages);
+
+            $t->same($baselineNormalized, $normalizePdfAst($document), 'Reordered AST changed for ' . $case);
+            $t->same(
+                $baselineNodeIds,
+                array_map(
+                    static fn (AstNode $block): mixed => $block->attr('sourceNodeId'),
+                    $document->children()
+                ),
+                'Stable reordered top-level node IDs changed for ' . $case
+            );
+            $t->same(count($document->children()), count($sourceEdges), 'Reordered edges were incomplete for ' . $case);
+            $t->same(true, $metadata['pdfSemanticSourceEdgeMappingComplete'] ?? null, 'Mapping was incomplete for ' . $case);
+            $t->same(0, $reconciler->stats()['sourceEdgeMappingFallbacks'] ?? null, 'Exact edges were not used for ' . $case);
+            $t->true(
+                count(array_filter($sourceLineUseCounts, static fn (int $count): bool => $count === 2)) >= 4,
+                'Split source rows did not retain their two exact reordered destinations for ' . $case
+            );
+            $digests[] = $metadata['pdfSemanticSourceEdgeDigest'] ?? null;
+        }
+    }
+
+    $t->same(1, count(array_unique($digests, SORT_STRING)));
+};
+
+$tests['fails closed when a Reader source edge exceeds its immutable line bounds'] = static function (
+    TestRunner $t
+) use ($readerFactsPdf, $pdfReaderOptions): void {
+    $pdf = $readerFactsPdf();
+    $options = $pdfReaderOptions();
+    $facts = (new NativePdfFactsProvider())->extract($pdf, $options);
+    $document = (new PdfReader($options + ['pdfDocumentFacts' => $facts]))->read($pdf);
+    $blocks = $document->children();
+    $first = $blocks[0];
+    $attrs = $first->baseAttrs();
+    $sourceLineEdges = $attrs['sourceLineEdges'] ?? [];
+    $t->true(is_array($sourceLineEdges) && isset($sourceLineEdges[0]['endByte']));
+    $sourceLineEdges[0]['endByte']++;
+    $attrs['sourceLineEdges'] = $sourceLineEdges;
+    $identity = json_encode(
+        ['type' => $first->type, 'sourceLineEdges' => $sourceLineEdges],
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+    );
+    $attrs['sourceNodeId'] = 'pdf-source-node-' . substr(hash(
+        'sha256',
+        is_string($identity) ? $identity : serialize($sourceLineEdges)
+    ), 0, 32);
+    $blocks[0] = new AstNode($first->type, $attrs, $first->children());
+    $tampered = new AstNode('document', ['meta' => $document->attr('meta', [])], $blocks);
+    $mappingMethod = new ReflectionMethod(
+        PdfSemanticChunkReconciler::class,
+        'mapDocumentBlocksToStableSourceEdges'
+    );
+
+    $t->same(
+        null,
+        $mappingMethod->invoke(
+            new PdfSemanticChunkReconciler($options),
+            $tampered,
+            $facts->pages(),
+            $facts->source()['sha256']
+        )
+    );
+};
+
+$tests['keeps semantic windows and stable source edges invariant independently of extraction chunks'] = static function (
+    TestRunner $t
+) use (
+    $semanticWindowInvariantPdf,
+    $pdfReaderOptions,
+    $pdfFactsRange,
+    $normalizePdfAst
+): void {
+    $pdf = $semanticWindowInvariantPdf();
+    $options = $pdfReaderOptions();
+    $facts = (new NativePdfFactsProvider())->extract($pdf, $options);
+    $totalPages = (int) ($facts->inventory()['totalPages'] ?? 0);
+    $t->same(18, $totalPages);
+
+    $baseline = (new PdfReader($options + ['pdfDocumentFacts' => $facts]))->read($pdf);
+    $baselineNormalized = $normalizePdfAst($baseline);
+    $baselinePlain = preg_replace('/\s+/u', ' ', PandocConverter::write($baseline, 'plain')) ?? '';
+    $crossPageText = 'A verified cross page semantic relation remains seman- tically connected with stable provenance after the boundary.';
+    $t->same(1, substr_count($baselinePlain, $crossPageText));
+    $t->same(17, count($baseline->children()));
+    $baselineNodeIds = array_map(
+        static fn (AstNode $block): mixed => $block->attr('sourceNodeId'),
+        $baseline->children()
+    );
+
+    $pageEightLineId = $facts->pages()[7]->text()['lines'][0]['id'] ?? null;
+    $pageNineLineId = $facts->pages()[8]->text()['lines'][0]['id'] ?? null;
+    $pageFourLineId = $facts->pages()[3]->text()['lines'][0]['id'] ?? null;
+    $pageTwelveLineId = $facts->pages()[11]->text()['lines'][0]['id'] ?? null;
+    $t->true(is_string($pageEightLineId) && $pageEightLineId !== '');
+    $t->true(is_string($pageNineLineId) && $pageNineLineId !== '');
+    $t->true(is_string($pageFourLineId) && $pageFourLineId !== '');
+    $t->true(is_string($pageTwelveLineId) && $pageTwelveLineId !== '');
+    $t->true($pageFourLineId !== $pageTwelveLineId, 'Repeated text needs distinct stable source IDs.');
+    $sourceEdgeInventories = [];
+    $sourceEdgeDigests = [];
+
+    foreach ([2, 8, 16, 18] as $semanticWindowPages) {
+        foreach ([1, 2, 8] as $extractionChunkPages) {
+            $ranges = (static function () use (
+                $facts,
+                $totalPages,
+                $extractionChunkPages,
+                $pdfFactsRange
+            ): Generator {
+                for ($startPage = 1; $startPage <= $totalPages; $startPage += $extractionChunkPages) {
+                    yield $pdfFactsRange(
+                        $facts,
+                        $startPage,
+                        min($totalPages, $startPage + $extractionChunkPages - 1)
+                    );
+                }
+            })();
+            $reconciler = new PdfSemanticChunkReconciler($options, $semanticWindowPages);
+            $document = $reconciler->reconcile($pdf, $ranges);
+            $stats = $reconciler->stats();
+            $metadata = $document->attr('meta', []);
+            $sourceEdges = is_array($metadata['pdfSemanticSourceEdges'] ?? null)
+                ? $metadata['pdfSemanticSourceEdges']
+                : [];
+            $crossPageEdges = array_values(array_filter(
+                $sourceEdges,
+                static fn (mixed $edge): bool => is_array($edge)
+                    && ($edge['sourceLineIds'] ?? null) === [$pageEightLineId, $pageNineLineId]
+            ));
+            $repeatedTextEdges = array_values(array_filter(
+                $sourceEdges,
+                static fn (mixed $edge): bool => is_array($edge)
+                    && in_array($edge['sourceLineIds'] ?? null, [[$pageFourLineId], [$pageTwelveLineId]], true)
+            ));
+            $case = sprintf(
+                'semantic=%d extraction=%d',
+                $semanticWindowPages,
+                $extractionChunkPages
+            );
+
+            $t->same($baselineNormalized, $normalizePdfAst($document), 'Normalized AST changed for ' . $case);
+            $t->same(
+                $baselineNodeIds,
+                array_map(
+                    static fn (AstNode $block): mixed => $block->attr('sourceNodeId'),
+                    $document->children()
+                ),
+                'Top-level Reader source-node identity changed for ' . $case
+            );
+            $plain = preg_replace('/\s+/u', ' ', PandocConverter::write($document, 'plain')) ?? '';
+            $t->same(1, substr_count($plain, $crossPageText), 'Cross-page relation changed for ' . $case);
+            $t->same(17, count($sourceEdges), 'Source-edge inventory did not cover each emitted block for ' . $case);
+            $t->same(
+                17,
+                count(array_unique(array_column($sourceEdges, 'id'), SORT_STRING)),
+                'Stable source-edge IDs were duplicated for ' . $case
+            );
+            $t->same(1, count($crossPageEdges), 'Page 8/9 source edge was not unique for ' . $case);
+            $t->same([8, 9], $crossPageEdges[0]['pages'] ?? null, 'Page 8/9 source identity changed for ' . $case);
+            $t->same(2, count($repeatedTextEdges), 'Repeated spelling was deduplicated without stable source identity for ' . $case);
+            $t->same(
+                2,
+                count(array_unique(array_column($repeatedTextEdges, 'id'), SORT_STRING)),
+                'Repeated spelling did not retain two source-edge IDs for ' . $case
+            );
+            $t->same(1, $stats['semanticOverlapPages'] ?? null, 'Overlap was not bounded for ' . $case);
+            $t->true(
+                (int) ($stats['maxSemanticContextPages'] ?? PHP_INT_MAX) <= min(
+                    $totalPages,
+                    $semanticWindowPages + 2
+                ),
+                'Semantic context exceeded one page per edge for ' . $case
+            );
+            $t->true(
+                (int) ($stats['maxResidentPageFacts'] ?? PHP_INT_MAX) <= min(
+                    $totalPages,
+                    $semanticWindowPages + $extractionChunkPages + 1
+                ),
+                'Resident page facts exceeded extraction plus semantic carry-over bounds for ' . $case
+            );
+            $t->same(
+                min($extractionChunkPages, $totalPages),
+                $stats['maxInputRangePages'] ?? null,
+                'Extraction range bound changed for ' . $case
+            );
+            $t->same(
+                (int) ceil($totalPages / $semanticWindowPages),
+                $stats['semanticPasses'] ?? null,
+                'Owned semantic partition changed for ' . $case
+            );
+            $t->same(0, $stats['sourceEdgeMappingFallbacks'] ?? null, 'Exact Reader edges were not used for ' . $case);
+            $t->same(true, $metadata['pdfSemanticSourceEdgeMappingComplete'] ?? null, 'Edge mapping was incomplete for ' . $case);
+            $sourceEdgeDigests[] = $metadata['pdfSemanticSourceEdgeDigest'] ?? null;
+            $sourceEdgeInventories[] = array_map(
+                static fn (array $edge): array => [
+                    'id' => $edge['id'] ?? null,
+                    'sourceNodeId' => $edge['sourceNodeId'] ?? null,
+                    'sourceLineIds' => $edge['sourceLineIds'] ?? null,
+                    'sourceSpans' => $edge['sourceSpans'] ?? null,
+                    'pages' => $edge['pages'] ?? null,
+                    'blockType' => $edge['blockType'] ?? null,
+                ],
+                $sourceEdges
+            );
+        }
+    }
+
+    $t->same(
+        1,
+        count(array_unique(array_map('serialize', $sourceEdgeInventories), SORT_STRING)),
+        'Stable source-edge identity changed with semantic or extraction partition size.'
+    );
+    $t->same(
+        1,
+        count(array_unique($sourceEdgeDigests, SORT_STRING)),
+        'Stable source-edge digest changed with semantic or extraction partition size.'
+    );
 };
 
 $tests['unions deterministic logical table families from separate semantic windows by public ID'] = static function (

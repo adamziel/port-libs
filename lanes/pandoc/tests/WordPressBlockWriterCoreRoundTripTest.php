@@ -284,7 +284,17 @@ return [
             $records = is_array($manifest) && is_array($manifest['records'] ?? null)
                 ? $manifest['records']
                 : [];
+            $expectedSuccessfulImports = count(array_filter(
+                $records,
+                static fn (mixed $record): bool => is_array($record)
+                    && (($record['wpBlocks']['ok'] ?? false) === true)
+            ));
             $checked = 0;
+
+            $t->true(
+                $expectedSuccessfulImports >= 90,
+                'The successful WordPress showcase corpus should not shrink below its established floor.'
+            );
 
             pandoc_require_wordpress_core_block_parser();
             foreach ($records as $record) {
@@ -325,6 +335,10 @@ return [
                 $checked++;
             }
 
-            $t->same(90, $checked, 'Expected every current showcase sample to have valid WordPress block output.');
+            $t->same(
+                $expectedSuccessfulImports,
+                $checked,
+                'Expected every successful current showcase sample to have valid WordPress block output.'
+            );
         },
 ];

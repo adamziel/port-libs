@@ -23,7 +23,10 @@ const defaults = {
   url: 'http://127.0.0.1:4174/examples.html',
   timeoutMs: 10 * 60 * 1000,
   pollMs: 500,
-  maxElapsedMs: 0,
+  // The previous dense observation was about 148 seconds. Five minutes keeps
+  // ample release-run variance while making a major regression fail by
+  // default; pass 0 only for explicitly supervised diagnostics.
+  maxElapsedMs: 5 * 60 * 1000,
   // The release gate requires enough headroom for ordinary developer laptops
   // and CI workers. Completed canvases, render tasks, and staged source copies
   // must be released incrementally instead of expanding this ceiling.
@@ -110,6 +113,7 @@ function attachObservationLog(page) {
     consoleErrors: [],
     pageErrors: [],
     networkFailures: [],
+    browserLogErrors: [],
   };
   page.on('Runtime.consoleAPICalled', (params) => {
     if (params.type !== 'error') {
@@ -127,16 +131,38 @@ function attachObservationLog(page) {
     console.error(`page exception: ${message}`);
   });
   page.on('Network.loadingFailed', (params) => {
+    if (params.canceled || params.errorText === 'net::ERR_ABORTED') {
+      return;
+    }
     const failure = `${params.errorText || 'network failure'} (${params.type || 'Other'})`;
     observations.networkFailures.push(failure);
     console.error(`network failure: ${failure}`);
   });
   page.on('Log.entryAdded', (params) => {
     if (params.entry?.level === 'error') {
-      console.error(`browser log: ${params.entry.text || 'error'}`);
+      const message = params.entry.text || 'Unknown browser log error';
+      observations.browserLogErrors.push(message);
+      console.error(`browser log: ${message}`);
     }
   });
   return observations;
+}
+
+function assertNoUnexpectedObservations(observations) {
+  const groups = [
+    ['console errors', observations.consoleErrors],
+    ['page errors', observations.pageErrors],
+    ['network failures', observations.networkFailures],
+    ['browser log errors', observations.browserLogErrors],
+  ].filter(([, entries]) => entries.length > 0);
+  if (groups.length === 0) {
+    return;
+  }
+  const summary = groups.map(([label, entries]) => {
+    const first = String(entries[0] || 'unknown').replace(/\s+/g, ' ').slice(0, 240);
+    return `${entries.length} ${label}: ${first}`;
+  }).join('; ');
+  throw new Error(`The browser reported unexpected observations (${summary}).`);
 }
 
 async function setFileInput(page, selector, file) {
@@ -359,11 +385,15 @@ async function main() {
 
     const statusHistory = [];
     const startedAt = Date.now();
+    const importDeadlineMs = options.maxElapsedMs > 0
+      ? Math.min(options.timeoutMs, options.maxElapsedMs)
+      : options.timeoutMs;
     let lastStatus = '';
     let completed = false;
     let nextMemoryPollAt = 0;
     let recoveredToPages = false;
-    while (Date.now() - startedAt < options.timeoutMs) {
+    while (Date.now() - startedAt < importDeadlineMs) {
+      assertNoUnexpectedObservations(observations);
       if (options.maxBrowserMemoryMb > 0 && Date.now() >= nextMemoryPollAt) {
         nextMemoryPollAt = Date.now() + 500;
         sampleBrowserMemory();
@@ -379,6 +409,7 @@ async function main() {
           disabled: Boolean(button?.disabled),
         };
       })()`);
+      assertNoUnexpectedObservations(observations);
       if (status.text && status.text !== lastStatus) {
         lastStatus = status.text;
         statusHistory.push({ atMs: Date.now() - startedAt, ...status });
@@ -397,10 +428,21 @@ async function main() {
       }
       const importFinished = /^(?:(?:Import complete\..* )?Opened a new WordPress page for |The import completed and the WordPress page was saved)/.test(status.text);
       if (status.tone === 'success' && importFinished) {
-        sampleBrowserMemory();
+        const completionMemory = sampleBrowserMemory();
         const integrity = await evaluate(page, `window.__portLibsImportE2E?.inspectLastImport()`);
         if (!integrity || !Array.isArray(integrity.posts) || integrity.posts.length < 1) {
           throw new Error('The UI reported success without inspectable WordPress pages.');
+        }
+        const rendererResources = integrity.rendererResources && typeof integrity.rendererResources === 'object'
+          ? integrity.rendererResources
+          : null;
+        if (!rendererResources) {
+          throw new Error('The completed import did not expose PDF.js resource-release evidence.');
+        }
+        for (const key of ['activeLoadingTasks', 'activeDocuments', 'activePages', 'activeCanvases', 'activeRenderTasks']) {
+          if (Number(rendererResources[key]) !== 0) {
+            throw new Error(`The completed import still owns PDF.js resources (${key}=${rendererResources[key]}).`);
+          }
         }
         for (const post of integrity.posts) {
           const emptyButCertified = post.intentionalBlank
@@ -448,6 +490,54 @@ async function main() {
         if (options.maxElapsedMs > 0 && elapsedMs > options.maxElapsedMs) {
           throw new Error(`Import exceeded the ${formatElapsed(options.maxElapsedMs)} performance ceiling (${formatElapsed(elapsedMs)}).`);
         }
+        const importPeakBrowserMemoryBytes = peakBrowserMemoryBytes;
+        let postCompletionBrowserMemoryBytes = completionMemory?.measurementBytes || 0;
+        let postCompletionBrowserRssBytes = completionMemory?.rssBytes || 0;
+        let postCompletionBrowserPssBytes = completionMemory?.pssBytes || 0;
+        const postCompletionMemorySamples = [];
+        let postCompletionSettleElapsedMs = 0;
+        if (completionMemory) {
+          // Resource counters prove logical ownership. This bounded settle
+          // window separately catches backing stores which remain resident
+          // after the UI has announced completion.
+          const settleStartedAt = Date.now();
+          const recordPostCompletionMemory = (memory) => {
+            postCompletionMemorySamples.push({
+              atMs: Date.now() - settleStartedAt,
+              measurementBytes: memory.measurementBytes,
+              rssBytes: memory.rssBytes,
+              pssBytes: memory.pssBytes,
+              processCount: memory.processCount,
+            });
+          };
+          recordPostCompletionMemory(completionMemory);
+          for (let releasePoll = 0; releasePoll < 5; releasePoll += 1) {
+            await sleep(1_000);
+            const memory = sampleBrowserMemory();
+            if (memory) {
+              recordPostCompletionMemory(memory);
+            }
+            if (memory && (postCompletionBrowserMemoryBytes === 0
+                || memory.measurementBytes < postCompletionBrowserMemoryBytes)) {
+              postCompletionBrowserMemoryBytes = memory.measurementBytes;
+              postCompletionBrowserRssBytes = memory.rssBytes;
+              postCompletionBrowserPssBytes = memory.pssBytes;
+            }
+          }
+          postCompletionSettleElapsedMs = Date.now() - settleStartedAt;
+          const transientBytes = Math.max(0, importPeakBrowserMemoryBytes - initialBrowserMemoryBytes);
+          if (transientBytes >= 64 * 1024 * 1024) {
+            const requiredReleaseBytes = Math.min(
+              32 * 1024 * 1024,
+              Math.max(8 * 1024 * 1024, Math.floor(transientBytes * 0.05)),
+            );
+            const releasedBytes = Math.max(0, importPeakBrowserMemoryBytes - postCompletionBrowserMemoryBytes);
+            if (releasedBytes < requiredReleaseBytes) {
+              throw new Error(`Chrome did not release enough post-import memory: ${Math.ceil(releasedBytes / 1024 / 1024)} MiB released; ${Math.ceil(requiredReleaseBytes / 1024 / 1024)} MiB required.`);
+            }
+          }
+        }
+        assertNoUnexpectedObservations(observations);
         const result = {
           ok: true,
           file: options.file,
@@ -461,6 +551,13 @@ async function main() {
           peakBrowserRssBytes,
           peakBrowserPssBytes,
           peakBrowserProcessCount,
+          importPeakBrowserMemoryBytes,
+          postCompletionBrowserMemoryBytes,
+          postCompletionBrowserRssBytes,
+          postCompletionBrowserPssBytes,
+          postCompletionMemorySamples,
+          postCompletionSettleElapsedMs,
+          releasedBrowserMemoryBytes: Math.max(0, importPeakBrowserMemoryBytes - postCompletionBrowserMemoryBytes),
           requestedPdfOutputMode: isPdf ? options.pdfOutputMode : null,
           recoveredToPages,
           integrity,
@@ -468,11 +565,9 @@ async function main() {
           consoleErrors: observations.consoleErrors,
           pageErrors: observations.pageErrors,
           networkFailures: observations.networkFailures,
+          browserLogErrors: observations.browserLogErrors,
         };
         console.log(JSON.stringify(result, null, 2));
-        if (observations.pageErrors.length > 0) {
-          throw new Error('The import completed, but the browser reported page errors.');
-        }
         completed = true;
         break;
       }
@@ -483,6 +578,9 @@ async function main() {
     }
 
     if (!completed) {
+      if (options.maxElapsedMs > 0 && options.maxElapsedMs <= options.timeoutMs) {
+        throw new Error(`Import exceeded the ${formatElapsed(options.maxElapsedMs)} performance ceiling.`);
+      }
       throw new Error(`Timed out after ${formatElapsed(options.timeoutMs)} waiting for the visible importer result.`);
     }
   } finally {

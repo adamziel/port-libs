@@ -1,4 +1,7 @@
-import { renderPdfFormRequestsIncrementally } from './pdfjs-form-rasterizer.mjs';
+import {
+  renderPdfFormRequestsIncrementally,
+  renderPdfPageRasterRequestsIncrementally,
+} from './pdfjs-form-rasterizer.mjs';
 import {
   createImportJobSession,
   createPlaygroundPersistence,
@@ -15,6 +18,9 @@ const pdfRasterPayloadByteLimit = 24_000_000;
 const pdfRasterSourceByteLimit = 24 * 1024 * 1024;
 const pdfFormRenderTotalPixelLimit = 48_000_000;
 const pdfFormRenderTotalImageByteLimit = 24_000_000;
+const pdfPageRenderTotalPixelLimit = 128_000_000;
+const pdfPageRenderTotalImageByteLimit = 64 * 1024 * 1024;
+const pdfPageRasterMethod = 'pdfjs-whole-page-raster';
 
 const iframe = document.getElementById('wp-playground');
 const playgroundPanel = document.getElementById('playground-panel');
@@ -253,33 +259,51 @@ function createJobReporter() {
 
 async function driveImportJob(initialJob, reportJob) {
   let job = initialJob;
-  let remainingPixels = pdfFormRenderTotalPixelLimit;
-  let remainingImageBytes = pdfFormRenderTotalImageByteLimit;
+  const formBudget = {
+    remainingPixels: pdfFormRenderTotalPixelLimit,
+    remainingImageBytes: pdfFormRenderTotalImageByteLimit,
+  };
+  const pageBudget = {
+    remainingPixels: pdfPageRenderTotalPixelLimit,
+    remainingImageBytes: pdfPageRenderTotalImageByteLimit,
+  };
   while (!['complete', 'failed', 'awaiting_output_mode'].includes(String(job.status || ''))) {
     if (Array.isArray(job.renderRequests) && job.renderRequests.length > 0) {
-      log(`Rendering ${job.renderRequests.length} PDF figure${job.renderRequests.length === 1 ? '' : 's'} locally with PDF.js.`);
-      for (const requests of pdfRenderRequestGroups(job.renderRequests)) {
-        const filesByPath = remainingPixels <= 0 || remainingImageBytes <= 0
+      log(`Rendering ${job.renderRequests.length} PDF visual${job.renderRequests.length === 1 ? '' : 's'} (figures/page images) locally with PDF.js.`);
+      for (const group of pdfRenderRequestGroups(job.renderRequests)) {
+        const requests = group.requests;
+        const pageRaster = group.method === pdfPageRasterMethod;
+        const budget = pageRaster ? pageBudget : formBudget;
+        const filesByPath = budget.remainingPixels <= 0 || budget.remainingImageBytes <= 0
           ? new Map()
           : await pdfFilesForImportJob(job, selectedUpload, requests);
-        for await (const item of renderPdfFormRequestsIncrementally({
-          filesByPath,
-          requests,
+        const renderOptions = {
+          ...(pageRaster
+            ? {
+              source: pdfPageRasterSource(filesByPath, requests),
+              requests: requests.map(pdfPageRasterRequestForRenderer),
+            }
+            : { filesByPath, requests }),
           pdfjs: playgroundPdfJsConfig(),
-          maxTotalPixels: remainingPixels,
-          maxTotalImageBytes: remainingImageBytes,
+          maxTotalPixels: budget.remainingPixels,
+          maxTotalImageBytes: budget.remainingImageBytes,
           onProgress({ completed, total, label }) {
             setProgressStatus(`${label} (${completed} of ${total})`);
           },
-        })) {
-          if (item.error) log(`PDF.js could not render one PDF figure: ${item.error}`);
+        };
+        const renderer = pageRaster
+          ? renderPdfPageRasterRequestsIncrementally
+          : renderPdfFormRequestsIncrementally;
+        for await (const renderedItem of renderer(renderOptions)) {
+          const item = pdfRenderedMediaItem(renderedItem);
+          if (item.error) log(`PDF.js could not render one PDF visual/page image: ${item.error}`);
           if (!item.error && item.bytes instanceof Uint8Array) {
             const pixels = Math.max(0, Number(item.width) || 0) * Math.max(0, Number(item.height) || 0);
-            remainingPixels = Math.max(0, remainingPixels - pixels);
-            remainingImageBytes = Math.max(0, remainingImageBytes - item.bytes.byteLength);
+            budget.remainingPixels = Math.max(0, budget.remainingPixels - pixels);
+            budget.remainingImageBytes = Math.max(0, budget.remainingImageBytes - item.bytes.byteLength);
           }
-          if (item.budgetExhausted === 'pixels') remainingPixels = 0;
-          if (item.budgetExhausted === 'image-bytes') remainingImageBytes = 0;
+          if (item.budgetExhausted === 'pixels') budget.remainingPixels = 0;
+          if (item.budgetExhausted === 'image-bytes') budget.remainingImageBytes = 0;
           const rendererPayload = item.error
             ? { requestId: item.requestId, error: item.error }
             : {
@@ -308,14 +332,14 @@ async function submitPlaygroundRenderedMedia(job, payload, reportJob) {
   const jobId = encodeURIComponent(String(job?.jobId || ''));
   const requestId = String(payload?.requestId || '');
   if (!jobId || !requestId) {
-    throw new Error('WordPress returned an invalid PDF figure request.');
+    throw new Error('WordPress returned an invalid PDF visual/page-image request.');
   }
   try {
     return await playgroundPluginRequest(`/imports/${jobId}/rendered-media`, payload);
   } catch (error) {
     // The upload may have committed even when its response was lost. Read the
     // durable request list before sending the PNG again.
-    log('The PDF figure acknowledgement ended unexpectedly. Checking the saved import before retrying…');
+    log('The PDF visual/page-image acknowledgement ended unexpectedly. Checking the saved import before retrying…');
     const recovered = await playgroundPluginRequest(`/imports/${jobId}`, undefined, 'GET');
     reportJob(recovered);
     const stillOutstanding = (recovered.renderRequests || [])
@@ -326,7 +350,7 @@ async function submitPlaygroundRenderedMedia(job, payload, reportJob) {
     try {
       return await playgroundPluginRequest(`/imports/${jobId}/rendered-media`, payload);
     } catch (retryError) {
-      throw new Error(`${errorMessage(retryError)} The rendered figure remains checkpointed in this browser session; use Resume saved import to re-check WordPress before rendering it again.`);
+      throw new Error(`${errorMessage(retryError)} The rendered PDF visual/page image remains checkpointed in this browser session; use Resume saved import to re-check WordPress before rendering it again.`);
     }
   }
 }
@@ -553,10 +577,52 @@ function pdfRenderRequestGroups(requests) {
   for (const request of Array.isArray(requests) ? requests : []) {
     const path = String(request?.path || '');
     const sourceKey = String(request?.sourceKey || path);
-    if (!groups.has(sourceKey)) groups.set(sourceKey, []);
-    groups.get(sourceKey).push(request);
+    const method = request?.method === pdfPageRasterMethod
+      ? pdfPageRasterMethod
+      : 'pdf-form-xobject';
+    const groupKey = `${method}\u001f${sourceKey}`;
+    if (!groups.has(groupKey)) groups.set(groupKey, { method, requests: [] });
+    groups.get(groupKey).requests.push(request);
   }
   return Array.from(groups.values());
+}
+
+function pdfPageRasterSource(filesByPath, requests) {
+  for (const request of requests || []) {
+    const path = String(request?.path || '');
+    if (path && filesByPath?.has(path)) return filesByPath.get(path);
+  }
+  return filesByPath instanceof Map ? filesByPath.values().next().value : undefined;
+}
+
+function pdfPageRasterRequestForRenderer(request) {
+  return {
+    version: request?.version,
+    method: request?.method,
+    id: request?.id,
+    sourceSha256: request?.sourceSha256,
+    page: request?.page,
+    pageObject: request?.pageObject,
+    pageBox: request?.pageBox,
+    pageBoxSource: request?.pageBoxSource,
+    pageRotation: request?.pageRotation,
+    width: request?.width,
+    height: request?.height,
+    mimeType: request?.mimeType,
+    requestDigest: request?.requestDigest,
+  };
+}
+
+function pdfRenderedMediaItem(item) {
+  if (item?.error || item?.bytes instanceof Uint8Array) return item;
+  if (!(item?.contents instanceof Uint8Array)) return item;
+  return {
+    requestId: String(item.requestId || ''),
+    bytes: item.contents,
+    mimeType: item.mimeType,
+    width: item.width,
+    height: item.height,
+  };
 }
 
 async function pdfFilesForImportJob(job, upload, renderRequests = null) {
@@ -606,8 +672,8 @@ async function playgroundPdfRenderSource(job, request) {
     return encoded ? bytesFromBase64(encoded) : null;
   } catch {
     // A direct browser-held source is normally enough. If an older plugin
-    // cannot return an expanded ZIP member, PDF.js reports that one figure as
-    // unavailable and the text import still completes with a placeholder.
+    // cannot return an expanded ZIP member, PDF.js reports that one figure or
+    // page image as unavailable and the import keeps its available fallback.
     return null;
   }
 }

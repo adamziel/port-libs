@@ -76,14 +76,14 @@
     "url": "https://raw.githubusercontent.com/Unstructured-IO/unstructured/main/example-docs/pdf/pdf-with-ocr-text.pdf",
     "source": "Unstructured example-docs/pdf/pdf-with-ocr-text.pdf",
     "filename": "pdf-with-ocr-text.pdf",
-    "notes": "Image-backed page with an OCR text layer; duplicate overlay text must not leak into body flow.",
+    "notes": "Image-backed page with a non-painting OCR layer; its visible source stamp is preserved, while OCR text must not leak into body flow.",
     "artifact": {"pinStatus": "checked-in", "bytes": 446834, "sha256": "a0e8a73f4b94e9f04aabd8d74db9e23c6ef000b5d15ec389ebe86f91a31bb49b", "localPath": "pandoc-showcase/samples/pdf-layout-unstructured-ocr-overlay-pdf-with-ocr-text.pdf"},
     "provenance": {"sourceType": "upstream-test-fixture", "project": "Unstructured", "upstreamPath": "example-docs/pdf/pdf-with-ocr-text.pdf"},
     "license": {"status": "verified-project-license", "spdx": "Apache-2.0", "reference": "https://github.com/Unstructured-IO/unstructured/blob/main/LICENSE.md"},
     "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": ["B2: OCR character accuracy is source data and remains outside non-OCR repair"]},
     "failureClasses": ["B2", "E5", "G"],
-    "success": {"minTextBytes": 100, "maxSingleGlyphParagraphs": 0, "requiredText": ["Foundation"]},
-    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["Foundation"], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
+    "success": {"allowNoText": true, "maxSingleGlyphParagraphs": 0, "requiredText": ["Source: https://www.industrydocuments.ucsf.edu/docs/mjgl0226"]},
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["Source: https://www.industrydocuments.ucsf.edu/docs/mjgl0226"], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   },
   {
     "id": "docling-code-formula",
@@ -172,13 +172,14 @@
     "url": "https://raw.githubusercontent.com/opendatalab/MinerU/master/demo/pdfs/small_ocr.pdf",
     "source": "opendatalab/MinerU demo/pdfs/small_ocr.pdf",
     "filename": "small_ocr.pdf",
-    "notes": "Eight scanned pages used by MinerU to demonstrate OCR fallback behavior.",
+    "notes": "Eight-page MinerU scan with no usable painted native text. The fully decoded source is classified unsupported_no_text with OCR outside scope; all eight pages receive browser raster requests, and the absent static page representations must never become a successful empty editable import.",
     "artifact": {"pinStatus": "checked-in", "bytes": 453816, "sha256": "c48baa1997e719d414061bea6ca197ce36f1c47341837fbfbc976bbb1d226998", "localPath": "pandoc-showcase/samples/pdf-layout-mineru-small-ocr-small_ocr.pdf"},
     "provenance": {"sourceType": "upstream-demo-fixture", "project": "MinerU", "upstreamPath": "demo/pdfs/small_ocr.pdf"},
     "license": {"status": "verified-project-license", "spdx": "LicenseRef-MinerU-Open-Source-License", "reference": "https://github.com/opendatalab/MinerU/blob/master/LICENSE.md"},
-    "review": {"status": "baseline-recorded", "asOf": "2026-07-16", "visual": "screenshots-recorded", "unresolved": ["G: OCR is explicitly out of scope; this fixture must remain a detected unsupported/no-text input"]},
+    "review": {"status": "baseline-recorded", "asOf": "2026-07-18", "visual": "screenshots-recorded", "unresolved": ["G/E5: all eight decoded pages are proven to lack usable painted native text; OCR is outside scope, and the eight browser page representations remain pending"]},
     "failureClasses": ["E5", "G"],
-    "success": {"allowNoText": true, "maxSingleGlyphParagraphs": 0},
+    "conversionExpectation": {"phpHtml": {"ok": false, "status": "unsupported_no_text"}, "wpBlocks": {"ok": false, "status": "unsupported_no_text"}},
+    "success": {"maxSingleGlyphParagraphs": 0},
     "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": [], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   },
   {

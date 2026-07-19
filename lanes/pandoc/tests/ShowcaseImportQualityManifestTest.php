@@ -119,7 +119,7 @@ return [
             $t->true(isset($gates['text_completeness']), "{$id} should have import-quality gates.");
         }
     },
-    'showcase manifest proves complete PHP HTML and WordPress coverage for every supported input format' => static function (TestRunner $t) use ($showcaseManifest): void {
+    'showcase manifest covers every supported input format and fails closed on known PDF boundaries' => static function (TestRunner $t) use ($showcaseManifest): void {
         $manifest = $showcaseManifest();
         $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
         $formats = is_array($manifest['formats'] ?? null) ? $manifest['formats'] : [];
@@ -127,37 +127,54 @@ return [
         $qualitySummary = is_array($manifest['importQualitySummary'] ?? null) ? $manifest['importQualitySummary'] : [];
         $qualityGate = is_array($manifest['importQualityGate'] ?? null) ? $manifest['importQualityGate'] : [];
         $expectedReviewIds = [
+            'pdf-layout-unstructured-ocr-overlay',
+        ];
+        $expectedFailureIds = [
+            'pdf-archive-motograph-book',
+            'pdf-grand-canyon-north-rim-map',
+            'pdf-layout-docling-aircraft-handbook',
             'pdf-layout-docling-right-to-left',
             'pdf-layout-mineru-small-ocr',
-            'pdf-layout-unstructured-ocr-overlay',
+            'pdf-layout-vdl-theatre-script',
             'pdf-muir-beach-brochure',
+            'pdf-quickbooks-invoice-template',
+            'pdf-tabula-spreadsheet-no-frame',
+            'pdf-tracemonkey',
         ];
+        $expectedConversionFailureIds = ['pdf-layout-mineru-small-ocr'];
 
         $t->same([], $manifest['missingFormats'] ?? null);
         $t->same($formats, $coveredFormats);
         $t->true(count($records) >= 95, 'The complete supported-format corpus should not shrink.');
         $t->same(count($records), $qualitySummary['samples'] ?? null);
-        $t->same(count($records) - count($expectedReviewIds), $qualitySummary['pass'] ?? null);
+        $t->same(count($records) - count($expectedReviewIds) - count($expectedFailureIds), $qualitySummary['pass'] ?? null);
         $t->same(count($expectedReviewIds), $qualitySummary['review'] ?? null);
-        $t->same(0, $qualitySummary['fail'] ?? null);
+        $t->same(count($expectedFailureIds), $qualitySummary['fail'] ?? null);
         $t->same(0, $qualitySummary['unbenchmarked'] ?? null);
-        $t->same('pass', $qualityGate['status'] ?? null);
-        $t->same('pass', $qualityGate['trackedStatus'] ?? null);
+        $t->same('fail', $qualityGate['status'] ?? null);
+        $t->same('fail', $qualityGate['trackedStatus'] ?? null);
 
         foreach ($records as $record) {
             if (!is_array($record)) {
                 continue;
             }
             $id = (string) ($record['id'] ?? 'unknown');
-            $t->same(true, $record['phpHtml']['ok'] ?? null, "{$id} should convert to PHP HTML.");
-            $t->same(true, $record['wpBlocks']['ok'] ?? null, "{$id} should convert to WordPress blocks.");
+            $expectedConversionOk = !in_array($id, $expectedConversionFailureIds, true);
+            $t->same($expectedConversionOk, $record['phpHtml']['ok'] ?? null, "{$id} should retain its expected PHP HTML conversion boundary.");
+            $t->same($expectedConversionOk, $record['wpBlocks']['ok'] ?? null, "{$id} should retain its expected WordPress conversion boundary.");
             $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
-            $expectedQualityStatus = in_array($id, $expectedReviewIds, true) ? 'review' : 'pass';
+            $expectedQualityStatus = in_array($id, $expectedFailureIds, true)
+                ? 'fail'
+                : (in_array($id, $expectedReviewIds, true) ? 'review' : 'pass');
             $t->same($expectedQualityStatus, $quality['status'] ?? null, "{$id} should retain its measured import-quality status.");
             $anchor = is_array($quality['gates']['anchor_validity'] ?? null)
                 ? $quality['gates']['anchor_validity']
                 : [];
-            $t->same('pass', $anchor['status'] ?? null, "{$id} should not contain broken local fragment links.");
+            if ($expectedConversionOk) {
+                $t->same('pass', $anchor['status'] ?? null, "{$id} should not contain broken local fragment links.");
+            } else {
+                $t->same('fail', $quality['gates']['conversion']['status'] ?? null, "{$id} should expose its typed conversion refusal.");
+            }
         }
     },
     'showcase manifest records required import quality gates per successful sample' => static function (TestRunner $t) use ($showcaseManifest): void {
@@ -187,6 +204,7 @@ return [
             'native_source_coverage',
             'pdf_geometry_reference',
             'paragraph_merge_split',
+            'pdf_source_integrity',
             'media_imported',
             'anchor_validity',
             'custom_html_percentage',
@@ -290,17 +308,18 @@ return [
         $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
         $byId = $recordsById($records);
 
-        foreach ([
-            'pdf-irs-w4',
-            'pdf-tracemonkey',
-            'pdf-cdc-hand-hygiene-brochure',
-            'pdf-grand-canyon-north-rim-map',
-            'pdf-archive-motograph-book',
-            'pdf-muir-beach-brochure',
-            'pdf-quickbooks-invoice-template',
-            'pdf-tabula-spreadsheet-no-frame',
-            'pdf-tabula-multicolumn',
-        ] as $id) {
+        $expectations = [
+            'pdf-irs-w4' => ['quality' => 'pass', 'text' => 'pass', 'geometry' => 'pass', 'source' => 'pass'],
+            'pdf-tracemonkey' => ['quality' => 'fail', 'text' => 'pass', 'geometry' => 'pass', 'source' => 'fail'],
+            'pdf-cdc-hand-hygiene-brochure' => ['quality' => 'pass', 'text' => 'pass', 'geometry' => 'pass', 'source' => 'pass'],
+            'pdf-grand-canyon-north-rim-map' => ['quality' => 'fail', 'text' => 'pass', 'geometry' => 'pass', 'source' => 'fail'],
+            'pdf-archive-motograph-book' => ['quality' => 'fail', 'text' => 'pass', 'geometry' => 'review', 'source' => 'fail'],
+            'pdf-muir-beach-brochure' => ['quality' => 'fail', 'text' => 'review', 'geometry' => 'pass', 'source' => 'fail'],
+            'pdf-quickbooks-invoice-template' => ['quality' => 'fail', 'text' => 'pass', 'geometry' => 'pass', 'source' => 'fail'],
+            'pdf-tabula-spreadsheet-no-frame' => ['quality' => 'fail', 'text' => 'pass', 'geometry' => 'pass', 'source' => 'fail'],
+            'pdf-tabula-multicolumn' => ['quality' => 'pass', 'text' => 'pass', 'geometry' => 'pass', 'source' => 'pass'],
+        ];
+        foreach ($expectations as $id => $expected) {
             $record = $byId[$id] ?? null;
             $t->true(is_array($record), "{$id} should be present in the showcase manifest.");
             $reference = is_array($record['externalReference'] ?? null) ? $record['externalReference'] : [];
@@ -317,12 +336,12 @@ return [
             $t->same('not_applicable', $comparison['visualStatus'] ?? null, "{$id} should not claim an HTML semantic visual baseline from an untagged PDF.");
             $t->true((int) ($metrics['pageCount'] ?? 0) > 0, "{$id} should retain native page evidence.");
             $t->true((int) ($metrics['lineCount'] ?? 0) > 0, "{$id} should retain native line-geometry evidence.");
-            $expectedQualityStatus = $id === 'pdf-muir-beach-brochure' ? 'review' : 'pass';
-            $t->same($expectedQualityStatus, $quality['status'] ?? null, "{$id} should retain its measured PDF import-quality status.");
-            $t->same('pass', $gates['text_completeness']['status'] ?? null, "{$id} should preserve PDFKit text.");
+            $t->same($expected['quality'], $quality['status'] ?? null, "{$id} should retain its measured PDF import-quality status.");
+            $t->same($expected['text'], $gates['text_completeness']['status'] ?? null, "{$id} should retain its measured PDFKit text status.");
             $t->same('pass', $gates['native_source_coverage']['status'] ?? null, "{$id} should retain native source-token coverage.");
-            $t->same('pass', $gates['pdf_geometry_reference']['status'] ?? null, "{$id} should retain native page and line geometry.");
+            $t->same($expected['geometry'], $gates['pdf_geometry_reference']['status'] ?? null, "{$id} should retain its measured native page and line geometry status.");
             $t->same('pass', $gates['paragraph_merge_split']['status'] ?? null, "{$id} should avoid visual-line paragraph drift.");
+            $t->same($expected['source'], $gates['pdf_source_integrity']['status'] ?? null, "{$id} should retain its fail-closed semantic source-integrity status.");
         }
     },
     'showcase keeps raw PDFKit diagnostics out of converted preview panes' => static function (TestRunner $t): void {
@@ -369,7 +388,7 @@ return [
             $t->same('pass', $gates['citeproc_entry_count']['status'] ?? null, "{$id} should pass Citeproc entry count.");
         }
     },
-    'showcase converts anchored JPEG 2000 PDF image media to a web-safe artifact' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+    'showcase converts anchored JPEG 2000 media while missing Motograph pages remain fail closed' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
         $manifest = $showcaseManifest();
         $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
         $byId = $recordsById($records);
@@ -378,19 +397,85 @@ return [
         $t->true(is_array($record), 'The scanned PDF media fixture should be present in the showcase manifest.');
         $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
         $mediaGate = is_array($quality['gates']['media_imported'] ?? null) ? $quality['gates']['media_imported'] : [];
+        $sourceGate = is_array($quality['gates']['pdf_source_integrity'] ?? null) ? $quality['gates']['pdf_source_integrity'] : [];
         $diagnostics = is_array($record['wpBlocks']['mediaDiagnostics'] ?? null) ? $record['wpBlocks']['mediaDiagnostics'] : [];
         $webMedia = array_values(array_filter($record['wpBlocks']['media'] ?? [], static function (mixed $media): bool {
             return is_array($media) && (string) ($media['mimeType'] ?? '') === 'image/avif';
         }));
 
-        $t->same('pass', $quality['status'] ?? null, 'The scanned PDF should no longer remain a review-only import.');
-        $t->same('pass', $mediaGate['status'] ?? null, 'Browser-compatible raster media should satisfy the media gate.');
+        $t->same('fail', $quality['status'] ?? null, 'The scanned PDF must remain blocked while pages 2 through 47 lack representations.');
+        $t->same('fail', $sourceGate['status'] ?? null, 'The missing page representations must remain an explicit source-integrity failure.');
+        $t->same('review', $mediaGate['status'] ?? null, 'Unanchored scanned-page media should remain visible as a media review boundary.');
         $t->same(1, count($webMedia), 'The important JPEG 2000 wordmark should be represented as one extracted web image.');
-        $t->same('outputs/pdf-archive-motograph-book/media/pdf/image-00003.avif', $webMedia[0]['path'] ?? null, 'The JPX object should retain a stable web-safe media path.');
-        $t->true(in_array('extract-media-pdf-image-raster-loaded:00003:important', $diagnostics, true), 'The anchored JPEG 2000 image should be recorded as a raster media import.');
+        $t->same('outputs/pdf-archive-motograph-book/media/pdf/image-3.avif', $webMedia[0]['path'] ?? null, 'The JPX object should retain a stable canonical web-safe media path.');
+        $t->true(in_array('extract-media-pdf-image-raster-loaded:3:important', $diagnostics, true), 'The anchored JPEG 2000 image should be recorded as a raster media import.');
         $t->same(false, array_filter($record['wpBlocks']['media'] ?? [], static function (mixed $media): bool {
             return is_array($media) && str_ends_with((string) ($media['path'] ?? ''), '.jp2');
         }) !== [], 'The generated showcase should not expose a raw JPEG 2000 image as a broken browser preview.');
+    },
+    'showcase keeps the OCR overlay fixture at the typed no-text boundary with its page represented' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+        $manifest = $showcaseManifest();
+        $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
+        $record = $recordsById($records)['pdf-layout-unstructured-ocr-overlay'] ?? null;
+
+        $t->true(is_array($record), 'The OCR-overlay boundary fixture should be present.');
+        $integrity = is_array($record['wpBlocks']['sourceIntegrity'] ?? null)
+            ? $record['wpBlocks']['sourceIntegrity']
+            : [];
+        $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
+        $ocrGate = is_array($quality['gates']['ocr_boundary'] ?? null)
+            ? $quality['gates']['ocr_boundary']
+            : [];
+        $blocksPath = dirname(__DIR__, 3) . '/pandoc-showcase/'
+            . ltrim((string) ($record['wpBlocks']['path'] ?? ''), '/');
+        $blocks = is_file($blocksPath) ? (string) file_get_contents($blocksPath) : '';
+
+        $t->same(true, $record['wpBlocks']['ok'] ?? null);
+        $t->same('unsupported_no_text', $integrity['pdfTextLayerStatus'] ?? null);
+        $t->same(true, $integrity['pdfNeedsOcr'] ?? null);
+        $t->same([1], $integrity['pdfRepresentedPageNumbers'] ?? null);
+        $t->same(true, $integrity['pdfPageRepresentationComplete'] ?? null);
+        $t->same('review', $quality['status'] ?? null);
+        $t->same('review', $ocrGate['status'] ?? null);
+        $t->same(1, $record['wpBlockCounts']['image'] ?? null);
+        $t->contains('data-pandoc-pdf-image-placement="page"', $blocks);
+        $t->true(!str_contains($blocks, 'Foundation'), 'Non-painting OCR overlay text must not be restored as body text.');
+    },
+    'showcase keeps the classified MinerU scan as a typed no-text failed conversion pending page representation' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+        $manifest = $showcaseManifest();
+        $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
+        $record = $recordsById($records)['pdf-layout-mineru-small-ocr'] ?? null;
+
+        $t->true(is_array($record), 'The MinerU no-native-text fixture should be present.');
+        $integrity = is_array($record['wpBlocks']['sourceIntegrity'] ?? null)
+            ? $record['wpBlocks']['sourceIntegrity']
+            : [];
+        $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
+        $conversionGate = is_array($quality['gates']['conversion'] ?? null)
+            ? $quality['gates']['conversion']
+            : [];
+
+        $t->same(false, $record['phpHtml']['ok'] ?? null);
+        $t->same(false, $record['wpBlocks']['ok'] ?? null);
+        $t->same('unsupported_no_text', $integrity['pdfTextLayerStatus'] ?? null);
+        $t->same(true, $integrity['pdfNeedsOcr'] ?? null);
+        $t->same(true, $integrity['pdfTextComplete'] ?? null);
+        $t->same(true, $integrity['pdfNoTextClassificationComplete'] ?? null);
+        $t->same(true, $integrity['pdfDocumentComplete'] ?? null);
+        $t->same(true, $integrity['pdfSemanticTextComplete'] ?? null);
+        $t->same(true, $integrity['pdfSourceBindingComplete'] ?? null);
+        $t->same(true, $integrity['pdfSourceEdgeMappingComplete'] ?? null);
+        $t->same(true, $integrity['pdfOrderedSignificantCharactersPreserved'] ?? null);
+        $t->same(0, $integrity['pdfUnresolvedSourceOccurrences'] ?? null);
+        $t->same([1, 2, 3, 4, 5, 6, 7, 8], $integrity['pdfPagesNeedingImageRepresentation'] ?? null);
+        $t->same([], $integrity['pdfRepresentedPageNumbers'] ?? null);
+        $t->same(false, $integrity['pdfPageRepresentationComplete'] ?? null);
+        $t->same(false, $integrity['complete'] ?? null);
+        $t->same('fail', $quality['status'] ?? null);
+        $t->same('fail', $conversionGate['status'] ?? null);
+        $t->contains('unsupported_no_text:', (string) ($record['wpBlocks']['error'] ?? ''));
+        $t->same(true, $record['pdfFormRenders']['ok'] ?? null);
+        $t->same(8, $record['pdfFormRenders']['count'] ?? null);
     },
     'showcase manifest distinguishes source raw HTML from Custom HTML fallback' => static function (TestRunner $t) use ($showcaseManifest, $recordsById, $sourceRawHtmlBlockCount): void {
         $manifest = $showcaseManifest();
@@ -415,7 +500,7 @@ return [
         $t->same('pass', $customHtml['status'] ?? null, 'Source raw HTML should not count as an unsupported Custom HTML fallback.');
         $t->same(0.0, isset($customHtml['actual']) ? (float) $customHtml['actual'] : null, 'No unexpected Custom HTML fallback should remain.');
     },
-    'showcase manifest gates common import quality separately from exotic formats' => static function (TestRunner $t) use ($showcaseManifest): void {
+    'showcase manifest gates common import quality separately and fails closed on current PDF blockers' => static function (TestRunner $t) use ($showcaseManifest): void {
         $manifest = $showcaseManifest();
         $summary = is_array($manifest['importQualitySegmentSummary'] ?? null) ? $manifest['importQualitySegmentSummary'] : [];
         $gate = is_array($manifest['importQualityGate'] ?? null) ? $manifest['importQualityGate'] : [];
@@ -425,10 +510,10 @@ return [
         $t->true($common !== [], 'Manifest should summarize common WordPress import formats separately.');
         $t->true($exotic !== [], 'Manifest should still summarize exotic formats without mixing them into common import quality.');
         $t->true(($common['samples'] ?? 0) >= 44, 'Common import segment should cover the current normal-user corpus size.');
-        $t->same(0, $common['wpFailures'] ?? null, 'Common import formats should not have WordPress block conversion failures.');
+        $t->same(1, $common['wpFailures'] ?? null, 'The typed MinerU refusal should remain visible as the sole common WordPress conversion failure.');
         $t->true(($common['pass'] ?? 0) >= 29, 'Common import pass count should not regress from the current baseline.');
         $t->true(($common['passReviewOrUnbenchmarked'] ?? 0) >= 39, 'Common import quality coverage should not regress from the current baseline.');
-        $t->true(($common['fail'] ?? PHP_INT_MAX) <= 5, 'Common import fail count should not regress from the current baseline.');
+        $t->same(9, $common['fail'] ?? null, 'Known common-format PDF blockers must remain fail closed until repaired.');
 
         $formats = is_array($common['formats'] ?? null) ? $common['formats'] : [];
         foreach (['docx', 'pdf', 'html', 'xlsx'] as $format) {
@@ -438,9 +523,9 @@ return [
         $segments = is_array($gate['segments'] ?? null) ? $gate['segments'] : [];
         $commonGate = is_array($segments['common'] ?? null) ? $segments['common'] : [];
         $exoticGate = is_array($segments['exotic'] ?? null) ? $segments['exotic'] : [];
-        $t->same('pass', $gate['status'] ?? null, 'Blocking import quality gate should pass for the current checked-in common corpus.');
-        $t->same([], $gate['blockingSegments'] ?? null, 'No common-format segment should be below its blocking threshold.');
-        $t->same('pass', $commonGate['status'] ?? null, 'Common import threshold gate should pass separately.');
+        $t->same('fail', $gate['status'] ?? null, 'Blocking import quality gate must reject the current common PDF corpus.');
+        $t->same(['common'], $gate['blockingSegments'] ?? null, 'The common-format segment should remain the explicit blocking segment.');
+        $t->same('fail', $commonGate['status'] ?? null, 'Common import threshold gate should fail separately.');
         $t->same(true, $commonGate['required'] ?? null, 'Common import threshold gate should be blocking.');
         $t->same('pass', $exoticGate['status'] ?? null, 'Exotic import threshold gate should be evaluated separately.');
         $t->same(false, $exoticGate['required'] ?? null, 'Exotic import threshold gate should be tracked without blocking common-format progress.');

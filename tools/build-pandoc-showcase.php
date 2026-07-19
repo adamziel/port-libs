@@ -11,9 +11,12 @@ require __DIR__ . '/bootstrap.php';
 
 ini_set('display_errors', 'stderr');
 error_reporting(E_ALL & ~E_DEPRECATED);
+// The main builder keeps the generated manifest and full comparison page in
+// memory at the same time. Large real-world samples can exceed PHP's common
+// 128 MiB CLI default even though each isolated conversion is bounded.
+raise_memory_limit('512M');
 
 if (($argv[1] ?? '') === '--convert-local') {
-    raise_memory_limit('512M');
     $path = $argv[2] ?? '';
     $format = $argv[3] ?? '';
     $to = $argv[4] ?? '';
@@ -40,6 +43,7 @@ if (($argv[1] ?? '') === '--convert-local') {
         file_put_contents($mediaManifest, json_encode([
             'media' => $converted['media'],
             'diagnostics' => $converted['diagnostics'],
+            'sourceIntegrity' => $converted['sourceIntegrity'] ?? null,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
         echo $converted['output'];
         exit(0);
@@ -57,10 +61,12 @@ $refreshSources = in_array('--refresh-sources', $argv, true);
 
 const SHOWCASE_EXAMPLES_AUTOMATIC_MAX_BYTES = 250000;
 // Keep the static viewer in step with the WordPress importer's bounded
-// browser-rendered Form-XObject handoff. A PDF can use Form XObjects for
-// diagrams, charts, and other complete vector scenes; they are not ordinary
-// image streams that the media extractor can write by itself.
+// browser-rendered PDF handoff. Whole-page requests represent pages whose
+// ordinary extraction has no visible counterpart; Form XObjects cover
+// diagrams, charts, and other vector scenes that are not ordinary image
+// streams. Their independent caps keep page coverage from crowding out Forms.
 const SHOWCASE_PDF_FORM_RENDER_MAX_REQUESTS = 48;
+const SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS = 96;
 
 if (($argv[1] ?? '') === '--build-examples-page') {
     $manifestPath = $siteDir . '/manifest.json';
@@ -1319,9 +1325,10 @@ function showcase_converter_options(string $from, string $to): array
 
 /**
  * Build the bounded browser-render plan consumed by the lightweight static
- * example viewer. PDF.js paints each requested Form XObject as a clipped page
- * crop, preserving vectors, nested Forms, clipping, and compositing that a
- * stream-level image extractor cannot reconstruct.
+ * example viewer. PDF.js paints whole pages which have no extracted visual
+ * counterpart before optional Form-XObject crops. The latter preserve
+ * vectors, nested Forms, clipping, and compositing that a stream-level image
+ * extractor cannot reconstruct.
  *
  * @return array{ok:bool,path:string,bytes:int,count:int,error?:string}|null
  */
@@ -1336,46 +1343,7 @@ function showcase_pdf_form_render_plan(string $sourcePath, string $format, strin
         $readerOptions = is_array($options['readerOptions'] ?? null) ? $options['readerOptions'] : [];
         $readerOptions['pdfCollectFormXObjectPlacements'] = true;
         $document = PandocConverter::readFile($sourcePath, $format, $readerOptions);
-        $metadata = $document->attr('meta', []);
-        $placements = is_array($metadata) && is_array($metadata['pdfFormXObjectPlacements'] ?? null)
-            ? $metadata['pdfFormXObjectPlacements']
-            : [];
-        $requests = [];
-        foreach ($placements as $placement) {
-            if (!is_array($placement)
-                || ($placement['visible'] ?? false) !== true
-                || ($placement['placementEligible'] ?? false) !== true) {
-                continue;
-            }
-            $bbox = showcase_pdf_form_render_bbox($placement['bbox'] ?? null);
-            if ($bbox === null) {
-                continue;
-            }
-            $width = $bbox['x2'] - $bbox['x1'];
-            $height = $bbox['y2'] - $bbox['y1'];
-            // Small decorative forms do not belong in an article preview.
-            // This matches the server-side browser-render request threshold.
-            if ($width < 12.0 || $height < 12.0 || $width > 10000.0 || $height > 10000.0) {
-                continue;
-            }
-            $formId = (string) ($placement['id'] ?? 'form');
-            $page = max(1, (int) ($placement['page'] ?? 1));
-            $requests[] = [
-                'id' => 'form-' . substr(hash('sha256', $samplePath . "\0" . $formId), 0, 28),
-                'path' => $samplePath,
-                'page' => $page,
-                'bbox' => $bbox,
-                'formId' => $formId,
-                'object' => (int) ($placement['object'] ?? 0),
-                'paintOrder' => (int) ($placement['paintOrder'] ?? 0),
-                'precedingText' => is_string($placement['precedingText'] ?? null) ? $placement['precedingText'] : null,
-                'followingText' => is_string($placement['followingText'] ?? null) ? $placement['followingText'] : null,
-                'label' => 'PDF figure on page ' . $page,
-            ];
-            if (count($requests) >= SHOWCASE_PDF_FORM_RENDER_MAX_REQUESTS) {
-                break;
-            }
-        }
+        $requests = showcase_pdf_render_requests($document, $samplePath);
 
         if ($requests === []) {
             return null;
@@ -1407,6 +1375,201 @@ function showcase_pdf_form_render_plan(string $sourcePath, string $format, strin
             'error' => sanitize_generated_text($error->getMessage()),
         ];
     }
+}
+
+/**
+ * Preserve each signed whole-page request exactly, adding only static-viewer
+ * routing and placement data, before collecting optional Form crops.
+ *
+ * @return list<array<string,mixed>>
+ */
+function showcase_pdf_render_requests(AstNode $document, string $samplePath): array
+{
+    $metadata = $document->attr('meta', []);
+    $metadata = is_array($metadata) ? $metadata : [];
+    $pageRequests = is_array($metadata['pdfPageRasterRequests'] ?? null)
+        ? $metadata['pdfPageRasterRequests']
+        : [];
+    $pageAnchors = showcase_pdf_page_text_anchors($document, $metadata);
+    $requests = [];
+    $pageRequestCount = 0;
+    foreach ($pageRequests as $pageRequest) {
+        if (!is_array($pageRequest) || $pageRequestCount >= SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS) {
+            continue;
+        }
+        $page = $pageRequest['page'] ?? null;
+        if (!is_int($page) || $page < 1) {
+            continue;
+        }
+        $request = $pageRequest;
+        $request['path'] = $samplePath;
+        $request['label'] = 'PDF page ' . $page;
+        $request['precedingText'] = $pageAnchors[$page]['precedingText'] ?? null;
+        $request['followingText'] = $pageAnchors[$page]['followingText'] ?? null;
+        $requests[] = $request;
+        $pageRequestCount++;
+    }
+
+    $placements = is_array($metadata['pdfFormXObjectPlacements'] ?? null)
+        ? $metadata['pdfFormXObjectPlacements']
+        : [];
+    $formRequestCount = 0;
+    foreach ($placements as $placement) {
+        if (!is_array($placement)
+            || ($placement['visible'] ?? false) !== true
+            || ($placement['placementEligible'] ?? false) !== true) {
+            continue;
+        }
+        $bbox = showcase_pdf_form_render_bbox($placement['bbox'] ?? null);
+        if ($bbox === null) {
+            continue;
+        }
+        $width = $bbox['x2'] - $bbox['x1'];
+        $height = $bbox['y2'] - $bbox['y1'];
+        // Small decorative forms do not belong in an article preview.
+        // This matches the server-side browser-render request threshold.
+        if ($width < 12.0 || $height < 12.0 || $width > 10000.0 || $height > 10000.0) {
+            continue;
+        }
+        $formId = (string) ($placement['id'] ?? 'form');
+        $page = max(1, (int) ($placement['page'] ?? 1));
+        $requests[] = [
+            'id' => 'form-' . substr(hash('sha256', $samplePath . "\0" . $formId), 0, 28),
+            'path' => $samplePath,
+            'page' => $page,
+            'bbox' => $bbox,
+            'formId' => $formId,
+            'object' => (int) ($placement['object'] ?? 0),
+            'paintOrder' => (int) ($placement['paintOrder'] ?? 0),
+            'precedingText' => is_string($placement['precedingText'] ?? null) ? $placement['precedingText'] : null,
+            'followingText' => is_string($placement['followingText'] ?? null) ? $placement['followingText'] : null,
+            'label' => 'PDF figure on page ' . $page,
+        ];
+        $formRequestCount++;
+        if ($formRequestCount >= SHOWCASE_PDF_FORM_RENDER_MAX_REQUESTS) {
+            break;
+        }
+    }
+
+    return $requests;
+}
+
+/**
+ * Bind requested physical pages to text already present in the same AST. Only
+ * unambiguous top-level source-node provenance is eligible: a following block
+ * on the same or a later page places the image before text, while a page after
+ * all text uses the final earlier block. Empty and non-monotonic ledgers stay
+ * unanchored rather than guessing a cross-page insertion point.
+ *
+ * @param array<string,mixed> $metadata
+ * @return array<int,array{precedingText:?string,followingText:?string}>
+ */
+function showcase_pdf_page_text_anchors(AstNode $document, array $metadata): array
+{
+    $sourceDisposition = is_array($metadata['pdfSourceDisposition'] ?? null)
+        ? $metadata['pdfSourceDisposition']
+        : [];
+    $sourceEdges = is_array($sourceDisposition['sourceEdges'] ?? null)
+        ? $sourceDisposition['sourceEdges']
+        : [];
+    $pagesByNodeId = [];
+    foreach ($sourceEdges as $sourceEdge) {
+        if (!is_array($sourceEdge)
+            || ($sourceEdge['target'] ?? null) !== 'output'
+            || !is_int($sourceEdge['page'] ?? null)
+            || $sourceEdge['page'] < 1
+            || !is_array($sourceEdge['destinationNodeIds'] ?? null)) {
+            continue;
+        }
+        foreach ($sourceEdge['destinationNodeIds'] as $nodeId) {
+            if (!is_string($nodeId) || $nodeId === '') {
+                continue;
+            }
+            $pagesByNodeId[$nodeId][$sourceEdge['page']] = true;
+        }
+    }
+
+    $topLevelNodeIdCounts = [];
+    foreach ($document->children() as $block) {
+        $nodeId = $block->attr('sourceNodeId');
+        if (is_string($nodeId) && $nodeId !== '') {
+            $topLevelNodeIdCounts[$nodeId] = ($topLevelNodeIdCounts[$nodeId] ?? 0) + 1;
+        }
+    }
+
+    $blocks = [];
+    $lastPage = 0;
+    foreach ($document->children() as $block) {
+        $nodeId = $block->attr('sourceNodeId');
+        if (!is_string($nodeId)
+            || $nodeId === ''
+            || ($topLevelNodeIdCounts[$nodeId] ?? 0) !== 1
+            || count($pagesByNodeId[$nodeId] ?? []) !== 1) {
+            continue;
+        }
+        $page = (int) array_key_first($pagesByNodeId[$nodeId]);
+        $text = showcase_pdf_anchor_text($block);
+        if ($page < 1 || $text === '') {
+            continue;
+        }
+        if ($page < $lastPage) {
+            return [];
+        }
+        $lastPage = $page;
+        $blocks[] = ['page' => $page, 'text' => $text];
+    }
+
+    $anchors = [];
+    $requestPages = [];
+    foreach (is_array($metadata['pdfPageRasterRequests'] ?? null)
+        ? $metadata['pdfPageRasterRequests']
+        : [] as $request) {
+        if (is_array($request) && is_int($request['page'] ?? null) && $request['page'] > 0) {
+            $requestPages[$request['page']] = true;
+        }
+    }
+    foreach (array_keys($requestPages) as $requestPage) {
+        $precedingText = null;
+        $followingText = null;
+        foreach ($blocks as $block) {
+            if ($block['page'] >= $requestPage) {
+                $followingText = $block['text'];
+                break;
+            }
+            $precedingText = $block['text'];
+        }
+        $anchors[$requestPage] = [
+            'precedingText' => $followingText === null ? $precedingText : null,
+            'followingText' => $followingText,
+        ];
+    }
+
+    return $anchors;
+}
+
+function showcase_pdf_anchor_text(AstNode $node): string
+{
+    $text = $node->attr('text');
+    if (is_string($text) && trim($text) !== '') {
+        return showcase_pdf_normalize_anchor_text($text);
+    }
+
+    $parts = [];
+    foreach ($node->children() as $child) {
+        $childText = showcase_pdf_anchor_text($child);
+        if ($childText !== '') {
+            $parts[] = $childText;
+        }
+    }
+
+    return showcase_pdf_normalize_anchor_text(implode(' ', $parts));
+}
+
+function showcase_pdf_normalize_anchor_text(string $text): string
+{
+    $normalized = preg_replace('/\s+/u', ' ', trim($text));
+
+    return is_string($normalized) ? $normalized : '';
 }
 
 /**
@@ -1569,7 +1732,7 @@ function run_process(array $cmd, int $timeoutSeconds = 0, ?string $workingDirect
 }
 
 /**
- * @return array{ok:bool, path?:string, error?:string, media?:list<array<string,mixed>>, mediaDiagnostics?:list<string>}
+ * @return array{ok:bool, path?:string, error?:string, media?:list<array<string,mixed>>, mediaDiagnostics?:list<string>, sourceIntegrity?:array<string,mixed>|null}
  */
 function write_output_from_process(string $dir, string $name, string $sourcePath, string $from, string $to): array
 {
@@ -1603,41 +1766,55 @@ function write_output_from_process(string $dir, string $name, string $sourcePath
         }
     }
     $result = run_process([PHP_BINARY, __FILE__, '--convert-local', $sourcePath, $from, $to, $mediaDir, 'media', $manifestPath, $pdfRasterManifest], $timeout);
-    if ($result['exitCode'] === 0) {
-        $stdout = $to === 'html'
-            ? wrap_local_html_document($result['stdout'], 'PHP Pandoc HTML output')
-            : $result['stdout'];
-        file_put_contents($dir . '/' . $name, $stdout);
-
-        $manifest = read_media_manifest($manifestPath, basename($dir));
-        if (is_file($manifestPath)) {
-            unlink($manifestPath);
-        }
-        if ($pdfRasterManifest !== '' && is_file($pdfRasterManifest)) {
-            unlink($pdfRasterManifest);
-        }
-
-        return [
-            'ok' => true,
-            'path' => 'outputs/' . basename($dir) . '/' . $name,
-            'media' => $manifest['media'],
-            'mediaDiagnostics' => $manifest['diagnostics'],
-        ];
-    }
-
-    $message = sanitize_generated_text(trim($result['stderr'] . "\n" . $result['stdout']));
-    if ($message === '') {
-        $message = 'Local converter exited with code ' . $result['exitCode'];
-    }
+    $manifest = read_media_manifest($manifestPath, basename($dir));
     if (is_file($manifestPath)) {
         unlink($manifestPath);
     }
     if ($pdfRasterManifest !== '' && is_file($pdfRasterManifest)) {
         unlink($pdfRasterManifest);
     }
+    $emptyPdfOutput = PandocConverter::canonicalInputFormat($from) === 'pdf'
+        && trim($result['stdout']) === '';
+    if ($result['exitCode'] === 0 && !$emptyPdfOutput) {
+        $stdout = $to === 'html'
+            ? wrap_local_html_document($result['stdout'], 'PHP Pandoc HTML output')
+            : $result['stdout'];
+        file_put_contents($dir . '/' . $name, $stdout);
+
+        return [
+            'ok' => true,
+            'path' => 'outputs/' . basename($dir) . '/' . $name,
+            'media' => $manifest['media'],
+            'mediaDiagnostics' => $manifest['diagnostics'],
+            'sourceIntegrity' => $manifest['sourceIntegrity'],
+        ];
+    }
+
+    $pdfTextLayerStatus = is_array($manifest['sourceIntegrity'] ?? null)
+        && is_string($manifest['sourceIntegrity']['pdfTextLayerStatus'] ?? null)
+            ? $manifest['sourceIntegrity']['pdfTextLayerStatus']
+            : null;
+    $message = $emptyPdfOutput
+        ? ($pdfTextLayerStatus === 'incomplete'
+            ? 'incomplete: PDF source extraction did not complete, so no safe editable output was generated.'
+            : 'unsupported_no_text: PDF conversion produced no visible text, page asset, or placeholder.')
+        : sanitize_generated_text(trim($result['stderr'] . "\n" . $result['stdout']));
+    if ($message === '') {
+        $message = 'Local converter exited with code ' . $result['exitCode'];
+    }
+    if (is_file($dir . '/' . $name)) {
+        unlink($dir . '/' . $name);
+    }
     file_put_contents($dir . '/' . $name . '.error.txt', $message);
 
-    return ['ok' => false, 'error' => $message, 'path' => 'outputs/' . basename($dir) . '/' . $name . '.error.txt'];
+    return [
+        'ok' => false,
+        'error' => $message,
+        'path' => 'outputs/' . basename($dir) . '/' . $name . '.error.txt',
+        'media' => $manifest['media'],
+        'mediaDiagnostics' => $manifest['diagnostics'],
+        'sourceIntegrity' => $manifest['sourceIntegrity'],
+    ];
 }
 
 /**
@@ -1680,16 +1857,20 @@ function showcase_pdf_raster_images_from_manifest(string $path): array
 }
 
 /**
- * @return array{media:list<array<string,mixed>>, diagnostics:list<string>}
+ * @return array{media:list<array<string,mixed>>, diagnostics:list<string>, sourceIntegrity:array<string,mixed>|null}
  */
 function read_media_manifest(string $path, string $sampleId): array
 {
     if (!is_file($path)) {
-        return ['media' => [], 'diagnostics' => []];
+        return ['media' => [], 'diagnostics' => [], 'sourceIntegrity' => null];
     }
     $json = json_decode((string) file_get_contents($path), true);
     if (!is_array($json)) {
-        return ['media' => [], 'diagnostics' => ['extract-media-manifest-unreadable']];
+        return [
+            'media' => [],
+            'diagnostics' => ['extract-media-manifest-unreadable'],
+            'sourceIntegrity' => null,
+        ];
     }
 
     $media = [];
@@ -1710,7 +1891,15 @@ function read_media_manifest(string $path, string $sampleId): array
         }
     }
 
-    return ['media' => $media, 'diagnostics' => $diagnostics];
+    $sourceIntegrity = is_array($json['sourceIntegrity'] ?? null)
+        ? $json['sourceIntegrity']
+        : null;
+
+    return [
+        'media' => $media,
+        'diagnostics' => $diagnostics,
+        'sourceIntegrity' => $sourceIntegrity,
+    ];
 }
 
 /**
@@ -2891,6 +3080,63 @@ function showcase_pdf_import_quality(string $siteDir, array $record): ?array
     $nativeSourceCoverage = round((float) $nativeTextMetrics['expectedCoverage'], 3);
     $referenceMetrics = is_array($reference['metrics'] ?? null) ? $reference['metrics'] : [];
     $wpVisual = showcase_output_visual_signature($siteDir, $wpPath);
+    $sourceIntegrity = is_array($record['wpBlocks']['sourceIntegrity'] ?? null)
+        ? $record['wpBlocks']['sourceIntegrity']
+        : [];
+    $unsupportedNoText = ($sourceIntegrity['pdfTextLayerStatus'] ?? null) === 'unsupported_no_text'
+        && ($sourceIntegrity['pdfNeedsOcr'] ?? null) === true;
+    if ($unsupportedNoText) {
+        $representedPages = is_array($sourceIntegrity['pdfRepresentedPageNumbers'] ?? null)
+            ? array_values(array_map('intval', $sourceIntegrity['pdfRepresentedPageNumbers']))
+            : [];
+        $pageCount = max(0, (int) ($sourceIntegrity['pdfPageCount'] ?? 0));
+        $pageRepresentationComplete = ($sourceIntegrity['pdfPageRepresentationComplete'] ?? null) === true
+            && $pageCount > 0
+            && count($representedPages) === $pageCount;
+        $gates = [
+            'text_completeness' => [
+                'status' => 'review',
+                'expected' => 'explicit unsupported_no_text classification; no invented OCR body text; retain any sparse painted stamp',
+                'actual' => $sourceIntegrity['pdfTextLayerStatus'],
+                'detail' => 'The native reader found no usable painted body text. Any sparse visible stamp is retained, while non-painting overlay text is not copied into editable body text; OCR remains outside this importer.',
+            ],
+            'native_source_coverage' => [
+                'status' => 'review',
+                'expected' => 'not applicable without painted native text',
+                'actual' => $nativeSourceCoverage,
+                'detail' => 'Non-painting overlay text is intentionally excluded from visible source coverage.',
+            ],
+            'pdf_geometry_reference' => [
+                'status' => $pageRepresentationComplete ? 'review' : 'fail',
+                'expected' => 'typed no-text boundary plus one represented occurrence per page',
+                'actual' => [
+                    'pages' => $pageCount,
+                    'representedPages' => $representedPages,
+                    'reference' => $referenceMetrics,
+                ],
+                'detail' => $pageRepresentationComplete
+                    ? 'Every source page remains visible through a safely proven painted page-image occurrence while OCR semantics remain unsupported.'
+                    : 'One or more source pages lack a safely proven painted page image or placeholder; no exact visual representation is claimed.',
+            ],
+            'paragraph_merge_split' => [
+                'status' => 'review',
+                'expected' => 'zero OCR-derived semantic paragraphs; a sparse painted stamp may remain',
+                'actual' => max(0, (int) ($wpVisual['p'] ?? 0)),
+                'detail' => 'An image-backed page cannot be scored for body-paragraph reconstruction without OCR; a sparse painted stamp is kept as visible source content.',
+            ],
+            'ocr_boundary' => [
+                'status' => $pageRepresentationComplete ? 'review' : 'fail',
+                'expected' => $pageCount,
+                'actual' => count($representedPages),
+                'detail' => $pageRepresentationComplete
+                    ? 'Every page is represented by a safely decoded and sanitized image derived from its exact painted page occurrence; OCR remains explicitly out of scope.'
+                    : 'One or more no-text PDF pages disappeared without an original asset or visible placeholder.',
+            ],
+        ];
+        showcase_add_output_integrity_gates($gates, $siteDir, $record, $wpPath);
+
+        return showcase_import_quality_result($gates);
+    }
     $tableDominant = showcase_pdf_output_is_table_dominant($siteDir, $wpPath);
     $textCompletenessScore = $tableDominant
         ? (float) $textMetrics['expectedCoverage']
@@ -2915,7 +3161,11 @@ function showcase_pdf_import_quality(string $siteDir, array $record): ?array
             true
         ),
         'pdf_geometry_reference' => showcase_pdf_geometry_reference_gate($referenceMetrics),
-        'paragraph_merge_split' => showcase_pdf_paragraph_geometry_gate($referenceMetrics, $wpVisual),
+        'paragraph_merge_split' => showcase_pdf_paragraph_geometry_gate(
+            $referenceMetrics,
+            $wpVisual,
+            showcase_pdf_paragraph_fragmentation_metrics($siteDir, $wpPath)
+        ),
     ];
 
     showcase_add_output_integrity_gates($gates, $siteDir, $record, $wpPath);
@@ -3112,27 +3362,38 @@ function showcase_pdf_geometry_reference_gate(array $metrics): array
     $textPages = max(0, (int) ($metrics['textPageCount'] ?? 0));
     $lines = max(0, (int) ($metrics['lineCount'] ?? 0));
     $scanWithoutTextLayer = $pages > 0 && $textPages === 0 && $lines === 0;
+    $completeTextPageCoverage = $pages > 0 && $textPages === $pages && $lines > 0;
+    $partialTextPageCoverage = $pages > 0 && $textPages > 0 && $textPages < $pages && $lines > 0;
+    $textPageCoverage = $pages === 0 ? 0.0 : round($textPages / $pages, 4);
 
     return [
-        'status' => $pages > 0 && $textPages > 0 && $lines > 0
+        'status' => $completeTextPageCoverage
             ? 'pass'
-            : ($scanWithoutTextLayer ? 'review' : 'fail'),
+            : (($scanWithoutTextLayer || $partialTextPageCoverage) ? 'review' : 'fail'),
         'expected' => $scanWithoutTextLayer
-            ? 'page geometry plus browser or server OCR'
-            : 'native PDF page and line geometry',
-        'actual' => ['pages' => $pages, 'textPages' => $textPages, 'lines' => $lines],
+            ? 'page geometry plus an explicit unsupported-text-layer status and page occurrence representation'
+            : 'native PDF page geometry and text-line evidence for every page',
+        'actual' => [
+            'pages' => $pages,
+            'textPages' => $textPages,
+            'textPageCoverage' => $textPageCoverage,
+            'lines' => $lines,
+        ],
         'detail' => $scanWithoutTextLayer
-            ? 'PDFKit exposed scanned pages but no native text layer; this fixture requires the explicit OCR continuation path.'
-            : 'macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree.',
+            ? 'PDFKit exposed scanned pages but no native text layer. OCR is outside this importer; publication requires an explicit unsupported status plus retained page originals or placeholders.'
+            : ($partialTextPageCoverage
+                ? 'PDFKit exposed text lines on only ' . $textPages . '/' . $pages . ' pages; the remaining page occurrences must not disappear silently.'
+                : 'macOS PDFKit independently exposed source page boundaries and visual text lines on every page; untagged PDFs do not expose an HTML heading/list/table/image tree.'),
     ];
 }
 
 /**
  * @param array<string,mixed> $metrics
  * @param array<string,int> $wpVisual
- * @return array{status:string,expected:string,actual:array<string,int>,detail:string}
+ * @param array<string,int|float> $fragmentation
+ * @return array{status:string,expected:string,actual:array<string,int|float>,detail:string}
  */
-function showcase_pdf_paragraph_geometry_gate(array $metrics, array $wpVisual): array
+function showcase_pdf_paragraph_geometry_gate(array $metrics, array $wpVisual, array $fragmentation = []): array
 {
     $sourceLines = max(0, (int) ($metrics['lineCount'] ?? 0));
     $sourcePages = max(0, (int) ($metrics['pageCount'] ?? 0));
@@ -3147,26 +3408,90 @@ function showcase_pdf_paragraph_geometry_gate(array $metrics, array $wpVisual): 
         + max(0, (int) ($wpVisual['pre'] ?? 0))
         + max(0, (int) ($wpVisual['linegroup'] ?? 0));
     $maxParagraphs = $sourceLines < 20 ? PHP_INT_MAX : max(1, (int) floor($sourceLines * 0.90));
+    $measuredParagraphs = max(0, (int) ($fragmentation['paragraphs'] ?? $paragraphs));
+    $veryShortParagraphs = max(0, (int) ($fragmentation['veryShortParagraphs'] ?? 0));
+    $singleTokenParagraphs = max(0, (int) ($fragmentation['singleTokenParagraphs'] ?? 0));
+    $veryShortShare = $measuredParagraphs === 0 ? 0.0 : round($veryShortParagraphs / $measuredParagraphs, 4);
+    $singleTokenShare = $measuredParagraphs === 0 ? 0.0 : round($singleTokenParagraphs / $measuredParagraphs, 4);
+    $severelyFragmented = $measuredParagraphs >= 20
+        && ($veryShortShare >= 0.50 || $singleTokenShare >= 0.60);
 
     $scanWithoutTextLayer = $sourcePages > 0 && $sourceTextPages === 0 && $sourceLines === 0;
     $status = $scanWithoutTextLayer
         ? 'review'
         : ($textBlocks < $textPages
             ? 'fail'
-            : ($paragraphs > $maxParagraphs ? 'review' : 'pass'));
+            : (($paragraphs > $maxParagraphs || $severelyFragmented) ? 'review' : 'pass'));
 
     return [
         'status' => $status,
         'expected' => $scanWithoutTextLayer
-            ? 'semantic text blocks after OCR continuation'
+            ? 'an explicit unsupported-text-layer status without invented semantic paragraphs'
             : ($sourceLines < 20
             ? 'at least ' . $textPages . ' semantic text blocks'
-            : 'at least ' . $textPages . ' semantic text blocks and no more than 90% of ' . $sourceLines . ' visual lines as paragraphs'),
-        'actual' => ['textBlocks' => $textBlocks, 'paragraphs' => $paragraphs, 'sourceLines' => $sourceLines],
+            : 'at least ' . $textPages . ' semantic text blocks, no more than 90% of ' . $sourceLines . ' visual lines as paragraphs, and no severe short-fragment majority'),
+        'actual' => [
+            'textBlocks' => $textBlocks,
+            'paragraphs' => $paragraphs,
+            'sourceLines' => $sourceLines,
+            'veryShortParagraphs' => $veryShortParagraphs,
+            'veryShortShare' => $veryShortShare,
+            'singleTokenParagraphs' => $singleTokenParagraphs,
+            'singleTokenShare' => $singleTokenShare,
+        ],
         'detail' => $scanWithoutTextLayer
-            ? 'A page-only scan cannot be scored for paragraph reconstruction until OCR supplies text.'
-            : 'native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line.',
+            ? 'A page-only scan cannot be scored for paragraph reconstruction because OCR is outside this importer.'
+            : ($severelyFragmented
+                ? 'The output is severely fragmented: ' . $veryShortParagraphs . '/' . $measuredParagraphs . ' paragraphs contain at most three characters and ' . $singleTokenParagraphs . '/' . $measuredParagraphs . ' contain at most one lexical token.'
+                : 'native line geometry and output lexical shape guard against collapsing a multi-page source or emitting visual fragments as standalone paragraphs.'),
     ];
+}
+
+/**
+ * Measure paragraph shape from the emitted document. Counts alone cannot spot
+ * a reconstruction that turns individual glyphs or labels into paragraphs.
+ *
+ * @return array{paragraphs:int,veryShortParagraphs:int,singleTokenParagraphs:int}
+ */
+function showcase_pdf_paragraph_fragmentation_metrics(string $siteDir, string $relativePath): array
+{
+    $metrics = ['paragraphs' => 0, 'veryShortParagraphs' => 0, 'singleTokenParagraphs' => 0];
+    $html = showcase_output_html($siteDir, $relativePath);
+    if ($html === '' || !class_exists(DOMDocument::class)) {
+        return $metrics;
+    }
+
+    $dom = new DOMDocument();
+    $previous = libxml_use_internal_errors(true);
+    try {
+        $loaded = $dom->loadHTML(
+            '<!doctype html><html><head><meta charset="utf-8"></head><body>' . showcase_visible_html($html) . '</body></html>',
+            LIBXML_NONET
+        );
+    } finally {
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+    }
+    if (!$loaded) {
+        return $metrics;
+    }
+
+    foreach ($dom->getElementsByTagName('p') as $paragraph) {
+        $text = preg_replace('/\s+/u', ' ', showcase_dom_visible_text($paragraph)) ?? '';
+        $text = trim($text);
+        if ($text === '') {
+            continue;
+        }
+        $metrics['paragraphs']++;
+        if (mb_strlen($text, 'UTF-8') <= 3) {
+            $metrics['veryShortParagraphs']++;
+        }
+        if (count(showcase_text_tokens($text)) <= 1) {
+            $metrics['singleTokenParagraphs']++;
+        }
+    }
+
+    return $metrics;
 }
 
 /**
@@ -3174,6 +3499,40 @@ function showcase_pdf_paragraph_geometry_gate(array $metrics, array $wpVisual): 
  */
 function showcase_add_output_integrity_gates(array &$gates, string $siteDir, array $record, string $wpPath): void
 {
+    if (PandocConverter::canonicalInputFormat((string) ($record['format'] ?? '')) === 'pdf') {
+        $integrity = is_array($record['wpBlocks']['sourceIntegrity'] ?? null)
+            ? $record['wpBlocks']['sourceIntegrity']
+            : [];
+        $unresolved = is_int($integrity['pdfUnresolvedSourceOccurrences'] ?? null)
+            ? $integrity['pdfUnresolvedSourceOccurrences']
+            : null;
+        $pageRepresentationComplete = ($integrity['pdfPageRepresentationComplete'] ?? null) === true;
+        $complete = ($integrity['complete'] ?? null) === true
+            && ($integrity['pdfDocumentComplete'] ?? null) === true
+            && ($integrity['pdfSemanticTextComplete'] ?? null) === true
+            && ($integrity['pdfSourceBindingComplete'] ?? null) === true
+            && ($integrity['pdfSourceEdgeMappingComplete'] ?? null) === true
+            && ($integrity['pdfOrderedSignificantCharactersPreserved'] ?? null) === true
+            && $unresolved === 0
+            && $pageRepresentationComplete;
+        $gates['pdf_source_integrity'] = [
+            'status' => $complete ? 'pass' : 'fail',
+            'expected' => [
+                'pdfDocumentComplete' => true,
+                'pdfSemanticTextComplete' => true,
+                'pdfSourceBindingComplete' => true,
+                'pdfSourceEdgeMappingComplete' => true,
+                'pdfOrderedSignificantCharactersPreserved' => true,
+                'pdfUnresolvedSourceOccurrences' => 0,
+                'pdfPageRepresentationComplete' => true,
+            ],
+            'actual' => $integrity === [] ? null : $integrity,
+            'detail' => $complete
+                ? 'the complete PDF is covered and every required source occurrence has an exact ordered output edge or evidenced disposition'
+                : 'PDF document coverage or source integrity is unavailable or incomplete; this output is not eligible for a quality pass or publication',
+        ];
+    }
+
     $mediaProblems = showcase_media_problem_diagnostics($record['wpBlocks']['mediaDiagnostics'] ?? []);
     $gates['media_imported'] = [
         'status' => $mediaProblems === [] ? 'pass' : 'review',
@@ -3310,13 +3669,24 @@ function showcase_media_problem_diagnostics(mixed $diagnostics): array
     if (!is_array($diagnostics)) {
         return [];
     }
+    $normalized = array_values(array_filter(array_map('strval', $diagnostics), static fn (string $item): bool => $item !== ''));
+    $unimportantObjectIds = [];
+    foreach ($normalized as $diagnostic) {
+        if (preg_match('/^extract-media-pdf-image-unimportant:([^:]+):/i', $diagnostic, $match) === 1) {
+            $unimportantObjectIds[(string) $match[1]] = true;
+        }
+    }
+
     $problems = [];
-    foreach ($diagnostics as $diagnostic) {
-        $diagnostic = (string) $diagnostic;
+    foreach ($normalized as $diagnostic) {
         if ($diagnostic === '' || str_starts_with($diagnostic, 'extract-media-pdf-image-unimportant:')) {
             continue;
         }
-        if (preg_match('/(?:missing|failed|unreadable|invalid|skipped|too-large|limit|conflict)/i', $diagnostic) === 1) {
+        if (preg_match('/^extract-media-pdf-image-placement-unavailable:([^:]+)$/i', $diagnostic, $match) === 1
+            && isset($unimportantObjectIds[(string) $match[1]])) {
+            continue;
+        }
+        if (preg_match('/(?:missing|failed|unreadable|invalid|skipped|too-large|limit|conflict|unanchored|placement-unavailable)/i', $diagnostic) === 1) {
             $problems[] = $diagnostic;
         }
     }
@@ -4450,15 +4820,90 @@ function showcase_examples_view(array $record, string $view, string $siteDir): a
 
 /**
  * @param array<string, mixed> $record
- * @return array{ok:bool,path:string,bytes:int}
+ * @param array{ok?:bool,status?:string}|null $conversionExpectation
+ * @return array{ok:bool,path:string,bytes:int,status?:string}
  */
-function showcase_examples_wordpress_preview_view(array $record, string $siteDir): array
+function showcase_examples_wordpress_preview_view(
+    array $record,
+    string $siteDir,
+    ?array $conversionExpectation = null
+): array
 {
     $rawView = showcase_examples_view($record, 'wpBlocks', $siteDir);
     if (!$rawView['ok'] || $rawView['path'] === '') {
-        return $rawView;
-    }
+        $integrity = is_array($record['wpBlocks']['sourceIntegrity'] ?? null)
+            ? $record['wpBlocks']['sourceIntegrity']
+            : [];
+        $pageCount = max(0, (int) ($integrity['pdfPageCount'] ?? 0));
+        $representedPages = is_array($integrity['pdfRepresentedPageNumbers'] ?? null)
+            ? array_values($integrity['pdfRepresentedPageNumbers'])
+            : null;
+        $pagesNeedingRepresentation = is_array($integrity['pdfPagesNeedingImageRepresentation'] ?? null)
+            ? array_values(array_map('intval', $integrity['pdfPagesNeedingImageRepresentation']))
+            : null;
+        $expectedStatus = is_string($conversionExpectation['status'] ?? null)
+            ? $conversionExpectation['status']
+            : '';
+        $incomplete = ($integrity['pdfTextLayerStatus'] ?? null) === 'incomplete'
+            && ($integrity['pdfNeedsOcr'] ?? null) === false
+            && ($integrity['pdfTextComplete'] ?? null) === false
+            && ($integrity['pdfNoTextClassificationComplete'] ?? null) === false
+            && ($integrity['pdfDocumentComplete'] ?? null) === false
+            && ($integrity['pdfPageRepresentationComplete'] ?? null) === false
+            && $pageCount > 0
+            && $representedPages === []
+            && ($conversionExpectation['ok'] ?? null) === false
+            && $expectedStatus === 'incomplete';
+        $unsupportedNoText = ($integrity['pdfTextLayerStatus'] ?? null) === 'unsupported_no_text'
+            && ($integrity['pdfNeedsOcr'] ?? null) === true
+            && ($integrity['pdfTextComplete'] ?? null) === true
+            && ($integrity['pdfNoTextClassificationComplete'] ?? null) === true
+            && ($integrity['pdfDocumentComplete'] ?? null) === true
+            && ($integrity['pdfSemanticTextComplete'] ?? null) === true
+            && ($integrity['pdfPageRepresentationComplete'] ?? null) === false
+            && $pageCount > 0
+            && $pagesNeedingRepresentation === range(1, $pageCount)
+            && $representedPages === []
+            && ($conversionExpectation['ok'] ?? null) === false
+            && $expectedStatus === 'unsupported_no_text';
+        if ((!$incomplete && !$unsupportedNoText) || $rawView['path'] === '') {
+            return $rawView;
+        }
 
+        // This is a reviewer status page, not Gutenberg output. Keep the
+        // canonical conversion failed while making the unresolved extraction
+        // boundary inspectable beside the original PDF in the public reviewer.
+        if ($unsupportedNoText) {
+            $pageLabel = $pageCount === 1 ? '1 fully decoded source page has' : $pageCount . ' fully decoded source pages have';
+            $statusBody = '<main class="pandoc-pdf-import-status" data-pandoc-pdf-preview-status="unsupported_no_text">'
+                . '<h1>PDF has no editable native text</h1><p>' . h($pageLabel)
+                . ' no usable painted text. OCR is outside this importer, and no static original-page representation was produced.</p>'
+                . '<p>No editable WordPress import was generated. The browser-assisted path can render the exact source pages for review.</p>'
+                . '</main>';
+            $previewTitle = 'PDF import status: no editable native text';
+        } else {
+            $pageLabel = $pageCount === 1 ? '1 source page was' : $pageCount . ' source pages were';
+            $statusBody = '<main class="pandoc-pdf-import-status" data-pandoc-pdf-preview-status="incomplete">'
+                . '<h1>PDF extraction incomplete</h1><p>' . h($pageLabel)
+                . ' detected, but page-content extraction did not complete and no safe editable content or original page representation was produced.</p>'
+                . '<p>No editable WordPress import was generated. The source remains unresolved; review the original PDF instead.</p>'
+                . '</main>';
+            $previewTitle = 'PDF import status: extraction incomplete';
+        }
+        $previewPath = dirname($rawView['path']) . '/wordpress-blocks-preview.html';
+        $previewAbsolutePath = $siteDir . '/' . $previewPath;
+        $previewBody = wrap_wordpress_block_preview_document($statusBody, $previewTitle);
+        if (file_put_contents($previewAbsolutePath, $previewBody) === false) {
+            return ['ok' => false, 'path' => '', 'bytes' => 0];
+        }
+
+        return [
+            'ok' => false,
+            'path' => $previewPath,
+            'bytes' => (int) filesize($previewAbsolutePath),
+            'status' => $expectedStatus,
+        ];
+    }
     $rawPath = $siteDir . '/' . $rawView['path'];
     $rawBody = is_file($rawPath) ? file_get_contents($rawPath) : false;
     if (!is_string($rawBody)) {
@@ -4485,11 +4930,54 @@ function showcase_examples_wordpress_preview_view(array $record, string $siteDir
  */
 function showcase_examples_index(array $records, string $siteDir, string $generatedAt): array
 {
+    $conversionExpectations = [];
+    $layoutManifest = json_decode(
+        (string) file_get_contents(__DIR__ . '/pdf-layout-corpus-manifest.json'),
+        true
+    );
+    if (is_array($layoutManifest)) {
+        foreach ($layoutManifest as $entry) {
+            if (!is_array($entry) || !is_string($entry['id'] ?? null)) {
+                continue;
+            }
+            $expectation = $entry['conversionExpectation'] ?? null;
+            if (is_array($expectation)) {
+                $conversionExpectations['pdf-layout-' . $entry['id']] = $expectation;
+            }
+        }
+    }
+
     $examples = [];
     foreach ($records as $record) {
         $id = (string) ($record['id'] ?? '');
         if ($id === '') {
             continue;
+        }
+        $conversionExpectation = is_array($conversionExpectations[$id] ?? null)
+            ? $conversionExpectations[$id]
+            : [];
+        foreach (['phpHtml', 'wpBlocks'] as $viewName) {
+            $view = is_array($record[$viewName] ?? null) ? $record[$viewName] : [];
+            $expected = is_array($conversionExpectation[$viewName] ?? null)
+                ? $conversionExpectation[$viewName]
+                : [];
+            $actualOk = ($view['ok'] ?? false) === true;
+            $actualStatus = is_string($view['sourceIntegrity']['pdfTextLayerStatus'] ?? null)
+                ? $view['sourceIntegrity']['pdfTextLayerStatus']
+                : '';
+            if (!$actualOk && $expected === []) {
+                throw new RuntimeException(
+                    "{$id} {$viewName} failed without an explicit conversionExpectation."
+                );
+            }
+            if ($expected !== [] && (
+                ($expected['ok'] ?? null) !== $actualOk
+                || ($expected['status'] ?? null) !== $actualStatus
+            )) {
+                throw new RuntimeException(
+                    "{$id} {$viewName} diverged from its explicit conversionExpectation."
+                );
+            }
         }
         $example = [
             'id' => $id,
@@ -4502,7 +4990,13 @@ function showcase_examples_index(array $records, string $siteDir, string $genera
             'sampleSize' => (int) ($record['sampleSize'] ?? 0),
             'views' => [
                 'phpHtml' => showcase_examples_view($record, 'phpHtml', $siteDir),
-                'wpBlocks' => showcase_examples_wordpress_preview_view($record, $siteDir),
+                'wpBlocks' => showcase_examples_wordpress_preview_view(
+                    $record,
+                    $siteDir,
+                    is_array($conversionExpectation['wpBlocks'] ?? null)
+                        ? $conversionExpectation['wpBlocks']
+                        : null
+                ),
                 'haskell' => showcase_examples_view($record, 'haskell', $siteDir),
             ],
         ];
@@ -4586,7 +5080,7 @@ function showcase_write_examples_page(string $siteDir, array $records, string $g
     $page .= '<h1 class="example-title">Adam&#039;s Pandoc → PHP Port</h1>';
     $page .= '<div class="picker-controls"><label class="screen-reader-text" for="example-picker">Example</label><select id="example-picker" disabled><option>Loading examples…</option></select></div>';
     $page .= '<a id="download-source" class="download-source" href="" download hidden>Download original</a>';
-    $page .= '<button id="try-own-file" class="try-own-file" type="button">Try your own file</button><input id="own-file-input" type="file" hidden>';
+    $page .= '<button id="try-own-file" class="try-own-file" type="button">Try your own file</button><button id="cancel-own-file" class="try-own-file" type="button" hidden disabled>Cancel import</button><input id="own-file-input" type="file" hidden>';
     $page .= '<dialog id="own-pdf-output-dialog" class="own-pdf-output-dialog"><form method="dialog"><h2>PDF pages</h2><p id="own-pdf-output-message">Choose how this PDF should become WordPress pages.</p><label><input type="radio" name="own-pdf-output-mode" value="single" checked> One WordPress page</label><label><input type="radio" name="own-pdf-output-mode" value="pages"> One child page per PDF page</label><div class="dialog-actions"><button type="submit" value="cancel" class="dialog-cancel">Cancel</button><button type="submit" value="import" class="dialog-import">Import PDF</button></div></form></dialog>';
     $page .= '<button id="next-example" class="example-arrow next-arrow" type="button" aria-label="Next example" title="Next example" disabled><span class="arrow-glyph" aria-hidden="true">→</span><span class="arrow-label">Next example</span></button></div>';
     $page .= '<p id="viewer-status" class="viewer-status" role="status" aria-live="polite" hidden>Preparing the selected example…</p></div>';
@@ -4626,9 +5120,25 @@ function showcase_write_pdf_layout_corpus_review_page(string $siteDir, array $ex
         }
         $exampleId = 'pdf-layout-' . $entry['id'];
         $example = $examplesById[$exampleId] ?? null;
-        $previewPath = is_array($example['views']['wpBlocks'] ?? null)
-            && ($example['views']['wpBlocks']['ok'] ?? false) === true
-            ? (string) ($example['views']['wpBlocks']['path'] ?? '')
+        $wordpressView = is_array($example['views']['wpBlocks'] ?? null)
+            ? $example['views']['wpBlocks']
+            : [];
+        $conversionOk = ($wordpressView['ok'] ?? false) === true;
+        $previewStatus = is_string($wordpressView['status'] ?? null)
+            ? $wordpressView['status']
+            : '';
+        $conversionExpectation = is_array($entry['conversionExpectation']['wpBlocks'] ?? null)
+            ? $entry['conversionExpectation']['wpBlocks']
+            : [];
+        $expectedFailureStatus = is_string($conversionExpectation['status'] ?? null)
+            ? $conversionExpectation['status']
+            : '';
+        $expectedTypedFailure = ($conversionExpectation['ok'] ?? null) === false
+            && in_array($expectedFailureStatus, ['incomplete', 'unsupported_no_text'], true)
+            && !$conversionOk
+            && $previewStatus === $expectedFailureStatus;
+        $previewPath = $conversionOk || $expectedTypedFailure
+            ? (string) ($wordpressView['path'] ?? '')
             : '';
         $samplePath = is_array($example) ? (string) ($example['samplePath'] ?? '') : '';
         if ($previewPath === '' || $samplePath === '') {
@@ -4643,6 +5153,11 @@ function showcase_write_pdf_layout_corpus_review_page(string $siteDir, array $ex
             'sourceUrl' => (string) ($entry['url'] ?? ''),
             'samplePath' => $samplePath,
             'previewPath' => $previewPath,
+            'conversionOk' => $conversionOk,
+            'previewStatus' => $previewStatus,
+            'conversionExpectation' => is_array($entry['conversionExpectation'] ?? null)
+                ? $entry['conversionExpectation']
+                : null,
             'success' => is_array($entry['success'] ?? null) ? $entry['success'] : [],
         ];
     }
@@ -5097,7 +5612,20 @@ for (const button of verdictButtons) button.addEventListener('click', () => {
   renderVerdict();
 });
 convertedFrame.addEventListener('load', () => {
-  if (convertedFrame.dataset.loadedPath !== selectedExample().previewPath) return;
+  const example = selectedExample();
+  if (convertedFrame.dataset.loadedPath !== example.previewPath) return;
+  if (example.previewStatus === 'incomplete' || example.previewStatus === 'unsupported_no_text') {
+    renderCriteria();
+    const noNativeText = example.previewStatus === 'unsupported_no_text';
+    convertedStatus.textContent = noNativeText
+      ? 'No editable native text · browser page review required'
+      : 'Extraction incomplete · no editable import';
+    qualitySummary.textContent = noNativeText
+      ? 'Not scored · OCR outside importer'
+      : 'Not scored · source extraction unresolved';
+    qualitySummary.style.color = 'var(--bad)';
+    return;
+  }
   try {
     const metrics = iframeMetrics(convertedFrame.contentDocument);
     renderCriteria(evaluateCriteria(metrics));
@@ -5378,10 +5906,14 @@ function showcase_examples_javascript(): string
 {
     return <<<'JS'
 import {
+  pdfFormRendererResourceSnapshot,
   renderPdfFormRequests,
   renderPdfFormRequestsIncrementally,
+  renderPdfPageRasterRequests,
+  renderPdfPageRasterRequestsIncrementally,
 } from './pdfjs-form-rasterizer.mjs';
 import {
+  cancelImportMutationDurably,
   createImportJobSession,
   createPlaygroundPersistence,
   recoverImportMutation,
@@ -5401,15 +5933,18 @@ const playgroundUploadDirectory = '/tmp/port-libs-converter';
 const playgroundPdfRasterByteLimit = 24_000_000;
 const playgroundPdfFormTotalPixelLimit = 48_000_000;
 const playgroundPdfFormTotalImageByteLimit = 24_000_000;
+const playgroundPdfPageTotalPixelLimit = 128_000_000;
+const playgroundPdfPageTotalImageByteLimit = 64 * 1024 * 1024;
+const pdfPageRasterMethod = 'pdfjs-whole-page-raster';
 const ownFileStatusPollIntervalMs = 1_000;
 const ownFileAdvanceRecoveryAttempts = 3;
 // The static example browser runs on the visitor's device, including phones.
-// Keep Form-XObject enrichment deliberately smaller than the importer handoff:
+// Keep optional PDF visual enrichment deliberately smaller than the importer handoff:
 // it is an optional preview, never a reason to exhaust the browser.
 const staticPdfPreviewMaxSourceBytes = 4_000_000;
 const staticPdfPreviewMaxRequests = 8;
-const staticPdfPreviewMaxPixels = 2_000_000;
-const staticPdfPreviewMaxTotalPixels = 8_000_000;
+const staticPdfPreviewMaxPixels = 2_100_000;
+const staticPdfPreviewMaxTotalPixels = 8_400_000;
 const staticPdfPreviewMaxImageBytes = 8_000_000;
 
 const examplePicker = document.getElementById('example-picker');
@@ -5419,6 +5954,7 @@ const viewButtons = Array.from(document.querySelectorAll('[data-example-view]'))
 const viewerStatus = document.getElementById('viewer-status');
 const downloadSource = document.getElementById('download-source');
 const tryOwnFileButton = document.getElementById('try-own-file');
+const cancelOwnFileButton = document.getElementById('cancel-own-file');
 const ownFileInput = document.getElementById('own-file-input');
 const ownPdfOutputDialog = document.getElementById('own-pdf-output-dialog');
 const ownPdfOutputMessage = document.getElementById('own-pdf-output-message');
@@ -5444,6 +5980,7 @@ const state = {
   loadToken: 0,
   ownFileToken: 0,
   ownFileBusy: false,
+  ownFileCancelRequested: false,
   frameMode: 'example',
   playgroundClient: null,
   playgroundReady: false,
@@ -5590,15 +6127,24 @@ function updateControls() {
   downloadSource.setAttribute('aria-disabled', String(busy));
   downloadSource.tabIndex = busy ? -1 : 0;
   tryOwnFileButton.disabled = busy;
+  const cancellable = busy
+    && String(state.lastOwnFileJob?.jobId || '') !== ''
+    && !['complete', 'failed', 'cancelled'].includes(String(state.lastOwnFileJob?.status || ''));
+  cancelOwnFileButton.hidden = !cancellable;
+  cancelOwnFileButton.disabled = !cancellable || state.ownFileCancelRequested;
+  cancelOwnFileButton.textContent = state.ownFileCancelRequested ? 'Cancelling after this step…' : 'Cancel import';
   ownFileInput.disabled = busy;
   updateViewButtons();
 }
 
 function setOwnFileBusy(busy, label = '') {
   state.ownFileBusy = busy;
+  const savedImport = ownFileImportSession.load();
   tryOwnFileButton.textContent = busy
     ? label
-    : (ownFileImportSession.load() ? 'Resume saved import' : 'Try your own file');
+    : (savedImport?.cancellationRequested
+      ? 'Finish cancelling import'
+      : (savedImport ? 'Resume saved import' : 'Try your own file'));
   updateControls();
 }
 
@@ -5634,7 +6180,7 @@ function staticPdfPreviewAbortError(signal) {
   if (signal?.reason instanceof Error) {
     return signal.reason;
   }
-  const error = new Error('PDF chart preview was cancelled.');
+  const error = new Error('PDF figure/page-image preview was cancelled.');
   error.name = 'AbortError';
   return error;
 }
@@ -5838,9 +6384,12 @@ function staticPdfFormFigure(previewDocument, request, rendered, ordinal) {
     figure.dataset.pdfFormObject = String(request.object);
   }
   const label = String(request?.alt || request?.label || request?.title || '').trim();
+  const fallbackLabel = request?.method === pdfPageRasterMethod
+    ? 'PDF page image ' + (ordinal + 1)
+    : 'PDF figure ' + (ordinal + 1);
   if (rendered?.bytes instanceof Uint8Array) {
     const image = previewDocument.createElement('img');
-    image.alt = label || 'PDF figure ' + (ordinal + 1);
+    image.alt = label || fallbackLabel;
     image.dataset.pandocPdfFormRendered = 'true';
     image.decoding = 'async';
     const mimeType = String(rendered.mimeType || 'image/png');
@@ -5850,7 +6399,7 @@ function staticPdfFormFigure(previewDocument, request, rendered, ordinal) {
     figure.classList.add('pandoc-pdf-form-placeholder');
     const message = previewDocument.createElement('p');
     const detail = String(rendered?.error || '').replace(/\s+/g, ' ').trim().slice(0, 240);
-    message.textContent = (label || 'PDF figure ' + (ordinal + 1)) + ' could not be rendered in this browser'
+    message.textContent = (label || fallbackLabel) + ' could not be rendered in this browser'
       + (detail ? ': ' + detail : '.');
     figure.append(message);
   }
@@ -5910,11 +6459,28 @@ function staticPdfFormPlaceholderResults(requests, message) {
   }));
 }
 
+function staticPdfResultsInManifestOrder(requests, rendered) {
+  const resultsById = new Map();
+  for (const item of rendered || []) {
+    const requestId = String(item?.requestId || '');
+    if (!resultsById.has(requestId)) resultsById.set(requestId, []);
+    resultsById.get(requestId).push(item);
+  }
+  return requests.map((request) => {
+    const requestId = String(request?.id || '');
+    const queue = resultsById.get(requestId) || [];
+    return queue.shift() || {
+      requestId,
+      error: 'This PDF figure/page image did not return a browser render result.',
+    };
+  });
+}
+
 function staticPdfFormRequestPlan(requests) {
   const renderable = requests.slice(0, staticPdfPreviewMaxRequests);
   const skipped = staticPdfFormPlaceholderResults(
     requests.slice(staticPdfPreviewMaxRequests),
-    'This static preview renders at most ' + staticPdfPreviewMaxRequests + ' PDF charts to keep browser memory bounded.',
+    'This static preview renders at most ' + staticPdfPreviewMaxRequests + ' PDF figures/page images to keep browser memory bounded.',
   );
   return { renderable, skipped };
 }
@@ -5928,19 +6494,19 @@ async function buildStaticPdfFormPreview(example, view, reportProgress, signal) 
   const formMetadata = example.pdfFormRenders;
   const [staticOutput, manifestOutput] = await Promise.all([
     fetchStaticPreviewText(view.path, 'The static preview', signal),
-    fetchStaticPreviewText(formMetadata.path, 'The PDF figure manifest', signal),
+    fetchStaticPreviewText(formMetadata.path, 'The PDF visual/page-image manifest', signal),
   ]);
   throwIfStaticPdfPreviewAborted(signal);
   let manifest;
   try {
     manifest = JSON.parse(manifestOutput.text);
   } catch {
-    throw new Error('The PDF figure manifest is not valid JSON.');
+    throw new Error('The PDF visual/page-image manifest is not valid JSON.');
   }
   const requests = Array.isArray(manifest?.requests) ? manifest.requests : [];
   const samplePath = String(manifest?.samplePath || example.samplePath || '').trim();
   if (requests.length === 0 || !samplePath) {
-    throw new Error('The PDF figure manifest has no renderable source.');
+    throw new Error('The PDF visual/page-image manifest has no renderable source.');
   }
 
   const plan = staticPdfFormRequestPlan(requests);
@@ -5948,26 +6514,54 @@ async function buildStaticPdfFormPreview(example, view, reportProgress, signal) 
   if (staticPdfSourceIsTooLarge(example)) {
     rendered = staticPdfFormPlaceholderResults(
       requests,
-      'This PDF exceeds the static preview size limit; its chart is shown as a placeholder.',
+      'This PDF exceeds the static preview size limit; its visual/page image is shown as a placeholder.',
     );
   } else {
     try {
-      reportProgress('Opening the original PDF for its charts…');
+      reportProgress('Opening the original PDF for its figures/page images…');
       const sourceBytes = await fetchStaticPdfSource(samplePath, manifestOutput.url, signal);
-      const renderedRequests = await renderPdfFormRequests({
-        filesByPath: staticPdfFilesByPath(plan.renderable, samplePath, sourceBytes),
-        requests: plan.renderable,
-        pdfjs: playgroundPdfJsConfig(),
-        maxPixels: staticPdfPreviewMaxPixels,
-        maxTotalPixels: staticPdfPreviewMaxTotalPixels,
-        maxTotalImageBytes: staticPdfPreviewMaxImageBytes,
-        signal,
-        onProgress({ completed, total, label }) {
-          reportProgress(total > 0 ? label + ' (' + completed + ' of ' + total + ')' : label);
-        },
-      });
+      const renderedRequests = [];
+      let remainingPixels = staticPdfPreviewMaxTotalPixels;
+      let remainingImageBytes = staticPdfPreviewMaxImageBytes;
+      for (const group of pdfRenderRequestGroups(plan.renderable)) {
+        const pageRaster = group.method === pdfPageRasterMethod;
+        const filesByPath = staticPdfFilesByPath(group.requests, samplePath, sourceBytes);
+        const renderOptions = {
+          ...(pageRaster
+            ? {
+              source: pdfPageRasterSource(filesByPath, group.requests),
+              requests: group.requests.map(pdfPageRasterRequestForRenderer),
+            }
+            : { filesByPath, requests: group.requests }),
+          pdfjs: playgroundPdfJsConfig(),
+          maxPixels: staticPdfPreviewMaxPixels,
+          maxTotalPixels: remainingPixels,
+          maxTotalImageBytes: remainingImageBytes,
+          signal,
+          onProgress({ completed, total, label }) {
+            reportProgress(total > 0 ? label + ' (' + completed + ' of ' + total + ')' : label);
+          },
+        };
+        const groupResults = pageRaster
+          ? await renderPdfPageRasterRequests(renderOptions)
+          : await renderPdfFormRequests(renderOptions);
+        for (const renderedItem of groupResults) {
+          const item = pdfRenderedMediaItem(renderedItem);
+          renderedRequests.push(item);
+          if (!item.error && item.bytes instanceof Uint8Array) {
+            const pixels = Math.max(0, Number(item.width) || 0) * Math.max(0, Number(item.height) || 0);
+            remainingPixels = Math.max(0, remainingPixels - pixels);
+            remainingImageBytes = Math.max(0, remainingImageBytes - item.bytes.byteLength);
+          }
+          if (item.budgetExhausted === 'pixels') remainingPixels = 0;
+          if (item.budgetExhausted === 'image-bytes') remainingImageBytes = 0;
+        }
+      }
       throwIfStaticPdfPreviewAborted(signal);
-      rendered = [...renderedRequests, ...plan.skipped];
+      rendered = staticPdfResultsInManifestOrder(
+        requests,
+        [...renderedRequests, ...plan.skipped],
+      );
     } catch (error) {
       if (signal?.aborted) {
         throw staticPdfPreviewAbortError(signal);
@@ -5977,7 +6571,7 @@ async function buildStaticPdfFormPreview(example, view, reportProgress, signal) 
       }
       rendered = staticPdfFormPlaceholderResults(
         requests,
-        'This PDF exceeds the static preview size limit; its chart is shown as a placeholder.',
+        'This PDF exceeds the static preview size limit; its visual/page image is shown as a placeholder.',
       );
     }
   }
@@ -5987,7 +6581,7 @@ async function buildStaticPdfFormPreview(example, view, reportProgress, signal) 
   addStaticPdfFormStyles(previewDocument);
   const counts = injectStaticPdfFormFigures(previewDocument, requests, rendered);
   if (counts.successful === 0 && counts.failed === 0) {
-    throw new Error('The PDF figure renderer returned no chart results.');
+    throw new Error('The PDF renderer returned no figure/page-image results.');
   }
 
   return {
@@ -6066,8 +6660,8 @@ async function loadStaticPdfFormPreview(example, view, viewName, token) {
     }
     frame.dataset.previewMode = 'pdf-forms';
     frame.dataset.previewStatus = 'Loaded ' + example.label + ' with ' + preview.successful
-      + ' PDF chart' + (preview.successful === 1 ? '' : 's')
-      + (preview.failed > 0 ? '; ' + preview.failed + ' chart placeholder' + (preview.failed === 1 ? ' is' : 's are') + ' shown.' : '.');
+      + ' PDF figure/page image' + (preview.successful === 1 ? '' : 's')
+      + (preview.failed > 0 ? '; ' + preview.failed + ' figure/page-image placeholder' + (preview.failed === 1 ? ' is' : 's are') + ' shown.' : '.');
     frame.removeAttribute('src');
     frame.srcdoc = preview.html;
   } catch (error) {
@@ -6079,7 +6673,7 @@ async function loadStaticPdfFormPreview(example, view, viewName, token) {
       example,
       view,
       token,
-      'Could not render PDF charts here (' + detail + '). Showing the static preview instead.',
+      'Could not render PDF figures/page images here (' + detail + '). Showing the static preview instead.',
     );
   }
 }
@@ -6246,6 +6840,7 @@ function createOwnFileJobReporter(token) {
 
   return (snapshot) => {
     ownFileImportSession.remember(snapshot);
+    state.lastOwnFileJob = snapshot;
     if (!ownFileRequestIsCurrent(token)) {
       return;
     }
@@ -6259,11 +6854,22 @@ function createOwnFileJobReporter(token) {
 
 async function driveOwnFileImport(playgroundClient, initialJob, token, reportJob, file = null, bytes = null) {
   let job = initialJob;
-  let remainingPixels = playgroundPdfFormTotalPixelLimit;
-  let remainingImageBytes = playgroundPdfFormTotalImageByteLimit;
-  while (!['complete', 'failed'].includes(String(job.status || ''))) {
+  const formBudget = {
+    remainingPixels: playgroundPdfFormTotalPixelLimit,
+    remainingImageBytes: playgroundPdfFormTotalImageByteLimit,
+  };
+  const pageBudget = {
+    remainingPixels: playgroundPdfPageTotalPixelLimit,
+    remainingImageBytes: playgroundPdfPageTotalImageByteLimit,
+  };
+  while (!['complete', 'failed', 'cancelled'].includes(String(job.status || ''))) {
     if (!ownFileRequestIsCurrent(token)) {
       return job;
+    }
+    if (state.ownFileCancelRequested) {
+      job = await cancelOwnFileImport(playgroundClient, job, reportJob, token);
+      reportJob(job);
+      break;
     }
     if (job.status === 'awaiting_output_mode') {
       const recoveredMode = await chooseOwnPdfOutputMode({ recovery: true, job });
@@ -6280,16 +6886,23 @@ async function driveOwnFileImport(playgroundClient, initialJob, token, reportJob
       continue;
     }
     if (Array.isArray(job.renderRequests) && job.renderRequests.length > 0) {
-      for (const requests of pdfRenderRequestGroups(job.renderRequests)) {
-        const filesByPath = remainingPixels <= 0 || remainingImageBytes <= 0
+      for (const group of pdfRenderRequestGroups(job.renderRequests)) {
+        const requests = group.requests;
+        const pageRaster = group.method === pdfPageRasterMethod;
+        const budget = pageRaster ? pageBudget : formBudget;
+        const filesByPath = budget.remainingPixels <= 0 || budget.remainingImageBytes <= 0
           ? new Map()
           : await pdfFilesForOwnFile(playgroundClient, job, file, bytes, requests);
-        for await (const item of renderPdfFormRequestsIncrementally({
-          filesByPath,
-          requests,
+        const renderOptions = {
+          ...(pageRaster
+            ? {
+              source: pdfPageRasterSource(filesByPath, requests),
+              requests: requests.map(pdfPageRasterRequestForRenderer),
+            }
+            : { filesByPath, requests }),
           pdfjs: playgroundPdfJsConfig(),
-          maxTotalPixels: remainingPixels,
-          maxTotalImageBytes: remainingImageBytes,
+          maxTotalPixels: budget.remainingPixels,
+          maxTotalImageBytes: budget.remainingImageBytes,
           onProgress({ completed, total, label }) {
             if (!ownFileRequestIsCurrent(token)) {
               return;
@@ -6298,31 +6911,41 @@ async function driveOwnFileImport(playgroundClient, initialJob, token, reportJob
             setOwnFileBusy(true, progress);
             setStatus(progress, { visible: true });
           },
-        })) {
+        };
+        const renderer = pageRaster
+          ? renderPdfPageRasterRequestsIncrementally
+          : renderPdfFormRequestsIncrementally;
+        for await (const renderedItem of renderer(renderOptions)) {
+          const item = pdfRenderedMediaItem(renderedItem);
           if (!ownFileRequestIsCurrent(token)) {
             return job;
           }
+          if (state.ownFileCancelRequested) {
+            job = await cancelOwnFileImport(playgroundClient, job, reportJob, token);
+            reportJob(job);
+            break;
+          }
           if (!item.error && item.bytes instanceof Uint8Array) {
             const pixels = Math.max(0, Number(item.width) || 0) * Math.max(0, Number(item.height) || 0);
-            remainingPixels = Math.max(0, remainingPixels - pixels);
-            remainingImageBytes = Math.max(0, remainingImageBytes - item.bytes.byteLength);
+            budget.remainingPixels = Math.max(0, budget.remainingPixels - pixels);
+            budget.remainingImageBytes = Math.max(0, budget.remainingImageBytes - item.bytes.byteLength);
           }
-          if (item.budgetExhausted === 'pixels') remainingPixels = 0;
-          if (item.budgetExhausted === 'image-bytes') remainingImageBytes = 0;
-          job = await submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob);
+          if (item.budgetExhausted === 'pixels') budget.remainingPixels = 0;
+          if (item.budgetExhausted === 'image-bytes') budget.remainingImageBytes = 0;
+          job = await submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob, token);
           reportJob(job);
-          if (['complete', 'failed'].includes(String(job.status || ''))) {
+          if (['complete', 'failed', 'cancelled'].includes(String(job.status || ''))) {
             break;
           }
         }
-        if (['complete', 'failed'].includes(String(job.status || ''))) {
+        if (['complete', 'failed', 'cancelled'].includes(String(job.status || ''))) {
           break;
         }
       }
       continue;
     }
     if (job.status === 'awaiting_renderer') {
-      throw new Error('WordPress requested a PDF figure, but did not provide a renderable crop. Please try the file again.');
+      throw new Error('WordPress requested a PDF figure/page image, but did not provide a renderable request. Please try the file again.');
     }
     job = await advanceOwnFileImport(playgroundClient, job, token, reportJob);
     reportJob(job);
@@ -6331,11 +6954,29 @@ async function driveOwnFileImport(playgroundClient, initialJob, token, reportJob
   return job;
 }
 
-async function submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob) {
+async function cancelOwnFileImport(playgroundClient, job, reportJob = () => {}, token = state.ownFileToken) {
+  const jobId = encodeURIComponent(String(job?.jobId || ''));
+  if (!jobId) {
+    throw new Error('WordPress did not return an import job identifier to cancel.');
+  }
+  return cancelImportMutationDurably({
+    cancel: () => ownFilePluginRequest(playgroundClient, `/imports/${jobId}/cancel`, {}),
+    readStatus: () => ownFilePluginRequest(playgroundClient, `/imports/${jobId}`, undefined, 'GET'),
+    onSnapshot: reportJob,
+    isActive: () => ownFileRequestIsCurrent(token) && state.ownFileCancelRequested,
+    onRetry({ attempt }) {
+      const label = `Cancellation is waiting for the current checkpoint (${attempt}). Checking again…`;
+      setOwnFileBusy(true, label);
+      setStatus(label, { visible: true });
+    },
+  });
+}
+
+async function submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob, token) {
   const jobId = encodeURIComponent(String(job?.jobId || ''));
   const requestId = String(item?.requestId || '');
   if (!jobId || !requestId) {
-    throw new Error('WordPress returned an invalid PDF figure request.');
+    throw new Error('WordPress returned an invalid PDF visual/page-image request.');
   }
   const rendererPayload = item.error
     ? { requestId, error: item.error }
@@ -6346,6 +6987,9 @@ async function submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob
       width: item.width,
       height: item.height,
     };
+  if (state.ownFileCancelRequested) {
+    return cancelOwnFileImport(playgroundClient, job, reportJob, token);
+  }
   try {
     return await ownFilePluginRequest(
       playgroundClient,
@@ -6353,12 +6997,18 @@ async function submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob
       rendererPayload,
     );
   } catch (error) {
+    if (state.ownFileCancelRequested) {
+      return cancelOwnFileImport(playgroundClient, job, reportJob, token);
+    }
     const recovered = await ownFilePluginRequest(playgroundClient, `/imports/${jobId}`, undefined, 'GET');
     reportJob(recovered);
     const stillOutstanding = (recovered.renderRequests || [])
       .some((request) => String(request?.id || '') === requestId);
-    if (!stillOutstanding || ['complete', 'failed'].includes(String(recovered.status || ''))) {
+    if (!stillOutstanding || ['complete', 'failed', 'cancelled'].includes(String(recovered.status || ''))) {
       return recovered;
+    }
+    if (state.ownFileCancelRequested) {
+      return cancelOwnFileImport(playgroundClient, recovered, reportJob, token);
     }
     try {
       return await ownFilePluginRequest(
@@ -6367,8 +7017,11 @@ async function submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob
         rendererPayload,
       );
     } catch (retryError) {
+      if (state.ownFileCancelRequested) {
+        return cancelOwnFileImport(playgroundClient, recovered, reportJob, token);
+      }
       const detail = retryError instanceof Error ? retryError.message : String(retryError);
-      throw new Error(`${detail} The rendered figure remains saved for a later Resume saved import attempt.`);
+      throw new Error(`${detail} The rendered PDF visual/page image remains saved for a later Resume saved import attempt.`);
     }
   }
 }
@@ -6410,6 +7063,7 @@ async function resumeSavedOwnFileImport() {
   }
 
   abortStaticPdfPreview({ clearCache: true });
+  state.ownFileCancelRequested = saved.cancellationRequested === true;
   const token = state.ownFileToken + 1;
   state.ownFileToken = token;
   const reusingPlayground = state.frameMode === 'playground'
@@ -6448,6 +7102,11 @@ async function resumeSavedOwnFileImport() {
     if (job.status === 'awaiting_output_mode') {
       return;
     }
+    if (job.status === 'cancelled') {
+      ownFileImportSession.forget(job.jobId);
+      setStatus('Import cancelled. No further WordPress page or media work will run.', { visible: true });
+      return;
+    }
     if (job.status === 'failed' || !job.result) {
       throw new Error(job.message || 'The saved conversion failed.');
     }
@@ -6475,6 +7134,7 @@ async function openOwnFile(file, pdfOutputMode = 'single') {
 
   abortStaticPdfPreview({ clearCache: true });
   state.lastOwnFileJob = null;
+  state.ownFileCancelRequested = false;
   const token = state.ownFileToken + 1;
   state.ownFileToken = token;
   const reusingPlayground = state.frameMode === 'playground'
@@ -6537,6 +7197,11 @@ async function openOwnFile(file, pdfOutputMode = 'single') {
     reportJob(job);
     job = await driveOwnFileImport(playgroundClient, job, token, reportJob, file, prepared.bytes);
     if (job.status === 'awaiting_output_mode') {
+      return;
+    }
+    if (job.status === 'cancelled') {
+      ownFileImportSession.forget(job.jobId);
+      setStatus('Import cancelled. No further WordPress page or media work will run.', { visible: true });
       return;
     }
     if (job.status === 'failed' || !job.result) {
@@ -6624,6 +7289,7 @@ if (new URL(window.location.href).searchParams.has('e2e')) {
         pdfOutputMode: String(job.output?.pdfOutputMode || job.pdfOutputMode || ''),
         pageCount: Math.max(0, Number(job.result.pageCount) || 0),
         childPostCount: children.length,
+        rendererResources: pdfFormRendererResourceSnapshot(),
         posts,
       };
     },
@@ -6652,7 +7318,9 @@ async function ownFilePluginRequest(playgroundClient, path, payload = {}, method
     && String(data.jobId || '') !== ''
     && ['failed', 'retryable_failure'].includes(String(data.status || ''));
   if (!data.ok && !jobErrorSnapshot) {
-    throw new Error(data.message || 'Conversion failed.');
+    const error = new Error(data.message || 'Conversion failed.');
+    error.status = Number(data?.data?.status || response?.httpStatusCode || response?.status || 0);
+    throw error;
   }
 
   return data;
@@ -6669,7 +7337,9 @@ async function advanceOwnFileImport(playgroundClient, job, token, reportJob) {
       mutate: () => ownFilePluginRequest(playgroundClient, `/imports/${jobId}/advance`, {}),
       readStatus: () => ownFilePluginRequest(playgroundClient, `/imports/${jobId}`, undefined, 'GET'),
       onSnapshot: reportJob,
-      isActive: () => ownFileRequestIsCurrent(token),
+      isActive: () => ownFileRequestIsCurrent(token) && !state.ownFileCancelRequested,
+      shouldCancel: () => state.ownFileCancelRequested,
+      cancel: () => cancelOwnFileImport(playgroundClient, job, reportJob, token),
       maxMutationRetries: ownFileAdvanceRecoveryAttempts,
       statusChecksPerRetry: 3,
       onRecovery({ mutationAttempt, maxMutationRetries, statusAttempt, statusChecks }) {
@@ -6767,13 +7437,55 @@ function pdfRenderRequestGroups(requests) {
   for (const request of Array.isArray(requests) ? requests : []) {
     const path = String(request?.path || '');
     const sourceKey = String(request?.sourceKey || path);
-    if (!groups.has(sourceKey)) {
-      groups.set(sourceKey, []);
+    const method = request?.method === pdfPageRasterMethod
+      ? pdfPageRasterMethod
+      : 'pdf-form-xobject';
+    const groupKey = `${method}\u001f${sourceKey}`;
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, { method, requests: [] });
     }
-    groups.get(sourceKey).push(request);
+    groups.get(groupKey).requests.push(request);
   }
 
   return Array.from(groups.values());
+}
+
+function pdfPageRasterSource(filesByPath, requests) {
+  for (const request of requests || []) {
+    const path = String(request?.path || '');
+    if (path && filesByPath?.has(path)) return filesByPath.get(path);
+  }
+  return filesByPath instanceof Map ? filesByPath.values().next().value : undefined;
+}
+
+function pdfPageRasterRequestForRenderer(request) {
+  return {
+    version: request?.version,
+    method: request?.method,
+    id: request?.id,
+    sourceSha256: request?.sourceSha256,
+    page: request?.page,
+    pageObject: request?.pageObject,
+    pageBox: request?.pageBox,
+    pageBoxSource: request?.pageBoxSource,
+    pageRotation: request?.pageRotation,
+    width: request?.width,
+    height: request?.height,
+    mimeType: request?.mimeType,
+    requestDigest: request?.requestDigest,
+  };
+}
+
+function pdfRenderedMediaItem(item) {
+  if (item?.error || item?.bytes instanceof Uint8Array) return item;
+  if (!(item?.contents instanceof Uint8Array)) return item;
+  return {
+    requestId: String(item.requestId || ''),
+    bytes: item.contents,
+    mimeType: item.mimeType,
+    width: item.width,
+    height: item.height,
+  };
 }
 
 async function pdfFilesForOwnFile(playgroundClient, job, file, bytes, renderRequests = null) {
@@ -6829,8 +7541,8 @@ async function ownFilePdfRenderSource(playgroundClient, job, request) {
     return bytesFromBase64(encoded);
   } catch {
     // Older plugin builds do not expose a stored ZIP member. PDF.js will
-    // report the unavailable crop to WordPress, which leaves a visible
-    // placeholder while the rest of the document is still imported.
+    // report the unavailable figure/page image to WordPress, which leaves the
+    // available fallback in place while the rest of the document is imported.
     return null;
   }
 }
@@ -7055,6 +7767,16 @@ tryOwnFileButton.addEventListener('click', () => {
   ownFileInput.click();
 });
 
+cancelOwnFileButton.addEventListener('click', () => {
+  if (!state.ownFileBusy || !state.lastOwnFileJob?.jobId || state.ownFileCancelRequested) {
+    return;
+  }
+  state.ownFileCancelRequested = true;
+  ownFileImportSession.requestCancellation(state.lastOwnFileJob.jobId);
+  updateControls();
+  setStatus('Cancellation requested. Finishing only the current bounded checkpoint…', { visible: true });
+});
+
 ownFileInput.addEventListener('change', async () => {
   const file = ownFileInput.files && ownFileInput.files[0];
   ownFileInput.value = '';
@@ -7172,10 +7894,41 @@ HTML));
     $legacyDocFaithfulness = [];
     $pdfWithoutReference = [];
     $pdfFaithfulness = [];
+    $incompletePdfQuality = [];
     $xmlWithoutReference = [];
     $xmlFaithfulness = [];
     $preservedRawHtml = [];
     $unexpectedCustomHtml = [];
+    $fragmentationMetrics = [];
+    $fragmentationGate = [];
+    $completeGeometryGate = showcase_pdf_geometry_reference_gate([
+        'pageCount' => 3,
+        'textPageCount' => 3,
+        'lineCount' => 30,
+    ]);
+    $partialGeometryGate = showcase_pdf_geometry_reference_gate([
+        'pageCount' => 3,
+        'textPageCount' => 1,
+        'lineCount' => 10,
+    ]);
+    $scanGeometryGate = showcase_pdf_geometry_reference_gate([
+        'pageCount' => 3,
+        'textPageCount' => 0,
+        'lineCount' => 0,
+    ]);
+    $unanchoredMediaProblems = showcase_media_problem_diagnostics([
+        'extract-media-pdf-image-unanchored:42',
+    ]);
+    $unavailableMediaProblems = showcase_media_problem_diagnostics([
+        'extract-media-pdf-image-placement-unavailable:43',
+    ]);
+    $missingPageOccurrenceProblems = showcase_media_problem_diagnostics([
+        'extract-media-pdf-image-missing-page-occurrence:pdf-image-p2-n1',
+    ]);
+    $unimportantUnavailableMediaProblems = showcase_media_problem_diagnostics([
+        'extract-media-pdf-image-unimportant:42:small',
+        'extract-media-pdf-image-placement-unavailable:42',
+    ]);
     $nativeLatexSemantics = showcase_source_import_semantics(
         dirname(__DIR__) . '/lanes/pandoc/fixtures/latex-reader/academic-article.tex',
         'latex'
@@ -7219,12 +7972,34 @@ HTML));
                     'ok' => true,
                     'path' => 'wordpress.html',
                     'mediaDiagnostics' => [],
+                    'sourceIntegrity' => [
+                        'complete' => true,
+                        'pdfDocumentComplete' => true,
+                        'pdfSemanticTextComplete' => true,
+                        'pdfSourceBindingComplete' => true,
+                        'pdfSourceEdgeMappingComplete' => true,
+                        'pdfOrderedSignificantCharactersPreserved' => true,
+                        'pdfUnresolvedSourceOccurrences' => 0,
+                        'pdfPageRepresentationComplete' => true,
+                    ],
                 ],
                 'wpBlockCounts' => ['paragraph' => 1],
             ];
             $pdfFaithfulness = showcase_record_faithfulness($unbenchmarkedDir, $pdfRecord);
             $pdfRecord['faithfulness'] = $pdfFaithfulness;
             $pdfWithoutReference = showcase_record_import_quality($unbenchmarkedDir, $pdfRecord);
+            $incompletePdfRecord = $pdfRecord;
+            $incompletePdfRecord['wpBlocks']['sourceIntegrity'] = [
+                'complete' => false,
+                'pdfDocumentComplete' => true,
+                'pdfSemanticTextComplete' => false,
+                'pdfSourceBindingComplete' => false,
+                'pdfSourceEdgeMappingComplete' => false,
+                'pdfOrderedSignificantCharactersPreserved' => true,
+                'pdfUnresolvedSourceOccurrences' => 3,
+                'pdfPageRepresentationComplete' => false,
+            ];
+            $incompletePdfQuality = showcase_record_import_quality($unbenchmarkedDir, $incompletePdfRecord);
             $xmlRecord = [
                 'format' => 'xml',
                 'haskell' => ['ok' => false],
@@ -7300,13 +8075,239 @@ HTML));
             $semanticFaithfulness = showcase_record_faithfulness($unbenchmarkedDir, $semanticRecord);
             $semanticRecord['faithfulness'] = $semanticFaithfulness;
             $semanticQuality = showcase_record_import_quality($unbenchmarkedDir, $semanticRecord);
+            file_put_contents(
+                $unbenchmarkedDir . '/fragmented.html',
+                implode('', array_fill(0, 20, '<p>A</p>'))
+            );
+            $fragmentationMetrics = showcase_pdf_paragraph_fragmentation_metrics(
+                $unbenchmarkedDir,
+                'fragmented.html'
+            );
+            $fragmentationGate = showcase_pdf_paragraph_geometry_gate(
+                ['pageCount' => 1, 'textPageCount' => 1, 'lineCount' => 100],
+                ['p' => 20],
+                $fragmentationMetrics
+            );
         } finally {
             @unlink($unbenchmarkedDir . '/wordpress.html');
             @unlink($unbenchmarkedDir . '/php.html');
             @unlink($unbenchmarkedDir . '/semantic-haskell.html');
             @unlink($unbenchmarkedDir . '/semantic-wordpress.html');
+            @unlink($unbenchmarkedDir . '/fragmented.html');
             @rmdir($unbenchmarkedDir);
         }
+    }
+
+    $syntheticPageRequests = [];
+    $syntheticSourceSha = hash('sha256', 'showcase-page-render-source');
+    for ($page = 1; $page <= SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS + 1; $page++) {
+        $syntheticRequestDigest = hash('sha256', 'showcase-page-render-request-' . $page);
+        $syntheticPageRequests[] = [
+            'version' => 1,
+            'method' => 'pdfjs-whole-page-raster',
+            'sourceSha256' => $syntheticSourceSha,
+            'page' => $page,
+            'pageObject' => 100 + $page,
+            'pageBox' => [0.0, 0.0, 612.0, 792.0],
+            'pageBoxSource' => 'MediaBox',
+            'pageRotation' => 0,
+            'width' => 1224,
+            'height' => 1584,
+            'mimeType' => 'image/png',
+            'id' => 'pdf-page-raster-' . substr($syntheticRequestDigest, 0, 32),
+            'requestDigest' => $syntheticRequestDigest,
+        ];
+    }
+    $syntheticPdfMetadata = [
+        'pdfPageRasterRequests' => $syntheticPageRequests,
+        'pdfFormXObjectPlacements' => [[
+            'id' => 'synthetic-form',
+            'page' => 3,
+            'object' => 42,
+            'paintOrder' => 7,
+            'bbox' => ['x1' => 10.0, 'y1' => 20.0, 'x2' => 210.0, 'y2' => 140.0],
+            'visible' => true,
+            'placementEligible' => true,
+            'precedingText' => 'Synthetic form predecessor.',
+            'followingText' => 'Synthetic form successor.',
+        ]],
+        'pdfSourceDisposition' => [
+            'sourceEdges' => [[
+                'target' => 'output',
+                'page' => 2,
+                'destinationNodeIds' => ['synthetic-page-two'],
+            ], [
+                'target' => 'output',
+                'page' => 3,
+                'destinationNodeIds' => ['synthetic-page-three'],
+            ]],
+        ],
+    ];
+    $syntheticPdfDocument = new AstNode('document', ['meta' => $syntheticPdfMetadata], [
+        new AstNode('paragraph', ['text' => 'Unproven text must not become an anchor.']),
+        new AstNode('heading', [
+            'text' => 'First proven page-two heading.',
+            'sourceNodeId' => 'synthetic-page-two',
+        ]),
+        new AstNode('paragraph', [
+            'text' => 'Last proven page-three paragraph.',
+            'sourceNodeId' => 'synthetic-page-three',
+        ]),
+    ]);
+    $syntheticSamplePath = 'samples/synthetic-page-render.pdf';
+    $syntheticRenderRequests = showcase_pdf_render_requests($syntheticPdfDocument, $syntheticSamplePath);
+    $syntheticRenderRepeat = showcase_pdf_render_requests($syntheticPdfDocument, $syntheticSamplePath);
+    $syntheticCorePreserved = true;
+    for ($index = 0; $index < SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS; $index++) {
+        $renderedCore = $syntheticRenderRequests[$index] ?? null;
+        if (!is_array($renderedCore)) {
+            $syntheticCorePreserved = false;
+            break;
+        }
+        unset(
+            $renderedCore['path'],
+            $renderedCore['label'],
+            $renderedCore['precedingText'],
+            $renderedCore['followingText']
+        );
+        if ($renderedCore !== $syntheticPageRequests[$index]) {
+            $syntheticCorePreserved = false;
+            break;
+        }
+    }
+    $syntheticPageMethods = array_map(
+        static fn (array $request): mixed => $request['method'] ?? null,
+        array_slice($syntheticRenderRequests, 0, SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS)
+    );
+    $syntheticFormRequest = $syntheticRenderRequests[SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS] ?? null;
+    $pdfRenderPlanProbe = [
+        'ok' => count($syntheticRenderRequests) === SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS + 1
+            && count(array_unique($syntheticPageMethods, SORT_REGULAR)) === 1
+            && ($syntheticPageMethods[0] ?? null) === 'pdfjs-whole-page-raster'
+            && is_array($syntheticFormRequest)
+            && ($syntheticFormRequest['object'] ?? null) === 42
+            && $syntheticCorePreserved
+            && $syntheticRenderRequests === $syntheticRenderRepeat
+            && ($syntheticRenderRequests[0]['path'] ?? null) === $syntheticSamplePath
+            && ($syntheticRenderRequests[0]['label'] ?? null) === 'PDF page 1'
+            && ($syntheticRenderRequests[0]['precedingText'] ?? null) === null
+            && ($syntheticRenderRequests[0]['followingText'] ?? null) === 'First proven page-two heading.'
+            && ($syntheticRenderRequests[95]['precedingText'] ?? null) === 'Last proven page-three paragraph.'
+            && ($syntheticRenderRequests[95]['followingText'] ?? null) === null,
+        'requestCount' => count($syntheticRenderRequests),
+        'pageRequestCount' => count($syntheticPageMethods),
+        'firstRequestMethod' => $syntheticPageMethods[0] ?? null,
+        'formObjectAfterPages' => is_array($syntheticFormRequest) ? ($syntheticFormRequest['object'] ?? null) : null,
+        'coreRequestsPreserved' => $syntheticCorePreserved,
+        'stable' => $syntheticRenderRequests === $syntheticRenderRepeat,
+        'firstFollowingText' => $syntheticRenderRequests[0]['followingText'] ?? null,
+        'lastPagePrecedingText' => $syntheticRenderRequests[95]['precedingText'] ?? null,
+    ];
+
+    $readPdfRenderFixture = static function (string $source, string $samplePath): array {
+        try {
+            $options = showcase_converter_options('pdf', 'wordpress');
+            $readerOptions = is_array($options['readerOptions'] ?? null) ? $options['readerOptions'] : [];
+            $readerOptions['pdfCollectFormXObjectPlacements'] = true;
+            $document = PandocConverter::readFile($source, 'pdf', $readerOptions);
+            $metadata = $document->attr('meta', []);
+            $metadata = is_array($metadata) ? $metadata : [];
+            $coreRequests = is_array($metadata['pdfPageRasterRequests'] ?? null)
+                ? $metadata['pdfPageRasterRequests']
+                : [];
+            $requests = showcase_pdf_render_requests($document, $samplePath);
+            $repeat = showcase_pdf_render_requests($document, $samplePath);
+            $pageRequests = array_slice($requests, 0, min(
+                count($coreRequests),
+                SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS
+            ));
+            $corePreserved = count($pageRequests) === min(
+                count($coreRequests),
+                SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS
+            );
+            foreach ($pageRequests as $index => $pageRequest) {
+                unset(
+                    $pageRequest['path'],
+                    $pageRequest['label'],
+                    $pageRequest['precedingText'],
+                    $pageRequest['followingText']
+                );
+                if ($pageRequest !== $coreRequests[$index]) {
+                    $corePreserved = false;
+                    break;
+                }
+            }
+            $nonEmptyBlocks = array_values(array_filter(
+                array_map(
+                    static fn (AstNode $block): string => showcase_pdf_anchor_text($block),
+                    $document->children()
+                ),
+                static fn (string $text): bool => $text !== ''
+            ));
+
+            return [
+                'count' => count($pageRequests),
+                'firstPage' => $pageRequests[0]['page'] ?? null,
+                'lastPage' => $pageRequests[count($pageRequests) - 1]['page'] ?? null,
+                'firstPrecedingText' => $pageRequests[0]['precedingText'] ?? null,
+                'firstFollowingText' => $pageRequests[0]['followingText'] ?? null,
+                'lastPrecedingText' => $pageRequests[count($pageRequests) - 1]['precedingText'] ?? null,
+                'lastFollowingText' => $pageRequests[count($pageRequests) - 1]['followingText'] ?? null,
+                'firstDocumentText' => $nonEmptyBlocks[0] ?? null,
+                'lastDocumentText' => $nonEmptyBlocks[count($nonEmptyBlocks) - 1] ?? null,
+                'routingStable' => array_reduce(
+                    $pageRequests,
+                    static fn (bool $valid, array $request): bool => $valid
+                        && ($request['path'] ?? null) === $samplePath,
+                    true
+                ),
+                'coreRequestsPreserved' => $corePreserved,
+                'stable' => $requests === $repeat,
+            ];
+        } catch (Throwable $error) {
+            return ['error' => sanitize_generated_text($error->getMessage())];
+        }
+    };
+    $pdfRenderFixtures = [
+        'vdl' => $readPdfRenderFixture(
+            $root . '/pandoc-showcase/samples/pdf-layout-vdl-theatre-script-ASC_script_format_example.pdf',
+            'samples/pdf-layout-vdl-theatre-script-ASC_script_format_example.pdf'
+        ),
+        'motograph' => $readPdfRenderFixture(
+            $root . '/pandoc-showcase/samples/pdf-archive-motograph-book-motograph-moving-picture-book.pdf',
+            'samples/pdf-archive-motograph-book-motograph-moving-picture-book.pdf'
+        ),
+        'mineru' => $readPdfRenderFixture(
+            $root . '/pandoc-showcase/samples/pdf-layout-mineru-small-ocr-small_ocr.pdf',
+            'samples/pdf-layout-mineru-small-ocr-small_ocr.pdf'
+        ),
+    ];
+    $pdfRenderFixturesOk = ($pdfRenderFixtures['vdl']['count'] ?? null) === 1
+        && ($pdfRenderFixtures['vdl']['firstPage'] ?? null) === 1
+        && ($pdfRenderFixtures['vdl']['firstPrecedingText'] ?? null) === null
+        && ($pdfRenderFixtures['vdl']['firstFollowingText'] ?? null)
+            === ($pdfRenderFixtures['vdl']['firstDocumentText'] ?? null)
+        && ($pdfRenderFixtures['motograph']['count'] ?? null) === 46
+        && ($pdfRenderFixtures['motograph']['firstPage'] ?? null) === 2
+        && ($pdfRenderFixtures['motograph']['lastPage'] ?? null) === 47
+        && ($pdfRenderFixtures['motograph']['firstFollowingText'] ?? null) === null
+        && ($pdfRenderFixtures['motograph']['lastFollowingText'] ?? null) === null
+        && ($pdfRenderFixtures['motograph']['firstPrecedingText'] ?? null)
+            === ($pdfRenderFixtures['motograph']['lastDocumentText'] ?? null)
+        && ($pdfRenderFixtures['motograph']['lastPrecedingText'] ?? null)
+            === ($pdfRenderFixtures['motograph']['lastDocumentText'] ?? null)
+        && ($pdfRenderFixtures['mineru']['count'] ?? null) === 8
+        && ($pdfRenderFixtures['mineru']['firstPage'] ?? null) === 1
+        && ($pdfRenderFixtures['mineru']['lastPage'] ?? null) === 8
+        && ($pdfRenderFixtures['mineru']['firstPrecedingText'] ?? null) === null
+        && ($pdfRenderFixtures['mineru']['firstFollowingText'] ?? null) === null
+        && ($pdfRenderFixtures['mineru']['lastPrecedingText'] ?? null) === null
+        && ($pdfRenderFixtures['mineru']['lastFollowingText'] ?? null) === null;
+    foreach ($pdfRenderFixtures as $fixture) {
+        $pdfRenderFixturesOk = $pdfRenderFixturesOk
+            && ($fixture['routingStable'] ?? false) === true
+            && ($fixture['coreRequestsPreserved'] ?? false) === true
+            && ($fixture['stable'] ?? false) === true;
     }
     $ok = $baseline === $expected
         && $wordpress === $expected
@@ -7320,17 +8321,31 @@ HTML));
         && (($legacyDocWithoutReference['status'] ?? null) === 'unbenchmarked')
         && (($pdfFaithfulness['baseline'] ?? null) === null)
         && (($pdfWithoutReference['status'] ?? null) === 'unbenchmarked')
+        && (($pdfWithoutReference['gates']['pdf_source_integrity']['status'] ?? null) === 'pass')
+        && (($incompletePdfQuality['status'] ?? null) === 'fail')
+        && (($incompletePdfQuality['gates']['pdf_source_integrity']['status'] ?? null) === 'fail')
         && (($xmlFaithfulness['baseline'] ?? null) === null)
         && (($xmlWithoutReference['status'] ?? null) === 'unbenchmarked')
         && (($preservedRawHtml['gates']['custom_html_percentage']['status'] ?? null) === 'pass')
         && (($unexpectedCustomHtml['gates']['custom_html_percentage']['status'] ?? null) === 'fail')
+        && (($completeGeometryGate['status'] ?? null) === 'pass')
+        && (($partialGeometryGate['status'] ?? null) === 'review')
+        && (($scanGeometryGate['status'] ?? null) === 'review')
+        && (($fragmentationMetrics['veryShortParagraphs'] ?? null) === 20)
+        && (($fragmentationGate['status'] ?? null) === 'review')
+        && $unanchoredMediaProblems === ['extract-media-pdf-image-unanchored:42']
+        && $unavailableMediaProblems === ['extract-media-pdf-image-placement-unavailable:43']
+        && $missingPageOccurrenceProblems === ['extract-media-pdf-image-missing-page-occurrence:pdf-image-p2-n1']
+        && $unimportantUnavailableMediaProblems === []
         && (($nativeLatexSemantics['metadata']['title'][0] ?? null) === 'A Native LaTeX Import Study')
         && in_array('latex-title-block', $nativeLatexSemantics['structures'] ?? [], true)
         && in_array('latex-abstract', $nativeLatexSemantics['structures'] ?? [], true)
         && in_array('latex-table-of-contents', $nativeLatexSemantics['structures'] ?? [], true)
         && in_array('pandoc-csl-bibliography', $nativeLatexSemantics['structures'] ?? [], true)
         && (($semanticFaithfulness['comparisons']['wpBlocks']['textScore'] ?? 0.0) === 1.0)
-        && (($semanticQuality['gates']['source_metadata_semantics']['status'] ?? null) === 'pass');
+        && (($semanticQuality['gates']['source_metadata_semantics']['status'] ?? null) === 'pass')
+        && ($pdfRenderPlanProbe['ok'] ?? false) === true
+        && $pdfRenderFixturesOk;
     fwrite(STDOUT, json_encode([
         'ok' => $ok,
         'baseline' => $baseline,
@@ -7344,13 +8359,27 @@ HTML));
         'legacyDocWithoutReferenceBaseline' => $legacyDocFaithfulness['baseline'] ?? null,
         'pdfWithoutReferenceStatus' => $pdfWithoutReference['status'] ?? null,
         'pdfWithoutReferenceBaseline' => $pdfFaithfulness['baseline'] ?? null,
+        'pdfSourceIntegrityStatus' => $pdfWithoutReference['gates']['pdf_source_integrity']['status'] ?? null,
+        'incompletePdfStatus' => $incompletePdfQuality['status'] ?? null,
+        'incompletePdfSourceIntegrityStatus' => $incompletePdfQuality['gates']['pdf_source_integrity']['status'] ?? null,
         'xmlWithoutReferenceStatus' => $xmlWithoutReference['status'] ?? null,
         'xmlWithoutReferenceBaseline' => $xmlFaithfulness['baseline'] ?? null,
         'preservedRawHtmlStatus' => $preservedRawHtml['gates']['custom_html_percentage']['status'] ?? null,
         'unexpectedCustomHtmlStatus' => $unexpectedCustomHtml['gates']['custom_html_percentage']['status'] ?? null,
+        'completeGeometryStatus' => $completeGeometryGate['status'] ?? null,
+        'partialGeometryStatus' => $partialGeometryGate['status'] ?? null,
+        'scanGeometryStatus' => $scanGeometryGate['status'] ?? null,
+        'fragmentationMetrics' => $fragmentationMetrics,
+        'fragmentationStatus' => $fragmentationGate['status'] ?? null,
+        'unanchoredMediaProblems' => $unanchoredMediaProblems,
+        'unavailableMediaProblems' => $unavailableMediaProblems,
+        'missingPageOccurrenceProblems' => $missingPageOccurrenceProblems,
+        'unimportantUnavailableMediaProblems' => $unimportantUnavailableMediaProblems,
         'nativeLatexSemanticStructures' => $nativeLatexSemantics['structures'] ?? [],
         'semanticComparisonTextScore' => $semanticFaithfulness['comparisons']['wpBlocks']['textScore'] ?? null,
         'semanticMetadataStatus' => $semanticQuality['gates']['source_metadata_semantics']['status'] ?? null,
+        'pdfRenderPlanProbe' => $pdfRenderPlanProbe,
+        'pdfRenderFixtures' => $pdfRenderFixtures,
     ], JSON_UNESCAPED_SLASHES) . PHP_EOL);
     exit($ok ? 0 : 1);
 }

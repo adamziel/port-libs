@@ -72,6 +72,7 @@ if ($zip->open($temporaryZip, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== tr
     fwrite(STDERR, "Unable to create {$temporaryZip}\n");
     exit(1);
 }
+$zipClosed = false;
 
 try {
     add_wordpress_plugin_php_to_zip(
@@ -96,6 +97,10 @@ try {
         static fn (SplFileInfo $file, string $relative): bool => !in_array(str_replace(DIRECTORY_SEPARATOR, '/', $relative), [
             // Source maps do not execute in the plugin.
             'image_decoders/pdf.image_decoders.mjs.map',
+            // PDF.js ships equivalent minified and development decoder
+            // bundles. The importer loads production assets only; retaining
+            // both needlessly consumes the shared-host upload margin.
+            'image_decoders/pdf.image_decoders.mjs',
             // Static document import has no PDF JavaScript/XFA requirement.
             // If a browser lacks WebAssembly, the client already returns a
             // per-figure placeholder instead of abandoning the import.
@@ -125,6 +130,7 @@ try {
     if (!$zip->close()) {
         throw new RuntimeException('ZipArchive could not finish the plugin archive.');
     }
+    $zipClosed = true;
     clearstatcache(true, $temporaryZip);
     $archiveBytes = filesize($temporaryZip);
     if (!is_int($archiveBytes) || $archiveBytes > PLPC_COMMON_PHP_UPLOAD_LIMIT) {
@@ -139,7 +145,14 @@ try {
     }
     write_distribution_manifest($targetZip, $targetManifest);
 } catch (Throwable $error) {
-    $zip->close();
+    if (!$zipClosed) {
+        try {
+            $zip->close();
+        } catch (Throwable) {
+            // Preserve the original build error when libzip already made the
+            // archive handle unusable while failing to close it.
+        }
+    }
     @unlink($temporaryZip);
     fwrite(STDERR, $error->getMessage() . "\n");
     exit(1);
@@ -287,6 +300,13 @@ function add_tree_to_zip(ZipArchive $zip, string $source, string $localRoot, ?ca
 
 function set_distribution_entry_metadata(ZipArchive $zip, string $local): void
 {
+    // The runtime-complete PDF import package sits close to common shared-host
+    // upload ceilings. Use libzip's strongest deterministic DEFLATE level
+    // before considering removal of any executable format support.
+    if (method_exists($zip, 'setCompressionName')
+        && !$zip->setCompressionName($local, ZipArchive::CM_DEFLATE, 9)) {
+        throw new RuntimeException("Unable to set ZIP compression for {$local}.");
+    }
     if (method_exists($zip, 'setMtimeName') && !$zip->setMtimeName($local, PLPC_DISTRIBUTION_MTIME)) {
         throw new RuntimeException("Unable to normalize ZIP timestamp for {$local}.");
     }
@@ -350,15 +370,19 @@ function plugin_distribution_path(string $path): string
 }
 
 /**
- * These are upstream-parity and audit reports, not readers/writers. Retaining
- * them in source control is useful, but loading them in a production import
- * plugin only makes the install ZIP exceed PHP's usual upload limit.
+ * These are upstream-parity/audit reports or external-engine planning code,
+ * not import readers/writers. Retaining them in source control is useful, but
+ * loading them in a production import plugin only makes the install ZIP exceed
+ * PHP's usual upload limit.
  */
 function is_distribution_only_audit_source(string $relative): bool
 {
     static $files = [
+        // This handoff plans pdflatex/Typst/etc. processes for server-side PDF
+        // generation. The WordPress plugin imports documents and has no
+        // external-engine execution path or runtime reference to this class.
+        'PdfEngineHandoff.php',
         'UpstreamRunnerDependencyAudit.php',
-        'DelimitedTextUpstreamReaderEvidence.php',
         'EpubNativeAstPackageComparisonHarness.php',
         'PptxUpstreamReaderEvidence.php',
         'MarkdownUpstreamReaderEvidence.php',

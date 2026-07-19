@@ -95,9 +95,39 @@ try {
     $required = [
         'port-libs-playground-converter/port-libs-playground-converter.php',
         'port-libs-playground-converter/assets/admin-importer.js',
+        'port-libs-playground-converter/assets/pdf-jbig2-rasterizer.js',
+        'port-libs-playground-converter/assets/pdf-jpx-rasterizer.js',
         'port-libs-playground-converter/assets/pdfjs-form-rasterizer.js',
         'port-libs-playground-converter/assets/pdfjs-facts-provider.js',
+        'port-libs-playground-converter/assets/vendor/pdfjs/LICENSE',
+        'port-libs-playground-converter/assets/vendor/pdfjs/cmaps/LICENSE',
+        'port-libs-playground-converter/assets/vendor/pdfjs/image_decoders/pdf.image_decoders.min.js',
         'port-libs-playground-converter/assets/vendor/pdfjs/pdf.min.js',
+        'port-libs-playground-converter/assets/vendor/pdfjs/pdf.worker.min.js',
+        'port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/FoxitSerif.pfb',
+        'port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/LICENSE_FOXIT',
+        'port-libs-playground-converter/assets/vendor/pdfjs/standard_fonts/LICENSE_LIBERATION',
+        'port-libs-playground-converter/assets/vendor/pdfjs/wasm/LICENSE_JBIG2',
+        'port-libs-playground-converter/assets/vendor/pdfjs/wasm/LICENSE_OPENJPEG',
+        'port-libs-playground-converter/assets/vendor/pdfjs/wasm/LICENSE_PDFJS_JBIG2',
+        'port-libs-playground-converter/assets/vendor/pdfjs/wasm/LICENSE_PDFJS_OPENJPEG',
+        'port-libs-playground-converter/assets/vendor/pdfjs/wasm/LICENSE_PDFJS_QCMS',
+        'port-libs-playground-converter/assets/vendor/pdfjs/wasm/LICENSE_QCMS',
+        'port-libs-playground-converter/assets/vendor/pdfjs/wasm/jbig2.wasm',
+        'port-libs-playground-converter/assets/vendor/pdfjs/wasm/openjpeg.wasm',
+        'port-libs-playground-converter/assets/vendor/pdfjs/wasm/qcms_bg.wasm',
+        'port-libs-playground-converter/assets/vendor/pdfjs-jbig2/LICENSE_JBIG2',
+        'port-libs-playground-converter/assets/vendor/pdfjs-jbig2/LICENSE_PDFJS_JBIG2',
+        'port-libs-playground-converter/assets/vendor/pdfjs-jbig2/NOTICE.txt',
+        'port-libs-playground-converter/assets/vendor/pdfjs-jbig2/jbig2.js',
+        'port-libs-playground-converter/assets/vendor/pdfjs-openjpeg/LICENSE_OPENJPEG',
+        'port-libs-playground-converter/assets/vendor/pdfjs-openjpeg/LICENSE_PDFJS_OPENJPEG',
+        'port-libs-playground-converter/assets/vendor/pdfjs-openjpeg/NOTICE.txt',
+        'port-libs-playground-converter/assets/vendor/pdfjs-openjpeg/openjpeg.js',
+        'port-libs-playground-converter/lanes/pandoc/src/DelimitedTextUpstreamReaderEvidence.php',
+        'port-libs-playground-converter/lanes/pandoc/src/PandocMediaExtractor.php',
+        'port-libs-playground-converter/lanes/pandoc/src/PdfLanguageDirectionDecorator.php',
+        'port-libs-playground-converter/lanes/pandoc/src/PdfLaterPaintVisibilityReconciler.php',
         'port-libs-playground-converter/lanes/pandoc/src/PdfReader.php',
         'port-libs-playground-converter/lanes/markerpdf/src/NativePdfFactsProvider.php',
     ];
@@ -108,6 +138,34 @@ try {
     }
     if (!is_string($pluginContents)) {
         throw new RuntimeException('The production plugin PHP could not be inspected.');
+    }
+    $adminImporter = distribution_required_entry_contents(
+        $actualEntries,
+        $archivePath,
+        'port-libs-playground-converter/assets/admin-importer.js'
+    );
+    foreach ([
+        "from './pdfjs-form-rasterizer.js'",
+        "new URL('./pdfjs-facts-provider.js', import.meta.url)",
+        "new URL('./pdf-jbig2-rasterizer.js', import.meta.url)",
+        "new URL('./pdf-jpx-rasterizer.js', import.meta.url)",
+    ] as $reference) {
+        if (!str_contains($adminImporter, $reference)) {
+            throw new RuntimeException("The production admin importer is missing runtime module reference {$reference}.");
+        }
+    }
+    $pdfRasterizer = distribution_required_entry_contents(
+        $actualEntries,
+        $archivePath,
+        'port-libs-playground-converter/assets/pdfjs-form-rasterizer.js'
+    );
+    foreach ([
+        'export async function renderPdfPageRasterRequests(',
+        'export async function* renderPdfPageRasterRequestsIncrementally(',
+    ] as $export) {
+        if (!str_contains($pdfRasterizer, $export)) {
+            throw new RuntimeException("The production PDF.js rasterizer is missing whole-page export {$export}.");
+        }
     }
     if (str_contains($pluginContents, '.mjs')) {
         throw new RuntimeException('The minified main plugin still contains .mjs runtime references.');
@@ -146,6 +204,30 @@ try {
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
     exit(1);
+}
+
+/**
+ * @param array<string,array{bytes:int,sha256:string}> $entries
+ */
+function distribution_required_entry_contents(array $entries, string $archivePath, string $name): string
+{
+    if (!isset($entries[$name])) {
+        throw new RuntimeException("The production plugin ZIP is missing {$name}.");
+    }
+    $zip = new ZipArchive();
+    if ($zip->open($archivePath, ZipArchive::RDONLY) !== true) {
+        throw new RuntimeException('The production plugin ZIP cannot be reopened for runtime-reference verification.');
+    }
+    try {
+        $contents = $zip->getFromName($name);
+        if (!is_string($contents)) {
+            throw new RuntimeException("The production plugin ZIP entry {$name} cannot be read.");
+        }
+
+        return $contents;
+    } finally {
+        $zip->close();
+    }
 }
 
 /** @return list<string> */

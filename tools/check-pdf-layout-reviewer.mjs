@@ -82,10 +82,31 @@ if (data) {
     assert(example.id === `pdf-layout-${sourceEntry.id}`, `${sourceEntry.id} reviewer ID diverged from the manifest.`);
     assert(example.sourceUrl === sourceEntry.url, `${sourceEntry.id} reviewer provenance diverged from the manifest.`);
     assert(JSON.stringify(example.success) === JSON.stringify(sourceEntry.success), `${sourceEntry.id} reviewer success criteria diverged from the manifest.`);
+    assert(JSON.stringify(example.conversionExpectation) === JSON.stringify(sourceEntry.conversionExpectation ?? null), `${sourceEntry.id} reviewer conversion expectation diverged from the manifest.`);
+    if (example.conversionOk === false) {
+      assert(sourceEntry.conversionExpectation?.wpBlocks?.ok === false, `${sourceEntry.id} failed conversion lacks an explicit manifest expectation.`);
+      assert(example.previewStatus === sourceEntry.conversionExpectation?.wpBlocks?.status, `${sourceEntry.id} failed conversion status diverged from its manifest expectation.`);
+    }
     assert(/^samples\/[^/]+\.pdf$/i.test(example.samplePath), `${example.id} has an unexpected original path: ${example.samplePath}`);
     assert(/^outputs\/[^/]+\/wordpress-blocks-preview\.html$/.test(example.previewPath), `${example.id} has an unexpected converted preview path: ${example.previewPath}`);
     assert(fs.existsSync(siteFile(example.samplePath)), `${example.id} original PDF is missing.`);
     assert(fs.existsSync(siteFile(example.previewPath)), `${example.id} converted preview is missing.`);
+  }
+
+  const mineru = data.examples.find((example) => example.id === 'pdf-layout-mineru-small-ocr');
+  assert(mineru?.conversionOk === false, 'MinerU must remain a failed editable conversion.');
+  assert(mineru?.conversionExpectation?.phpHtml?.ok === false
+    && mineru?.conversionExpectation?.phpHtml?.status === 'unsupported_no_text'
+    && mineru?.conversionExpectation?.wpBlocks?.ok === false
+    && mineru?.conversionExpectation?.wpBlocks?.status === 'unsupported_no_text', 'MinerU must retain its exact failed-conversion expectation.');
+  assert(mineru?.previewStatus === 'unsupported_no_text', 'MinerU reviewer entry must retain the typed no-text boundary.');
+  if (mineru?.previewPath) {
+    const statusPreview = fs.readFileSync(siteFile(mineru.previewPath), 'utf8');
+    assert(statusPreview.includes('data-pandoc-pdf-preview-status="unsupported_no_text"'), 'MinerU reviewer status page lacks its typed no-text marker.');
+    assert(statusPreview.includes('PDF has no editable native text'), 'MinerU reviewer status page must identify the native-text boundary.');
+    assert(statusPreview.includes('OCR is outside this importer'), 'MinerU reviewer status page must keep OCR explicitly out of scope.');
+    assert(statusPreview.includes('No editable WordPress import was generated.'), 'MinerU reviewer status page must not imply conversion success.');
+    assert(!statusPreview.includes('PDF extraction incomplete'), 'MinerU no-text status must not claim unresolved extraction.');
   }
 }
 
@@ -115,6 +136,9 @@ assert(js.includes('requiredText') && js.includes('orderedText'), 'Reviewer must
 assert(js.includes("(Array.isArray(expected) ? expected : [expected]).join(' · ')")
   && js.includes("(Array.isArray(expected) ? expected : [expected]).join(' → ')"), 'Criterion labels must not apply array methods to numeric thresholds.');
 assert(js.includes('noSpacedGlyphRuns') && js.includes('readablePdfFills'), 'Reviewer must expose spacing and PDF-fill readability regressions.');
+assert(js.includes("if (example.previewStatus === 'incomplete' || example.previewStatus === 'unsupported_no_text')")
+  && js.indexOf("if (example.previewStatus === 'incomplete' || example.previewStatus === 'unsupported_no_text')") < js.indexOf('const metrics = iframeMetrics(convertedFrame.contentDocument);')
+  && js.includes("const noNativeText = example.previewStatus === 'unsupported_no_text';"), 'Reviewer must skip semantic metrics and show status-specific copy for typed PDF refusals.');
 assert(e2e.includes('runIdentity') && e2e.includes('archiveSha256') && e2e.includes('commitSha'), 'Corpus E2E must record the tested commit and production archive identity.');
 assert(e2e.includes('exactSignificantText') && e2e.includes('forbiddenControls') && e2e.includes('mediaDispositionCounts'), 'Corpus E2E must enforce exact text, forbidden-control, and media-disposition criteria.');
 assert(corpusFetcher.includes("entry.artifact.pinStatus === 'blocked-license-review'")
@@ -123,10 +147,14 @@ assert(corpusFetcher.includes("entry.artifact.pinStatus === 'blocked-license-rev
 const multicolumn = manifest.find((entry) => entry.id === 'unstructured-multicolumn');
 const formula = manifest.find((entry) => entry.id === 'docling-code-formula');
 const theatre = manifest.find((entry) => entry.id === 'vdl-theatre-script');
+const mineruSource = manifest.find((entry) => entry.id === 'mineru-small-ocr');
 assert(multicolumn?.success?.orderedText?.includes('1 Introduction'), 'Multicolumn review must pin front-matter-to-introduction reading order.');
 assert(multicolumn?.success?.requiredText?.includes('Abstract'), 'Multicolumn review must require its abstract.');
 assert(formula?.success?.requiredText?.includes('a2 + 8 = 12'), 'Formula review must require its real formula text.');
 assert(theatre?.success?.minDialogueParagraphs >= 3, 'Theatre review must require editable dialogue paragraphs.');
+assert(mineruSource?.notes?.includes('classified unsupported_no_text')
+  && mineruSource?.notes?.includes('OCR outside scope')
+  && mineruSource?.notes?.includes('all eight pages receive browser raster requests'), 'MinerU notes must describe the exact no-text boundary and eight-page browser handoff.');
 assert(theatre?.success?.maxCodeBlocks === 0, 'Theatre review must reject code blocks.');
 assert(theatre?.success?.maxLineOrientedBlocks === 0, 'Theatre review must reject preformatted verse blocks.');
 if (theatre) {

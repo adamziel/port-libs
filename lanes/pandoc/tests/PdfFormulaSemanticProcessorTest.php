@@ -91,11 +91,19 @@ return [
         ];
         $positioned = $layout(2, 200.0, 400.0, 260.0, 414.0, 10.0, [
             'text' => 'k3 + 5 = 19',
+            'sourceStream' => 4,
             'sourceOrderStart' => 80,
             'sourceOrderEnd' => 85,
         ]);
 
         $t->same(true, $processor->sourceFragmentsMatchPositionedFormula($source, [0, 1, 2], $positioned));
+        $t->same(false, $processor->sourceFragmentsMatchPositionedFormula($source, [0, 2], $positioned));
+        $wrongPage = $positioned;
+        $wrongPage['page'] = 3;
+        $t->same(false, $processor->sourceFragmentsMatchPositionedFormula($source, [0, 1, 2], $wrongPage));
+        $wrongStream = $positioned;
+        $wrongStream['sourceStream'] = 5;
+        $t->same(false, $processor->sourceFragmentsMatchPositionedFormula($source, [0, 1, 2], $wrongStream));
         $positioned['text'] = 'k3 + 5 = 20';
         $t->same(false, $processor->sourceFragmentsMatchPositionedFormula($source, [0, 1, 2], $positioned));
     },

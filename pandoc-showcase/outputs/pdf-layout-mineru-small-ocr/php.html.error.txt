@@ -1,0 +1,1 @@
+unsupported_no_text: PDF conversion produced no visible text, page asset, or placeholder.

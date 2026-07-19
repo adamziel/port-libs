@@ -1,0 +1,30 @@
+{
+    "version": 1,
+    "samplePath": "samples/pdf-layout-unstructured-ocr-overlay-pdf-with-ocr-text.pdf",
+    "requests": [
+        {
+            "version": 1,
+            "method": "pdfjs-whole-page-raster",
+            "sourceSha256": "a0e8a73f4b94e9f04aabd8d74db9e23c6ef000b5d15ec389ebe86f91a31bb49b",
+            "page": 1,
+            "pageObject": 6,
+            "pageBox": [
+                0,
+                0,
+                300.96,
+                393.12
+            ],
+            "pageBoxSource": "MediaBox",
+            "pageRotation": 0,
+            "width": 602,
+            "height": 787,
+            "mimeType": "image/png",
+            "id": "pdf-page-raster-b07100a1a4ace15fd8be9afcb1d8c31f",
+            "requestDigest": "b07100a1a4ace15fd8be9afcb1d8c31fe9567a1b91033fb43fb707c59a89cbe9",
+            "path": "samples/pdf-layout-unstructured-ocr-overlay-pdf-with-ocr-text.pdf",
+            "label": "PDF page 1",
+            "precedingText": null,
+            "followingText": "Source: https://www.industrydocuments.ucsf.edu/docs/mjgl0226"
+        }
+    ]
+}

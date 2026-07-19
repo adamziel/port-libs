@@ -46,7 +46,13 @@ export function createImportJobSession({
       return null;
     }
 
-    return { version: 1, jobId, status, updatedAt };
+    return {
+      version: 1,
+      jobId,
+      status,
+      cancellationRequested: parsed?.cancellationRequested === true,
+      updatedAt,
+    };
   };
 
   const remember = (snapshot) => {
@@ -62,12 +68,27 @@ export function createImportJobSession({
     // its completion response. Never let that older snapshot recreate the
     // just-cleared Resume pointer during this page lifetime.
     if (terminalJobIds.has(jobId)) return null;
-    const record = { version: 1, jobId, status, updatedAt: now() };
+    const current = load();
+    const record = {
+      version: 1,
+      jobId,
+      status,
+      cancellationRequested: current?.jobId === jobId && current.cancellationRequested === true,
+      updatedAt: now(),
+    };
     try { storage?.setItem(key, JSON.stringify(record)); } catch { /* The live import can continue. */ }
     return record;
   };
 
-  return { load, remember, forget };
+  const requestCancellation = (expectedJobId) => {
+    const current = load();
+    if (!current || current.jobId !== String(expectedJobId || '')) return null;
+    const record = { ...current, cancellationRequested: true, updatedAt: now() };
+    try { storage?.setItem(key, JSON.stringify(record)); } catch { /* The live cancellation can continue. */ }
+    return record;
+  };
+
+  return { load, remember, forget, requestCancellation };
 }
 
 /**
@@ -82,6 +103,8 @@ export async function recoverImportMutation({
   onSnapshot = () => {},
   onRecovery = () => {},
   isActive = () => true,
+  shouldCancel = () => false,
+  cancel = null,
   delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
   maxMutationRetries = 2,
   statusChecksPerRetry = 3,
@@ -95,19 +118,34 @@ export async function recoverImportMutation({
   const mutationRetries = boundedInteger(maxMutationRetries, 0, 10, 2);
   const statusChecks = boundedInteger(statusChecksPerRetry, 1, 20, 3);
   const baseDelay = boundedInteger(statusCheckDelayMs, 0, 60_000, 400);
+  const cancelIfRequested = async () => {
+    if (!shouldCancel()) return { requested: false, snapshot: null };
+    if (typeof cancel !== 'function') throw importCancelledError();
+    const snapshot = await cancel();
+    onSnapshot(snapshot);
+    return { requested: true, snapshot };
+  };
 
   for (let mutationAttempt = 0; mutationAttempt <= mutationRetries; mutationAttempt += 1) {
+    const beforeMutation = await cancelIfRequested();
+    if (beforeMutation.requested) return beforeMutation.snapshot;
     if (!isActive()) throw importCancelledError();
     try {
       const snapshot = await mutate();
       onSnapshot(snapshot);
+      const afterMutation = await cancelIfRequested();
+      if (afterMutation.requested) return afterMutation.snapshot;
       return snapshot;
     } catch (error) {
       lastError = error;
     }
+    const afterMutationError = await cancelIfRequested();
+    if (afterMutationError.requested) return afterMutationError.snapshot;
     if (mutationAttempt >= mutationRetries || !isActive()) break;
 
     for (let statusAttempt = 1; statusAttempt <= statusChecks; statusAttempt += 1) {
+      const beforeStatus = await cancelIfRequested();
+      if (beforeStatus.requested) return beforeStatus.snapshot;
       if (!isActive()) throw importCancelledError();
       onRecovery({
         mutationAttempt: mutationAttempt + 1,
@@ -117,9 +155,13 @@ export async function recoverImportMutation({
         error: lastError,
       });
       if (baseDelay > 0) await delay(baseDelay * statusAttempt);
+      const afterDelay = await cancelIfRequested();
+      if (afterDelay.requested) return afterDelay.snapshot;
       try {
         const snapshot = await readStatus();
         onSnapshot(snapshot);
+        const afterStatus = await cancelIfRequested();
+        if (afterStatus.requested) return afterStatus.snapshot;
         if (String(snapshot?.status || '') !== String(inFlightStatus)) {
           return snapshot;
         }
@@ -130,6 +172,60 @@ export async function recoverImportMutation({
   }
 
   throw lastError instanceof Error ? lastError : new Error(String(lastError || 'Import request failed.'));
+}
+
+/**
+ * Keep retrying a durable cancellation while another request owns the job
+ * lock. Read-only status calls make every retry safe: terminal state wins,
+ * while an active snapshot keeps the cancellation intent explicit.
+ */
+export async function cancelImportMutationDurably({
+  cancel,
+  readStatus,
+  onSnapshot = () => {},
+  onRetry = () => {},
+  isActive = () => true,
+  isRetryableError = retryableCancellationError,
+  delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  retryDelayMs = 400,
+  maxRetryDelayMs = 2_000,
+} = {}) {
+  if (typeof cancel !== 'function' || typeof readStatus !== 'function') {
+    throw new TypeError('Durable import cancellation requires cancel and readStatus callbacks.');
+  }
+  const baseDelay = boundedInteger(retryDelayMs, 0, 60_000, 400);
+  const maximumDelay = boundedInteger(maxRetryDelayMs, baseDelay, 60_000, Math.max(baseDelay, 2_000));
+  let lastError = null;
+  let attempt = 0;
+
+  while (isActive()) {
+    attempt += 1;
+    try {
+      const snapshot = await cancel();
+      onSnapshot(snapshot);
+      if (terminalImportStatus(snapshot?.status)) return snapshot;
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableError(error)) throw error;
+    }
+    if (!isActive()) break;
+
+    try {
+      const snapshot = await readStatus();
+      onSnapshot(snapshot);
+      if (terminalImportStatus(snapshot?.status)) return snapshot;
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableError(error)) throw error;
+    }
+    if (!isActive()) break;
+
+    const waitMs = Math.min(maximumDelay, baseDelay * attempt);
+    onRetry({ attempt, waitMs, error: lastError });
+    if (waitMs > 0) await delay(waitMs);
+  }
+
+  throw lastError instanceof Error ? lastError : importCancelledError();
 }
 
 /**
@@ -188,7 +284,7 @@ export function createPlaygroundPersistence({
 }
 
 export function terminalImportStatus(status) {
-  return ['complete', 'failed'].includes(String(status || ''));
+  return ['complete', 'failed', 'cancelled'].includes(String(status || ''));
 }
 
 function readPersistenceRecord(storage, key, devicePath) {
@@ -209,4 +305,12 @@ function importCancelledError() {
   const error = new Error('Import recovery was cancelled.');
   error.name = 'AbortError';
   return error;
+}
+
+function retryableCancellationError(error) {
+  const status = Number(error?.status || 0);
+  return !Number.isFinite(status)
+    || status <= 0
+    || [408, 409, 423, 425, 429].includes(status)
+    || status >= 500;
 }

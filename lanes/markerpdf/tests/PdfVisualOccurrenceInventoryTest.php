@@ -123,6 +123,63 @@ return [
         $t->contains('Readable text survives every visual disposition.', $text);
     },
 
+    'retains exact image and graphics-state compositing facts on each painted occurrence' => static function (TestRunner $t) use ($visualInventoryPdf): void {
+        $content = "q 100 0 0 100 0 0 cm /Opaque Do Q\n"
+            . "q /Faint gs 100 0 0 100 0 0 cm /Opaque Do Q\n"
+            . "q 100 0 0 100 0 0 cm /Soft Do Q\n"
+            . "q /Multiply gs 100 0 0 100 0 0 cm /Opaque Do Q";
+        $image = "\x80";
+        $pdf = $visualInventoryPdf([
+            1 => '<< /Type /Catalog /Pages 2 0 R >>',
+            2 => '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+            3 => '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100]'
+                . ' /Resources << /ExtGState << /Faint 8 0 R /Multiply 9 0 R >>'
+                . ' /XObject << /Opaque 5 0 R /Soft 6 0 R >> >> /Contents 4 0 R >>',
+            4 => '<< /Length ' . strlen($content) . ">>\nstream\n" . $content . "\nendstream",
+            5 => '<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray'
+                . ' /BitsPerComponent 8 /Length 1>>' . "\nstream\n" . $image . "\nendstream",
+            6 => '<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray'
+                . ' /BitsPerComponent 8 /SMask 7 0 R /OC 10 0 R /Intent /RelativeColorimetric'
+                . ' /Interpolate true /Length 1>>' . "\nstream\n" . $image . "\nendstream",
+            7 => '<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray'
+                . ' /BitsPerComponent 8 /Length 1>>' . "\nstream\n" . $image . "\nendstream",
+            8 => '<< /Type /ExtGState /ca 0.001 >>',
+            9 => '<< /Type /ExtGState /BM /Multiply >>',
+            10 => '<< /Type /OCG /Name (Optional raster) >>',
+        ]);
+
+        $images = array_values(array_filter(
+            (new PdfTextExtractor())->extractVisualOccurrences($pdf),
+            static fn (array $occurrence): bool => ($occurrence['kind'] ?? null) === 'image-xobject'
+        ));
+
+        $t->same(4, count($images));
+        $t->same(false, $images[0]['sourceImageHasSoftMask'] ?? null);
+        $t->same(false, $images[0]['sourceImageHasExplicitMask'] ?? null);
+        $t->same(1.0, $images[0]['nonStrokingAlpha'] ?? null);
+        $t->same(true, $images[0]['graphicsStateBlendModeNormal'] ?? null);
+        $t->same(true, $images[0]['pageImageGraphicsStateSafe'] ?? null);
+        $t->same(false, $images[0]['pageHasGroup'] ?? null);
+        $t->same(false, $images[0]['pageHasDefaultDeviceColorSpace'] ?? null);
+        $t->same(true, $images[0]['compositingKnown'] ?? null);
+        $t->same(false, $images[0]['requiresCompositing'] ?? null);
+
+        $t->same(0.001, $images[1]['nonStrokingAlpha'] ?? null);
+        $t->same(false, $images[1]['pageImageGraphicsStateSafe'] ?? null);
+        $t->same(true, $images[1]['requiresCompositing'] ?? null);
+
+        $t->same(true, $images[2]['sourceImageHasSoftMask'] ?? null);
+        $t->same(true, $images[2]['sourceImageHasOptionalContent'] ?? null);
+        $t->same(true, $images[2]['sourceImageHasIntent'] ?? null);
+        $t->same(true, $images[2]['sourceImageHasInterpolate'] ?? null);
+        $t->same(true, $images[2]['pageImageGraphicsStateSafe'] ?? null);
+        $t->same(true, $images[2]['requiresCompositing'] ?? null);
+
+        $t->same(false, $images[3]['graphicsStateBlendModeNormal'] ?? null);
+        $t->same(false, $images[3]['pageImageGraphicsStateSafe'] ?? null);
+        $t->same(true, $images[3]['requiresCompositing'] ?? null);
+    },
+
     'marks incomplete Form inspection and malformed inline image boundaries unresolved' => static function (TestRunner $t) use ($visualInventoryPdf): void {
         $formContent = str_repeat("0 0 20 20 re f 2 2 10 10 re f ", 20);
         $content = "q 1 0 0 1 10 10 cm /Fx Do Q\nBI /W 1 /H 1 /CS /G /BPC 8";
@@ -142,6 +199,222 @@ return [
         $t->same('unresolved', $inline['disposition'] ?? null);
         $t->same('inline-image-boundary-invalid', $inline['dispositionReason'] ?? null);
     },
+
+    'refuses aggregate Contents byte and token overruns once across every visual scanner' => static function (
+        TestRunner $t
+    ) use ($visualInventoryPdf): void {
+        $image = "\x80";
+        foreach ([
+            [
+                'members' => [str_repeat(' ', 120), '1 0 0 1 0 0 cm /Im Do'],
+                'options' => [
+                    'pdfMaxTokenizedContentStreamBytes' => 128,
+                    'pdfMaxContentTokens' => 4_096,
+                ],
+                'reason' => 'page_contents_combined_byte_limit',
+                'limit' => 128,
+                'actual' => 120 + 1 + strlen('1 0 0 1 0 0 cm /Im Do'),
+            ],
+            [
+                'members' => [str_repeat('q ', 127), '/Im Do'],
+                'options' => [
+                    'pdfMaxTokenizedContentStreamBytes' => 4_096,
+                    'pdfMaxContentTokens' => 128,
+                ],
+                'reason' => 'page_contents_combined_token_limit',
+                'limit' => 128,
+                'actual' => 129,
+            ],
+        ] as $case) {
+            [$firstMember, $secondMember] = $case['members'];
+            $pdf = $visualInventoryPdf([
+                1 => '<< /Type /Catalog /Pages 2 0 R >>',
+                2 => '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+                3 => '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100]'
+                    . ' /Resources << /XObject << /Im 6 0 R >> >> /Contents [4 0 R 5 0 R] >>',
+                4 => '<< /Length ' . strlen($firstMember) . ">>\nstream\n"
+                    . $firstMember . "\nendstream",
+                5 => '<< /Length ' . strlen($secondMember) . ">>\nstream\n"
+                    . $secondMember . "\nendstream",
+                6 => '<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray'
+                    . ' /BitsPerComponent 8 /Length 1>>' . "\nstream\n" . $image . "\nendstream",
+            ]);
+            $extractor = new PdfTextExtractor($case['options']);
+
+            $t->same([], $extractor->extractImagePlacements($pdf));
+            $t->same([], $extractor->extractFormXObjectPlacements($pdf));
+            $t->same([], $extractor->extractPageVectorRegions($pdf));
+
+            $occurrences = $extractor->extractVisualOccurrences($pdf);
+            $t->same(1, count($occurrences));
+            $issue = $occurrences[0] ?? [];
+            $t->same('inspection-issue', $issue['kind'] ?? null);
+            $t->same('unresolved', $issue['disposition'] ?? null);
+            $t->same($case['reason'], $issue['dispositionReason'] ?? null);
+            $t->same($case['reason'], $issue['resourceLimit']['reason'] ?? null);
+            $t->same($case['limit'], $issue['resourceLimit']['limit'] ?? null);
+            $t->same($case['actual'], $issue['resourceLimit']['actual'] ?? null);
+            $t->same(true, $issue['resourceLimit']['recoverable'] ?? null);
+        }
+    },
+
+    'bounds a shared binary Form DAG at one typed visual traversal issue' => static function (
+        TestRunner $t
+    ) use ($visualInventoryPdf): void {
+        $levels = 14;
+        $objects = [
+            1 => '<< /Type /Catalog /Pages 2 0 R >>',
+            2 => '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+            3 => '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100]'
+                . ' /Resources << /XObject << /Root 5 0 R >> >> /Contents 4 0 R >>',
+            4 => "<< /Length 8>>\nstream\n/Root Do\nendstream",
+        ];
+        for ($level = 0; $level < $levels; $level++) {
+            $objectNumber = 5 + $level;
+            $nextObjectNumber = $objectNumber + 1;
+            $content = '/A Do /B Do';
+            $objects[$objectNumber] = '<< /Type /XObject /Subtype /Form /BBox [0 0 1 1]'
+                . ' /Resources << /XObject << /A ' . $nextObjectNumber . ' 0 R'
+                . ' /B ' . $nextObjectNumber . ' 0 R >> >> /Length ' . strlen($content) . ">>\n"
+                . "stream\n" . $content . "\nendstream";
+        }
+        $terminalObjectNumber = 5 + $levels;
+        $imageObjectNumber = $terminalObjectNumber + 1;
+        $terminalContent = '/Im Do';
+        $objects[$terminalObjectNumber] = '<< /Type /XObject /Subtype /Form /BBox [0 0 1 1]'
+            . ' /Resources << /XObject << /Im ' . $imageObjectNumber . ' 0 R >> >>'
+            . ' /Length ' . strlen($terminalContent) . ">>\nstream\n"
+            . $terminalContent . "\nendstream";
+        $objects[$imageObjectNumber] = '<< /Type /XObject /Subtype /Image /Width 1 /Height 1'
+            . ' /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 1>>'
+            . "\nstream\n\x80\nendstream";
+
+        $occurrences = (new PdfTextExtractor())->extractVisualOccurrences($visualInventoryPdf($objects));
+        $visitIssues = array_values(array_filter(
+            $occurrences,
+            static fn (array $item): bool => ($item['dispositionReason'] ?? null)
+                === 'form_xobject_visual_visit_limit'
+        ));
+
+        $t->same(1, count($visitIssues));
+        $t->same('inspection-issue', $visitIssues[0]['kind'] ?? null);
+        $t->same('form_xobject_visual_visit_limit', $visitIssues[0]['resourceLimit']['reason'] ?? null);
+        $t->same(4_096, $visitIssues[0]['resourceLimit']['limit'] ?? null);
+        $t->same(4_097, $visitIssues[0]['resourceLimit']['actual'] ?? null);
+        $t->same(true, $visitIssues[0]['resourceLimit']['recoverable'] ?? null);
+        $t->true(count($occurrences) < 8_192, 'The Form traversal ceiling must stop before the global occurrence tail.');
+        $t->same(0, count(array_filter(
+            $occurrences,
+            static fn (array $item): bool => ($item['dispositionReason'] ?? null) === 'visual-occurrence-limit'
+        )));
+    },
+
+    'retains decoded byte limit metadata for page and Form visual refusals' => static function (
+        TestRunner $t
+    ) use ($visualInventoryPdf): void {
+        $pageContent = str_repeat('q Q ', 30);
+        $pagePdf = $visualInventoryPdf([
+            1 => '<< /Type /Catalog /Pages 2 0 R >>',
+            2 => '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+            3 => '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100]'
+                . ' /Resources << >> /Contents 4 0 R >>',
+            4 => '<< /Length ' . strlen($pageContent) . ">>\nstream\n"
+                . $pageContent . "\nendstream",
+        ]);
+        $pageOccurrences = (new PdfTextExtractor([
+            'pdfMaxDecodedStreamBytes' => 64,
+        ]))->extractVisualOccurrences($pagePdf);
+        $t->same(1, count($pageOccurrences));
+        $pageIssue = $pageOccurrences[0] ?? [];
+        $t->same('inspection-issue', $pageIssue['kind'] ?? null);
+        $t->same('decoded_stream_byte_limit', $pageIssue['dispositionReason'] ?? null);
+        $t->same('decoded_stream_byte_limit', $pageIssue['resourceLimit']['reason'] ?? null);
+        $t->same(64, $pageIssue['resourceLimit']['limit'] ?? null);
+        $t->same(strlen($pageContent), $pageIssue['resourceLimit']['actual'] ?? null);
+        $t->same('Unfiltered', $pageIssue['resourceLimit']['limitFilter'] ?? null);
+        $t->same(true, $pageIssue['resourceLimit']['recoverable'] ?? null);
+
+        $formContent = str_repeat('0 0 1 1 re f ', 8);
+        $formPageContent = '/Fx Do';
+        $formPdf = $visualInventoryPdf([
+            1 => '<< /Type /Catalog /Pages 2 0 R >>',
+            2 => '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+            3 => '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100]'
+                . ' /Resources << /XObject << /Fx 5 0 R >> >> /Contents 4 0 R >>',
+            4 => '<< /Length ' . strlen($formPageContent) . ">>\nstream\n"
+                . $formPageContent . "\nendstream",
+            5 => '<< /Type /XObject /Subtype /Form /BBox [0 0 1 1]'
+                . ' /Length ' . strlen($formContent) . ">>\nstream\n"
+                . $formContent . "\nendstream",
+        ]);
+        $formOccurrences = (new PdfTextExtractor([
+            'pdfMaxDecodedStreamBytes' => 64,
+        ]))->extractVisualOccurrences($formPdf);
+        $formIssues = array_values(array_filter(
+            $formOccurrences,
+            static fn (array $item): bool => ($item['dispositionReason'] ?? null)
+                === 'form_xobject_visual_byte_limit'
+        ));
+
+        $t->same(1, count($formIssues));
+        $t->same('inspection-issue', $formIssues[0]['kind'] ?? null);
+        $t->same('form_xobject_visual_byte_limit', $formIssues[0]['resourceLimit']['reason'] ?? null);
+        $t->same(64, $formIssues[0]['resourceLimit']['limit'] ?? null);
+        $t->same(strlen($formContent), $formIssues[0]['resourceLimit']['actual'] ?? null);
+        $t->same(true, $formIssues[0]['resourceLimit']['recoverable'] ?? null);
+        $t->same(1, count(array_filter(
+            $formOccurrences,
+            static fn (array $item): bool => ($item['kind'] ?? null) === 'form-xobject'
+                && ($item['visualSummary']['complete'] ?? null) === false
+        )));
+    },
+
+    'deduplicates an omitted Form traversal issue before reporting the exact terminal tail' => static function (
+        TestRunner $t
+    ) use ($visualInventoryPdf): void {
+        $imagePaintCount = 8_191;
+        $pageContent = str_repeat('/Im Do ', $imagePaintCount) . '/Fx Do';
+        $formContent = str_repeat(' ', 60_001);
+        $image = "\x80";
+        $pdf = $visualInventoryPdf([
+            1 => '<< /Type /Catalog /Pages 2 0 R >>',
+            2 => '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+            3 => '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100]'
+                . ' /Resources << /XObject << /Im 5 0 R /Fx 6 0 R >> >> /Contents 4 0 R >>',
+            4 => '<< /Length ' . strlen($pageContent) . ">>\nstream\n"
+                . $pageContent . "\nendstream",
+            5 => '<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray'
+                . ' /BitsPerComponent 8 /Length 1>>' . "\nstream\n" . $image . "\nendstream",
+            6 => '<< /Type /XObject /Subtype /Form /BBox [0 0 1 1]'
+                . ' /Length ' . strlen($formContent) . ">>\nstream\n"
+                . $formContent . "\nendstream",
+        ]);
+
+        $extractor = new PdfTextExtractor([
+            'pdfMaxTokenizedContentStreamBytes' => 60_000,
+        ]);
+        $occurrences = $extractor->extractVisualOccurrences($pdf);
+        $limitIssue = $occurrences[array_key_last($occurrences)] ?? [];
+
+        $t->same(8_192, count($occurrences));
+        $t->same($imagePaintCount, count(array_filter(
+            $occurrences,
+            static fn (array $item): bool => ($item['kind'] ?? null) === 'image-xobject'
+        )));
+        $t->same('visual-occurrence-limit', $limitIssue['dispositionReason'] ?? null);
+        $t->same(
+            2,
+            $limitIssue['omittedOccurrences'] ?? null,
+            'One omitted Form placement plus one shared traversal issue are the only unique tail facts.'
+        );
+        $t->same(count($occurrences), count(array_unique(array_column($occurrences, 'id'))));
+
+        $second = $extractor->extractVisualOccurrences($pdf);
+        $secondLimitIssue = $second[array_key_last($second)] ?? [];
+        $t->same(array_column($occurrences, 'id'), array_column($second, 'id'));
+        $t->same(2, $secondLimitIssue['omittedOccurrences'] ?? null);
+    },
+
     'bounds a one page occurrence bomb while reporting the exact recoverable tail' => static function (TestRunner $t) use ($visualInventoryPdf): void {
         $paintCount = 8_300;
         $content = str_repeat("q 1 0 0 1 0 0 cm /Im Do Q\n", $paintCount);

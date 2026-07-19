@@ -317,7 +317,20 @@ for (const button of verdictButtons) button.addEventListener('click', () => {
   renderVerdict();
 });
 convertedFrame.addEventListener('load', () => {
-  if (convertedFrame.dataset.loadedPath !== selectedExample().previewPath) return;
+  const example = selectedExample();
+  if (convertedFrame.dataset.loadedPath !== example.previewPath) return;
+  if (example.previewStatus === 'incomplete' || example.previewStatus === 'unsupported_no_text') {
+    renderCriteria();
+    const noNativeText = example.previewStatus === 'unsupported_no_text';
+    convertedStatus.textContent = noNativeText
+      ? 'No editable native text · browser page review required'
+      : 'Extraction incomplete · no editable import';
+    qualitySummary.textContent = noNativeText
+      ? 'Not scored · OCR outside importer'
+      : 'Not scored · source extraction unresolved';
+    qualitySummary.style.color = 'var(--bad)';
+    return;
+  }
   try {
     const metrics = iframeMetrics(convertedFrame.contentDocument);
     renderCriteria(evaluateCriteria(metrics));

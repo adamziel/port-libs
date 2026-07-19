@@ -3130,6 +3130,22 @@ final class WordPressBlockWriter
 
     private function codeBlockLanguage(AstNode $node): string
     {
+        $classes = $node->attr('classes', []);
+        $attributes = $node->attr('attributes', []);
+        $hasLanguageAttribute = is_array($attributes)
+            && array_filter(
+                ['language', 'data-language', 'lang'],
+                static fn (string $name): bool => isset($attributes[$name])
+                    && trim((string) $attributes[$name]) !== ''
+            ) !== [];
+        if ((!is_array($classes) || $classes === [])
+            && !$hasLanguageAttribute
+            && trim((string) $node->attr('info', '')) === '') {
+            // Plain inferred blocks have no language surface to normalize.
+            // Avoid loading the full highlighter grammar table merely to
+            // rediscover that fact while a large import AST is resident.
+            return '';
+        }
         $language = SyntaxHighlighter::languageFromCodeBlock($node);
         $normalized = SyntaxHighlighter::normalizeLanguage($language);
 
@@ -3803,7 +3819,8 @@ final class WordPressBlockWriter
         }
 
         return '<!-- wp:verse -->'
-            . "\n" . '<pre class="wp-block-verse">' . implode("\n", $lines) . '</pre>'
+            . "\n" . '<pre' . $this->renderBlockHtmlAttrsWithClasses($node, ['wp-block-verse']) . '>'
+            . implode("\n", $lines) . '</pre>'
             . "\n" . '<!-- /wp:verse -->';
     }
 

@@ -31,6 +31,52 @@ $record = static function (
     ];
 };
 
+$sourceSha256 = str_repeat('a', 64);
+
+$exactRecord = static function (
+    string $text,
+    float $x1,
+    float $y1,
+    float $x2,
+    float $y2,
+    float $fontSize,
+    int $order,
+    int $sourceIndex
+) use ($record): array {
+    $result = $record($text, $x1, $y1, $x2, $y2, $fontSize, $order);
+    $projection = preg_replace('/[\s\p{Cc}\p{Cf}]+/u', '', $text) ?? '';
+    $range = [
+        'sourceIndex' => $sourceIndex,
+        'sourceStart' => 0,
+        'sourceEnd' => strlen($projection),
+    ];
+    $result['layout'] = array_replace($result['layout'], [
+        'id' => 'inline-source-' . $sourceIndex,
+        'text' => $text,
+        'sourceOrderStart' => $sourceIndex,
+        'sourceOrderEnd' => $sourceIndex,
+        'sourcePdfSourceIndex' => $sourceIndex,
+        'sourcePdfSourceIndexEnd' => $sourceIndex,
+        'sourcePdfSourceIndexes' => [$sourceIndex],
+        'sourcePdfGlobalSourceIndex' => $sourceIndex,
+        'sourcePdfExactSourceRanges' => [$range],
+        'sourceGeometry' => [
+            'page' => 1,
+            'stream' => 1,
+            'x1' => $x1,
+            'y1' => $y1,
+            'x2' => $x2,
+            'y2' => $y2,
+            'orientation' => 'horizontal',
+        ],
+        'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+        'sourcePdfExactGeometryFallback' => true,
+        'sourceUnmatchedFallback' => true,
+    ]);
+
+    return $result;
+};
+
 return [
     'inline marker processor reattaches a detached numeric superscript by geometry' => static function (TestRunner $t) use ($record): void {
         $processor = new PdfInlineMarkerSemanticProcessor();
@@ -56,6 +102,58 @@ return [
 
         $t->same('Contributors†', $records[0]['text']);
         $t->same(1, $processor->markerCount());
+    },
+
+    'inline marker processor carries a validated exact union for consecutive source occurrences' => static function (TestRunner $t) use ($exactRecord, $sourceSha256): void {
+        $processor = new PdfInlineMarkerSemanticProcessor($sourceSha256);
+        $records = $processor->process([
+            $exactRecord(',w', 80.0, 394.0, 99.0, 407.0, 10.0, 20, 30),
+            $exactRecord('(i)', 97.0, 399.0, 108.0, 408.0, 7.0, 21, 31),
+        ]);
+
+        $t->same(',w(i)', $records[0]['text']);
+        $t->same(',w(i)', $records[0]['layout']['text']);
+        $t->same([30, 31], $records[0]['layout']['sourcePdfGlobalSourceIndexes']);
+        $t->same(null, $records[0]['layout']['sourcePdfSourceIndexes'] ?? null);
+        $t->same(['inline-source-30', 'inline-source-31'], $records[0]['layout']['sourcePdfSourceIds']);
+        $t->same([
+            ['sourceIndex' => 30, 'sourceStart' => 0, 'sourceEnd' => 2],
+            ['sourceIndex' => 31, 'sourceStart' => 0, 'sourceEnd' => 3],
+        ], $records[0]['layout']['sourcePdfExactSourceRanges']);
+        $inlineProof = $records[0]['layout']['sourcePdfInlineMarkerExactSourceUnionProof'] ?? null;
+        $t->same(null, $records[0]['layout']['sourcePdfWholeExactOccurrenceProof'] ?? null);
+        $t->true(is_array($inlineProof));
+        $t->same('exact-source-inline-marker-union', $inlineProof['method']);
+        $t->same($sourceSha256, $inlineProof['sourceSha256']);
+        $t->same(2, count($inlineProof['components']));
+        $t->same(hash('sha256', ',w(i)'), $inlineProof['projectionDigest']);
+        $t->same(null, $records[0]['layout']['sourcePdfExactPositionedText'] ?? null);
+    },
+
+    'inline marker processor clears stale exact identity when a source union is unproved' => static function (TestRunner $t) use ($exactRecord, $sourceSha256): void {
+        $base = $exactRecord(',w', 80.0, 394.0, 99.0, 407.0, 10.0, 20, 30);
+        $validMarker = $exactRecord('(i)', 97.0, 399.0, 108.0, 408.0, 7.0, 21, 31);
+        $missingRange = $validMarker;
+        unset($missingRange['layout']['sourcePdfExactSourceRanges']);
+        $tamperedRange = $validMarker;
+        $tamperedRange['layout']['sourcePdfExactSourceRanges'][0]['sourceEnd']--;
+        $tamperedGeometry = $validMarker;
+        $tamperedGeometry['layout']['sourceGeometry']['page'] = 2;
+        $overlapping = $exactRecord('(i)', 97.0, 399.0, 108.0, 408.0, 7.0, 21, 30);
+        $nonconsecutive = $exactRecord('(i)', 97.0, 399.0, 108.0, 408.0, 7.0, 21, 32);
+
+        foreach ([$missingRange, $tamperedRange, $tamperedGeometry, $overlapping, $nonconsecutive] as $marker) {
+            $records = (new PdfInlineMarkerSemanticProcessor($sourceSha256))->process([$base, $marker]);
+            $layout = $records[0]['layout'];
+            $t->same(',w(i)', $records[0]['text']);
+            $t->same(null, $layout['sourcePdfExactSourceRanges'] ?? null);
+            $t->same(null, $layout['sourcePdfWholeExactOccurrenceProof'] ?? null);
+            $t->same(null, $layout['sourcePdfInlineMarkerExactSourceUnionProof'] ?? null);
+            $t->same(null, $layout['sourcePdfGlobalSourceIndex'] ?? null);
+            $t->same(null, $layout['sourcePdfGlobalSourceIndexes'] ?? null);
+            $t->same(null, $layout['sourcePdfExactPositionedText'] ?? null);
+            $t->same(null, $layout['id'] ?? null);
+        }
     },
 
     'inline marker processor preserves full-size section numbers as separate records' => static function (TestRunner $t) use ($record): void {
