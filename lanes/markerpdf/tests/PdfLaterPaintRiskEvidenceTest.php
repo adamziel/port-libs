@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
-$pdfWithImage = static function (string $content, string $resource = 'Im26'): string {
+$pdfWithImage = static function (
+    string $content,
+    string $resource = 'Im26',
+    ?string $fontDictionary = null
+): string {
     $imageBytes = "\x80";
+    $fontDictionary ??= '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica '
+        . '/Encoding /WinAnsiEncoding >>';
 
     return "%PDF-1.7\n"
         . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
@@ -14,8 +20,7 @@ $pdfWithImage = static function (string $content, string $resource = 'Im26'): st
         . "/Resources << /Font << /F1 5 0 R >> /XObject << /{$resource} 6 0 R >> >> "
         . "/Contents 4 0 R >>\nendobj\n"
         . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
-        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica "
-        . "/Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "5 0 obj\n{$fontDictionary}\nendobj\n"
         . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 "
         . "/ColorSpace /DeviceGray /BitsPerComponent 8 /Length " . strlen($imageBytes)
         . " >>\nstream\n{$imageBytes}\nendstream\nendobj\n"
@@ -156,6 +161,109 @@ return [
         $t->same(true, $disjoint['complete'] ?? null);
     },
 
+    'markerpdf proves every cubic component disjoint in a false-overlap stroke' => static function (
+        TestRunner $t
+    ) use ($pdfWithImage): void {
+        // The first cubic is the reduced Muir geometry: its expanded axis-
+        // aligned box overlaps the rotated glyph even though its bounded
+        // stroke does not. A second connected cubic keeps this on the
+        // multi-component path that previously lost the exact proof.
+        $content = 'BT /F1 7.889 Tf '
+            . '.6847077 -.7288178 .7288178 .6847077 297.0434 529.6103 Tm (T) Tj ET '
+            . 'q 1.914 w 1 0 0 1 288.3212 533.3932 cm '
+            . '0 0 m 18.445 -19.661 22.803 -21.964 v '
+            . '30 -30 35 -35 40 -40 c S Q';
+        $visibility = (new PdfTextExtractor())->diagnostics(
+            $pdfWithImage($content)
+        )['textVisibility'];
+
+        $t->same(0, $visibility['unresolvedOcclusionRiskRuns'] ?? null);
+        $t->same([], $visibility['unresolvedReasons'] ?? null);
+        $t->same(true, $visibility['complete'] ?? null);
+    },
+
+    'markerpdf keeps a crossing component of a multi-cubic stroke fail closed' => static function (
+        TestRunner $t
+    ) use ($pdfWithImage): void {
+        $content = 'BT /F1 12 Tf 1 0 0 1 100 100 Tm (ABC) Tj ET '
+            . '2 w 100 105 m 110 105 130 105 150 105 c '
+            . '160 110 170 120 180 130 c S';
+        $visibility = (new PdfTextExtractor())->diagnostics(
+            $pdfWithImage($content)
+        )['textVisibility'];
+
+        $t->same(1, $visibility['unresolvedOcclusionRiskRuns'] ?? null);
+        $t->same(1, $visibility['unresolvedReasonCounts']['later-paint-occlusion'] ?? null);
+        $t->same(false, $visibility['complete'] ?? null);
+    },
+
+    'markerpdf exhausts aggregate cubic proof work fail closed' => static function (
+        TestRunner $t
+    ) use ($pdfWithImage): void {
+        $text = str_repeat(
+            'BT /F1 7.889 Tf '
+                . '.6847077 -.7288178 .7288178 .6847077 297.0434 529.6103 Tm (T) Tj ET ',
+            300
+        );
+        $component = '0 0 m 18.445 -19.661 22.803 -21.964 v ';
+        $content = $text
+            . 'q 1.914 w 1 0 0 1 288.3212 533.3932 cm '
+            . str_repeat($component, 300)
+            . 'S Q';
+        $visibility = (new PdfTextExtractor())->diagnostics(
+            $pdfWithImage($content)
+        )['textVisibility'];
+
+        $t->true(($visibility['unresolvedOcclusionRiskRuns'] ?? 0) > 0);
+        $t->true(
+            ($visibility['unresolvedReasonCounts']['later-paint-occlusion'] ?? 0) > 0
+        );
+        $t->same(false, $visibility['complete'] ?? null);
+    },
+
+    'markerpdf does not trust a declared font box without an embedded program' => static function (
+        TestRunner $t
+    ) use ($pdfWithImage): void {
+        $font = '<< /Type /Font /Subtype /TrueType /BaseFont /UnembeddedBounds '
+            . '/Encoding /WinAnsiEncoding /FirstChar 65 /LastChar 67 '
+            . '/Widths [600 600 600] '
+            . '/FontDescriptor << /FontBBox [0 -200 600 500] >> >>';
+        $content = 'BT /F1 10 Tf 1 0 0 1 100 100 Tm (ABC) Tj ET '
+            . '0.5 w 90 107 m 140 107 l S';
+        $visibility = (new PdfTextExtractor())->diagnostics(
+            $pdfWithImage($content, 'Im26', $font)
+        )['textVisibility'];
+
+        $t->same(1, $visibility['unresolvedOcclusionRiskRuns'] ?? null);
+        $t->same(1, $visibility['unresolvedReasonCounts']['later-paint-occlusion'] ?? null);
+        $t->same(false, $visibility['complete'] ?? null);
+    },
+
+    'markerpdf uses verified embedded font bounds for the TraceMonkey page-eleven border' => static function (
+        TestRunner $t
+    ): void {
+        $path = dirname(__DIR__, 3)
+            . '/pandoc-showcase/samples/pdf-tracemonkey-tracemonkey.pdf';
+        $pdf = is_file($path) ? file_get_contents($path) : false;
+        $t->true(is_string($pdf) && $pdf !== '', 'Expected the TraceMonkey fixture.');
+        if (!is_string($pdf) || $pdf === '') {
+            return;
+        }
+
+        $visibility = (new PdfTextExtractor())->diagnostics($pdf)['textVisibility'];
+        $pageEleven = null;
+        foreach ($visibility['pages'] ?? [] as $page) {
+            if (($page['page'] ?? null) === 11) {
+                $pageEleven = $page;
+                break;
+            }
+        }
+
+        $t->same(0, $pageEleven['unresolvedOcclusionRiskRuns'] ?? null);
+        $t->same(0, $pageEleven['laterPaintRiskRecordedCount'] ?? null);
+        $t->same(0, $pageEleven['laterPaintRiskUnboundCount'] ?? null);
+    },
+
     'markerpdf bounds and reports a truncated later paint risk inventory' => static function (
         TestRunner $t
     ) use ($pdfWithImage, $digest): void {
@@ -182,5 +290,12 @@ return [
         $t->same($digest($risks), $visibility['laterPaintRisksDigest'] ?? null);
         $t->same(64, count(array_unique(array_column($risks, 'id'))));
         $t->same(64, count(array_unique(array_column($risks, 'riskDigest'))));
+        $page = $visibility['pages'][0] ?? [];
+        $t->same(false, $page['complete'] ?? null);
+        $t->same(65, $page['laterPaintRiskCount'] ?? null);
+        $t->same(64, $page['laterPaintRiskRecordedCount'] ?? null);
+        $t->same(0, $page['laterPaintRiskUnboundCount'] ?? null);
+        $t->same(1, $page['laterPaintRiskTruncatedCount'] ?? null);
+        $t->same($digest($risks), $page['laterPaintRisksDigest'] ?? null);
     },
 ];

@@ -1073,6 +1073,10 @@ return [
         foreach ([
             'missing boundary space' => 'Complete Step 2 if youhold more than one job.',
             'duplicate boundary space' => 'Complete Step 2 if you  hold more than one job.',
+            'zero-width boundary space' => "Complete Step 2 if you\u{200B}hold more than one job.",
+            'intra-occurrence space' => 'Comp lete Step 2 if you hold more than one job.',
+            'intra-occurrence zero-width space' =>
+                "Comp\u{200B}lete Step 2 if you hold more than one job.",
         ] as $name => $text) {
             $invalidSpace = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
                 $source,
@@ -1233,6 +1237,26 @@ return [
             $binding['blocks'][0]->children()[0]->attr('sourceLineIds')
         );
 
+        foreach ([
+            'inserted intra-occurrence spaces' =>
+                'Under lying consid erations: employee rec ords.',
+            'inserted zero-width spacing' =>
+                "Under\u{200B}lying considerations: employee records.",
+        ] as $name => $alteredVisibleText) {
+            $alteredVisibleBinding =
+                PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+                    $source,
+                    [$orderedList($alteredVisibleText)],
+                    $dispositions
+                );
+            $t->same(false, $alteredVisibleBinding['complete'], $name);
+            $t->same(
+                'semantic-list-marker-has-no-unique-structural-target',
+                $alteredVisibleBinding['failureReason'],
+                $name
+            );
+        }
+
         $wrongDigest = $dispositions;
         $wrongDigest['marker']['semanticStructureProof']['anchorProjectionDigest'] = str_repeat('0', 64);
         $wrongDigestBinding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
@@ -1275,6 +1299,982 @@ return [
             'semantic-list-marker-extended-anchor-proof-does-not-match-source',
             $wrongStreamBinding['failureReason']
         );
+    },
+
+    'pdf source disposition binding consumes only exact ordinary presentation-repair receipts' => static function (
+        TestRunner $t
+    ) use ($orderedList): void {
+        $sourceSha256 = str_repeat('7', 64);
+        $source = [
+            ['id' => 'repair-marker', 'page' => 8, 'stream' => 4, 'text' => '1.'],
+            ['id' => 'repair-anchor', 'page' => 8, 'stream' => 4, 'text' => 'A few algebraic'],
+            [
+                'id' => 'repair-following',
+                'page' => 8,
+                'stream' => 4,
+                'text' => 'identities (e.g.,a−a= 0), and',
+            ],
+        ];
+        $significant = static fn (string $text): string =>
+            preg_replace('/[\s\p{Cc}\p{Cf}]+/u', '', $text) ?? '';
+        $anchorSignificant = $significant($source[1]['text']);
+        $followingSignificant = $significant($source[2]['text']);
+        $prefixSignificant = $anchorSignificant . $followingSignificant;
+        $visiblePrefix = 'A few algebraic identities (e.g., a−a= 0), and';
+        $targetAuthorization = [
+            'significantDigest' => hash('sha256', $prefixSignificant),
+            'strictVisibleDigest' => hash('sha256', $visiblePrefix),
+        ];
+        $receipt = [
+            'version' => 1,
+            'method' => 'exact-consecutive-list-presentation-repair-prefix',
+            'sourceSha256' => $sourceSha256,
+            'page' => 8,
+            'stream' => 4,
+            'sourceOccurrenceIds' => ['repair-anchor', 'repair-following'],
+            'globalSourceIndexes' => [1, 2],
+            'prefixProjectionDigest' => hash('sha256', $prefixSignificant),
+            'visiblePrefix' => $visiblePrefix,
+            'visiblePrefixDigest' => hash('sha256', $visiblePrefix),
+            'finalPageProjectionDigest' => hash('sha256', $prefixSignificant),
+            'authorizedTargets' => [$targetAuthorization],
+            'significantBoundaryOffsets' => [strlen($anchorSignificant)],
+            'visibleBoundarySpaces' => [true],
+        ];
+        $receipt['proofDigest'] = hash('sha256', json_encode(
+            $receipt,
+            JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+                | JSON_PRESERVE_ZERO_FRACTION
+        ) ?: '');
+        $dispositions = [
+            'repair-marker' => [
+                'disposition' => 'semantic-structure',
+                'reason' => 'An exact retained layout proves the repaired visible list prefix.',
+                'textProjection' => '',
+                'semanticStructureProof' => [
+                    'version' => 2,
+                    'method' => 'exact-standalone-list-marker-to-item',
+                    'listType' => 'ordered',
+                    'markerOrdinal' => 1,
+                    'markerDigest' => hash('sha256', '1.'),
+                    'anchorSourceOccurrenceId' => 'repair-anchor',
+                    'anchorSourceOccurrenceIds' => ['repair-anchor', 'repair-following'],
+                    'anchorProjectionDigest' => hash('sha256', $prefixSignificant),
+                    'itemProjectionDigest' => hash('sha256', $prefixSignificant),
+                    'presentationRepairReceipt' => $receipt,
+                ],
+            ],
+        ];
+        $blocks = [$orderedList($visiblePrefix)];
+        $bindingContext = [
+            'sourceSha256' => $sourceSha256,
+            'finalPageProjectionDigests' => [
+                8 => hash('sha256', $prefixSignificant),
+            ],
+        ];
+
+        $binding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            $blocks,
+            $dispositions,
+            $bindingContext
+        );
+        $t->same(true, $binding['complete']);
+        $t->same(null, $binding['failureReason']);
+        $t->same(
+            ['repair-anchor', 'repair-following'],
+            $binding['blocks'][0]->children()[0]->attr('sourceLineIds')
+        );
+        $ledger = PdfSourceDispositionLedger::fromSourceLineItems(
+            $source,
+            $binding['blocks'],
+            $binding['explicitDispositions'],
+            $bindingContext
+        );
+        $t->same(true, $ledger['allOccurrencesResolved']);
+        $t->same(true, $ledger['sourceEdgeMappingComplete']);
+
+        foreach ([
+            'missing repaired space' => 'A few algebraic identities (e.g.,a−a= 0), and',
+            'duplicate repaired space' => 'A few algebraic identities (e.g.,  a−a= 0), and',
+            'tab repaired space' => "A few algebraic identities (e.g.,\ta−a= 0), and",
+            'non-breaking repaired space' =>
+                "A few algebraic identities (e.g.,\u{00A0}a−a= 0), and",
+            'zero-width repaired space' =>
+                "A few algebraic identities (e.g.,\u{200B}a−a= 0), and",
+            'trailing zero-width space' => $visiblePrefix . "\u{200B}",
+        ] as $name => $alteredVisibleText) {
+            $altered = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+                $source,
+                [$orderedList($alteredVisibleText)],
+                $dispositions,
+                $bindingContext
+            );
+            $t->same(false, $altered['complete'], $name);
+            $t->same(
+                'semantic-list-marker-has-no-unique-structural-target',
+                $altered['failureReason'],
+                $name
+            );
+        }
+
+        $rehashReceipt = static function (array &$candidate): void {
+            $candidateReceipt = &$candidate['repair-marker']['semanticStructureProof']
+                ['presentationRepairReceipt'];
+            $candidateReceipt['proofDigest'] = hash('sha256', json_encode(
+                array_diff_key($candidateReceipt, ['proofDigest' => true]),
+                JSON_UNESCAPED_SLASHES
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: '');
+        };
+        foreach ([
+            'source SHA' => static function (array &$candidate): void {
+                $candidate['repair-marker']['semanticStructureProof']
+                    ['presentationRepairReceipt']['sourceSha256'] = str_repeat('0', 64);
+            },
+            'final page digest' => static function (array &$candidate): void {
+                $candidate['repair-marker']['semanticStructureProof']
+                    ['presentationRepairReceipt']['finalPageProjectionDigest'] =
+                        str_repeat('0', 64);
+            },
+            'source IDs' => static function (array &$candidate): void {
+                $candidate['repair-marker']['semanticStructureProof']
+                    ['presentationRepairReceipt']['sourceOccurrenceIds'][1] = 'stale-following';
+            },
+            'global indexes' => static function (array &$candidate): void {
+                $candidate['repair-marker']['semanticStructureProof']
+                    ['presentationRepairReceipt']['globalSourceIndexes'] = [2, 3];
+            },
+            'boundary offset' => static function (array &$candidate): void {
+                $candidate['repair-marker']['semanticStructureProof']
+                    ['presentationRepairReceipt']['significantBoundaryOffsets'][0]++;
+            },
+            'boundary space' => static function (array &$candidate): void {
+                $candidate['repair-marker']['semanticStructureProof']
+                    ['presentationRepairReceipt']['visibleBoundarySpaces'][0] = false;
+            },
+            'visible prefix' => static function (array &$candidate): void {
+                $candidateReceipt = &$candidate['repair-marker']['semanticStructureProof']
+                    ['presentationRepairReceipt'];
+                $candidateReceipt['visiblePrefix'] = str_replace(
+                    'e.g., a',
+                    "e.g.,\u{200B}a",
+                    $candidateReceipt['visiblePrefix']
+                );
+                $candidateReceipt['visiblePrefixDigest'] = hash(
+                    'sha256',
+                    $candidateReceipt['visiblePrefix']
+                );
+            },
+            'target authorization' => static function (array &$candidate): void {
+                $candidate['repair-marker']['semanticStructureProof']
+                    ['presentationRepairReceipt']['authorizedTargets'][0]
+                    ['strictVisibleDigest'] = str_repeat('0', 64);
+            },
+        ] as $name => $tamper) {
+            $invalidDispositions = $dispositions;
+            $tamper($invalidDispositions);
+            $rehashReceipt($invalidDispositions);
+            $invalid = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+                $source,
+                $blocks,
+                $invalidDispositions,
+                $bindingContext
+            );
+            $t->same(false, $invalid['complete'], $name);
+        }
+
+        $missingContext = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            $blocks,
+            $dispositions
+        );
+        $t->same(false, $missingContext['complete']);
+
+        $downgradeSource = [
+            ['id' => 'downgrade-marker', 'page' => 9, 'stream' => 5, 'text' => '1.'],
+            ['id' => 'downgrade-anchor', 'page' => 9, 'stream' => 5, 'text' => 'Alpha'],
+            ['id' => 'downgrade-second', 'page' => 9, 'stream' => 5, 'text' => 'beta'],
+            ['id' => 'downgrade-third', 'page' => 9, 'stream' => 5, 'text' => 'gamma.'],
+        ];
+        $downgradeVisible = 'Alpha beta gamma.';
+        $downgradeSignificant = 'Alphabetagamma.';
+        $downgradeReceipt = [
+            'version' => 1,
+            'method' => 'exact-consecutive-list-presentation-repair-prefix',
+            'sourceSha256' => str_repeat('0', 64),
+            'page' => 9,
+            'stream' => 5,
+            'sourceOccurrenceIds' => [
+                'downgrade-anchor',
+                'downgrade-second',
+                'downgrade-third',
+            ],
+            'globalSourceIndexes' => [1, 2, 3],
+            'prefixProjectionDigest' => hash('sha256', $downgradeSignificant),
+            'visiblePrefix' => $downgradeVisible,
+            'visiblePrefixDigest' => hash('sha256', $downgradeVisible),
+            'finalPageProjectionDigest' => hash('sha256', $downgradeSignificant),
+            'authorizedTargets' => [[
+                'significantDigest' => hash('sha256', $downgradeSignificant),
+                'strictVisibleDigest' => hash('sha256', $downgradeVisible),
+            ]],
+            'significantBoundaryOffsets' => [strlen('Alpha'), strlen('Alphabeta')],
+            'visibleBoundarySpaces' => [true, true],
+        ];
+        $downgradeReceipt['proofDigest'] = hash('sha256', json_encode(
+            $downgradeReceipt,
+            JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+                | JSON_PRESERVE_ZERO_FRACTION
+        ) ?: '');
+        $downgradeDispositions = [
+            'downgrade-marker' => [
+                'disposition' => 'semantic-structure',
+                'reason' => 'A stale receipt must not downgrade to ordinary visible matching.',
+                'textProjection' => '',
+                'semanticStructureProof' => [
+                    'version' => 2,
+                    'method' => 'exact-standalone-list-marker-to-item',
+                    'listType' => 'ordered',
+                    'markerOrdinal' => 1,
+                    'markerDigest' => hash('sha256', '1.'),
+                    'anchorSourceOccurrenceId' => 'downgrade-anchor',
+                    'anchorSourceOccurrenceIds' => [
+                        'downgrade-anchor',
+                        'downgrade-second',
+                        'downgrade-third',
+                    ],
+                    'anchorProjectionDigest' => hash('sha256', $downgradeSignificant),
+                    'itemProjectionDigest' => hash('sha256', $downgradeSignificant),
+                    'presentationRepairReceipt' => $downgradeReceipt,
+                ],
+            ],
+        ];
+        $downgrade = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $downgradeSource,
+            [$orderedList($downgradeVisible)],
+            $downgradeDispositions,
+            [
+                'sourceSha256' => $sourceSha256,
+                'finalPageProjectionDigests' => [
+                    9 => hash('sha256', $downgradeSignificant),
+                ],
+            ]
+        );
+        $t->same(false, $downgrade['complete']);
+        $t->same(
+            'semantic-list-marker-extended-anchor-proof-does-not-match-source',
+            $downgrade['failureReason']
+        );
+    },
+
+    'pdf source disposition binding permits one extended anchor only with an exact composite receipt' => static function (
+        TestRunner $t
+    ) use ($paragraph): void {
+        $sourceSha256 = str_repeat('6', 64);
+        $markerSignificant = "\u{2022}";
+        $anchorSignificant = 'traceevalandsome';
+        $anchorVisible = 'trace eval and some';
+        $layoutVisible = $markerSignificant . ' ' . $anchorVisible;
+        $source = [
+            [
+                'id' => 'short-marker',
+                'page' => 11,
+                'stream' => 1,
+                'text' => $markerSignificant,
+            ],
+            [
+                'id' => 'short-anchor',
+                'page' => 11,
+                'stream' => 1,
+                'text' => 'traceevaland some',
+            ],
+        ];
+        $occurrences = [];
+        $ranges = [];
+        foreach ([$markerSignificant, $anchorSignificant] as $sourceIndex => $projection) {
+            $occurrences[] = [
+                'sourceIndex' => $sourceIndex,
+                'sourceLocalIndex' => $sourceIndex,
+                'page' => 11,
+                'stream' => 1,
+                'significantBytes' => strlen($projection),
+                'significantDigest' => hash('sha256', $projection),
+            ];
+            $ranges[] = [
+                'sourceIndex' => $sourceIndex,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen($projection),
+            ];
+        }
+        $unionProof = [
+            'version' => 1,
+            'method' => 'source-inventory-whole-occurrence-union',
+            'page' => 11,
+            'layoutStream' => 1,
+            'occurrences' => $occurrences,
+            'ranges' => $ranges,
+            'projectionDigest' => hash(
+                'sha256',
+                $markerSignificant . $anchorSignificant
+            ),
+        ];
+        $unionProof['proofDigest'] = hash('sha256', json_encode(
+            $unionProof,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        ) ?: '');
+        $receipt = [
+            'version' => 1,
+            'method' => 'exact-composite-list-layout-presentation-prefix',
+            'sourceSha256' => $sourceSha256,
+            'page' => 11,
+            'stream' => 1,
+            'listType' => 'bullet',
+            'markerOrdinal' => null,
+            'sourceOccurrenceIds' => ['short-marker', 'short-anchor'],
+            'globalSourceIndexes' => [0, 1],
+            'sourceSignificantDigest' => hash(
+                'sha256',
+                $markerSignificant . $anchorSignificant
+            ),
+            'anchorSignificantDigest' => hash('sha256', $anchorSignificant),
+            'layoutVisibleProjection' => $layoutVisible,
+            'layoutVisibleProjectionDigest' => hash('sha256', $layoutVisible),
+            'anchorVisibleProjection' => $anchorVisible,
+            'anchorVisibleProjectionDigest' => hash('sha256', $anchorVisible),
+            'finalPageProjectionDigest' => hash('sha256', $anchorSignificant),
+            'authorizedTargets' => [[
+                'significantDigest' => hash('sha256', $anchorSignificant),
+                'strictVisibleDigest' => hash('sha256', $anchorVisible),
+            ]],
+            'continuationBoundarySpace' => null,
+            'followingSourceOccurrenceId' => null,
+            'followingProjectionDigest' => null,
+            'wholeOccurrenceUnionProof' => $unionProof,
+        ];
+        $receipt['proofDigest'] = hash('sha256', json_encode(
+            $receipt,
+            JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+                | JSON_PRESERVE_ZERO_FRACTION
+        ) ?: '');
+        $dispositions = [
+            'short-marker' => [
+                'disposition' => 'semantic-structure',
+                'reason' => 'One exact composite source anchor identifies the list item.',
+                'textProjection' => '',
+                'semanticStructureProof' => [
+                    'version' => 2,
+                    'method' => 'exact-standalone-list-marker-to-item',
+                    'listType' => 'bullet',
+                    'markerOrdinal' => null,
+                    'markerDigest' => hash('sha256', $markerSignificant),
+                    'anchorSourceOccurrenceId' => 'short-anchor',
+                    'anchorSourceOccurrenceIds' => ['short-anchor'],
+                    'anchorProjectionDigest' => hash('sha256', $anchorSignificant),
+                    'itemProjectionDigest' => hash('sha256', $anchorSignificant),
+                    'compositeLayoutPresentationReceipt' => $receipt,
+                ],
+            ],
+        ];
+        $blocks = [new AstNode('bullet_list', [], [
+            new AstNode('list_item', [], [$paragraph($anchorVisible)]),
+        ])];
+        $bindingContext = [
+            'sourceSha256' => $sourceSha256,
+            'finalPageProjectionDigests' => [
+                11 => hash('sha256', $anchorSignificant),
+            ],
+        ];
+
+        $binding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            $blocks,
+            $dispositions,
+            $bindingContext
+        );
+        $t->same(true, $binding['complete']);
+        $t->same(null, $binding['failureReason']);
+
+        foreach ([
+            'duplicate space' => 'trace  eval and some',
+            'tab' => "trace\teval and some",
+            'non-breaking space' => "trace\u{00A0}eval and some",
+            'zero-width space' => "trace\u{200B}eval and some",
+        ] as $name => $alteredVisibleText) {
+            $alteredBlocks = [new AstNode('bullet_list', [], [
+                new AstNode('list_item', [], [$paragraph($alteredVisibleText)]),
+            ])];
+            $alteredBinding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+                $source,
+                $alteredBlocks,
+                $dispositions,
+                $bindingContext
+            );
+            $t->same(false, $alteredBinding['complete'], $name);
+            $t->same(
+                'semantic-list-marker-has-no-unique-structural-target',
+                $alteredBinding['failureReason'],
+                $name
+            );
+        }
+
+        $withoutReceipt = $dispositions;
+        unset($withoutReceipt['short-marker']['semanticStructureProof']
+            ['compositeLayoutPresentationReceipt']);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+                $source,
+                $blocks,
+                $withoutReceipt,
+                $bindingContext
+            )
+        );
+
+        $restampedPartialRange = $dispositions;
+        $restampedReceipt = &$restampedPartialRange['short-marker']
+            ['semanticStructureProof']['compositeLayoutPresentationReceipt'];
+        $restampedUnion = &$restampedReceipt['wholeOccurrenceUnionProof'];
+        $restampedUnion['ranges'][1]['sourceEnd']--;
+        $restampedUnion['proofDigest'] = hash('sha256', json_encode([
+            'version' => $restampedUnion['version'],
+            'method' => $restampedUnion['method'],
+            'page' => $restampedUnion['page'],
+            'layoutStream' => $restampedUnion['layoutStream'],
+            'occurrences' => $restampedUnion['occurrences'],
+            'ranges' => $restampedUnion['ranges'],
+            'projectionDigest' => $restampedUnion['projectionDigest'],
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '');
+        unset($restampedUnion);
+        $restampedReceipt['proofDigest'] = hash('sha256', json_encode(
+            array_diff_key($restampedReceipt, ['proofDigest' => true]),
+            JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+                | JSON_PRESERVE_ZERO_FRACTION
+        ) ?: '');
+        unset($restampedReceipt);
+        $restampedBinding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            $blocks,
+            $restampedPartialRange,
+            $bindingContext
+        );
+        $t->same(false, $restampedBinding['complete']);
+        $t->same(
+            'semantic-list-marker-extended-anchor-proof-does-not-match-source',
+            $restampedBinding['failureReason']
+        );
+    },
+
+    'pdf source disposition composite receipt binds the complete strict-visible target' => static function (
+        TestRunner $t
+    ) use ($paragraph): void {
+        $sourceSha256 = str_repeat('8', 64);
+        $markerSignificant = "\u{2022}";
+        $anchorSignificant = 'traceeval';
+        $anchorVisible = 'trace eval';
+        $followingSignificant = 'andsome';
+        $followingVisible = 'and some';
+        $tailSignificant = 'otherfunctions.';
+        $targetVisible = $anchorVisible . ' ' . $followingVisible . ' other functions.';
+        $targetSignificant = $anchorSignificant
+            . $followingSignificant
+            . $tailSignificant;
+        $source = [
+            ['id' => 'suffix-marker', 'page' => 12, 'stream' => 2, 'text' => $markerSignificant],
+            ['id' => 'suffix-anchor', 'page' => 12, 'stream' => 2, 'text' => 'traceeval'],
+            ['id' => 'suffix-following', 'page' => 12, 'stream' => 2, 'text' => $followingVisible],
+            ['id' => 'suffix-tail', 'page' => 12, 'stream' => 2, 'text' => 'other functions.'],
+        ];
+        $occurrences = [];
+        $ranges = [];
+        foreach ([$markerSignificant, $anchorSignificant] as $sourceIndex => $projection) {
+            $occurrences[] = [
+                'sourceIndex' => $sourceIndex,
+                'sourceLocalIndex' => $sourceIndex,
+                'page' => 12,
+                'stream' => 2,
+                'significantBytes' => strlen($projection),
+                'significantDigest' => hash('sha256', $projection),
+            ];
+            $ranges[] = [
+                'sourceIndex' => $sourceIndex,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen($projection),
+            ];
+        }
+        $unionProof = [
+            'version' => 1,
+            'method' => 'source-inventory-whole-occurrence-union',
+            'page' => 12,
+            'layoutStream' => 2,
+            'occurrences' => $occurrences,
+            'ranges' => $ranges,
+            'projectionDigest' => hash(
+                'sha256',
+                $markerSignificant . $anchorSignificant
+            ),
+        ];
+        $unionProof['proofDigest'] = hash('sha256', json_encode(
+            $unionProof,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        ) ?: '');
+        $layoutVisible = $markerSignificant . ' ' . $anchorVisible;
+        $receipt = [
+            'version' => 1,
+            'method' => 'exact-composite-list-layout-presentation-prefix',
+            'sourceSha256' => $sourceSha256,
+            'page' => 12,
+            'stream' => 2,
+            'listType' => 'bullet',
+            'markerOrdinal' => null,
+            'sourceOccurrenceIds' => ['suffix-marker', 'suffix-anchor'],
+            'globalSourceIndexes' => [0, 1],
+            'sourceSignificantDigest' => hash(
+                'sha256',
+                $markerSignificant . $anchorSignificant
+            ),
+            'anchorSignificantDigest' => hash('sha256', $anchorSignificant),
+            'layoutVisibleProjection' => $layoutVisible,
+            'layoutVisibleProjectionDigest' => hash('sha256', $layoutVisible),
+            'anchorVisibleProjection' => $anchorVisible,
+            'anchorVisibleProjectionDigest' => hash('sha256', $anchorVisible),
+            'finalPageProjectionDigest' => hash('sha256', $targetSignificant),
+            'authorizedTargets' => [[
+                'significantDigest' => hash('sha256', $targetSignificant),
+                'strictVisibleDigest' => hash('sha256', $targetVisible),
+            ]],
+            'continuationBoundarySpace' => true,
+            'followingSourceOccurrenceId' => 'suffix-following',
+            'followingProjectionDigest' => hash('sha256', $followingSignificant),
+            'wholeOccurrenceUnionProof' => $unionProof,
+        ];
+        $receipt['proofDigest'] = hash('sha256', json_encode(
+            $receipt,
+            JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+                | JSON_PRESERVE_ZERO_FRACTION
+        ) ?: '');
+        $dispositions = [
+            'suffix-marker' => [
+                'disposition' => 'semantic-structure',
+                'reason' => 'One exact composite layout prefixes this complete target.',
+                'textProjection' => '',
+                'semanticStructureProof' => [
+                    'version' => 2,
+                    'method' => 'exact-standalone-list-marker-to-item',
+                    'listType' => 'bullet',
+                    'markerOrdinal' => null,
+                    'markerDigest' => hash('sha256', $markerSignificant),
+                    'anchorSourceOccurrenceId' => 'suffix-anchor',
+                    'anchorSourceOccurrenceIds' => ['suffix-anchor'],
+                    'anchorProjectionDigest' => hash('sha256', $anchorSignificant),
+                    'itemProjectionDigest' => hash('sha256', $targetSignificant),
+                    'compositeLayoutPresentationReceipt' => $receipt,
+                ],
+            ],
+        ];
+        $bullet = static fn (string $text): AstNode => new AstNode(
+            'bullet_list',
+            [],
+            [new AstNode('list_item', [], [$paragraph($text)])]
+        );
+        $context = [
+            'sourceSha256' => $sourceSha256,
+            'finalPageProjectionDigests' => [
+                12 => hash('sha256', $targetSignificant),
+            ],
+        ];
+
+        $binding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            [$bullet($targetVisible)],
+            $dispositions,
+            $context
+        );
+        $t->same(true, $binding['complete']);
+
+        foreach ([
+            'later duplicate space' =>
+                $anchorVisible . ' ' . $followingVisible . '  other functions.',
+            'later tab' =>
+                $anchorVisible . ' ' . $followingVisible . "\tother functions.",
+            'later non-breaking space' =>
+                $anchorVisible . ' ' . $followingVisible . "\u{00A0}other functions.",
+            'later zero-width space' =>
+                $anchorVisible . ' ' . $followingVisible . "\u{200B}other functions.",
+            'internal later zero-width space' =>
+                $anchorVisible . ' ' . $followingVisible . " other\u{200B} functions.",
+            'trailing zero-width space' => $targetVisible . "\u{200B}",
+        ] as $name => $alteredVisibleText) {
+            $altered = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+                $source,
+                [$bullet($alteredVisibleText)],
+                $dispositions,
+                $context
+            );
+            $t->same(false, $altered['complete'], $name);
+            $t->same(
+                'semantic-list-marker-has-no-unique-structural-target',
+                $altered['failureReason'],
+                $name
+            );
+        }
+    },
+
+    'pdf source disposition composite receipt revalidates a nested following presentation repair' => static function (
+        TestRunner $t
+    ) use ($paragraph): void {
+        $sourceSha256 = str_repeat('9', 64);
+        $markerSignificant = "\u{2022}";
+        $anchorSource = 'The implementation does not currently traceevaland some';
+        $anchorSignificant = 'Theimplementationdoesnotcurrentlytraceevalandsome';
+        $anchorVisible = 'The implementation does not currently trace eval and some';
+        $followingSource = 'other functions implemented in C. Becausedate-format-';
+        $followingSignificant = 'otherfunctionsimplementedinC.Becausedate-format-';
+        $followingVisible = 'other functions implemented in C. Because date-format-';
+        $tailSource = 'tofte and date-format-xparb continue.';
+        $tailSignificant = 'tofteanddate-format-xparbcontinue.';
+        $otherVisible = 'Unrelated item.';
+        $otherSignificant = 'Unrelateditem.';
+        $targetVisible = $anchorVisible . ' ' . $followingVisible . ' ' . $tailSource;
+        $targetSignificant = $anchorSignificant
+            . $followingSignificant
+            . $tailSignificant;
+        $pageSignificant = $targetSignificant . $otherSignificant;
+        $source = [
+            ['id' => 'nested-marker', 'page' => 13, 'stream' => 3, 'text' => $markerSignificant],
+            ['id' => 'nested-anchor', 'page' => 13, 'stream' => 3, 'text' => $anchorSource],
+            ['id' => 'nested-following', 'page' => 13, 'stream' => 3, 'text' => $followingSource],
+            ['id' => 'nested-tail', 'page' => 13, 'stream' => 3, 'text' => $tailSource],
+            ['id' => 'nested-other', 'page' => 13, 'stream' => 3, 'text' => $otherVisible],
+        ];
+        $canonicalTargets = static function (array $targets): array {
+            $byDigest = [];
+            foreach ($targets as $target) {
+                $byDigest[$target['significantDigest']
+                    . "\0"
+                    . $target['strictVisibleDigest']] = $target;
+            }
+            ksort($byDigest, SORT_STRING);
+
+            return array_values($byDigest);
+        };
+        $targetAuthorization = [
+            'significantDigest' => hash('sha256', $targetSignificant),
+            'strictVisibleDigest' => hash('sha256', $targetVisible),
+        ];
+        $otherAuthorization = [
+            'significantDigest' => hash('sha256', $otherSignificant),
+            'strictVisibleDigest' => hash('sha256', $otherVisible),
+        ];
+        $outerAuthorizations = $canonicalTargets([$targetAuthorization]);
+        $nestedAuthorizations = $canonicalTargets([
+            $targetAuthorization,
+            $otherAuthorization,
+        ]);
+        $stampReceipt = static function (array $receipt): string {
+            unset($receipt['proofDigest']);
+
+            return hash('sha256', json_encode(
+                $receipt,
+                JSON_UNESCAPED_SLASHES
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: '');
+        };
+
+        $occurrences = [];
+        $ranges = [];
+        foreach ([$markerSignificant, $anchorSignificant] as $sourceIndex => $projection) {
+            $occurrences[] = [
+                'sourceIndex' => $sourceIndex,
+                'sourceLocalIndex' => $sourceIndex,
+                'page' => 13,
+                'stream' => 3,
+                'significantBytes' => strlen($projection),
+                'significantDigest' => hash('sha256', $projection),
+            ];
+            $ranges[] = [
+                'sourceIndex' => $sourceIndex,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen($projection),
+            ];
+        }
+        $unionProof = [
+            'version' => 1,
+            'method' => 'source-inventory-whole-occurrence-union',
+            'page' => 13,
+            'layoutStream' => 3,
+            'occurrences' => $occurrences,
+            'ranges' => $ranges,
+            'projectionDigest' => hash(
+                'sha256',
+                $markerSignificant . $anchorSignificant
+            ),
+        ];
+        $unionProof['proofDigest'] = hash('sha256', json_encode(
+            $unionProof,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        ) ?: '');
+        $followingReceipt = [
+            'version' => 1,
+            'method' => 'exact-whole-source-list-presentation-occurrence',
+            'sourceSha256' => $sourceSha256,
+            'sourceOccurrenceId' => 'nested-following',
+            'globalSourceIndex' => 2,
+            'page' => 13,
+            'stream' => 3,
+            'projectionDigest' => hash('sha256', $followingSignificant),
+            'visibleProjection' => $followingVisible,
+            'visibleProjectionDigest' => hash('sha256', $followingVisible),
+            'finalPageProjectionDigest' => hash('sha256', $pageSignificant),
+            'authorizedTargets' => $nestedAuthorizations,
+        ];
+        $followingReceipt['proofDigest'] = $stampReceipt($followingReceipt);
+        $layoutVisible = $markerSignificant . ' ' . $anchorVisible;
+        $receipt = [
+            'version' => 1,
+            'method' => 'exact-composite-list-layout-presentation-prefix',
+            'sourceSha256' => $sourceSha256,
+            'page' => 13,
+            'stream' => 3,
+            'listType' => 'bullet',
+            'markerOrdinal' => null,
+            'sourceOccurrenceIds' => ['nested-marker', 'nested-anchor'],
+            'globalSourceIndexes' => [0, 1],
+            'sourceSignificantDigest' => hash(
+                'sha256',
+                $markerSignificant . $anchorSignificant
+            ),
+            'anchorSignificantDigest' => hash('sha256', $anchorSignificant),
+            'layoutVisibleProjection' => $layoutVisible,
+            'layoutVisibleProjectionDigest' => hash('sha256', $layoutVisible),
+            'anchorVisibleProjection' => $anchorVisible,
+            'anchorVisibleProjectionDigest' => hash('sha256', $anchorVisible),
+            'finalPageProjectionDigest' => hash('sha256', $pageSignificant),
+            'authorizedTargets' => $outerAuthorizations,
+            'continuationBoundarySpace' => true,
+            'followingSourceOccurrenceId' => 'nested-following',
+            'followingProjectionDigest' => hash('sha256', $followingSignificant),
+            'followingPresentationRepairReceipt' => $followingReceipt,
+            'wholeOccurrenceUnionProof' => $unionProof,
+        ];
+        $receipt['proofDigest'] = $stampReceipt($receipt);
+        $dispositions = [
+            'nested-marker' => [
+                'disposition' => 'semantic-structure',
+                'reason' => 'The exact composite prefix and nested repair identify one item.',
+                'textProjection' => '',
+                'semanticStructureProof' => [
+                    'version' => 2,
+                    'method' => 'exact-standalone-list-marker-to-item',
+                    'listType' => 'bullet',
+                    'markerOrdinal' => null,
+                    'markerDigest' => hash('sha256', $markerSignificant),
+                    'anchorSourceOccurrenceId' => 'nested-anchor',
+                    'anchorSourceOccurrenceIds' => ['nested-anchor'],
+                    'anchorProjectionDigest' => hash('sha256', $anchorSignificant),
+                    'itemProjectionDigest' => hash('sha256', $targetSignificant),
+                    'compositeLayoutPresentationReceipt' => $receipt,
+                ],
+            ],
+        ];
+        $blocksFor = static fn (string $firstItem): array => [
+            new AstNode('bullet_list', [], [
+                new AstNode('list_item', [], [$paragraph($firstItem)]),
+                new AstNode('list_item', [], [$paragraph($otherVisible)]),
+            ]),
+        ];
+        $context = [
+            'sourceSha256' => $sourceSha256,
+            'finalPageProjectionDigests' => [
+                13 => hash('sha256', $pageSignificant),
+            ],
+        ];
+
+        $binding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            $blocksFor($targetVisible),
+            $dispositions,
+            $context
+        );
+        $t->same(true, $binding['complete']);
+        $t->same(null, $binding['failureReason']);
+
+        $rawFollowing = $dispositions;
+        $rawReceipt = &$rawFollowing['nested-marker']['semanticStructureProof']
+            ['compositeLayoutPresentationReceipt'];
+        unset($rawReceipt['followingPresentationRepairReceipt']);
+        $rawReceipt['proofDigest'] = $stampReceipt($rawReceipt);
+        unset($rawReceipt);
+        $rawBinding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            $blocksFor($targetVisible),
+            $rawFollowing,
+            $context
+        );
+        $t->same(false, $rawBinding['complete']);
+        $t->same(
+            'semantic-list-marker-has-no-unique-structural-target',
+            $rawBinding['failureReason']
+        );
+
+        foreach ([
+            'nested duplicate space' => str_replace(
+                'Because date-format-',
+                'Because  date-format-',
+                $followingVisible
+            ),
+            'nested tab' => str_replace(
+                'Because date-format-',
+                "Because\tdate-format-",
+                $followingVisible
+            ),
+            'nested non-breaking space' => str_replace(
+                'Because date-format-',
+                "Because\u{00A0}date-format-",
+                $followingVisible
+            ),
+            'nested zero-width space' => str_replace(
+                'Because date-format-',
+                "Because\u{200B} date-format-",
+                $followingVisible
+            ),
+        ] as $name => $alteredFollowingVisible) {
+            $alteredDispositions = $dispositions;
+            $alteredOuter = &$alteredDispositions['nested-marker']
+                ['semanticStructureProof']['compositeLayoutPresentationReceipt'];
+            $alteredNested = &$alteredOuter['followingPresentationRepairReceipt'];
+            $alteredNested['visibleProjection'] = $alteredFollowingVisible;
+            $alteredNested['visibleProjectionDigest'] = hash(
+                'sha256',
+                $alteredFollowingVisible
+            );
+            $alteredNested['proofDigest'] = $stampReceipt($alteredNested);
+            unset($alteredNested);
+            $alteredOuter['proofDigest'] = $stampReceipt($alteredOuter);
+            unset($alteredOuter);
+            $alteredBinding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+                $source,
+                $blocksFor($targetVisible),
+                $alteredDispositions,
+                $context
+            );
+            $t->same(false, $alteredBinding['complete'], $name);
+            $t->same(
+                'semantic-list-marker-has-no-unique-structural-target',
+                $alteredBinding['failureReason'],
+                $name
+            );
+        }
+
+        foreach ([
+            'output duplicate space' => str_replace(
+                'Because date-format-',
+                'Because  date-format-',
+                $targetVisible
+            ),
+            'output tab' => str_replace(
+                'Because date-format-',
+                "Because\tdate-format-",
+                $targetVisible
+            ),
+            'output non-breaking space' => str_replace(
+                'Because date-format-',
+                "Because\u{00A0}date-format-",
+                $targetVisible
+            ),
+            'output zero-width space' => str_replace(
+                'Because date-format-',
+                "Because\u{200B} date-format-",
+                $targetVisible
+            ),
+            'output trailing zero-width space' => $targetVisible . "\u{200B}",
+        ] as $name => $alteredTargetVisible) {
+            $alteredBinding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+                $source,
+                $blocksFor($alteredTargetVisible),
+                $dispositions,
+                $context
+            );
+            $t->same(false, $alteredBinding['complete'], $name);
+            $t->same(
+                'semantic-list-marker-has-no-unique-structural-target',
+                $alteredBinding['failureReason'],
+                $name
+            );
+        }
+
+        $staleNested = $dispositions;
+        $staleNested['nested-marker']['semanticStructureProof']
+            ['compositeLayoutPresentationReceipt']
+            ['followingPresentationRepairReceipt']['proofDigest'] = str_repeat('0', 64);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+                $source,
+                $blocksFor($targetVisible),
+                $staleNested,
+                $context
+            )
+        );
+
+        $nonSubset = $dispositions;
+        $nonSubsetOuter = &$nonSubset['nested-marker']['semanticStructureProof']
+            ['compositeLayoutPresentationReceipt'];
+        $nonSubsetNested = &$nonSubsetOuter['followingPresentationRepairReceipt'];
+        $nonSubsetNested['authorizedTargets'] = $canonicalTargets([$otherAuthorization]);
+        $nonSubsetNested['proofDigest'] = $stampReceipt($nonSubsetNested);
+        unset($nonSubsetNested);
+        $nonSubsetOuter['proofDigest'] = $stampReceipt($nonSubsetOuter);
+        unset($nonSubsetOuter);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+                $source,
+                $blocksFor($targetVisible),
+                $nonSubset,
+                $context
+            )
+        );
+
+        foreach (['source id', 'source sha', 'final page digest'] as $tamper) {
+            $restamped = $dispositions;
+            $restampedOuter = &$restamped['nested-marker']['semanticStructureProof']
+                ['compositeLayoutPresentationReceipt'];
+            $restampedNested = &$restampedOuter['followingPresentationRepairReceipt'];
+            if ($tamper === 'source id') {
+                $restampedOuter['followingSourceOccurrenceId'] = 'stale-following';
+                $restampedNested['sourceOccurrenceId'] = 'stale-following';
+            } elseif ($tamper === 'source sha') {
+                $restampedOuter['sourceSha256'] = str_repeat('a', 64);
+                $restampedNested['sourceSha256'] = str_repeat('a', 64);
+            } else {
+                $restampedOuter['finalPageProjectionDigest'] = str_repeat('b', 64);
+                $restampedNested['finalPageProjectionDigest'] = str_repeat('b', 64);
+            }
+            $restampedNested['proofDigest'] = $stampReceipt($restampedNested);
+            unset($restampedNested);
+            $restampedOuter['proofDigest'] = $stampReceipt($restampedOuter);
+            unset($restampedOuter);
+            $restampedBinding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+                $source,
+                $blocksFor($targetVisible),
+                $restamped,
+                $context
+            );
+            $t->same(false, $restampedBinding['complete'], $tamper);
+            $t->same(
+                'semantic-list-marker-extended-anchor-proof-does-not-match-source',
+                $restampedBinding['failureReason'],
+                $tamper
+            );
+        }
     },
 
     'pdf source disposition binding keeps several ordinary markers neutral in one page order scope' => static function (

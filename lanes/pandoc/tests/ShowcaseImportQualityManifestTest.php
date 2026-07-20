@@ -128,6 +128,7 @@ return [
         $qualityGate = is_array($manifest['importQualityGate'] ?? null) ? $manifest['importQualityGate'] : [];
         $expectedReviewIds = [
             'pdf-layout-unstructured-ocr-overlay',
+            'pdf-muir-beach-brochure',
         ];
         $expectedFailureIds = [
             'pdf-archive-motograph-book',
@@ -136,10 +137,8 @@ return [
             'pdf-layout-docling-right-to-left',
             'pdf-layout-mineru-small-ocr',
             'pdf-layout-vdl-theatre-script',
-            'pdf-muir-beach-brochure',
             'pdf-quickbooks-invoice-template',
             'pdf-tabula-spreadsheet-no-frame',
-            'pdf-tracemonkey',
         ];
         $expectedConversionFailureIds = ['pdf-layout-mineru-small-ocr'];
 
@@ -310,11 +309,11 @@ return [
 
         $expectations = [
             'pdf-irs-w4' => ['quality' => 'pass', 'text' => 'pass', 'geometry' => 'pass', 'source' => 'pass'],
-            'pdf-tracemonkey' => ['quality' => 'fail', 'text' => 'pass', 'geometry' => 'pass', 'source' => 'fail'],
+            'pdf-tracemonkey' => ['quality' => 'pass', 'text' => 'pass', 'geometry' => 'pass', 'source' => 'pass'],
             'pdf-cdc-hand-hygiene-brochure' => ['quality' => 'pass', 'text' => 'pass', 'geometry' => 'pass', 'source' => 'pass'],
             'pdf-grand-canyon-north-rim-map' => ['quality' => 'fail', 'text' => 'pass', 'geometry' => 'pass', 'source' => 'fail'],
             'pdf-archive-motograph-book' => ['quality' => 'fail', 'text' => 'pass', 'geometry' => 'review', 'source' => 'fail'],
-            'pdf-muir-beach-brochure' => ['quality' => 'fail', 'text' => 'review', 'geometry' => 'pass', 'source' => 'fail'],
+            'pdf-muir-beach-brochure' => ['quality' => 'review', 'text' => 'review', 'geometry' => 'pass', 'source' => 'pass'],
             'pdf-quickbooks-invoice-template' => ['quality' => 'fail', 'text' => 'pass', 'geometry' => 'pass', 'source' => 'fail'],
             'pdf-tabula-spreadsheet-no-frame' => ['quality' => 'fail', 'text' => 'pass', 'geometry' => 'pass', 'source' => 'fail'],
             'pdf-tabula-multicolumn' => ['quality' => 'pass', 'text' => 'pass', 'geometry' => 'pass', 'source' => 'pass'],
@@ -513,7 +512,7 @@ return [
         $t->same(1, $common['wpFailures'] ?? null, 'The typed MinerU refusal should remain visible as the sole common WordPress conversion failure.');
         $t->true(($common['pass'] ?? 0) >= 29, 'Common import pass count should not regress from the current baseline.');
         $t->true(($common['passReviewOrUnbenchmarked'] ?? 0) >= 39, 'Common import quality coverage should not regress from the current baseline.');
-        $t->same(9, $common['fail'] ?? null, 'Known common-format PDF blockers must remain fail closed until repaired.');
+        $t->same(7, $common['fail'] ?? null, 'Known common-format PDF blockers must remain fail closed until repaired.');
 
         $formats = is_array($common['formats'] ?? null) ? $common['formats'] : [];
         foreach (['docx', 'pdf', 'html', 'xlsx'] as $format) {

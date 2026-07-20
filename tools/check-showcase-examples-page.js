@@ -55,6 +55,7 @@ assert(!/<iframe\b[^>]*\bsrc=/.test(html), 'The lightweight page must not eagerl
 assert(!html.includes('outputs/'), 'The lightweight page must not embed generated output paths.');
 assert(html.includes('<main class="example-browser">'), 'Expected the standalone example browser.');
 assert(html.includes('Adam&#039;s Pandoc → PHP Port'), 'Expected the minimal browser title.');
+assert(html.includes('<link rel="icon" href="data:,">'), 'The standalone browser must not emit a failing implicit favicon request.');
 assert(!html.includes('<header'), 'The browser should not render a separate top section.');
 assert((html.match(/<select\b/g) || []).length === 1, 'Expected one example selector.');
 assert(!html.includes('format-filter'), 'The browser must not render a format selector.');
@@ -249,6 +250,33 @@ assert(js.includes("frame.src = 'about:blank';"), 'Expected the iframe to clear 
 assert(js.includes('frame.src = view.path;'), 'Expected the viewer to load only the selected result.');
 assert(js.includes('function browsableExamples()'), 'Expected the one-at-a-time browser to retain its mobile safety limit.');
 assert(js.includes('automaticViewMaxBytes'), 'Expected navigation to respect the mobile size limit.');
+const typedPdfStatusPreview = executableNamedFunction(js, 'isTypedPdfStatusPreview');
+assert(typedPdfStatusPreview({
+  ok: false,
+  path: 'outputs/fixture/wordpress-blocks-preview.html',
+  status: 'unsupported_no_text',
+}, 'wpBlocks'), 'Expected an explicit no-text WordPress status page to remain reviewable.');
+assert(typedPdfStatusPreview({
+  ok: false,
+  path: 'outputs/fixture/wordpress-blocks-preview.html',
+  status: 'incomplete',
+}, 'wpBlocks'), 'Expected an explicit incomplete WordPress status page to remain reviewable.');
+assert(!typedPdfStatusPreview({
+  ok: false,
+  path: 'outputs/fixture/wordpress-blocks.html.error.txt',
+  status: 'unsupported_no_text',
+}, 'wpBlocks'), 'A failed-conversion diagnostic must not become a browsable status page.');
+assert(!typedPdfStatusPreview({
+  ok: false,
+  path: 'outputs/fixture/wordpress-blocks-preview.html',
+  status: 'unexpected_failure',
+}, 'wpBlocks'), 'An unrecognized failure status must remain unavailable.');
+assert(!typedPdfStatusPreview({
+  ok: false,
+  path: 'outputs/fixture/wordpress-blocks-preview.html',
+  status: 'unsupported_no_text',
+}, 'phpHtml'), 'A typed status page must remain restricted to the WordPress preview view.');
+assert(/function browsableExamples\(\)[\s\S]*?isBrowsableView\(example\.views && example\.views\.wpBlocks, 'wpBlocks'\)/.test(js), 'Expected typed WordPress status previews to enter the public picker.');
 assert(/examplePicker\.addEventListener\('change',[\s\S]*?applySelectedExample\(examplePicker\.value\);[\s\S]*?syncExampleUrl\(\);/.test(js), 'Changing the example should update its shareable URL.');
 assert(/function moveExample[\s\S]*?applySelectedExample\(examples\[nextIndex\]\.id\);[\s\S]*?syncExampleUrl\(\);/.test(js), 'Arrow navigation should update the shareable URL.');
 assert(/button\.addEventListener\('click',[\s\S]*?state\.view = nextView;[\s\S]*?loadSelectedExample\(\);/.test(js), 'Changing the rendered view should load it immediately.');
@@ -407,11 +435,21 @@ assert(traceMonkey && traceMonkeyRecord, 'Expected the bundled TraceMonkey PDF e
 if (traceMonkey && traceMonkeyRecord) {
   const renderPlan = traceMonkey.pdfFormRenders;
   const recordPlan = traceMonkeyRecord.pdfFormRenders;
+  for (const viewName of ['phpHtml', 'wpBlocks']) {
+    const sourceIntegrity = traceMonkeyRecord[viewName]?.sourceIntegrity || {};
+    assert(Array.isArray(sourceIntegrity.pdfPagesNeedingImageRepresentation)
+      && sourceIntegrity.pdfPagesNeedingImageRepresentation.length === 0,
+    `TraceMonkey ${viewName} must not require whole-page image representation.`);
+    assert(sourceIntegrity.pdfRepresentedPageNumbers?.join(',') === '1,2,3,4,5,6,7,8,9,10,11,12,13,14',
+      `TraceMonkey ${viewName} must retain text representation for all fourteen source pages.`);
+    assert(sourceIntegrity.pdfPageRepresentationComplete === true,
+      `TraceMonkey ${viewName} must retain complete page representation without whole-page rasters.`);
+  }
   assert(renderPlan && renderPlan.ok === true, 'TraceMonkey must expose its browser PDF figure render plan to the compact catalogue.');
   assert(recordPlan && recordPlan.ok === true, 'TraceMonkey must retain its browser PDF figure render plan in the full manifest.');
   if (renderPlan && recordPlan) {
     assert(renderPlan.path === recordPlan.path, 'TraceMonkey compact/full render-plan paths diverged.');
-    assert(renderPlan.count === 22 && recordPlan.count === 22, 'TraceMonkey must retain fourteen whole-page requests followed by all eight vector/Form chart placements.');
+    assert(renderPlan.count === 8 && recordPlan.count === 8, 'TraceMonkey must retain all eight vector/Form chart placements.');
     const renderPlanPath = siteFile(renderPlan.path);
     assert(fs.existsSync(renderPlanPath), 'TraceMonkey PDF figure render plan is missing.');
     if (fs.existsSync(renderPlanPath)) {
@@ -420,12 +458,9 @@ if (traceMonkey && traceMonkeyRecord) {
       const pageRequests = requests.filter((request) => request.method === 'pdfjs-whole-page-raster');
       const formRequests = requests.filter((request) => request.method !== 'pdfjs-whole-page-raster');
       assert(payload.samplePath === traceMonkey.samplePath, 'TraceMonkey PDF figure render plan must point at the bundled PDF.');
-      assert(requests.length === 22, 'TraceMonkey PDF render plan must contain fourteen page requests and eight crop requests.');
-      assert(pageRequests.length === 14
-        && pageRequests.map((request) => request.page).join(',') === '1,2,3,4,5,6,7,8,9,10,11,12,13,14',
-      'TraceMonkey must request one exact whole-page raster for every source page before Form crops.');
-      assert(formRequests.length === 8 && requests.slice(0, 14).every((request) => request.method === 'pdfjs-whole-page-raster'),
-        'TraceMonkey must keep the eight Form requests after all fourteen core page requests.');
+      assert(requests.length === 8, 'TraceMonkey PDF render plan must contain eight crop requests.');
+      assert(pageRequests.length === 0 && formRequests.length === 8,
+        'TraceMonkey must retain eight Form requests without redundant whole-page rasters.');
       assert(formRequests.every((request) => request.path === traceMonkey.samplePath
         && /^form-[a-f0-9]{28}$/.test(String(request.id || ''))
         && Number.isInteger(request.page)

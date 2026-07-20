@@ -28,6 +28,72 @@ $extractedTexts = static function (PdfTextExtractor $extractor, string $pdf): ar
     ];
 };
 
+$widthOnlyTrueTypeFont = static function (): string {
+    $head = str_repeat("\0", 54);
+    $head = substr_replace($head, pack('N', 0x00010000), 0, 4);
+    $head = substr_replace($head, pack('N', 0x5F0F3CF5), 12, 4);
+    $head = substr_replace($head, pack('n', 1000), 18, 2);
+    $head = substr_replace($head, pack('n', (-200) & 0xFFFF), 38, 2);
+    $head = substr_replace($head, pack('n', 800), 42, 2);
+
+    $hhea = str_repeat("\0", 36);
+    $hhea = substr_replace($hhea, pack('n', 1), 34, 2);
+    $tables = [
+        'head' => $head,
+        'hhea' => $hhea,
+        'hmtx' => pack('nn', 500, 0),
+        'maxp' => pack('Nn', 0x00010000, 1),
+    ];
+    ksort($tables, SORT_STRING);
+    $directory = pack('Nnnnn', 0x00010000, count($tables), 0, 0, 0);
+    $records = '';
+    $payload = '';
+    $offset = 12 + (count($tables) * 16);
+    foreach ($tables as $tag => $table) {
+        $padding = (4 - (strlen($payload) % 4)) % 4;
+        $payload .= str_repeat("\0", $padding);
+        $offset += $padding;
+        $records .= $tag . pack('NNN', 0, $offset, strlen($table));
+        $payload .= $table;
+        $offset += strlen($table);
+    }
+
+    return $directory . $records . $payload;
+};
+
+$pdfWithWidthOnlyTrueType = static function (
+    string $shownText,
+    float $clipWidth,
+    string $declaredWidths = '[200 300]',
+    int $lastChar = 66,
+    string $widthsEntry = '/Widths 8 0 R'
+) use ($pdfWithPage, $widthOnlyTrueTypeFont): string {
+    $fontProgram = $widthOnlyTrueTypeFont();
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\nbegincmap\n"
+        . "1 begincodespacerange\n<00><FF>\nendcodespacerange\n"
+        . "endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend";
+    $content = 'q 10 0 ' . $clipWidth . ' 30 re W n '
+        . 'BT /F1 10 Tf 1 0 0 1 12 10 Tm (' . $shownText . ') Tj ET Q';
+    $resources = '<< /Font << /F1 5 0 R >> >>';
+    $extraObjects = "5 0 obj\n"
+        . "<< /Type /Font /Subtype /TrueType /BaseFont /ABCDEF+WidthOnly "
+        . "/FirstChar 65 /LastChar {$lastChar} {$widthsEntry} "
+        . "/FontDescriptor 6 0 R /ToUnicode 9 0 R >>\n"
+        . "endobj\n"
+        . "6 0 obj\n"
+        . "<< /Type /FontDescriptor /FontName /ABCDEF+WidthOnly /Flags 32 "
+        . "/FontBBox [0 -200 1000 800] /ItalicAngle 0 /Ascent 800 /Descent -200 "
+        . "/CapHeight 700 /StemV 80 /FontFile2 7 0 R >>\nendobj\n"
+        . "7 0 obj\n<< /Length " . strlen($fontProgram) . " >>\nstream\n"
+        . $fontProgram . "\nendstream\nendobj\n"
+        . "8 0 obj\n{$declaredWidths}\nendobj\n"
+        . "9 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n"
+        . $toUnicode . "\nendstream\nendobj\n";
+
+    return $pdfWithPage($content, $resources, '', $extraObjects);
+};
+
 return [
     'excludes definitely non-painting text rendering modes from visible extraction' => static function (
         TestRunner $t
@@ -187,6 +253,32 @@ return [
 
         $visibility = $extractor->diagnostics($pdf)['textVisibility'];
         $t->same(2, $visibility['suppressedOutsidePageRuns'] ?? null);
+        $t->same(true, $visibility['complete'] ?? null);
+    },
+
+    'clips rotated text by its oriented ink bounds at the effective CropBox' => static function (
+        TestRunner $t
+    ) use ($pdfWithPage, $extractedTexts): void {
+        $content = 'BT /F1 10 Tf '
+            . '0 1 -1 0 20 -10 Tm (x) Tj '
+            . '0 1 -1 0 40 -2 Tm (visible-rotated) Tj ET';
+        $resources = '<< /Font << /F1 5 0 R >> >>';
+        $font = "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+        $extractor = new PdfTextExtractor();
+        $pdf = $pdfWithPage(
+            $content,
+            $resources,
+            '',
+            $font,
+            '/MediaBox [0 0 200 200] /CropBox [0 0 100 100]'
+        );
+
+        foreach ($extractedTexts($extractor, $pdf) as $texts) {
+            $t->same(['visible-rotated'], $texts);
+        }
+
+        $visibility = $extractor->diagnostics($pdf)['textVisibility'];
+        $t->same(1, $visibility['suppressedOutsidePageRuns'] ?? null);
         $t->same(true, $visibility['complete'] ?? null);
     },
 
@@ -394,6 +486,125 @@ return [
         $t->same(true, $visibility['complete'] ?? null);
     },
 
+    'uses declared advances without inventing an encoding for embedded TrueType clip evidence' => static function (
+        TestRunner $t
+    ) use ($pdfWithWidthOnlyTrueType): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $pdfWithWidthOnlyTrueType('AB', 7.0);
+        $positioned = $extractor->extractPositionedTextRuns($pdf);
+        $visibility = $extractor->diagnostics($pdf)['textVisibility'];
+
+        $t->same(['AB'], $extractor->extractTextRuns($pdf));
+        $t->same(17.0, $positioned[0]['textX2'] ?? null);
+        $t->same(0, $visibility['unresolvedClippingRuns'] ?? null);
+        $t->same(true, $visibility['complete'] ?? null);
+    },
+
+    'keeps an undeclared width in a width-only TrueType font fail closed' => static function (
+        TestRunner $t
+    ) use ($pdfWithWidthOnlyTrueType): void {
+        $visibility = (new PdfTextExtractor())->diagnostics(
+            $pdfWithWidthOnlyTrueType('AC', 100.0)
+        )['textVisibility'];
+
+        $t->same(1, $visibility['unresolvedClippingRuns'] ?? null);
+        $t->same(false, $visibility['complete'] ?? null);
+    },
+
+    'keeps malformed width-only TrueType array entries fail closed without shifting indexes' => static function (
+        TestRunner $t
+    ) use ($pdfWithWidthOnlyTrueType): void {
+        $visibility = (new PdfTextExtractor())->diagnostics(
+            $pdfWithWidthOnlyTrueType('AB', 7.0, '[200 malformed 300]', 67)
+        )['textVisibility'];
+
+        $t->same(1, $visibility['unresolvedClippingRuns'] ?? null);
+        $t->same(false, $visibility['complete'] ?? null);
+    },
+
+    'keeps a mismatched width-only TrueType array count fail closed' => static function (
+        TestRunner $t
+    ) use ($pdfWithWidthOnlyTrueType): void {
+        $visibility = (new PdfTextExtractor())->diagnostics(
+            $pdfWithWidthOnlyTrueType('AB', 7.0, '[200 300]', 67)
+        )['textVisibility'];
+
+        $t->same(1, $visibility['unresolvedClippingRuns'] ?? null);
+        $t->same(false, $visibility['complete'] ?? null);
+    },
+
+    'ignores a commented width array before the one top-level width declaration' => static function (
+        TestRunner $t
+    ) use ($pdfWithWidthOnlyTrueType): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $pdfWithWidthOnlyTrueType(
+            'AB',
+            7.0,
+            '[200 300]',
+            66,
+            "% /Widths [200 300]\n/Widths [2000 3000]"
+        );
+        $positioned = $extractor->extractPositionedTextRuns($pdf);
+        $visibility = $extractor->diagnostics($pdf)['textVisibility'];
+
+        $t->same(62.0, $positioned[0]['textX2'] ?? null);
+        $t->same(1, $visibility['unresolvedClippingRuns'] ?? null);
+        $t->same(false, $visibility['complete'] ?? null);
+    },
+
+    'rejects duplicate top-level width declarations as width-only evidence' => static function (
+        TestRunner $t
+    ) use ($pdfWithWidthOnlyTrueType): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $pdfWithWidthOnlyTrueType(
+            'AB',
+            7.0,
+            '[200 300]',
+            66,
+            '/Widths [200 300] /Widths [2000 3000]'
+        );
+        $positioned = $extractor->extractPositionedTextRuns($pdf);
+        $visibility = $extractor->diagnostics($pdf)['textVisibility'];
+
+        $t->same(22.0, $positioned[0]['textX2'] ?? null);
+        $t->same(1, $visibility['unresolvedClippingRuns'] ?? null);
+        $t->same(false, $visibility['complete'] ?? null);
+    },
+
+    'proves TraceMonkey chart text inside declared-width rectangle clips' => static function (
+        TestRunner $t
+    ): void {
+        $path = dirname(__DIR__, 3)
+            . '/pandoc-showcase/samples/pdf-tracemonkey-tracemonkey.pdf';
+        $pdf = file_get_contents($path);
+        $t->true(is_string($pdf) && $pdf !== '', 'Expected the TraceMonkey PDF fixture.');
+        if (!is_string($pdf) || $pdf === '') {
+            return;
+        }
+
+        $visibility = (new PdfTextExtractor([
+            'pdfStartPage' => 10,
+            'pdfMaxPages' => 4,
+        ]))->diagnostics($pdf)['textVisibility'];
+        $summaries = [];
+        foreach ($visibility['pages'] ?? [] as $summary) {
+            if (is_array($summary) && is_int($summary['page'] ?? null)) {
+                $summaries[$summary['page']] = $summary;
+            }
+        }
+        foreach ([10, 11, 13] as $page) {
+            $t->same(
+                0,
+                $summaries[$page]['unresolvedClippingRuns'] ?? null,
+                'Expected exact declared font widths to prove chart text on page ' . $page . '.'
+            );
+            $t->true(
+                !isset($summaries[$page]['unresolvedReasonCounts']['unresolved-clipping-path']),
+                'Page ' . $page . ' retained a clipping-path uncertainty.'
+            );
+        }
+    },
+
     'keeps partial arbitrary and skewed clipping paths fail closed' => static function (
         TestRunner $t
     ) use ($pdfWithPage): void {
@@ -536,6 +747,63 @@ return [
         $t->same(false, $visibility['complete'] ?? null);
     },
 
+    'proves an oriented text parallelogram disjoint from a false-overlap cubic stroke box' => static function (
+        TestRunner $t
+    ) use ($pdfWithPage): void {
+        $resources = '<< /Font << /F1 << /Type /Font /Subtype /Type1 '
+            . '/BaseFont /Helvetica /Encoding /WinAnsiEncoding >> >> >>';
+        // This is the Muir page-four geometry reduced to one glyph and one
+        // stroke. Their axis-aligned boxes overlap, but the stroked curve and
+        // the oriented conservative text parallelogram are disjoint.
+        $content = 'BT /F1 7.889 Tf '
+            . '.6847077 -.7288178 .7288178 .6847077 297.0434 529.6103 Tm (T) Tj ET '
+            . 'q 1.914 w 1 0 0 1 288.3212 533.3932 cm '
+            . '0 0 m 18.445 -19.661 22.803 -21.964 v S Q';
+        $visibility = (new PdfTextExtractor())->diagnostics(
+            $pdfWithPage($content, $resources)
+        )['textVisibility'];
+
+        $t->same(0, $visibility['unresolvedOcclusionRiskRuns'] ?? null);
+        $t->same([], $visibility['unresolvedReasons'] ?? null);
+        $t->same(true, $visibility['complete'] ?? null);
+    },
+
+    'keeps a truly crossing cubic stroke fail closed at the subdivision bound' => static function (
+        TestRunner $t
+    ) use ($pdfWithPage): void {
+        $resources = '<< /Font << /F1 << /Type /Font /Subtype /Type1 '
+            . '/BaseFont /Helvetica /Encoding /WinAnsiEncoding >> >> >>';
+        $content = 'BT /F1 12 Tf 1 0 0 1 100 100 Tm (ABC) Tj ET '
+            . '2 w 100 105 m 110 105 130 105 150 105 c S';
+        $visibility = (new PdfTextExtractor())->diagnostics(
+            $pdfWithPage($content, $resources)
+        )['textVisibility'];
+
+        $t->same(1, $visibility['unresolvedOcclusionRiskRuns'] ?? null);
+        $t->same(1, $visibility['unresolvedReasonCounts']['later-paint-occlusion'] ?? null);
+        $t->same(false, $visibility['complete'] ?? null);
+    },
+
+    'keeps a crossing cubic fail closed after sub-nanounit path CTM drift' => static function (
+        TestRunner $t
+    ) use ($pdfWithPage): void {
+        $resources = '<< /Font << /F1 << /Type /Font /Subtype /Type1 '
+            . '/BaseFont /Helvetica /Encoding /WinAnsiEncoding >> >> >>';
+        $content = 'BT /F1 12 Tf 1 0 0 1 100 100 Tm (ABC) Tj ET '
+            . 'q 0.0000000001 0 0 0.0000000001 0 0 cm '
+            . '1000000000 w 900000000000 1050000000000 m '
+            . '1000000000000 1050000000000 1400000000000 1050000000000 '
+            . '1500000000000 1050000000000 c '
+            . '10 0 0 10 0 0 cm S Q';
+        $visibility = (new PdfTextExtractor())->diagnostics(
+            $pdfWithPage($content, $resources)
+        )['textVisibility'];
+
+        $t->same(1, $visibility['unresolvedOcclusionRiskRuns'] ?? null);
+        $t->same(1, $visibility['unresolvedReasonCounts']['later-paint-occlusion'] ?? null);
+        $t->same(false, $visibility['complete'] ?? null);
+    },
+
     'bounds transformed line curve and rectangle strokes with scoped graphics state' => static function (
         TestRunner $t
     ) use ($pdfWithPage): void {
@@ -593,5 +861,31 @@ return [
         $t->same(1, $visibility['unresolvedOcclusionRiskRuns'] ?? null);
         $t->same(1, $visibility['unresolvedReasonCounts']['later-paint-occlusion'] ?? null);
         $t->same(false, $visibility['complete'] ?? null);
+    },
+
+    'keeps the raw Muir page-four visibility diagnostic complete' => static function (
+        TestRunner $t
+    ): void {
+        $path = dirname(__DIR__, 3)
+            . '/pandoc-showcase/samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf';
+        $pdf = is_file($path) ? file_get_contents($path) : false;
+        $t->true(is_string($pdf) && $pdf !== '', 'Expected the Muir brochure fixture.');
+        if (!is_string($pdf) || $pdf === '') {
+            return;
+        }
+
+        $visibility = (new PdfTextExtractor())->diagnostics($pdf)['textVisibility'];
+        $pageFour = null;
+        foreach ($visibility['pages'] ?? [] as $pageSummary) {
+            if (($pageSummary['page'] ?? null) === 4) {
+                $pageFour = $pageSummary;
+                break;
+            }
+        }
+
+        $t->same(0, $visibility['unresolvedOcclusionRiskRuns'] ?? null);
+        $t->same(true, $visibility['complete'] ?? null);
+        $t->same(0, $pageFour['unresolvedOcclusionRiskRuns'] ?? null);
+        $t->same(true, $pageFour['complete'] ?? null);
     },
 ];

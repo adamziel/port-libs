@@ -121,8 +121,21 @@ return [
         $ledger = $meta['pdfTextFidelity'];
         $plain = PandocConverter::write($document, 'plain');
         $wordpress = PandocConverter::write($document, 'wordpress');
+        $titlePosition = strpos($plain, 'Dense Passage Retrieval for Open-Domain Question Answering');
+        $authorPosition = strpos($plain, 'Vladimir Karpukhin');
+        $summaryHeadingPosition = strpos($plain, 'Abstract');
         $summaryPosition = strpos($plain, 'Open-domain question answering relies');
         $introductionPosition = strpos($plain, '1 Introduction');
+        preg_match_all('/<p(?:\s[^>]*)?>(.*?)<\/p>/su', $wordpress, $paragraphMatches);
+        $singleGlyphParagraphs = array_values(array_filter(array_map(
+            static fn (string $paragraph): string => trim(html_entity_decode(
+                strip_tags($paragraph),
+                ENT_QUOTES | ENT_SUBSTITUTE,
+                'UTF-8'
+            )),
+            $paragraphMatches[1] ?? []
+        ), static fn (string $paragraph): bool => preg_match('/^\X$/u', $paragraph) === 1));
+        $compactPlain = preg_replace('/\s+/u', '', $plain) ?? '';
 
         $t->same(true, $meta['pdfTextComplete']);
         $t->same(true, $meta['pdfDocumentComplete'] ?? null);
@@ -143,12 +156,30 @@ return [
         $t->contains('Abstract', $plain);
         $t->contains('benchmarks.1', $plain);
         $t->contains(
+            'VladimirKarpukhin∗,BarlasO˘guz∗,SewonMin†,PatrickLewis,',
+            $compactPlain,
+            'Exact same-line author fragments stay in one front-matter carrier.'
+        );
+        $t->contains(
             'w(i)s,w(i)s+1,···,w(i)e',
-            preg_replace('/\s+/u', '', $plain) ?? '',
+            $compactPlain,
             'Exact inline math markers retain every source punctuation occurrence.'
         );
+        $t->contains('|pi|', $compactPlain, 'Exact inline delimiters stay attached to their formula carrier.');
         $t->true(!str_contains($wordpress, '<p>1</p>'), 'A detached superscript marker must not become a standalone paragraph.');
-        $t->true(is_int($summaryPosition) && is_int($introductionPosition) && $summaryPosition < $introductionPosition);
+        $t->same([], $singleGlyphParagraphs, 'No exact glyph occurrence becomes a standalone paragraph.');
+        $t->true(
+            is_int($titlePosition)
+                && is_int($authorPosition)
+                && is_int($summaryHeadingPosition)
+                && is_int($summaryPosition)
+                && is_int($introductionPosition)
+                && $titlePosition < $authorPosition
+                && $authorPosition < $summaryHeadingPosition
+                && $summaryHeadingPosition < $summaryPosition
+                && $summaryPosition < $introductionPosition,
+            'Title, credits, summary, and body retain their proved visual order.'
+        );
         $t->true($ledger['tokenCoverage'] > 0.855);
         $t->true($ledger['unresolvedTokenCount'] < 225);
         $t->true(

@@ -7,6 +7,7 @@ use PortLibs\MarkerPDF\PdfDocumentFacts;
 use PortLibs\MarkerPDF\PdfDocumentFactsMerger;
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\PandocConverter;
+use PortLibs\Pandoc\PdfLaterPaintVisibilityReconciler;
 use PortLibs\Pandoc\PdfReader;
 use PortLibs\Pandoc\PdfSemanticChunkReconciler;
 
@@ -433,6 +434,292 @@ $tests = [
         $t->same(
             $baseline->attr('meta', [])['pdfTextFidelity']['sourceTokenCount'] ?? null,
             $metadata['pdfTextFidelity']['sourceTokenCount'] ?? null
+        );
+    },
+    'localizes full-range furniture and visibility evidence to one durable Muir page' => static function (
+        TestRunner $t
+    ) use ($pdfFactsRange, $pdfReaderOptions): void {
+        $fixture = dirname(__DIR__, 3)
+            . '/pandoc-showcase/samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf';
+        $pdf = file_get_contents($fixture);
+        $t->true(is_string($pdf) && $pdf !== '', 'Expected the Muir brochure fixture.');
+        $options = $pdfReaderOptions();
+        $facts = (new NativePdfFactsProvider())->extract($pdf, $options);
+        $profile = $facts->structure()['documentProfile'] ?? [];
+        $t->true(
+            is_array($profile['recurringFurniture'] ?? null)
+                && $profile['recurringFurniture'] !== [],
+            'The regression requires a complete profile with recurring edge-text evidence.'
+        );
+
+        $pageOneFacts = $pdfFactsRange($facts, 1, 1);
+        $pageOne = (new PdfReader($options + [
+            'pdfDocumentFacts' => $pageOneFacts->toArray(),
+        ]))->read($pdf);
+        $pageOneMetadata = $pageOne->attr('meta', []);
+        $pageOneDisposition = $pageOneMetadata['pdfSourceDisposition'] ?? [];
+        $t->same(true, $pageOneMetadata['pdfTextVisibilityRawComplete'] ?? null);
+        $t->same(true, $pageOneMetadata['pdfSourceBindingComplete'] ?? null);
+        $t->same(true, $pageOneMetadata['pdfSemanticTextComplete'] ?? null);
+        $t->same(0, $pageOneDisposition['unresolvedOccurrenceCount'] ?? null);
+        $t->same(0, $pageOneDisposition['unclaimedEmittedTokenCount'] ?? null);
+        $t->same(0, $pageOneDisposition['unclaimedEmittedSignificantCharacterCount'] ?? null);
+        $t->same(
+            [1],
+            array_column($pageOneMetadata['pdfTextVisibility']['pages'] ?? [], 'page')
+        );
+        $t->contains(
+            'EXPERIENCE YOUR AMERICA',
+            PandocConverter::write($pageOne, 'html'),
+            'Profile-classified edge text remains emitted unless an exact removal stage signs a receipt.'
+        );
+
+    },
+    'fails closed before localizing malformed or unsigned visibility receipts' => static function (
+        TestRunner $t
+    ): void {
+        $reader = new PdfReader();
+        $localize = (function (array $visibility, array $pages): array {
+            return $this->pdfTextVisibilityForDocumentFactsRange($visibility, $pages);
+        })->bindTo($reader, PdfReader::class);
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $t->true($localize instanceof Closure);
+        $t->true($setSourceSha256 instanceof Closure);
+
+        $digest = static function (array $value): string {
+            $encoded = json_encode(
+                $value,
+                JSON_UNESCAPED_SLASHES
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_PRESERVE_ZERO_FRACTION
+            );
+
+            return hash('sha256', is_string($encoded) ? $encoded : serialize($value));
+        };
+        $sourceSha256 = str_repeat('7', 64);
+        $setSourceSha256($sourceSha256);
+        $riskPayload = [
+            'version' => 1,
+            'sourceSha256' => $sourceSha256,
+            'page' => 2,
+            'sourceOccurrenceIndex' => 4,
+        ];
+        $riskDigest = $digest($riskPayload);
+        $risk = ['id' => 'pdf-later-paint-risk-' . substr($riskDigest, 0, 32)]
+            + $riskPayload
+            + ['riskDigest' => $riskDigest];
+        $emptyRiskDigest = $digest([]);
+        $pageOne = [
+            'page' => 1,
+            'complete' => true,
+            'visibleRuns' => 3,
+            'visibleOutputRuns' => 3,
+            'suppressedNonPaintingRuns' => 1,
+            'suppressedRenderingModeRuns' => 1,
+            'suppressedZeroAlphaRuns' => 0,
+            'suppressedOptionalContentRuns' => 0,
+            'suppressedOutsidePageRuns' => 2,
+            'suppressedNonPaintingActualTextRuns' => 0,
+            'suppressedAccessibilityReplacementRuns' => 0,
+            'unresolvedRuns' => 0,
+            'unresolvedReasons' => [],
+            'unresolvedReasonCounts' => [],
+            'unresolvedClippingRuns' => 0,
+            'unresolvedOcclusionRiskRuns' => 0,
+            'laterPaintRiskCount' => 0,
+            'laterPaintRiskRecordedCount' => 0,
+            'laterPaintRiskUnboundCount' => 0,
+            'laterPaintRiskTruncatedCount' => 0,
+            'laterPaintRisksDigest' => $emptyRiskDigest,
+        ];
+        $pageTwo = [
+            'page' => 2,
+            'complete' => false,
+            'visibleRuns' => 5,
+            'visibleOutputRuns' => 5,
+            'suppressedNonPaintingRuns' => 2,
+            'suppressedRenderingModeRuns' => 0,
+            'suppressedZeroAlphaRuns' => 0,
+            'suppressedOptionalContentRuns' => 2,
+            'suppressedOutsidePageRuns' => 0,
+            'suppressedNonPaintingActualTextRuns' => 1,
+            'suppressedAccessibilityReplacementRuns' => 1,
+            'unresolvedRuns' => 1,
+            'unresolvedReasons' => [
+                'ext-gstate-opacity-or-soft-mask',
+                'later-paint-occlusion',
+            ],
+            'unresolvedReasonCounts' => [
+                'ext-gstate-opacity-or-soft-mask' => 1,
+                'later-paint-occlusion' => 1,
+            ],
+            'unresolvedClippingRuns' => 0,
+            'unresolvedOcclusionRiskRuns' => 1,
+            'laterPaintRiskCount' => 1,
+            'laterPaintRiskRecordedCount' => 1,
+            'laterPaintRiskUnboundCount' => 0,
+            'laterPaintRiskTruncatedCount' => 0,
+            'laterPaintRisksDigest' => $digest([$risk]),
+        ];
+        $countKeys = [
+            'visibleRuns',
+            'visibleOutputRuns',
+            'suppressedNonPaintingRuns',
+            'suppressedRenderingModeRuns',
+            'suppressedZeroAlphaRuns',
+            'suppressedOptionalContentRuns',
+            'suppressedOutsidePageRuns',
+            'suppressedNonPaintingActualTextRuns',
+            'suppressedAccessibilityReplacementRuns',
+            'unresolvedRuns',
+            'unresolvedClippingRuns',
+            'unresolvedOcclusionRiskRuns',
+            'laterPaintRiskCount',
+            'laterPaintRiskRecordedCount',
+            'laterPaintRiskUnboundCount',
+            'laterPaintRiskTruncatedCount',
+        ];
+        $visibility = [
+            'policy' => 'visible-painted-text-v1',
+            'complete' => false,
+            'pages' => [$pageOne, $pageTwo],
+            'unresolvedReasons' => $pageTwo['unresolvedReasons'],
+            'unresolvedReasonCounts' => $pageTwo['unresolvedReasonCounts'],
+            'laterPaintRisks' => [$risk],
+            'laterPaintRisksDigest' => $digest([$risk]),
+        ];
+        foreach ($countKeys as $key) {
+            $visibility[$key] = $pageOne[$key] + $pageTwo[$key];
+        }
+
+        $localizedOne = $localize($visibility, [1]);
+        $t->same(true, $localizedOne['complete'] ?? null);
+        $t->same([1], array_column($localizedOne['pages'] ?? [], 'page'));
+        $t->same(1, $localizedOne['suppressedRenderingModeRuns'] ?? null);
+        $t->same(0, $localizedOne['suppressedOptionalContentRuns'] ?? null);
+        $t->same(2, $localizedOne['suppressedOutsidePageRuns'] ?? null);
+        $t->same(0, $localizedOne['suppressedAccessibilityReplacementRuns'] ?? null);
+        $t->same([], $localizedOne['unresolvedReasonCounts'] ?? null);
+        $t->same(0, $localizedOne['laterPaintRiskCount'] ?? null);
+        $t->same($emptyRiskDigest, $localizedOne['laterPaintRisksDigest'] ?? null);
+
+        $localizedTwo = $localize($visibility, [2]);
+        $t->same(false, $localizedTwo['complete'] ?? null);
+        $t->same(2, $localizedTwo['suppressedOptionalContentRuns'] ?? null);
+        $t->same(1, $localizedTwo['suppressedAccessibilityReplacementRuns'] ?? null);
+        $t->same(1, $localizedTwo['laterPaintRiskCount'] ?? null);
+        $t->same(1, $localizedTwo['laterPaintRiskRecordedCount'] ?? null);
+        $t->same([$risk], $localizedTwo['laterPaintRisks'] ?? null);
+
+        $unbound = $visibility;
+        $unbound['unresolvedRuns'] = 0;
+        $unbound['unresolvedReasons'] = ['later-paint-occlusion'];
+        $unbound['unresolvedReasonCounts'] = ['later-paint-occlusion' => 1];
+        $unbound['laterPaintRisks'] = [];
+        $unbound['laterPaintRisksDigest'] = $emptyRiskDigest;
+        $unbound['laterPaintRiskRecordedCount'] = 0;
+        $unbound['laterPaintRiskUnboundCount'] = 1;
+        $unbound['pages'][1]['unresolvedRuns'] = 0;
+        $unbound['pages'][1]['unresolvedReasons'] = ['later-paint-occlusion'];
+        $unbound['pages'][1]['unresolvedReasonCounts'] = ['later-paint-occlusion' => 1];
+        $unbound['pages'][1]['laterPaintRiskRecordedCount'] = 0;
+        $unbound['pages'][1]['laterPaintRiskUnboundCount'] = 1;
+        $unbound['pages'][1]['laterPaintRisksDigest'] = $emptyRiskDigest;
+        $t->same(
+            true,
+            $localize($unbound, [1])['complete'] ?? null,
+            'An exactly scoped clean page must not inherit its sibling page\'s unbound risk.'
+        );
+        $localizedUnbound = $localize($unbound, [2]);
+        $t->same(false, $localizedUnbound['complete'] ?? null);
+        $t->same(1, $localizedUnbound['laterPaintRiskCount'] ?? null);
+        $t->same(0, $localizedUnbound['laterPaintRiskRecordedCount'] ?? null);
+        $t->same(1, $localizedUnbound['laterPaintRiskUnboundCount'] ?? null);
+        $t->same(
+            'incomplete-risk-inventory',
+            PdfLaterPaintVisibilityReconciler::reconcile(
+                $sourceSha256,
+                $localizedUnbound,
+                [],
+                [],
+                [],
+                [],
+                0,
+                [],
+                []
+            )['failureReason'] ?? null
+        );
+
+        $assertInvalid = static function (
+            TestRunner $t,
+            array $localized,
+            string $reason
+        ): void {
+            $t->same(false, $localized['complete'] ?? null);
+            $t->same(false, $localized['rangeLocalizationComplete'] ?? null);
+            $t->same($reason, $localized['rangeLocalizationFailureReason'] ?? null);
+            $t->same(1, $localized['unresolvedRuns'] ?? null);
+            $t->same([], $localized['laterPaintRisks'] ?? null);
+            $t->same(0, $localized['laterPaintRiskCount'] ?? null);
+        };
+
+        $missingCounter = $visibility;
+        unset($missingCounter['pages'][0]['unresolvedRuns']);
+        $assertInvalid(
+            $t,
+            $localize($missingCounter, [1]),
+            'range-page-visibility-counter-invalid'
+        );
+
+        $badDigest = $visibility;
+        $badDigest['laterPaintRisksDigest'] = str_repeat('0', 64);
+        $assertInvalid(
+            $t,
+            $localize($badDigest, [1]),
+            'range-later-paint-risk-inventory-invalid'
+        );
+
+        $staleAggregate = $visibility;
+        $staleAggregate['visibleRuns']++;
+        $staleAggregate['visibleOutputRuns']++;
+        $assertInvalid(
+            $t,
+            $localize($staleAggregate, [1]),
+            'range-visibility-page-aggregate-mismatch'
+        );
+
+        $unsupportedPolicy = $visibility;
+        $unsupportedPolicy['policy'] = 'untrusted-visibility-policy';
+        $unsupportedPolicy['complete'] = true;
+        $assertInvalid(
+            $t,
+            $localize($unsupportedPolicy, [1]),
+            'range-visibility-policy-invalid'
+        );
+
+        $staleScopedCounter = $visibility;
+        $staleScopedCounter['pages'][0]['suppressedOptionalContentRuns'] = 1;
+        $assertInvalid(
+            $t,
+            $localize($staleScopedCounter, [1]),
+            'range-page-visibility-state-invalid'
+        );
+
+        $forgedReasonAggregate = $pageOne;
+        unset($forgedReasonAggregate['page']);
+        $forgedReasonAggregate['policy'] = 'visible-painted-text-v1';
+        $forgedReasonAggregate['pages'] = [$pageOne];
+        $forgedReasonAggregate['laterPaintRisks'] = [];
+        $forgedReasonAggregate['unresolvedReasons'] = ['forged-unresolved'];
+        $forgedReasonAggregate['unresolvedReasonCounts'] = [
+            'forged-unresolved' => 1,
+        ];
+        $assertInvalid(
+            $t,
+            $localize($forgedReasonAggregate, [1]),
+            'range-visibility-aggregate-state-invalid'
         );
     },
     'rejects durable facts when their source digest does not match' => static function (

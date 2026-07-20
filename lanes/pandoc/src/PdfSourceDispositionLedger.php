@@ -124,7 +124,8 @@ final class PdfSourceDispositionLedger
     public static function bindSourceLineItemsToOutput(
         array $sourceLineItems,
         array $blocks,
-        array $explicitDispositions = []
+        array $explicitDispositions = [],
+        array $bindingContext = []
     ): array {
         $records = self::sourceBindingRecords($sourceLineItems, $explicitDispositions);
         $projection = self::sourceBindingProjection($records);
@@ -166,7 +167,8 @@ final class PdfSourceDispositionLedger
                 $structural = self::sourceBindingSemanticStructureMappings(
                     $records,
                     $decoratedBlocks,
-                    $mappingBySourceId
+                    $mappingBySourceId,
+                    $bindingContext
                 );
                 if ($structural['failureReason'] !== null) {
                     $complete = false;
@@ -262,7 +264,8 @@ final class PdfSourceDispositionLedger
     public static function fromSourceLineItems(
         array $sourceLineItems,
         array $blocks,
-        array $explicitDispositions = []
+        array $explicitDispositions = [],
+        array $bindingContext = []
     ): array {
         // Walk the AST independently for inventory and ordered-character
         // hashing instead of retaining a second copy of every emitted text
@@ -283,7 +286,8 @@ final class PdfSourceDispositionLedger
         }
         $structuralValidation = self::validatedExplicitSemanticStructureMappings(
             $bindingRecords,
-            $blocks
+            $blocks,
+            $bindingContext
         );
         $validStructuralIds = $structuralValidation['sourceOccurrenceIds'];
         $exactMappedOutputCoverage = self::hasExactMappedOutputCoverage(
@@ -714,7 +718,8 @@ final class PdfSourceDispositionLedger
      */
     private static function validatedExplicitSemanticStructureMappings(
         array $records,
-        array $blocks
+        array $blocks,
+        array $bindingContext = []
     ): array {
         $sensitiveIds = [];
         $textMappings = [];
@@ -744,7 +749,12 @@ final class PdfSourceDispositionLedger
             return ['sourceOccurrenceIds' => [], 'failureReason' => null];
         }
 
-        $derived = self::sourceBindingSemanticStructureMappings($records, $blocks, $textMappings);
+        $derived = self::sourceBindingSemanticStructureMappings(
+            $records,
+            $blocks,
+            $textMappings,
+            $bindingContext
+        );
         if ($derived['failureReason'] !== null) {
             return ['sourceOccurrenceIds' => [], 'failureReason' => $derived['failureReason']];
         }
@@ -846,13 +856,24 @@ final class PdfSourceDispositionLedger
         $anchorProjectionDigest = is_string($value['anchorProjectionDigest'] ?? null)
             ? $value['anchorProjectionDigest']
             : '';
+        $compositeLayoutPresentationReceipt =
+            self::normalizedCompositeLayoutPresentationReceipt(
+                $value['compositeLayoutPresentationReceipt'] ?? null,
+                $id
+            );
+        $presentationRepairReceipt = self::normalizedListPresentationRepairReceipt(
+            $value['presentationRepairReceipt'] ?? null,
+            $id
+        );
         $ordinalIsValid = $listType === 'ordered'
             ? is_int($markerOrdinal) && $markerOrdinal >= 1
             : $markerOrdinal === null;
         $extendedAnchorIsValid = $version === 2
             && is_array($anchorIds)
             && array_is_list($anchorIds)
-            && count($anchorIds) >= 3
+            && count($anchorIds) >= ($compositeLayoutPresentationReceipt !== null
+                ? 1
+                : ($presentationRepairReceipt !== null ? 2 : 3))
             && count($anchorIds) <= 16
             && ($anchorIds[0] ?? null) === $anchorId
             && count(array_unique($anchorIds, SORT_STRING)) === count($anchorIds)
@@ -872,7 +893,13 @@ final class PdfSourceDispositionLedger
             || $anchorId === $id
             || preg_match('/^[a-f0-9]{64}$/D', $itemDigest) !== 1
             || ($version === 2 && !$extendedAnchorIsValid)
-            || ($version === 1 && ($anchorIds !== null || $anchorProjectionDigest !== ''))) {
+            || ($compositeLayoutPresentationReceipt !== null
+                && $presentationRepairReceipt !== null)
+            || ($version === 1
+                && ($anchorIds !== null
+                    || $anchorProjectionDigest !== ''
+                    || $compositeLayoutPresentationReceipt !== null
+                    || $presentationRepairReceipt !== null))) {
             throw new InvalidArgumentException(
                 'PDF source occurrence ' . $id . ' has an incomplete semantic-structure proof.'
             );
@@ -890,9 +917,441 @@ final class PdfSourceDispositionLedger
         if ($version === 2) {
             $normalized['anchorSourceOccurrenceIds'] = $anchorIds;
             $normalized['anchorProjectionDigest'] = $anchorProjectionDigest;
+            if ($compositeLayoutPresentationReceipt !== null) {
+                $normalized['compositeLayoutPresentationReceipt'] =
+                    $compositeLayoutPresentationReceipt;
+            } elseif ($presentationRepairReceipt !== null) {
+                $normalized['presentationRepairReceipt'] =
+                    $presentationRepairReceipt;
+            }
         }
 
         return $normalized;
+    }
+
+    /** @return array<string,mixed>|null */
+    private static function normalizedListPresentationRepairReceipt(
+        mixed $value,
+        string $markerId
+    ): ?array {
+        if ($value === null) {
+            return null;
+        }
+        if (!is_array($value)) {
+            throw new InvalidArgumentException(
+                'PDF source occurrence ' . $markerId
+                    . ' has an invalid list presentation-repair receipt.'
+            );
+        }
+        $sourceIds = $value['sourceOccurrenceIds'] ?? null;
+        $globalIndexes = $value['globalSourceIndexes'] ?? null;
+        $boundaryOffsets = $value['significantBoundaryOffsets'] ?? null;
+        $boundarySpaces = $value['visibleBoundarySpaces'] ?? null;
+        $authorizedTargets = $value['authorizedTargets'] ?? null;
+        $visiblePrefix = is_string($value['visiblePrefix'] ?? null)
+            ? $value['visiblePrefix']
+            : '';
+        $significantPrefix = self::significantText($visiblePrefix);
+        if (($value['version'] ?? null) !== 1
+            || ($value['method'] ?? null)
+                !== 'exact-consecutive-list-presentation-repair-prefix'
+            || !is_string($value['sourceSha256'] ?? null)
+            || preg_match('/^[a-f0-9]{64}$/D', $value['sourceSha256']) !== 1
+            || !is_int($value['page'] ?? null)
+            || $value['page'] < 1
+            || !is_int($value['stream'] ?? null)
+            || $value['stream'] < 1
+            || !is_array($sourceIds)
+            || !array_is_list($sourceIds)
+            || count($sourceIds) < 2
+            || count(array_unique($sourceIds, SORT_STRING)) !== count($sourceIds)
+            || array_reduce(
+                $sourceIds,
+                static fn (bool $valid, mixed $candidate): bool =>
+                    $valid && is_string($candidate) && $candidate !== '',
+                true
+            ) !== true
+            || !is_array($globalIndexes)
+            || !array_is_list($globalIndexes)
+            || count($globalIndexes) !== count($sourceIds)
+            || array_reduce(
+                $globalIndexes,
+                static fn (bool $valid, mixed $candidate): bool =>
+                    $valid && is_int($candidate) && $candidate >= 0,
+                true
+            ) !== true
+            || $visiblePrefix === ''
+            || !hash_equals(
+                $visiblePrefix,
+                self::sourceBindingStrictVisibleText($visiblePrefix)
+            )
+            || $significantPrefix === ''
+            || !is_string($value['prefixProjectionDigest'] ?? null)
+            || !hash_equals(
+                $value['prefixProjectionDigest'],
+                hash('sha256', $significantPrefix)
+            )
+            || !is_string($value['visiblePrefixDigest'] ?? null)
+            || !hash_equals(
+                $value['visiblePrefixDigest'],
+                hash('sha256', $visiblePrefix)
+            )
+            || !is_string($value['finalPageProjectionDigest'] ?? null)
+            || preg_match(
+                '/^[a-f0-9]{64}$/D',
+                $value['finalPageProjectionDigest']
+            ) !== 1
+            || !is_array($boundaryOffsets)
+            || !array_is_list($boundaryOffsets)
+            || count($boundaryOffsets) !== count($sourceIds) - 1
+            || !is_array($boundarySpaces)
+            || !array_is_list($boundarySpaces)
+            || count($boundarySpaces) !== count($boundaryOffsets)
+            || !is_array($authorizedTargets)
+            || !array_is_list($authorizedTargets)
+            || $authorizedTargets === []
+            || !is_string($value['proofDigest'] ?? null)
+            || preg_match('/^[a-f0-9]{64}$/D', $value['proofDigest']) !== 1) {
+            throw new InvalidArgumentException(
+                'PDF source occurrence ' . $markerId
+                    . ' has an incomplete list presentation-repair receipt.'
+            );
+        }
+        foreach ($globalIndexes as $offset => $globalIndex) {
+            if ($offset > 0 && $globalIndex !== $globalIndexes[$offset - 1] + 1) {
+                throw new InvalidArgumentException(
+                    'PDF source occurrence ' . $markerId
+                        . ' has a nonconsecutive list presentation-repair receipt.'
+                );
+            }
+        }
+        $previousBoundary = 0;
+        foreach ($boundaryOffsets as $offset => $boundaryOffset) {
+            if (!is_int($boundaryOffset)
+                || $boundaryOffset <= $previousBoundary
+                || $boundaryOffset >= strlen($significantPrefix)
+                || !is_bool($boundarySpaces[$offset] ?? null)) {
+                throw new InvalidArgumentException(
+                    'PDF source occurrence ' . $markerId
+                        . ' has invalid list presentation boundaries.'
+                );
+            }
+            $previousBoundary = $boundaryOffset;
+        }
+        $canonicalTargets = [];
+        foreach ($authorizedTargets as $authorizedTarget) {
+            $significantDigest = is_array($authorizedTarget)
+                ? ($authorizedTarget['significantDigest'] ?? null)
+                : null;
+            $strictVisibleDigest = is_array($authorizedTarget)
+                ? ($authorizedTarget['strictVisibleDigest'] ?? null)
+                : null;
+            if (!is_string($significantDigest)
+                || preg_match('/^[a-f0-9]{64}$/D', $significantDigest) !== 1
+                || !is_string($strictVisibleDigest)
+                || preg_match('/^[a-f0-9]{64}$/D', $strictVisibleDigest) !== 1
+                || count($authorizedTarget) !== 2) {
+                throw new InvalidArgumentException(
+                    'PDF source occurrence ' . $markerId
+                        . ' has invalid list presentation target authorization.'
+                );
+            }
+            $canonicalTargets[$significantDigest . "\0" . $strictVisibleDigest] = [
+                'significantDigest' => $significantDigest,
+                'strictVisibleDigest' => $strictVisibleDigest,
+            ];
+        }
+        ksort($canonicalTargets, SORT_STRING);
+        $payload = $value;
+        unset($payload['proofDigest']);
+        if ($authorizedTargets !== array_values($canonicalTargets)
+            || !hash_equals($value['proofDigest'], hash('sha256', json_encode(
+                $payload,
+                JSON_UNESCAPED_SLASHES
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: ''))) {
+            throw new InvalidArgumentException(
+                'PDF source occurrence ' . $markerId
+                    . ' has a stale list presentation-repair receipt.'
+            );
+        }
+
+        return $value;
+    }
+
+    /** @return array<string,mixed>|null */
+    private static function normalizedListPresentationOccurrenceReceipt(
+        mixed $value,
+        string $markerId
+    ): ?array {
+        if ($value === null) {
+            return null;
+        }
+        if (!is_array($value)) {
+            throw new InvalidArgumentException(
+                'PDF source occurrence ' . $markerId
+                    . ' has an invalid nested list presentation-repair receipt.'
+            );
+        }
+        $visibleProjection = is_string($value['visibleProjection'] ?? null)
+            ? $value['visibleProjection']
+            : '';
+        $authorizedTargets = $value['authorizedTargets'] ?? null;
+        if (($value['version'] ?? null) !== 1
+            || ($value['method'] ?? null)
+                !== 'exact-whole-source-list-presentation-occurrence'
+            || !is_string($value['sourceSha256'] ?? null)
+            || preg_match('/^[a-f0-9]{64}$/D', $value['sourceSha256']) !== 1
+            || !is_string($value['sourceOccurrenceId'] ?? null)
+            || $value['sourceOccurrenceId'] === ''
+            || !is_int($value['globalSourceIndex'] ?? null)
+            || $value['globalSourceIndex'] < 0
+            || !is_int($value['page'] ?? null)
+            || $value['page'] < 1
+            || !is_int($value['stream'] ?? null)
+            || $value['stream'] < 1
+            || !is_string($value['projectionDigest'] ?? null)
+            || preg_match('/^[a-f0-9]{64}$/D', $value['projectionDigest']) !== 1
+            || $visibleProjection === ''
+            || !hash_equals(
+                $visibleProjection,
+                self::sourceBindingStrictVisibleText($visibleProjection)
+            )
+            || self::significantText($visibleProjection) === ''
+            || !hash_equals(
+                $value['projectionDigest'],
+                hash('sha256', self::significantText($visibleProjection))
+            )
+            || !is_string($value['visibleProjectionDigest'] ?? null)
+            || !hash_equals(
+                $value['visibleProjectionDigest'],
+                hash('sha256', $visibleProjection)
+            )
+            || !is_string($value['finalPageProjectionDigest'] ?? null)
+            || preg_match(
+                '/^[a-f0-9]{64}$/D',
+                $value['finalPageProjectionDigest']
+            ) !== 1
+            || !self::sourceBindingAuthorizedTargetsAreCanonical($authorizedTargets)
+            || !is_string($value['proofDigest'] ?? null)
+            || preg_match('/^[a-f0-9]{64}$/D', $value['proofDigest']) !== 1) {
+            throw new InvalidArgumentException(
+                'PDF source occurrence ' . $markerId
+                    . ' has an incomplete nested list presentation-repair receipt.'
+            );
+        }
+        $payload = $value;
+        unset($payload['proofDigest']);
+        if (!hash_equals($value['proofDigest'], hash('sha256', json_encode(
+            $payload,
+            JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+                | JSON_PRESERVE_ZERO_FRACTION
+        ) ?: ''))) {
+            throw new InvalidArgumentException(
+                'PDF source occurrence ' . $markerId
+                    . ' has a stale nested list presentation-repair receipt.'
+            );
+        }
+
+        return $value;
+    }
+
+    /** @return array<string,mixed>|null */
+    private static function normalizedCompositeLayoutPresentationReceipt(
+        mixed $value,
+        string $markerId
+    ): ?array {
+        if ($value === null) {
+            return null;
+        }
+        if (!is_array($value)) {
+            throw new InvalidArgumentException(
+                'PDF source occurrence ' . $markerId
+                    . ' has an invalid composite list-layout presentation receipt.'
+            );
+        }
+        $sourceOccurrenceIds = $value['sourceOccurrenceIds'] ?? null;
+        $globalSourceIndexes = $value['globalSourceIndexes'] ?? null;
+        $authorizedTargets = $value['authorizedTargets'] ?? null;
+        $listType = is_string($value['listType'] ?? null) ? $value['listType'] : '';
+        $markerOrdinal = $value['markerOrdinal'] ?? null;
+        $layoutVisible = is_string($value['layoutVisibleProjection'] ?? null)
+            ? $value['layoutVisibleProjection']
+            : '';
+        $anchorVisible = is_string($value['anchorVisibleProjection'] ?? null)
+            ? $value['anchorVisibleProjection']
+            : '';
+        $continuationBoundarySpace = $value['continuationBoundarySpace'] ?? null;
+        $followingSourceOccurrenceId = $value['followingSourceOccurrenceId'] ?? null;
+        $followingProjectionDigest = $value['followingProjectionDigest'] ?? null;
+        $followingPresentationRepairReceipt =
+            self::normalizedListPresentationOccurrenceReceipt(
+                $value['followingPresentationRepairReceipt'] ?? null,
+                $markerId
+            );
+        $ordinalIsValid = $listType === 'ordered'
+            ? is_int($markerOrdinal) && $markerOrdinal >= 1
+            : $markerOrdinal === null;
+        if (($value['version'] ?? null) !== 1
+            || ($value['method'] ?? null)
+                !== 'exact-composite-list-layout-presentation-prefix'
+            || !is_string($value['sourceSha256'] ?? null)
+            || preg_match('/^[a-f0-9]{64}$/D', $value['sourceSha256']) !== 1
+            || !is_int($value['page'] ?? null)
+            || $value['page'] < 1
+            || !is_int($value['stream'] ?? null)
+            || $value['stream'] < 1
+            || !in_array($listType, ['ordered', 'bullet'], true)
+            || !$ordinalIsValid
+            || !is_array($sourceOccurrenceIds)
+            || !array_is_list($sourceOccurrenceIds)
+            || count($sourceOccurrenceIds) < 2
+            || count($sourceOccurrenceIds) > 17
+            || ($sourceOccurrenceIds[0] ?? null) !== $markerId
+            || count(array_unique($sourceOccurrenceIds, SORT_STRING))
+                !== count($sourceOccurrenceIds)
+            || array_reduce(
+                $sourceOccurrenceIds,
+                static fn (bool $valid, mixed $candidate): bool =>
+                    $valid && is_string($candidate) && $candidate !== '',
+                true
+            ) !== true
+            || !is_array($globalSourceIndexes)
+            || !array_is_list($globalSourceIndexes)
+            || count($globalSourceIndexes) !== count($sourceOccurrenceIds)
+            || array_reduce(
+                $globalSourceIndexes,
+                static fn (bool $valid, mixed $candidate): bool =>
+                    $valid && is_int($candidate) && $candidate >= 0,
+                true
+            ) !== true
+            || $layoutVisible === ''
+            || $anchorVisible === ''
+            || !hash_equals(
+                self::sourceBindingComparableVisibleText($layoutVisible),
+                $layoutVisible
+            )
+            || !hash_equals(
+                self::sourceBindingComparableVisibleText($anchorVisible),
+                $anchorVisible
+            )
+            || !array_key_exists('continuationBoundarySpace', $value)
+            || (!is_bool($continuationBoundarySpace)
+                && $continuationBoundarySpace !== null)
+            || ($continuationBoundarySpace === null
+                && ($followingSourceOccurrenceId !== null
+                    || $followingProjectionDigest !== null
+                    || $followingPresentationRepairReceipt !== null))
+            || (is_bool($continuationBoundarySpace)
+                && (!is_string($followingSourceOccurrenceId)
+                    || $followingSourceOccurrenceId === ''
+                    || !is_string($followingProjectionDigest)
+                    || preg_match('/^[a-f0-9]{64}$/D', $followingProjectionDigest) !== 1))
+            || !is_array($value['wholeOccurrenceUnionProof'] ?? null)) {
+            throw new InvalidArgumentException(
+                'PDF source occurrence ' . $markerId
+                    . ' has an incomplete composite list-layout presentation receipt.'
+            );
+        }
+        foreach ([
+            'sourceSignificantDigest',
+            'anchorSignificantDigest',
+            'layoutVisibleProjectionDigest',
+            'anchorVisibleProjectionDigest',
+            'finalPageProjectionDigest',
+            'proofDigest',
+        ] as $digestKey) {
+            if (!is_string($value[$digestKey] ?? null)
+                || preg_match('/^[a-f0-9]{64}$/D', $value[$digestKey]) !== 1) {
+                throw new InvalidArgumentException(
+                    'PDF source occurrence ' . $markerId
+                        . ' has an incomplete composite list-layout presentation receipt.'
+                );
+            }
+        }
+        $canonicalTargets = [];
+        foreach (is_array($authorizedTargets) ? $authorizedTargets : [] as $authorizedTarget) {
+            $significantDigest = is_array($authorizedTarget)
+                ? ($authorizedTarget['significantDigest'] ?? null)
+                : null;
+            $strictVisibleDigest = is_array($authorizedTarget)
+                ? ($authorizedTarget['strictVisibleDigest'] ?? null)
+                : null;
+            if (!is_string($significantDigest)
+                || preg_match('/^[a-f0-9]{64}$/D', $significantDigest) !== 1
+                || !is_string($strictVisibleDigest)
+                || preg_match('/^[a-f0-9]{64}$/D', $strictVisibleDigest) !== 1
+                || count($authorizedTarget) !== 2) {
+                throw new InvalidArgumentException(
+                    'PDF source occurrence ' . $markerId
+                        . ' has invalid composite list-layout target authorization.'
+                );
+            }
+            $canonicalTargets[$significantDigest . "\0" . $strictVisibleDigest] = [
+                'significantDigest' => $significantDigest,
+                'strictVisibleDigest' => $strictVisibleDigest,
+            ];
+        }
+        ksort($canonicalTargets, SORT_STRING);
+        if (!is_array($authorizedTargets)
+            || !array_is_list($authorizedTargets)
+            || $authorizedTargets === []
+            || $authorizedTargets !== array_values($canonicalTargets)) {
+            throw new InvalidArgumentException(
+                'PDF source occurrence ' . $markerId
+                    . ' has invalid composite list-layout target authorization.'
+            );
+        }
+        if ($followingPresentationRepairReceipt !== null
+            && (($followingPresentationRepairReceipt['sourceSha256'] ?? null)
+                    !== ($value['sourceSha256'] ?? null)
+                || ($followingPresentationRepairReceipt['sourceOccurrenceId'] ?? null)
+                    !== $followingSourceOccurrenceId
+                || ($followingPresentationRepairReceipt['globalSourceIndex'] ?? null)
+                    !== $globalSourceIndexes[array_key_last($globalSourceIndexes)] + 1
+                || ($followingPresentationRepairReceipt['page'] ?? null)
+                    !== ($value['page'] ?? null)
+                || ($followingPresentationRepairReceipt['stream'] ?? null)
+                    !== ($value['stream'] ?? null)
+                || ($followingPresentationRepairReceipt['projectionDigest'] ?? null)
+                    !== $followingProjectionDigest
+                || ($followingPresentationRepairReceipt['finalPageProjectionDigest'] ?? null)
+                    !== ($value['finalPageProjectionDigest'] ?? null)
+                || !self::sourceBindingAuthorizedTargetsAreSubset(
+                    $authorizedTargets,
+                    $followingPresentationRepairReceipt['authorizedTargets'] ?? null
+                ))) {
+            throw new InvalidArgumentException(
+                'PDF source occurrence ' . $markerId
+                    . ' has a mismatched nested list presentation-repair receipt.'
+            );
+        }
+        foreach ($globalSourceIndexes as $offset => $globalSourceIndex) {
+            if ($offset > 0
+                && $globalSourceIndex !== $globalSourceIndexes[$offset - 1] + 1) {
+                throw new InvalidArgumentException(
+                    'PDF source occurrence ' . $markerId
+                        . ' has a nonconsecutive composite list-layout presentation receipt.'
+                );
+            }
+        }
+        $payload = $value;
+        unset($payload['proofDigest']);
+        if (!hash_equals($value['proofDigest'], hash('sha256', json_encode(
+            $payload,
+            JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+                | JSON_PRESERVE_ZERO_FRACTION
+        ) ?: ''))) {
+            throw new InvalidArgumentException(
+                'PDF source occurrence ' . $markerId
+                    . ' has a stale composite list-layout presentation receipt.'
+            );
+        }
+
+        return $value;
     }
 
     /** @return array<string,mixed>|null */
@@ -2018,7 +2477,8 @@ final class PdfSourceDispositionLedger
     private static function sourceBindingSemanticStructureMappings(
         array $records,
         array $blocks,
-        array $textMappingsBySourceId
+        array $textMappingsBySourceId,
+        array $bindingContext = []
     ): array {
         $structuralRecords = array_values(array_filter(
             $records,
@@ -2055,11 +2515,21 @@ final class PdfSourceDispositionLedger
                 $itemNodeId = $item->attr('sourceNodeId');
                 $itemSignificant = self::sourceBindingNodeSignificantText($item);
                 $itemVisible = trim(self::sourceBindingNodeVisibleText($item));
+                $itemStrictVisible = self::sourceBindingListItemStrictVisibleText($item);
                 $itemEdges = $item->attr('sourceLineEdges', []);
+                $visibleBlockCount = 0;
+                foreach ($item->children() as $itemBlock) {
+                    if (self::sourceBindingComparableVisibleText(
+                        self::sourceBindingNodeVisibleText($itemBlock)
+                    ) !== '') {
+                        $visibleBlockCount++;
+                    }
+                }
                 if (!is_string($itemNodeId)
                     || $itemNodeId === ''
                     || $itemSignificant === ''
                     || $itemVisible === ''
+                    || $itemStrictVisible === ''
                     || !is_array($itemEdges)
                     || $itemEdges === []) {
                     continue;
@@ -2072,8 +2542,10 @@ final class PdfSourceDispositionLedger
                     'itemNodeId' => $itemNodeId,
                     'itemSignificant' => $itemSignificant,
                     'itemVisible' => $itemVisible,
+                    'itemStrictVisible' => $itemStrictVisible,
                     'itemProjectionDigest' => hash('sha256', $itemSignificant),
                     'itemEdges' => $itemEdges,
+                    'visibleBlockCount' => $visibleBlockCount,
                 ];
             }
         }
@@ -2109,8 +2581,16 @@ final class PdfSourceDispositionLedger
                     ];
                 }
             }
+            $followingAnchorRecord = is_int($recordIndex)
+                ? ($records[$recordIndex + 1 + count($anchorRecords)] ?? null)
+                : null;
             $anchorSequence = ($proof['version'] ?? null) === 2
-                ? self::sourceBindingExactOrdinaryAnchorSequence($record, $anchorRecords)
+                ? self::sourceBindingExactOrdinaryAnchorSequence(
+                    $record,
+                    $anchorRecords,
+                    $followingAnchorRecord,
+                    $bindingContext
+                )
                 : null;
             if (($proof['version'] ?? null) === 2
                 && (!is_array($anchorSequence)
@@ -2146,10 +2626,22 @@ final class PdfSourceDispositionLedger
                                 $target['itemSignificant'],
                                 $anchorSequence['significant']
                             )
-                            || !str_starts_with(
-                                self::sourceBindingComparableVisibleText($target['itemVisible']),
-                                $anchorSequence['visible']
-                            ))
+                            || (is_string($anchorSequence['compositeVisiblePrefix'] ?? null)
+                                ? !self::sourceBindingCompositeVisiblePrefixMatchesTarget(
+                                    $anchorSequence,
+                                    $target
+                                )
+                                : (is_string(
+                                    $anchorSequence['presentationRepairVisiblePrefix'] ?? null
+                                )
+                                    ? !self::sourceBindingPresentationRepairPrefixMatchesTarget(
+                                        $anchorSequence,
+                                        $target
+                                    )
+                                    : !str_starts_with(
+                                        $target['itemVisible'],
+                                        $anchorSequence['visible']
+                                    ))))
                         : !self::sourceBindingAnchorMatchesListItem(
                             $next,
                             $following,
@@ -2282,13 +2774,34 @@ final class PdfSourceDispositionLedger
     /**
      * @param array<string,mixed> $marker
      * @param list<array<string,mixed>|null> $anchors
-     * @return array{significant:string,visible:string}|null
+     * @return array{
+     *   significant:string,
+     *   visible:string,
+     *   significantBoundaryOffsets:list<int>,
+     *   visibleBoundarySpaces:list<bool>,
+     *   compositeVisiblePrefix?:string,
+     *   presentationRepairVisiblePrefix?:string
+     * }|null
      */
     private static function sourceBindingExactOrdinaryAnchorSequence(
         array $marker,
-        array $anchors
+        array $anchors,
+        ?array $followingAnchor = null,
+        array $bindingContext = []
     ): ?array {
-        if (count($anchors) < 3 || count($anchors) > 16) {
+        $hasCompositeReceipt = is_array(
+            $marker['semanticStructureProof']['compositeLayoutPresentationReceipt']
+                ?? null
+        );
+        $hasPresentationRepairReceipt = is_array(
+            $marker['semanticStructureProof']['presentationRepairReceipt'] ?? null
+        );
+        $minimumAnchorCount = $hasCompositeReceipt
+            ? 1
+            : ($hasPresentationRepairReceipt ? 2 : 3);
+        if (($hasCompositeReceipt && $hasPresentationRepairReceipt)
+            || count($anchors) < $minimumAnchorCount
+            || count($anchors) > 16) {
             return null;
         }
         $page = $marker['page'] ?? null;
@@ -2299,6 +2812,8 @@ final class PdfSourceDispositionLedger
 
         $significant = '';
         $visible = '';
+        $significantBoundaryOffsets = [];
+        $visibleBoundarySpaces = [];
         $seen = [];
         foreach ($anchors as $index => $anchor) {
             if (!is_array($anchor)) {
@@ -2322,15 +2837,671 @@ final class PdfSourceDispositionLedger
             }
             $seen[$sourceId] = true;
             if ($index > 0) {
-                $visible .= preg_match('/^[,.;:!?\)\]\}]/u', ltrim($projectionText)) === 1
-                    ? ''
-                    : ' ';
+                $hasVisibleBoundarySpace = preg_match(
+                    '/^[,.;:!?\)\]\}]/u',
+                    ltrim($projectionText)
+                ) !== 1;
+                $significantBoundaryOffsets[] = strlen($significant);
+                $visibleBoundarySpaces[] = $hasVisibleBoundarySpace;
+                $visible .= $hasVisibleBoundarySpace ? ' ' : '';
             }
             $significant .= $recordSignificant;
             $visible .= $recordVisible;
         }
 
-        return ['significant' => $significant, 'visible' => $visible];
+        $receipt = $marker['semanticStructureProof']['compositeLayoutPresentationReceipt']
+            ?? null;
+        $compositePresentation = null;
+        if ($receipt !== null) {
+            if (!is_array($receipt)) {
+                return null;
+            }
+            $compositePresentation =
+                self::sourceBindingExactCompositeListLayoutVisiblePrefix(
+                    $marker,
+                    $anchors,
+                    $receipt,
+                    $significant,
+                    $followingAnchor,
+                    $bindingContext
+                );
+            if (!is_array($compositePresentation)) {
+                return null;
+            }
+        }
+
+        $presentationRepairReceipt =
+            $marker['semanticStructureProof']['presentationRepairReceipt'] ?? null;
+        $presentationRepair = null;
+        if ($presentationRepairReceipt !== null) {
+            if (!is_array($presentationRepairReceipt)) {
+                return null;
+            }
+            $presentationRepair = self::sourceBindingExactListPresentationRepairPrefix(
+                $marker,
+                $anchors,
+                $presentationRepairReceipt,
+                $significant,
+                $significantBoundaryOffsets,
+                $visibleBoundarySpaces,
+                $bindingContext
+            );
+            if (!is_array($presentationRepair)) {
+                return null;
+            }
+        }
+
+        $sequence = [
+            'significant' => $significant,
+            'visible' => $visible,
+            'significantBoundaryOffsets' => $significantBoundaryOffsets,
+            'visibleBoundarySpaces' => $visibleBoundarySpaces,
+        ];
+        if ($compositePresentation !== null) {
+            $sequence['compositeVisiblePrefix'] =
+                $compositePresentation['visiblePrefix'];
+            $sequence['compositeAuthorizedTargets'] =
+                $compositePresentation['authorizedTargets'];
+            $sequence['compositeContinuationBoundarySpace'] =
+                $compositePresentation['continuationBoundarySpace'];
+            $sequence['compositeFollowingVisible'] =
+                $compositePresentation['followingVisible'];
+        } elseif ($presentationRepair !== null) {
+            $sequence['presentationRepairVisiblePrefix'] =
+                $presentationRepair['visiblePrefix'];
+            $sequence['presentationRepairAuthorizedTargets'] =
+                $presentationRepair['authorizedTargets'];
+        }
+
+        return $sequence;
+    }
+
+    /**
+     * Revalidate the durable visible-layout receipt retained for an ordinary
+     * consecutive source prefix. The receipt may authorize presentation repair
+     * inside one immutable source occurrence, but every occurrence boundary,
+     * live source index, page proof, and full visible structural target remains
+     * exact.
+     *
+     * @param list<array<string,mixed>|null> $anchors
+     * @param list<int> $significantBoundaryOffsets
+     * @param list<bool> $visibleBoundarySpaces
+     * @return array{visiblePrefix:string,authorizedTargets:list<array{significantDigest:string,strictVisibleDigest:string}>}|null
+     */
+    private static function sourceBindingExactListPresentationRepairPrefix(
+        array $marker,
+        array $anchors,
+        array $receipt,
+        string $anchorSignificant,
+        array $significantBoundaryOffsets,
+        array $visibleBoundarySpaces,
+        array $bindingContext
+    ): ?array {
+        $sourceOccurrenceIds = $receipt['sourceOccurrenceIds'] ?? null;
+        $globalSourceIndexes = $receipt['globalSourceIndexes'] ?? null;
+        $authorizedTargets = $receipt['authorizedTargets'] ?? null;
+        $visiblePrefix = is_string($receipt['visiblePrefix'] ?? null)
+            ? $receipt['visiblePrefix']
+            : '';
+        $page = $marker['page'] ?? null;
+        $stream = $marker['stream'] ?? null;
+        $markerSourceIndex = $marker['sourceIndex'] ?? null;
+        $contextSourceSha256 = is_string($bindingContext['sourceSha256'] ?? null)
+            ? $bindingContext['sourceSha256']
+            : '';
+        $contextPageDigests = is_array(
+            $bindingContext['finalPageProjectionDigests'] ?? null
+        ) ? $bindingContext['finalPageProjectionDigests'] : [];
+        if (!is_int($page)
+            || !is_int($stream)
+            || !is_int($markerSourceIndex)
+            || $page < 1
+            || $stream < 1
+            || $anchorSignificant === ''
+            || ($receipt['page'] ?? null) !== $page
+            || ($receipt['stream'] ?? null) !== $stream
+            || preg_match('/^[a-f0-9]{64}$/D', $contextSourceSha256) !== 1
+            || !hash_equals(
+                (string) ($receipt['sourceSha256'] ?? ''),
+                $contextSourceSha256
+            )
+            || !is_string($contextPageDigests[$page] ?? null)
+            || !hash_equals(
+                (string) ($receipt['finalPageProjectionDigest'] ?? ''),
+                $contextPageDigests[$page]
+            )
+            || !is_array($sourceOccurrenceIds)
+            || !array_is_list($sourceOccurrenceIds)
+            || count($sourceOccurrenceIds) !== count($anchors)
+            || count($sourceOccurrenceIds) < 2
+            || count($sourceOccurrenceIds) > 16
+            || $sourceOccurrenceIds
+                !== ($marker['semanticStructureProof']['anchorSourceOccurrenceIds'] ?? null)
+            || !is_array($globalSourceIndexes)
+            || !array_is_list($globalSourceIndexes)
+            || count($globalSourceIndexes) !== count($anchors)
+            || ($globalSourceIndexes[0] ?? null) !== $markerSourceIndex + 1
+            || !hash_equals(
+                (string) ($receipt['prefixProjectionDigest'] ?? ''),
+                hash('sha256', $anchorSignificant)
+            )
+            || $visiblePrefix === ''
+            || !hash_equals($visiblePrefix, self::sourceBindingStrictVisibleText($visiblePrefix))
+            || !hash_equals(self::significantText($visiblePrefix), $anchorSignificant)
+            || !hash_equals(
+                (string) ($receipt['visiblePrefixDigest'] ?? ''),
+                hash('sha256', $visiblePrefix)
+            )
+            || ($receipt['significantBoundaryOffsets'] ?? null)
+                !== $significantBoundaryOffsets
+            || ($receipt['visibleBoundarySpaces'] ?? null) !== $visibleBoundarySpaces
+            || !self::sourceBindingVisibleTextHasExactSignificantBoundaries(
+                $visiblePrefix,
+                $anchorSignificant,
+                $significantBoundaryOffsets,
+                $visibleBoundarySpaces
+            )
+            || !is_array($authorizedTargets)
+            || !self::sourceBindingAuthorizedTargetsAreCanonical($authorizedTargets)) {
+            return null;
+        }
+
+        foreach ($anchors as $anchorIndex => $anchor) {
+            if (!is_array($anchor)
+                || ($sourceOccurrenceIds[$anchorIndex] ?? null) !== ($anchor['id'] ?? null)
+                || !is_int($anchor['sourceIndex'] ?? null)
+                || ($globalSourceIndexes[$anchorIndex] ?? null) !== $anchor['sourceIndex']
+                || ($anchorIndex > 0
+                    && $globalSourceIndexes[$anchorIndex]
+                        !== $globalSourceIndexes[$anchorIndex - 1] + 1)) {
+                return null;
+            }
+        }
+
+        $payload = $receipt;
+        unset($payload['proofDigest']);
+        if (!is_string($receipt['proofDigest'] ?? null)
+            || !hash_equals($receipt['proofDigest'], hash('sha256', json_encode(
+                $payload,
+                JSON_UNESCAPED_SLASHES
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: ''))) {
+            return null;
+        }
+
+        return [
+            'visiblePrefix' => $visiblePrefix,
+            'authorizedTargets' => $authorizedTargets,
+        ];
+    }
+
+    /**
+     * Revalidate the retained composite layout receipt against the immutable
+     * marker and every consecutive anchor record. This is the only extended
+     * anchor path allowed to replace the ordinary inter-occurrence spacing;
+     * its exact visible projection must still prefix the live list item.
+     *
+     * @param list<array<string,mixed>|null> $anchors
+     * @param array<string,mixed> $receipt
+     */
+    private static function sourceBindingExactCompositeListLayoutVisiblePrefix(
+        array $marker,
+        array $anchors,
+        array $receipt,
+        string $anchorSignificant,
+        ?array $followingAnchor,
+        array $bindingContext
+    ): ?array {
+        $records = array_merge([$marker], $anchors);
+        $sourceOccurrenceIds = $receipt['sourceOccurrenceIds'] ?? null;
+        $globalSourceIndexes = $receipt['globalSourceIndexes'] ?? null;
+        $unionProof = is_array($receipt['wholeOccurrenceUnionProof'] ?? null)
+            ? $receipt['wholeOccurrenceUnionProof']
+            : null;
+        $proof = is_array($marker['semanticStructureProof'] ?? null)
+            ? $marker['semanticStructureProof']
+            : null;
+        $page = $marker['page'] ?? null;
+        $stream = $marker['stream'] ?? null;
+        $markerSignificant = (string) ($marker['sourceSignificant'] ?? '');
+        $fullSignificant = $markerSignificant . $anchorSignificant;
+        $layoutVisible = is_string($receipt['layoutVisibleProjection'] ?? null)
+            ? $receipt['layoutVisibleProjection']
+            : '';
+        $anchorVisible = is_string($receipt['anchorVisibleProjection'] ?? null)
+            ? $receipt['anchorVisibleProjection']
+            : '';
+        $authorizedTargets = is_array($receipt['authorizedTargets'] ?? null)
+            ? $receipt['authorizedTargets']
+            : [];
+        $contextSourceSha256 = is_string($bindingContext['sourceSha256'] ?? null)
+            ? $bindingContext['sourceSha256']
+            : '';
+        $contextPageDigests = is_array(
+            $bindingContext['finalPageProjectionDigests'] ?? null
+        ) ? $bindingContext['finalPageProjectionDigests'] : [];
+        if ($unionProof === null
+            || $proof === null
+            || !is_int($page)
+            || !is_int($stream)
+            || $page < 1
+            || $stream < 1
+            || ($receipt['page'] ?? null) !== $page
+            || ($receipt['stream'] ?? null) !== $stream
+            || $contextSourceSha256 === ''
+            || !hash_equals(
+                (string) ($receipt['sourceSha256'] ?? ''),
+                $contextSourceSha256
+            )
+            || !is_string($contextPageDigests[$page] ?? null)
+            || !hash_equals(
+                (string) ($receipt['finalPageProjectionDigest'] ?? ''),
+                $contextPageDigests[$page]
+            )
+            || ($receipt['listType'] ?? null) !== ($proof['listType'] ?? null)
+            || ($receipt['markerOrdinal'] ?? null) !== ($proof['markerOrdinal'] ?? null)
+            || !is_array($sourceOccurrenceIds)
+            || !is_array($globalSourceIndexes)
+            || count($sourceOccurrenceIds) !== count($records)
+            || count($globalSourceIndexes) !== count($records)
+            || array_slice($sourceOccurrenceIds, 1)
+                !== ($proof['anchorSourceOccurrenceIds'] ?? null)
+            || !hash_equals(
+                (string) ($receipt['sourceSignificantDigest'] ?? ''),
+                hash('sha256', $fullSignificant)
+            )
+            || !hash_equals(
+                (string) ($receipt['anchorSignificantDigest'] ?? ''),
+                hash('sha256', $anchorSignificant)
+            )
+            || !hash_equals(
+                (string) ($receipt['layoutVisibleProjectionDigest'] ?? ''),
+                hash('sha256', $layoutVisible)
+            )
+            || !hash_equals(
+                (string) ($receipt['anchorVisibleProjectionDigest'] ?? ''),
+                hash('sha256', $anchorVisible)
+            )
+            || !hash_equals(self::significantText($layoutVisible), $fullSignificant)
+            || !hash_equals(self::significantText($anchorVisible), $anchorSignificant)
+            || !self::sourceBindingAuthorizedTargetsAreCanonical($authorizedTargets)) {
+            return null;
+        }
+
+        foreach ($records as $recordIndex => $record) {
+            if (!is_array($record)
+                || ($sourceOccurrenceIds[$recordIndex] ?? null) !== ($record['id'] ?? null)
+                || ($record['page'] ?? null) !== $page
+                || ($record['stream'] ?? null) !== $stream
+                || !is_int($record['sourceIndex'] ?? null)
+                || ($globalSourceIndexes[$recordIndex] ?? null)
+                    !== $record['sourceIndex']) {
+                return null;
+            }
+        }
+        $markerPattern = ($proof['listType'] ?? null) === 'ordered'
+            ? '/^' . preg_quote((string) $proof['markerOrdinal'], '/') . '[.)]\s+(.+)$/uD'
+            : '/^(?:\*|\x{2022}|\x{25CF}|\x{25AA}|\x{25A0}|\x{2043})\s+(.+)$/uD';
+        if (preg_match($markerPattern, $layoutVisible, $layoutMatch) !== 1
+            || !hash_equals($anchorVisible, $layoutMatch[1])) {
+            return null;
+        }
+
+        $occurrences = is_array($unionProof['occurrences'] ?? null)
+            ? array_values($unionProof['occurrences'])
+            : [];
+        $ranges = is_array($unionProof['ranges'] ?? null)
+            ? array_values($unionProof['ranges'])
+            : [];
+        if (($unionProof['version'] ?? null) !== 1
+            || ($unionProof['method'] ?? null)
+                !== 'source-inventory-whole-occurrence-union'
+            || ($unionProof['page'] ?? null) !== $page
+            || (!is_int($unionProof['layoutStream'] ?? null)
+                && ($unionProof['layoutStream'] ?? null) !== null)
+            || (is_int($unionProof['layoutStream'] ?? null)
+                && $unionProof['layoutStream'] !== $stream)
+            || count($occurrences) !== count($records)
+            || count($ranges) !== count($records)
+            || !is_string($unionProof['projectionDigest'] ?? null)
+            || !hash_equals(
+                $unionProof['projectionDigest'],
+                hash('sha256', $fullSignificant)
+            )
+            || !is_string($unionProof['proofDigest'] ?? null)
+            || preg_match('/^[a-f0-9]{64}$/D', $unionProof['proofDigest']) !== 1) {
+            return null;
+        }
+        foreach ($records as $recordIndex => $record) {
+            $occurrence = $occurrences[$recordIndex] ?? null;
+            $range = $ranges[$recordIndex] ?? null;
+            $recordSignificant = $recordIndex === 0
+                ? $markerSignificant
+                : (string) ($record['significant'] ?? '');
+            if (!is_array($occurrence)
+                || !is_array($range)
+                || ($occurrence['sourceIndex'] ?? null)
+                    !== ($globalSourceIndexes[$recordIndex] ?? null)
+                || ($occurrence['sourceLocalIndex'] ?? null) !== $record['sourceIndex']
+                || ($occurrence['page'] ?? null) !== $page
+                || ($occurrence['stream'] ?? null) !== $stream
+                || ($occurrence['significantBytes'] ?? null) !== strlen($recordSignificant)
+                || !is_string($occurrence['significantDigest'] ?? null)
+                || !hash_equals(
+                    $occurrence['significantDigest'],
+                    hash('sha256', $recordSignificant)
+                )
+                || $range !== [
+                    'sourceIndex' => $globalSourceIndexes[$recordIndex],
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen($recordSignificant),
+                ]) {
+                return null;
+            }
+        }
+        $unionPayload = [
+            'version' => 1,
+            'method' => 'source-inventory-whole-occurrence-union',
+            'page' => $unionProof['page'],
+            'layoutStream' => $unionProof['layoutStream'],
+            'occurrences' => $occurrences,
+            'ranges' => $ranges,
+            'projectionDigest' => $unionProof['projectionDigest'],
+        ];
+        if (!hash_equals($unionProof['proofDigest'], hash('sha256', json_encode(
+            $unionPayload,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        ) ?: ''))) {
+            return null;
+        }
+
+        $continuationBoundarySpace = $receipt['continuationBoundarySpace'] ?? null;
+        $followingPresentationRepairReceipt = is_array(
+            $receipt['followingPresentationRepairReceipt'] ?? null
+        ) ? $receipt['followingPresentationRepairReceipt'] : null;
+        $followingVisible = null;
+        if (is_bool($continuationBoundarySpace)) {
+            $followingProjection = is_array($followingAnchor)
+                ? (string) ($followingAnchor['projectionText'] ?? '')
+                : '';
+            $followingSignificant = is_array($followingAnchor)
+                ? (string) ($followingAnchor['significant'] ?? '')
+                : '';
+            if (!is_array($followingAnchor)
+                || ($followingAnchor['id'] ?? null)
+                    !== ($receipt['followingSourceOccurrenceId'] ?? null)
+                || ($followingAnchor['page'] ?? null) !== $page
+                || ($followingAnchor['stream'] ?? null) !== $stream
+                || !isset(self::OUTPUT_DISPOSITIONS[$followingAnchor['disposition'] ?? ''])
+                || is_array($followingAnchor['semanticStructureProof'] ?? null)
+                || $followingSignificant === ''
+                || !hash_equals(
+                    (string) ($followingAnchor['sourceText'] ?? ''),
+                    $followingProjection
+                )
+                || !hash_equals(
+                    (string) ($receipt['followingProjectionDigest'] ?? ''),
+                    hash('sha256', $followingSignificant)
+                )
+                || $continuationBoundarySpace !== (
+                    preg_match('/^[,.;:!?\)\]\}]/u', ltrim($followingProjection)) !== 1
+                )) {
+                return null;
+            }
+            if ($followingPresentationRepairReceipt !== null) {
+                $followingVisible =
+                    self::sourceBindingExactListPresentationOccurrenceVisibleText(
+                        $followingAnchor,
+                        $followingPresentationRepairReceipt,
+                        $authorizedTargets,
+                        $contextSourceSha256,
+                        $contextPageDigests[$page]
+                    );
+            } else {
+                $followingVisible = self::sourceBindingComparableVisibleText(
+                    $followingProjection
+                );
+            }
+            if ($followingVisible === '') {
+                return null;
+            }
+        } elseif ($continuationBoundarySpace !== null
+            || ($receipt['followingSourceOccurrenceId'] ?? null) !== null
+            || ($receipt['followingProjectionDigest'] ?? null) !== null
+            || $followingPresentationRepairReceipt !== null) {
+            return null;
+        }
+
+        return [
+            'visiblePrefix' => $anchorVisible,
+            'authorizedTargets' => $authorizedTargets,
+            'continuationBoundarySpace' => $continuationBoundarySpace,
+            'followingVisible' => $followingVisible,
+        ];
+    }
+
+    /**
+     * Revalidate an independently retained whole-occurrence layout receipt
+     * before allowing it to replace the raw visible spelling of the immediate
+     * composite continuation record. Significant source bytes remain exact;
+     * only the receipt's strict visible projection may differ.
+     *
+     * @param array<string,mixed> $followingAnchor
+     * @param array<string,mixed> $receipt
+     * @param list<array{significantDigest:string,strictVisibleDigest:string}> $outerTargets
+     */
+    private static function sourceBindingExactListPresentationOccurrenceVisibleText(
+        array $followingAnchor,
+        array $receipt,
+        array $outerTargets,
+        string $contextSourceSha256,
+        string $contextPageDigest
+    ): ?string {
+        $sourceId = is_string($followingAnchor['id'] ?? null)
+            ? $followingAnchor['id']
+            : '';
+        $sourceIndex = $followingAnchor['sourceIndex'] ?? null;
+        $page = $followingAnchor['page'] ?? null;
+        $stream = $followingAnchor['stream'] ?? null;
+        $sourceText = is_string($followingAnchor['sourceText'] ?? null)
+            ? $followingAnchor['sourceText']
+            : '';
+        $projectionText = is_string($followingAnchor['projectionText'] ?? null)
+            ? $followingAnchor['projectionText']
+            : '';
+        $significant = is_string($followingAnchor['significant'] ?? null)
+            ? $followingAnchor['significant']
+            : '';
+        $visibleProjection = is_string($receipt['visibleProjection'] ?? null)
+            ? $receipt['visibleProjection']
+            : '';
+        $nestedTargets = $receipt['authorizedTargets'] ?? null;
+        if ($sourceId === ''
+            || !is_int($sourceIndex)
+            || !is_int($page)
+            || !is_int($stream)
+            || $page < 1
+            || $stream < 1
+            || $sourceText === ''
+            || !hash_equals($sourceText, $projectionText)
+            || $significant === ''
+            || ($receipt['version'] ?? null) !== 1
+            || ($receipt['method'] ?? null)
+                !== 'exact-whole-source-list-presentation-occurrence'
+            || !hash_equals(
+                (string) ($receipt['sourceSha256'] ?? ''),
+                $contextSourceSha256
+            )
+            || ($receipt['sourceOccurrenceId'] ?? null) !== $sourceId
+            || ($receipt['globalSourceIndex'] ?? null) !== $sourceIndex
+            || ($receipt['page'] ?? null) !== $page
+            || ($receipt['stream'] ?? null) !== $stream
+            || !hash_equals(
+                (string) ($receipt['projectionDigest'] ?? ''),
+                hash('sha256', $significant)
+            )
+            || $visibleProjection === ''
+            || !hash_equals(
+                $visibleProjection,
+                self::sourceBindingStrictVisibleText($visibleProjection)
+            )
+            || !hash_equals(self::significantText($visibleProjection), $significant)
+            || !hash_equals(
+                (string) ($receipt['visibleProjectionDigest'] ?? ''),
+                hash('sha256', $visibleProjection)
+            )
+            || !hash_equals(
+                (string) ($receipt['finalPageProjectionDigest'] ?? ''),
+                $contextPageDigest
+            )
+            || !self::sourceBindingAuthorizedTargetsAreSubset(
+                $outerTargets,
+                $nestedTargets
+            )) {
+            return null;
+        }
+        $payload = $receipt;
+        unset($payload['proofDigest']);
+        if (!is_string($receipt['proofDigest'] ?? null)
+            || !hash_equals($receipt['proofDigest'], hash('sha256', json_encode(
+                $payload,
+                JSON_UNESCAPED_SLASHES
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: ''))) {
+            return null;
+        }
+
+        return $visibleProjection;
+    }
+
+    /** @param array<string,mixed> $sequence @param array<string,mixed> $target */
+    private static function sourceBindingPresentationRepairPrefixMatchesTarget(
+        array $sequence,
+        array $target
+    ): bool {
+        $visiblePrefix = is_string($sequence['presentationRepairVisiblePrefix'] ?? null)
+            ? $sequence['presentationRepairVisiblePrefix']
+            : '';
+        $targetVisible = is_string($target['itemStrictVisible'] ?? null)
+            ? $target['itemStrictVisible']
+            : '';
+
+        return $visiblePrefix !== ''
+            && $targetVisible !== ''
+            && str_starts_with($targetVisible, $visiblePrefix)
+            && self::sourceBindingTargetHasExactVisibleAuthorization(
+                $sequence['presentationRepairAuthorizedTargets'] ?? [],
+                $target
+            );
+    }
+
+    /** @param array<string,mixed> $sequence @param array<string,mixed> $target */
+    private static function sourceBindingCompositeVisiblePrefixMatchesTarget(
+        array $sequence,
+        array $target
+    ): bool {
+        $visiblePrefix = is_string($sequence['compositeVisiblePrefix'] ?? null)
+            ? $sequence['compositeVisiblePrefix']
+            : '';
+        $targetVisible = (string) ($target['itemStrictVisible'] ?? '');
+        $prefixSignificant = (string) ($sequence['significant'] ?? '');
+        $targetSignificant = (string) ($target['itemSignificant'] ?? '');
+        $boundarySpace = $sequence['compositeContinuationBoundarySpace'] ?? null;
+        if ($visiblePrefix === ''
+            || ($target['visibleBlockCount'] ?? 0) !== 1
+            || !self::sourceBindingTargetHasExactVisibleAuthorization(
+                $sequence['compositeAuthorizedTargets'] ?? [],
+                $target
+            )
+            || !str_starts_with($targetVisible, $visiblePrefix)) {
+            return false;
+        }
+        if (hash_equals($targetSignificant, $prefixSignificant)) {
+            return $boundarySpace === null
+                && hash_equals($targetVisible, $visiblePrefix);
+        }
+
+        $followingVisible = $sequence['compositeFollowingVisible'] ?? null;
+
+        return is_bool($boundarySpace)
+            && is_string($followingVisible)
+            && $followingVisible !== ''
+            && str_starts_with(
+                $targetVisible,
+                $visiblePrefix . ($boundarySpace ? ' ' : '') . $followingVisible
+            );
+    }
+
+    private static function sourceBindingAuthorizedTargetsAreCanonical(mixed $value): bool
+    {
+        if (!is_array($value) || !array_is_list($value) || $value === []) {
+            return false;
+        }
+        $canonicalTargets = [];
+        foreach ($value as $authorizedTarget) {
+            $significantDigest = is_array($authorizedTarget)
+                ? ($authorizedTarget['significantDigest'] ?? null)
+                : null;
+            $strictVisibleDigest = is_array($authorizedTarget)
+                ? ($authorizedTarget['strictVisibleDigest'] ?? null)
+                : null;
+            if (!is_string($significantDigest)
+                || preg_match('/^[a-f0-9]{64}$/D', $significantDigest) !== 1
+                || !is_string($strictVisibleDigest)
+                || preg_match('/^[a-f0-9]{64}$/D', $strictVisibleDigest) !== 1
+                || count($authorizedTarget) !== 2) {
+                return false;
+            }
+            $canonicalTargets[$significantDigest . "\0" . $strictVisibleDigest] = [
+                'significantDigest' => $significantDigest,
+                'strictVisibleDigest' => $strictVisibleDigest,
+            ];
+        }
+        ksort($canonicalTargets, SORT_STRING);
+
+        return $value === array_values($canonicalTargets);
+    }
+
+    private static function sourceBindingAuthorizedTargetsAreSubset(
+        mixed $subset,
+        mixed $superset
+    ): bool {
+        if (!self::sourceBindingAuthorizedTargetsAreCanonical($subset)
+            || !self::sourceBindingAuthorizedTargetsAreCanonical($superset)) {
+            return false;
+        }
+        foreach ($subset as $authorizedTarget) {
+            if (!in_array($authorizedTarget, $superset, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** @param array<string,mixed> $target */
+    private static function sourceBindingTargetHasExactVisibleAuthorization(
+        mixed $authorizedTargets,
+        array $target
+    ): bool {
+        $significant = is_string($target['itemSignificant'] ?? null)
+            ? $target['itemSignificant']
+            : '';
+        $strictVisible = is_string($target['itemStrictVisible'] ?? null)
+            ? $target['itemStrictVisible']
+            : '';
+        if ($significant === ''
+            || $strictVisible === ''
+            || !self::sourceBindingAuthorizedTargetsAreCanonical($authorizedTargets)) {
+            return false;
+        }
+
+        return in_array([
+            'significantDigest' => hash('sha256', $significant),
+            'strictVisibleDigest' => hash('sha256', $strictVisible),
+        ], $authorizedTargets, true);
     }
 
     private static function sourceBindingComparableVisibleText(string $text): string
@@ -2343,6 +3514,37 @@ final class PdfSourceDispositionLedger
         }
 
         return trim(preg_replace('/[\s\p{Cc}\p{Cf}]+/u', ' ', $text) ?? '');
+    }
+
+    private static function sourceBindingStrictVisibleText(string $text): string
+    {
+        if ($text !== '' && preg_match('//u', $text) !== 1) {
+            return '';
+        }
+        if (class_exists('Normalizer')) {
+            $normalized = \Normalizer::normalize($text, \Normalizer::FORM_C);
+            if (is_string($normalized)) {
+                $text = $normalized;
+            }
+        }
+
+        return trim($text);
+    }
+
+    private static function sourceBindingListItemStrictVisibleText(AstNode $item): string
+    {
+        $parts = [];
+        foreach ($item->children() as $block) {
+            $text = $block->attr('text');
+            if (!is_string($text)) {
+                $text = self::sourceBindingNodeVisibleText($block);
+            }
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return self::sourceBindingStrictVisibleText(implode(' ', $parts));
     }
 
     /**
@@ -2365,8 +3567,13 @@ final class PdfSourceDispositionLedger
         if ($anchorSignificant === '') {
             return false;
         }
+        $projectionText = (string) ($anchor['projectionText'] ?? '');
+        $anchorVisible = self::sourceBindingComparableVisibleText($projectionText);
+        if ($anchorVisible === '') {
+            return false;
+        }
         if (hash_equals($itemSignificant, $anchorSignificant)) {
-            return true;
+            return hash_equals($itemVisible, $anchorVisible);
         }
         if (!str_starts_with($itemSignificant, $anchorSignificant) || !is_array($following)) {
             return false;
@@ -2390,11 +3597,12 @@ final class PdfSourceDispositionLedger
         }
 
         $sourceText = (string) ($anchor['sourceText'] ?? '');
-        $projectionText = (string) ($anchor['projectionText'] ?? '');
         $followingText = (string) ($following['sourceText'] ?? '');
-        $anchorVisible = trim($projectionText);
-        $followingVisible = trim((string) ($following['projectionText'] ?? ''));
-        if ($anchorVisible === '' || $followingVisible === '') {
+        $followingProjection = (string) ($following['projectionText'] ?? '');
+        $followingVisible = self::sourceBindingComparableVisibleText(
+            $followingProjection
+        );
+        if ($followingVisible === '') {
             return false;
         }
 
@@ -2428,13 +3636,80 @@ final class PdfSourceDispositionLedger
 
         $visibleSeparator = preg_match(
             '/^[,.;:!?\)\]\}]/u',
-            ltrim((string) ($following['projectionText'] ?? ''))
+            ltrim($followingProjection)
         ) === 1 ? '' : ' ';
 
         return str_starts_with(
             $itemVisible,
             $anchorVisible . $visibleSeparator . $followingVisible
         );
+    }
+
+    /**
+     * Presentation repair may insert whitespace inside an immutable source
+     * occurrence, but it cannot create, erase, or duplicate the visible
+     * boundary between consecutive source occurrences. Locate each boundary
+     * by significant-byte offset so source-local spacing changes do not hide
+     * a split-word join.
+     *
+     * @param list<int> $significantBoundaryOffsets
+     * @param list<bool> $visibleBoundarySpaces
+     */
+    private static function sourceBindingVisibleTextHasExactSignificantBoundaries(
+        string $visible,
+        string $significantPrefix,
+        array $significantBoundaryOffsets,
+        array $visibleBoundarySpaces
+    ): bool {
+        if ($significantPrefix === ''
+            || count($significantBoundaryOffsets) !== count($visibleBoundarySpaces)) {
+            return false;
+        }
+        if (class_exists('Normalizer')) {
+            $normalized = \Normalizer::normalize($visible, \Normalizer::FORM_C);
+            if (is_string($normalized)) {
+                $visible = $normalized;
+            }
+        }
+        $characters = preg_split('//u', $visible, -1, PREG_SPLIT_NO_EMPTY);
+        if (!is_array($characters)) {
+            return false;
+        }
+
+        $significantOffset = 0;
+        $ignoredCharacters = [];
+        foreach ($characters as $character) {
+            $characterSignificant = self::significantText($character);
+            if ($characterSignificant === '') {
+                $ignoredCharacters[$significantOffset] =
+                    ($ignoredCharacters[$significantOffset] ?? '') . $character;
+                continue;
+            }
+            $significantOffset += strlen($characterSignificant);
+            if ($significantOffset >= strlen($significantPrefix)) {
+                break;
+            }
+        }
+
+        $previousBoundaryOffset = 0;
+        foreach ($significantBoundaryOffsets as $boundaryIndex => $boundaryOffset) {
+            if (!is_int($boundaryOffset)
+                || $boundaryOffset <= $previousBoundaryOffset
+                || $boundaryOffset >= strlen($significantPrefix)
+                || !is_bool($visibleBoundarySpaces[$boundaryIndex] ?? null)) {
+                return false;
+            }
+            $ignoredBoundaryText = $ignoredCharacters[$boundaryOffset] ?? '';
+            if (!hash_equals(
+                $visibleBoundarySpaces[$boundaryIndex] ? ' ' : '',
+                $ignoredBoundaryText
+            )) {
+                return false;
+            }
+            $previousBoundaryOffset = $boundaryOffset;
+        }
+
+        return $significantOffset >= strlen($significantPrefix);
     }
 
     private static function sourceBindingHasExactWrappedHyphenProjection(

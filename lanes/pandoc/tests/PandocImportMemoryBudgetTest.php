@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use PortLibs\MarkerPDF\BrowserPdfFactsProvider;
+
 $root = dirname(__DIR__, 3);
 require_once $root . '/tools/generate-pdf-resource-fixture.php';
 
@@ -155,6 +157,33 @@ $searchablePdfLineInventory = static function (string $path): array {
 };
 
 return [
+    'generates valid positioned text matrices for the searchable PDF resource fixture' => static function (
+        TestRunner $t
+    ): void {
+        $path = tempnam(sys_get_temp_dir(), 'port-libs-pdf-matrix-');
+        if ($path === false) {
+            throw new RuntimeException('Could not allocate the PDF matrix fixture.');
+        }
+        try {
+            port_libs_generate_searchable_pdf_resource_fixture($path, 2, 2);
+            $pdf = file_get_contents($path);
+            if (!is_string($pdf)) {
+                throw new RuntimeException('Could not read the PDF matrix fixture.');
+            }
+            $facts = (new BrowserPdfFactsProvider())->extract($pdf, [
+                'pdfStartPage' => 1,
+                'pdfMaxPages' => 2,
+            ]);
+
+            $t->same([1, 2], $facts->inventory()['pageNumbers'] ?? null);
+            foreach ($facts->pages() as $page) {
+                $t->same([], $page->issues(), 'Generated PDF text operators must be structurally valid.');
+                $t->same(20, count($page->text()['spans'] ?? []));
+            }
+        } finally {
+            @unlink($path);
+        }
+    },
     'keeps a one megabyte HTML import below the compact reader memory budget' => static function (TestRunner $t) use ($measure, $root): void {
         $run = $measure('16M', [
             'input' => $root . '/lanes/readability/fixtures/mozilla/guardian-1/source.html',
@@ -225,7 +254,7 @@ return [
             $t->same(20, $fixture['linesPerPage']);
             $t->same(5_000, $fixture['textLines']);
             $t->same($sourceBytes, $fixture['bytes']);
-            $t->same('ff2e9236f516800ccc482c5832c6c867a8bbd4997538153953bd50b35dbafdfc', $fixture['sha256']);
+            $t->same('a7a87708838ec85540a42204dae49a1301459220d8240915a5433d51491b82d6', $fixture['sha256']);
             $t->same('RESOURCE PAGE 250 LINE 20', $fixture['lastLineMarker']);
             $inventory = $searchablePdfLineInventory($path);
             $t->same(250, $inventory['pages']);

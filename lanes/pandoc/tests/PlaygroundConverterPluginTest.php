@@ -2913,8 +2913,12 @@ return [
         $t->true(is_array($jobAfterMerge['documents'][0]['pdfDocumentProfile'] ?? null), 'A compact full-document layout profile must be durable beside bounded facts.');
         $mergedFacts = plpc_import_job_load_pdf_document_facts($jobAfterMerge, $jobAfterMerge['documents'][0]);
         $profile = $mergedFacts->structure()['documentProfile'] ?? [];
+        $visibility = $mergedFacts->diagnostics()['textVisibility'] ?? [];
         $t->same(true, $profile['complete'] ?? null);
         $t->same([1, 2, 3], $profile['coveredPages'] ?? null);
+        $t->same([1, 2, 3], array_column($visibility['pages'] ?? [], 'page'));
+        $t->same(3, $visibility['visibleRuns'] ?? null);
+        $t->same(true, $visibility['complete'] ?? null);
         $t->same(
             $jobAfterMerge['documents'][0]['pdfDocumentProfile']['profileDigest'] ?? null,
             $profile['profileDigest'] ?? null,
@@ -3248,6 +3252,12 @@ return [
                 $profileDigest,
                 $segmentFacts->structure()['documentProfile']['profileDigest'] ?? null,
                 'Every bounded semantic segment needs the same full-document layout evidence.'
+            );
+            $segmentVisibility = $segmentFacts->diagnostics()['textVisibility'] ?? [];
+            $t->same(
+                range((int) $segment['startPage'], (int) $segment['endPage']),
+                array_column($segmentVisibility['pages'] ?? [], 'page'),
+                'Every bounded semantic segment needs exact page-local visibility evidence.'
             );
         }
         update_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId, $jobBeforeFinalPublication, false);

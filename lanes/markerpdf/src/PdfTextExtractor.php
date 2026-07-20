@@ -14,6 +14,16 @@ final class PdfTextExtractor
     private const DEFAULT_MAX_POSITIONED_TEXT_RUNS = 5_000;
     private const MAX_VISUAL_OCCURRENCES = 8_192;
     private const MAX_TEXT_VISIBILITY_LATER_PAINT_RISKS = 64;
+    private const MAX_TEXT_VISIBILITY_STROKE_COMPONENT_BOXES = 4_096;
+    private const MAX_TEXT_VISIBILITY_CUBIC_SUBDIVISION_DEPTH = 7;
+    private const MAX_TEXT_VISIBILITY_CUBIC_SUBDIVISION_COMPONENTS = 256;
+    private const MAX_TEXT_VISIBILITY_CUBIC_PROOF_WORK = 65_536;
+    private const MAX_EMBEDDED_TRUETYPE_OUTLINE_GLYPHS = 8_192;
+    private const MAX_EMBEDDED_TRUETYPE_OUTLINE_POINTS = 1_048_576;
+    private const MAX_EMBEDDED_TRUETYPE_COMPOSITE_COMPONENTS = 65_536;
+    private const MAX_EMBEDDED_TRUETYPE_COMPONENTS_PER_GLYPH = 4_096;
+    private const MAX_EMBEDDED_TRUETYPE_COMPOSITE_DEPTH = 32;
+    private const MAX_EMBEDDED_TRUETYPE_OUTLINE_COORDINATE = 1_000_000_000.0;
     private const MAX_PAINTED_IMAGE_ASSET_REQUESTS = 384;
     private const MAX_PAINTED_IMAGE_ASSET_BYTES = 33_554_432;
     private const MAX_FORM_XOBJECT_DEPTH = 32;
@@ -33,6 +43,11 @@ final class PdfTextExtractor
     private const MAX_PAGE_DICTIONARY_TOKENS = 327_680;
     private const MAX_PREDICTOR_ROW_SAMPLES = 1_048_576;
     private const STRUCT_FALLBACK_REPLACEMENT_PREFIX = "\0struct-fallback-replacement\0";
+    /**
+     * Internal marker for a simple font whose character semantics remain
+     * unknown while its declared source-code advances are exact.
+     */
+    private const DECLARED_WIDTHS_ONLY_ENCODING = 'DeclaredWidthsOnlyEncoding';
     private const POSITIONED_TEXT_WORD_GAP = 12.0;
     private const POSITIONED_TEXT_LINE_TOLERANCE = 2.0;
     private const SIMPLE_TEXT_ADVANCE_RATIO = 0.5;
@@ -3866,11 +3881,26 @@ final class PdfTextExtractor
      *     laterPaintRisksDigest:string,
      *     pages:list<array{
      *         page:int,
+     *         complete:bool,
+     *         visibleRuns:int,
      *         visibleOutputRuns:int,
      *         suppressedNonPaintingRuns:int,
      *         suppressedRenderingModeRuns:int,
+     *         suppressedZeroAlphaRuns:int,
+     *         suppressedOptionalContentRuns:int,
+     *         suppressedOutsidePageRuns:int,
+     *         suppressedNonPaintingActualTextRuns:int,
+     *         suppressedAccessibilityReplacementRuns:int,
      *         unresolvedRuns:int,
-     *         unresolvedOcclusionRiskRuns:int
+     *         unresolvedReasons:list<string>,
+     *         unresolvedReasonCounts:array<string,int>,
+     *         unresolvedClippingRuns:int,
+     *         unresolvedOcclusionRiskRuns:int,
+     *         laterPaintRiskCount:int,
+     *         laterPaintRiskRecordedCount:int,
+     *         laterPaintRiskUnboundCount:int,
+     *         laterPaintRiskTruncatedCount:int,
+     *         laterPaintRisksDigest:string
      *     }>
      * }
      */
@@ -3890,6 +3920,7 @@ final class PdfTextExtractor
         $laterPaintRiskUnboundCount = 0;
         $laterPaintRiskTruncatedCount = 0;
         $pageSummaries = [];
+        $cubicProofWorkRemainingByPage = [];
         $contextNumber = 0;
         $sourceLineItems = $this->extractTextLineItems($pdfBytes);
         $sourceOccurrenceIndexes = $this->visibilitySourceOccurrenceIndexes($sourceLineItems);
@@ -3899,11 +3930,120 @@ final class PdfTextExtractor
             $page = is_int($context['page'] ?? null)
                 ? max(1, $context['page'])
                 : $contextNumber;
+            $cubicProofWorkRemainingByPage[$page] ??=
+                self::MAX_TEXT_VISIBILITY_CUBIC_PROOF_WORK;
             $visibleRunsBefore = $visibleRuns;
             $suppressedNonPaintingRunsBefore = $suppressedNonPaintingRuns;
             $suppressedRenderingModeRunsBefore = $suppressedRenderingModeRuns;
+            $suppressedZeroAlphaRunsBefore = $suppressedZeroAlphaRuns;
+            $suppressedOptionalContentRunsBefore = $suppressedOptionalContentRuns;
+            $suppressedOutsidePageRunsBefore = $suppressedOutsidePageRuns;
+            $suppressedAccessibilityReplacementRunsBefore =
+                $suppressedAccessibilityReplacementRuns;
             $unresolvedRunsBefore = $unresolvedRuns;
+            $unresolvedReasonCountsBefore = $unresolvedReasonCounts;
             $unresolvedOcclusionRiskRunsBefore = $unresolvedOcclusionRiskRuns;
+            $laterPaintRiskRecordedCountBefore = count($laterPaintRisks);
+            $laterPaintRiskUnboundCountBefore = $laterPaintRiskUnboundCount;
+            $laterPaintRiskTruncatedCountBefore = $laterPaintRiskTruncatedCount;
+            $recordPageSummary = function () use (
+                &$pageSummaries,
+                $page,
+                &$visibleRuns,
+                $visibleRunsBefore,
+                &$suppressedNonPaintingRuns,
+                $suppressedNonPaintingRunsBefore,
+                &$suppressedRenderingModeRuns,
+                $suppressedRenderingModeRunsBefore,
+                &$suppressedZeroAlphaRuns,
+                $suppressedZeroAlphaRunsBefore,
+                &$suppressedOptionalContentRuns,
+                $suppressedOptionalContentRunsBefore,
+                &$suppressedOutsidePageRuns,
+                $suppressedOutsidePageRunsBefore,
+                &$suppressedAccessibilityReplacementRuns,
+                $suppressedAccessibilityReplacementRunsBefore,
+                &$unresolvedRuns,
+                $unresolvedRunsBefore,
+                &$unresolvedReasonCounts,
+                $unresolvedReasonCountsBefore,
+                &$unresolvedOcclusionRiskRuns,
+                $unresolvedOcclusionRiskRunsBefore,
+                &$laterPaintRisks,
+                $laterPaintRiskRecordedCountBefore,
+                &$laterPaintRiskUnboundCount,
+                $laterPaintRiskUnboundCountBefore,
+                &$laterPaintRiskTruncatedCount,
+                $laterPaintRiskTruncatedCountBefore
+            ): void {
+                $pageSummary = $pageSummaries[$page] ?? [
+                    'page' => $page,
+                    'complete' => true,
+                    'visibleRuns' => 0,
+                    'visibleOutputRuns' => 0,
+                    'suppressedNonPaintingRuns' => 0,
+                    'suppressedRenderingModeRuns' => 0,
+                    'suppressedZeroAlphaRuns' => 0,
+                    'suppressedOptionalContentRuns' => 0,
+                    'suppressedOutsidePageRuns' => 0,
+                    'suppressedNonPaintingActualTextRuns' => 0,
+                    'suppressedAccessibilityReplacementRuns' => 0,
+                    'unresolvedRuns' => 0,
+                    'unresolvedReasons' => [],
+                    'unresolvedReasonCounts' => [],
+                    'unresolvedClippingRuns' => 0,
+                    'unresolvedOcclusionRiskRuns' => 0,
+                    'laterPaintRiskCount' => 0,
+                    'laterPaintRiskRecordedCount' => 0,
+                    'laterPaintRiskUnboundCount' => 0,
+                    'laterPaintRiskTruncatedCount' => 0,
+                    'laterPaintRisksDigest' => '',
+                ];
+                $visibleDelta = $visibleRuns - $visibleRunsBefore;
+                $pageSummary['visibleRuns'] += $visibleDelta;
+                $pageSummary['visibleOutputRuns'] += $visibleDelta;
+                $pageSummary['suppressedNonPaintingRuns'] +=
+                    $suppressedNonPaintingRuns - $suppressedNonPaintingRunsBefore;
+                $pageSummary['suppressedRenderingModeRuns'] +=
+                    $suppressedRenderingModeRuns - $suppressedRenderingModeRunsBefore;
+                $pageSummary['suppressedZeroAlphaRuns'] +=
+                    $suppressedZeroAlphaRuns - $suppressedZeroAlphaRunsBefore;
+                $pageSummary['suppressedOptionalContentRuns'] +=
+                    $suppressedOptionalContentRuns - $suppressedOptionalContentRunsBefore;
+                $pageSummary['suppressedOutsidePageRuns'] +=
+                    $suppressedOutsidePageRuns - $suppressedOutsidePageRunsBefore;
+                $accessibilityDelta = $suppressedAccessibilityReplacementRuns
+                    - $suppressedAccessibilityReplacementRunsBefore;
+                $pageSummary['suppressedNonPaintingActualTextRuns'] += $accessibilityDelta;
+                $pageSummary['suppressedAccessibilityReplacementRuns'] += $accessibilityDelta;
+                $pageSummary['unresolvedRuns'] += $unresolvedRuns - $unresolvedRunsBefore;
+                foreach ($unresolvedReasonCounts as $reason => $count) {
+                    $delta = $count - ($unresolvedReasonCountsBefore[$reason] ?? 0);
+                    if ($delta > 0) {
+                        $pageSummary['unresolvedReasonCounts'][$reason] =
+                            ($pageSummary['unresolvedReasonCounts'][$reason] ?? 0) + $delta;
+                    }
+                }
+                ksort($pageSummary['unresolvedReasonCounts'], SORT_STRING);
+                $pageSummary['unresolvedReasons'] = array_keys(
+                    $pageSummary['unresolvedReasonCounts']
+                );
+                $pageSummary['unresolvedClippingRuns'] =
+                    $pageSummary['unresolvedReasonCounts']['unresolved-clipping-path'] ?? 0;
+                $occlusionDelta = $unresolvedOcclusionRiskRuns
+                    - $unresolvedOcclusionRiskRunsBefore;
+                $pageSummary['unresolvedOcclusionRiskRuns'] += $occlusionDelta;
+                $pageSummary['laterPaintRiskCount'] += $occlusionDelta;
+                $pageSummary['laterPaintRiskRecordedCount'] +=
+                    count($laterPaintRisks) - $laterPaintRiskRecordedCountBefore;
+                $pageSummary['laterPaintRiskUnboundCount'] +=
+                    $laterPaintRiskUnboundCount - $laterPaintRiskUnboundCountBefore;
+                $pageSummary['laterPaintRiskTruncatedCount'] +=
+                    $laterPaintRiskTruncatedCount - $laterPaintRiskTruncatedCountBefore;
+                $pageSummary['complete'] = $pageSummary['unresolvedRuns'] === 0
+                    && $pageSummary['unresolvedOcclusionRiskRuns'] === 0;
+                $pageSummaries[$page] = $pageSummary;
+            };
             $formExpansionIssues = is_array($context['formExpansionLimitIssues'] ?? null)
                 ? $context['formExpansionLimitIssues']
                 : [];
@@ -3954,16 +4094,7 @@ final class PdfTextExtractor
                 // its own BT, but the page graphics state on entry is
                 // unknowable. Do not turn default CTM/clip/alpha assumptions
                 // into visible runs, positioned boxes, or later-paint risks.
-                $pageSummary = $pageSummaries[$page] ?? [
-                    'page' => $page,
-                    'visibleOutputRuns' => 0,
-                    'suppressedNonPaintingRuns' => 0,
-                    'suppressedRenderingModeRuns' => 0,
-                    'unresolvedRuns' => 0,
-                    'unresolvedOcclusionRiskRuns' => 0,
-                ];
-                $pageSummary['unresolvedRuns'] += $unresolvedRuns - $unresolvedRunsBefore;
-                $pageSummaries[$page] = $pageSummary;
+                $recordPageSummary();
                 continue;
             }
             $positionedRunsForOcclusion = $this->positionedTextRunsFromContentStream(
@@ -3986,6 +4117,7 @@ final class PdfTextExtractor
                 $sourceOccurrenceIndexes,
                 $page
             );
+            unset($positionedRunsForOcclusion);
             $outsidePageBoxTextCounts = $this->outsidePageBoxTextCounts(
                 $context['stream'],
                 $context['fontToUnicodeMaps'],
@@ -4050,7 +4182,7 @@ final class PdfTextExtractor
             $actualTextPaintEvidence = [];
             $actualTextSawText = [];
             $operands = [];
-            /** @var list<array{box:array{x1:float,y1:float,x2:float,y2:float}|null,operation:int,source:array<string,mixed>|null}> $paintEligibleRuns */
+            /** @var list<array{box:array{x1:float,y1:float,x2:float,y2:float}|null,polygon:list<float>|null,operation:int,source:array<string,mixed>|null}> $paintEligibleRuns */
             $paintEligibleRuns = [];
             $occlusionRiskRunIndexes = [];
             $currentTransformationMatrix = $this->identityTransformationMatrix();
@@ -4092,7 +4224,9 @@ final class PdfTextExtractor
                 string $paintOperator,
                 ?string $paintResource,
                 ?int $paintObject,
-                ?string $paintSubtype
+                ?string $paintSubtype,
+                array $paintBoxes = [],
+                array $paintCubicProofs = []
             ) use (
                 &$paintEligibleRuns,
                 &$occlusionRiskRunIndexes,
@@ -4101,6 +4235,7 @@ final class PdfTextExtractor
                 &$laterPaintRisks,
                 &$laterPaintRiskUnboundCount,
                 &$laterPaintRiskTruncatedCount,
+                &$cubicProofWorkRemainingByPage,
                 $pdfBytes,
                 $page
             ): void {
@@ -4110,7 +4245,10 @@ final class PdfTextExtractor
                 $newlyAtRiskRunIndexes = $this->newOcclusionRiskRunIndexes(
                     $paintEligibleRuns,
                     $occlusionRiskRunIndexes,
-                    $paintBox
+                    $paintBox,
+                    $paintBoxes,
+                    $paintCubicProofs,
+                    $cubicProofWorkRemainingByPage[$page]
                 );
                 $newlyAtRiskRuns = count($newlyAtRiskRunIndexes);
                 if ($newlyAtRiskRuns === 0) {
@@ -4508,6 +4646,9 @@ final class PdfTextExtractor
                             } else {
                                 $paintEligibleRuns[] = [
                                     'box' => $runBox,
+                                    'polygon' => is_array($operationEvidence['polygon'] ?? null)
+                                        ? $operationEvidence['polygon']
+                                        : null,
                                     'operation' => $visibilityOperation,
                                     'source' => $visibilityOperationSources[$visibilityOperation] ?? null,
                                 ];
@@ -4665,6 +4806,8 @@ final class PdfTextExtractor
                 $paintResource = null;
                 $paintObject = null;
                 $paintSubtype = null;
+                $paintBoxes = [];
+                $paintCubicProofs = [];
                 $pathPaintOperator = in_array(
                     $token,
                     ['S', 's', 'f', 'F', 'f*', 'B', 'B*', 'b', 'b*'],
@@ -4688,6 +4831,8 @@ final class PdfTextExtractor
                         && (!$pathGeometryKnown || $hasPathSegments);
                     if ($isLaterPaint && $pathGeometryKnown) {
                         $fillBox = $fills ? $pathBounds : null;
+                        $strokeComponentBoxes = [];
+                        $strokeComponentCubicProofs = [];
                         $strokeBox = $strokes
                             ? $this->visibilityStrokePathBounds(
                                 $pathBounds,
@@ -4697,7 +4842,9 @@ final class PdfTextExtractor
                                 $lineJoin,
                                 $miterLimit,
                                 $currentTransformationMatrix,
-                                $strokeGeometryStateKnown && $currentTransformationMatrixKnown
+                                $strokeGeometryStateKnown && $currentTransformationMatrixKnown,
+                                $strokeComponentBoxes,
+                                $strokeComponentCubicProofs
                             )
                             : null;
                         if (($fills && $fillBox === null) || ($strokes && $strokeBox === null)) {
@@ -4706,6 +4853,10 @@ final class PdfTextExtractor
                             $paintBox = $this->unionRectangles($fillBox, $strokeBox);
                         } else {
                             $paintBox = $fillBox ?? $strokeBox;
+                        }
+                        if (!$fills && $strokeBox !== null && $strokeComponentBoxes !== []) {
+                            $paintBoxes = $strokeComponentBoxes;
+                            $paintCubicProofs = $strokeComponentCubicProofs;
                         }
                     }
                     $pathBounds = null;
@@ -4752,6 +4903,29 @@ final class PdfTextExtractor
                 if ($isLaterPaint && $clipOuterBoundsKnown) {
                     if (!is_array($clipOuterBounds)) {
                         $isLaterPaint = false;
+                    } elseif ($paintBoxes !== []) {
+                        $clippedPaintBoxes = [];
+                        $clippedPaintCubicProofs = [];
+                        foreach ($paintBoxes as $componentIndex => $componentBox) {
+                            $clipped = $this->visibilityRectangleIntersection(
+                                $componentBox,
+                                $clipOuterBounds
+                            );
+                            if ($clipped !== null) {
+                                $clippedPaintBoxes[] = $clipped;
+                                $clippedPaintCubicProofs[] =
+                                    $paintCubicProofs[$componentIndex] ?? null;
+                            }
+                        }
+                        $paintBoxes = $clippedPaintBoxes;
+                        $paintCubicProofs = $clippedPaintCubicProofs;
+                        $paintBox = null;
+                        foreach ($paintBoxes as $componentBox) {
+                            $paintBox = $paintBox === null
+                                ? $componentBox
+                                : $this->unionRectangles($paintBox, $componentBox);
+                        }
+                        $isLaterPaint = $paintBox !== null;
                     } elseif (is_array($paintBox)) {
                         $paintBox = $this->visibilityRectangleIntersection($paintBox, $clipOuterBounds);
                         $isLaterPaint = $paintBox !== null;
@@ -4770,7 +4944,9 @@ final class PdfTextExtractor
                     $token,
                     $paintResource,
                     $paintObject,
-                    $paintSubtype
+                    $paintSubtype,
+                    $paintBoxes,
+                    $paintCubicProofs
                 );
 
                 // A clipping operator paired with a painting path takes
@@ -4807,28 +4983,25 @@ final class PdfTextExtractor
 
                 $operands[] = $token;
             }
-            $pageSummary = $pageSummaries[$page] ?? [
-                'page' => $page,
-                'visibleOutputRuns' => 0,
-                'suppressedNonPaintingRuns' => 0,
-                'suppressedRenderingModeRuns' => 0,
-                'unresolvedRuns' => 0,
-                'unresolvedOcclusionRiskRuns' => 0,
-            ];
-            $pageSummary['visibleOutputRuns'] += $visibleRuns - $visibleRunsBefore;
-            $pageSummary['suppressedNonPaintingRuns'] +=
-                $suppressedNonPaintingRuns - $suppressedNonPaintingRunsBefore;
-            $pageSummary['suppressedRenderingModeRuns'] +=
-                $suppressedRenderingModeRuns - $suppressedRenderingModeRunsBefore;
-            $pageSummary['unresolvedRuns'] += $unresolvedRuns - $unresolvedRunsBefore;
-            $pageSummary['unresolvedOcclusionRiskRuns'] +=
-                $unresolvedOcclusionRiskRuns - $unresolvedOcclusionRiskRunsBefore;
-            $pageSummaries[$page] = $pageSummary;
+            $recordPageSummary();
         }
 
         ksort($unresolvedReasonCounts);
         $unresolvedReasons = array_keys($unresolvedReasonCounts);
         $laterPaintRisksDigest = $this->visibilityLaterPaintRiskInventoryDigest($laterPaintRisks);
+        $laterPaintRisksByPage = [];
+        foreach ($laterPaintRisks as $risk) {
+            $riskPage = is_int($risk['page'] ?? null) ? $risk['page'] : 0;
+            if ($riskPage > 0) {
+                $laterPaintRisksByPage[$riskPage][] = $risk;
+            }
+        }
+        foreach ($pageSummaries as $page => &$pageSummary) {
+            $pageSummary['laterPaintRisksDigest'] = $this->visibilityLaterPaintRiskInventoryDigest(
+                $laterPaintRisksByPage[$page] ?? []
+            );
+        }
+        unset($pageSummary);
 
         return [
             'policy' => 'visible-painted-text-v1',
@@ -5045,7 +5218,11 @@ final class PdfTextExtractor
     private function visibilityTransformationMatricesEqual(array $left, array $right): bool
     {
         foreach (['a', 'b', 'c', 'd', 'e', 'f'] as $key) {
-            if (abs((float) $left[$key] - (float) $right[$key]) > 0.000000001) {
+            // Raw path coordinates are retained and later transformed again
+            // for per-component stroke proofs. Even sub-nanounit CTM drift
+            // can become material when a bounded PDF operand is very large,
+            // so approximate equality cannot certify that reconstruction.
+            if ((float) $left[$key] !== (float) $right[$key]) {
                 return false;
             }
         }
@@ -5361,6 +5538,8 @@ final class PdfTextExtractor
      * @param array{x1:float,y1:float,x2:float,y2:float}|null $pathBounds
      * @param list<array{segments:list<array<string,mixed>>,closed:bool}> $subpaths
      * @param array{a:float,b:float,c:float,d:float,e:float,f:float} $matrix
+     * @param list<array{x1:float,y1:float,x2:float,y2:float}>|null $componentBoxes
+     * @param list<array{points:list<float>,expandX:float,expandY:float}|null>|null $componentCubicProofs
      * @return array{x1:float,y1:float,x2:float,y2:float}|null
      */
     private function visibilityStrokePathBounds(
@@ -5371,12 +5550,17 @@ final class PdfTextExtractor
         int $lineJoin,
         float $miterLimit,
         array $matrix,
-        bool $stateKnown
+        bool $stateKnown,
+        ?array &$componentBoxes = null,
+        ?array &$componentCubicProofs = null
     ): ?array {
+        $componentBoxes = [];
+        $componentCubicProofs = [];
         if (!$stateKnown || $pathBounds === null || !is_finite($lineWidth) || $lineWidth <= 0.0
             || !in_array($lineCap, [0, 1, 2], true)
             || !in_array($lineJoin, [0, 1, 2], true)
-            || !is_finite($miterLimit) || $miterLimit < 1.0) {
+            || !is_finite($miterLimit) || $miterLimit < 1.0
+            || count($subpaths) > self::MAX_TEXT_VISIBILITY_STROKE_COMPONENT_BOXES) {
             // A zero-width hairline has a device-dependent width and cannot
             // be certified in page units.
             return null;
@@ -5419,19 +5603,105 @@ final class PdfTextExtractor
         }
         $expandX = $radiusX * $factor;
         $expandY = $radiusY * $factor;
-        $box = [
-            'x1' => $pathBounds['x1'] - $expandX,
-            'y1' => $pathBounds['y1'] - $expandY,
-            'x2' => $pathBounds['x2'] + $expandX,
-            'y2' => $pathBounds['y2'] + $expandY,
-        ];
-        foreach ($box as $coordinate) {
-            if (!is_finite($coordinate)) {
-                return null;
+        $box = null;
+        foreach ($subpaths as $subpath) {
+            foreach ($subpath['segments'] ?? [] as $segment) {
+                $segmentBounds = match ($segment['type'] ?? null) {
+                    'line' => $this->visibilityLineSegmentBounds(
+                        $segment['start'],
+                        $segment['end'],
+                        $matrix
+                    ),
+                    'curve' => $this->visibilityCubicBezierBounds(
+                        $segment['start'],
+                        $segment['control1'],
+                        $segment['control2'],
+                        $segment['end'],
+                        $matrix
+                    ),
+                    default => null,
+                };
+                if ($segmentBounds === null) {
+                    $componentBoxes = [];
+                    $componentCubicProofs = [];
+
+                    return null;
+                }
+                if (count($componentBoxes) >= self::MAX_TEXT_VISIBILITY_STROKE_COMPONENT_BOXES) {
+                    $componentBoxes = [];
+                    $componentCubicProofs = [];
+
+                    return null;
+                }
+                $componentBox = [
+                    'x1' => $segmentBounds['x1'] - $expandX,
+                    'y1' => $segmentBounds['y1'] - $expandY,
+                    'x2' => $segmentBounds['x2'] + $expandX,
+                    'y2' => $segmentBounds['y2'] + $expandY,
+                ];
+                foreach ($componentBox as $coordinate) {
+                    if (!is_finite($coordinate)) {
+                        $componentBoxes = [];
+                        $componentCubicProofs = [];
+
+                        return null;
+                    }
+                }
+                $componentBoxes[] = $componentBox;
+                $componentCubicProofs[] = $this->visibilityCubicStrokeProof(
+                    $segment,
+                    $matrix,
+                    $expandX,
+                    $expandY
+                );
+                $box = $box === null
+                    ? $componentBox
+                    : $this->unionRectangles($box, $componentBox);
             }
         }
 
         return $box;
+    }
+
+    /**
+     * @param array<string,mixed> $segment
+     * @param array{a:float,b:float,c:float,d:float,e:float,f:float} $matrix
+     * @return array{points:list<float>,expandX:float,expandY:float}|null
+     */
+    private function visibilityCubicStrokeProof(
+        array $segment,
+        array $matrix,
+        float $expandX,
+        float $expandY
+    ): ?array {
+        if (($segment['type'] ?? null) !== 'curve') {
+            return null;
+        }
+        $points = [];
+        foreach (['start', 'control1', 'control2', 'end'] as $pointName) {
+            $point = $segment[$pointName] ?? null;
+            if (!is_array($point)
+                || !is_numeric($point['x'] ?? null)
+                || !is_numeric($point['y'] ?? null)) {
+                return null;
+            }
+            [$x, $y] = $this->transformPoint(
+                (float) $point['x'],
+                (float) $point['y'],
+                $matrix
+            );
+            if (!is_finite($x) || !is_finite($y)) {
+                return null;
+            }
+            $points[] = $x;
+            $points[] = $y;
+        }
+
+        return [
+            'points' => $points,
+            'expandX' => $expandX,
+            'expandY' => $expandY,
+        ];
     }
 
     /** @param array<string,mixed> $before @param array<string,mixed> $after */
@@ -5560,7 +5830,7 @@ final class PdfTextExtractor
 
     /**
      * @param list<array<string,mixed>> $runs
-     * @return array<int,array{known:bool,box:array{x1:float,y1:float,x2:float,y2:float}|null}>
+     * @return array<int,array{known:bool,box:array{x1:float,y1:float,x2:float,y2:float}|null,polygon:list<float>|null}>
      */
     private function visibilityTextOperationEvidence(array $runs): array
     {
@@ -5578,7 +5848,8 @@ final class PdfTextExtractor
                         $evidence,
                         (int) $operation,
                         is_array($operationEvidence) && ($operationEvidence['known'] ?? false) === true,
-                        is_array($operationEvidence['box'] ?? null) ? $operationEvidence['box'] : null
+                        is_array($operationEvidence['box'] ?? null) ? $operationEvidence['box'] : null,
+                        null
                     );
                 }
                 continue;
@@ -5592,7 +5863,8 @@ final class PdfTextExtractor
                 $evidence,
                 $operation,
                 ($run['visibilityInkKnown'] ?? false) === true,
-                is_array($run['visibilityBox'] ?? null) ? $run['visibilityBox'] : null
+                is_array($run['visibilityBox'] ?? null) ? $run['visibilityBox'] : null,
+                is_array($run['visibilityPolygon'] ?? null) ? $run['visibilityPolygon'] : null
             );
         }
 
@@ -5760,22 +6032,28 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param array<int,array{known:bool,box:array{x1:float,y1:float,x2:float,y2:float}|null}> $evidence
+     * @param array<int,array{known:bool,box:array{x1:float,y1:float,x2:float,y2:float}|null,polygon:list<float>|null}> $evidence
      * @param array{x1:float,y1:float,x2:float,y2:float}|null $box
+     * @param list<float>|null $polygon
      */
     private function mergeVisibilityTextOperationEvidence(
         array &$evidence,
         int $operation,
         bool $known,
-        ?array $box
+        ?array $box,
+        ?array $polygon
     ): void {
         $existing = $evidence[$operation] ?? null;
         if (!$known || (is_array($existing) && ($existing['known'] ?? false) !== true)) {
-            $evidence[$operation] = ['known' => false, 'box' => null];
+            $evidence[$operation] = ['known' => false, 'box' => null, 'polygon' => null];
             return;
         }
         if (!is_array($existing)) {
-            $evidence[$operation] = ['known' => true, 'box' => $box];
+            $evidence[$operation] = [
+                'known' => true,
+                'box' => $box,
+                'polygon' => $box !== null ? $polygon : null,
+            ];
             return;
         }
         if ($box !== null) {
@@ -5783,16 +6061,29 @@ final class PdfTextExtractor
             $evidence[$operation]['box'] = $existingBox === null
                 ? $box
                 : $this->unionRectangles($existingBox, $box);
+            $evidence[$operation]['polygon'] = $existingBox === null
+                ? $polygon
+                : null;
         }
     }
 
     /**
-     * @param list<array{box:array{x1:float,y1:float,x2:float,y2:float}|null,operation:int,source:array<string,mixed>|null}> $runs
+     * @param list<array{box:array{x1:float,y1:float,x2:float,y2:float}|null,polygon:list<float>|null,operation:int,source:array<string,mixed>|null}> $runs
      * @param array<int,true> $riskIndexes
      * @param array{x1:float,y1:float,x2:float,y2:float}|null $paintBox
+     * @param list<array{x1:float,y1:float,x2:float,y2:float}> $paintBoxes
+     * @param list<array{points:list<float>,expandX:float,expandY:float}|null> $paintCubicProofs
+     * @param int $cubicProofWorkRemaining Page-scoped exact-proof budget.
      * @return list<int>
      */
-    private function newOcclusionRiskRunIndexes(array $runs, array &$riskIndexes, ?array $paintBox): array
+    private function newOcclusionRiskRunIndexes(
+        array $runs,
+        array &$riskIndexes,
+        ?array $paintBox,
+        array $paintBoxes = [],
+        array $paintCubicProofs = [],
+        int &$cubicProofWorkRemaining = 0
+    ): array
     {
         $newlyAtRisk = [];
         foreach ($runs as $index => $run) {
@@ -5800,15 +6091,293 @@ final class PdfTextExtractor
                 continue;
             }
             $runBox = is_array($run['box'] ?? null) ? $run['box'] : null;
-            if ($paintBox !== null && $runBox !== null
+            if ($runBox !== null && $paintBoxes !== []) {
+                if ($paintBox !== null
+                    && !$this->visibilityRectanglesIntersect($runBox, $paintBox)) {
+                    continue;
+                }
+                $runPolygon = is_array($run['polygon'] ?? null)
+                    ? $run['polygon']
+                    : null;
+                $intersectsUnclearedComponent = false;
+                foreach ($paintBoxes as $componentIndex => $componentBox) {
+                    if ($cubicProofWorkRemaining <= 0) {
+                        // Exhaustion cannot turn an overlapping aggregate box
+                        // into a disjointness claim. Retain this and all later
+                        // candidates as unresolved without further exact work.
+                        $intersectsUnclearedComponent = true;
+                        break;
+                    }
+                    $cubicProofWorkRemaining--;
+                    if (!$this->visibilityRectanglesIntersect($runBox, $componentBox)) {
+                        continue;
+                    }
+                    $componentProof = $paintCubicProofs[$componentIndex] ?? null;
+                    if ($runPolygon !== null
+                        && is_array($componentProof)
+                        && $this->visibilityStrokedCubicDisjointFromPolygon(
+                            $componentProof,
+                            $runPolygon,
+                            $cubicProofWorkRemaining
+                        ) === true) {
+                        continue;
+                    }
+                    $intersectsUnclearedComponent = true;
+                    break;
+                }
+                if (!$intersectsUnclearedComponent) {
+                    continue;
+                }
+            } elseif ($paintBox !== null && $runBox !== null
                 && !$this->visibilityRectanglesIntersect($runBox, $paintBox)) {
-                continue;
+                    continue;
             }
             $riskIndexes[$index] = true;
             $newlyAtRisk[] = $index;
         }
 
         return $newlyAtRisk;
+    }
+
+    /**
+     * A cubic Bézier is contained by the convex hull of its four control
+     * points. Recursively subdivided control-hull boxes therefore provide a
+     * conservative cover of the curve; expanding every box by the proven
+     * stroke extents covers its painted stroke as well. Only a separating-axis
+     * proof against every bounded component can clear the candidate.
+     *
+     * @param array{points:list<float>,expandX:float,expandY:float} $proof
+     * @param list<float> $polygon Four page-space points encoded x0,y0,...,x3,y3.
+     * @param int $cubicProofWorkRemaining Page-scoped exact-proof budget.
+     */
+    private function visibilityStrokedCubicDisjointFromPolygon(
+        array $proof,
+        array $polygon,
+        int &$cubicProofWorkRemaining
+    ): ?bool {
+        $points = is_array($proof['points'] ?? null) ? $proof['points'] : [];
+        $expandX = $proof['expandX'] ?? null;
+        $expandY = $proof['expandY'] ?? null;
+        if (!$this->visibilityFinitePointTuple($points, 4)
+            || (!is_float($expandX) && !is_int($expandX))
+            || (!is_float($expandY) && !is_int($expandY))
+            || !is_finite((float) $expandX)
+            || !is_finite((float) $expandY)
+            || (float) $expandX < 0.0
+            || (float) $expandY < 0.0
+            || !$this->visibilityFinitePointTuple($polygon, 4)) {
+            return null;
+        }
+
+        $components = [['points' => $points, 'depth' => 0]];
+        $visitedComponents = 0;
+        while ($components !== []) {
+            if ($cubicProofWorkRemaining <= 0) {
+                return null;
+            }
+            $cubicProofWorkRemaining--;
+            $component = array_pop($components);
+            $visitedComponents++;
+            if ($visitedComponents > self::MAX_TEXT_VISIBILITY_CUBIC_SUBDIVISION_COMPONENTS) {
+                return null;
+            }
+            $componentPoints = is_array($component['points'] ?? null)
+                ? $component['points']
+                : [];
+            $componentBox = $this->visibilityCubicControlHullBox(
+                $componentPoints,
+                (float) $expandX,
+                (float) $expandY
+            );
+            if ($componentBox === null) {
+                return null;
+            }
+            $disjoint = $this->visibilityPolygonRectangleDisjoint($polygon, $componentBox);
+            if ($disjoint === null) {
+                return null;
+            }
+            if ($disjoint) {
+                continue;
+            }
+
+            $depth = (int) ($component['depth'] ?? 0);
+            if ($depth >= self::MAX_TEXT_VISIBILITY_CUBIC_SUBDIVISION_DEPTH) {
+                return false;
+            }
+            $halves = $this->visibilitySplitCubicAtHalf($componentPoints);
+            if ($halves === null) {
+                return null;
+            }
+            $components[] = ['points' => $halves[1], 'depth' => $depth + 1];
+            $components[] = ['points' => $halves[0], 'depth' => $depth + 1];
+        }
+
+        return true;
+    }
+
+    /** @param list<float> $tuple */
+    private function visibilityFinitePointTuple(array $tuple, int $pointCount): bool
+    {
+        if (!array_is_list($tuple) || count($tuple) !== $pointCount * 2) {
+            return false;
+        }
+        foreach ($tuple as $coordinate) {
+            if ((!is_float($coordinate) && !is_int($coordinate))
+                || !is_finite((float) $coordinate)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<float> $points
+     * @return array{x1:float,y1:float,x2:float,y2:float}|null
+     */
+    private function visibilityCubicControlHullBox(
+        array $points,
+        float $expandX,
+        float $expandY
+    ): ?array {
+        if (!$this->visibilityFinitePointTuple($points, 4)
+            || !is_finite($expandX)
+            || !is_finite($expandY)
+            || $expandX < 0.0
+            || $expandY < 0.0) {
+            return null;
+        }
+        $xCoordinates = [$points[0], $points[2], $points[4], $points[6]];
+        $yCoordinates = [$points[1], $points[3], $points[5], $points[7]];
+        $scale = max(1.0, $expandX, $expandY);
+        foreach ($points as $coordinate) {
+            $scale = max($scale, abs((float) $coordinate));
+        }
+        $padding = max(0.0000001, $scale * 0.000000000001);
+        $box = [
+            'x1' => min($xCoordinates) - $expandX - $padding,
+            'y1' => min($yCoordinates) - $expandY - $padding,
+            'x2' => max($xCoordinates) + $expandX + $padding,
+            'y2' => max($yCoordinates) + $expandY + $padding,
+        ];
+
+        return $this->finiteRectangle($box) ? $box : null;
+    }
+
+    /**
+     * @param list<float> $points
+     * @return array{0:list<float>,1:list<float>}|null
+     */
+    private function visibilitySplitCubicAtHalf(array $points): ?array
+    {
+        if (!$this->visibilityFinitePointTuple($points, 4)) {
+            return null;
+        }
+        $x01 = ($points[0] + $points[2]) / 2.0;
+        $y01 = ($points[1] + $points[3]) / 2.0;
+        $x12 = ($points[2] + $points[4]) / 2.0;
+        $y12 = ($points[3] + $points[5]) / 2.0;
+        $x23 = ($points[4] + $points[6]) / 2.0;
+        $y23 = ($points[5] + $points[7]) / 2.0;
+        $x012 = ($x01 + $x12) / 2.0;
+        $y012 = ($y01 + $y12) / 2.0;
+        $x123 = ($x12 + $x23) / 2.0;
+        $y123 = ($y12 + $y23) / 2.0;
+        $x0123 = ($x012 + $x123) / 2.0;
+        $y0123 = ($y012 + $y123) / 2.0;
+        $left = [
+            $points[0], $points[1],
+            $x01, $y01,
+            $x012, $y012,
+            $x0123, $y0123,
+        ];
+        $right = [
+            $x0123, $y0123,
+            $x123, $y123,
+            $x23, $y23,
+            $points[6], $points[7],
+        ];
+
+        return $this->visibilityFinitePointTuple($left, 4)
+            && $this->visibilityFinitePointTuple($right, 4)
+                ? [$left, $right]
+                : null;
+    }
+
+    /**
+     * @param list<float> $polygon Four convex points encoded x0,y0,...,x3,y3.
+     * @param array{x1:float,y1:float,x2:float,y2:float} $rectangle
+     */
+    private function visibilityPolygonRectangleDisjoint(
+        array $polygon,
+        array $rectangle
+    ): ?bool {
+        if (!$this->visibilityFinitePointTuple($polygon, 4)
+            || !$this->finiteRectangle($rectangle)) {
+            return null;
+        }
+
+        $axes = [[1.0, 0.0], [0.0, 1.0]];
+        $orientation = 0;
+        $edgeScale = 1.0;
+        for ($index = 0; $index < 4; $index++) {
+            $next = ($index + 1) % 4;
+            $after = ($index + 2) % 4;
+            $edgeX = $polygon[$next * 2] - $polygon[$index * 2];
+            $edgeY = $polygon[($next * 2) + 1] - $polygon[($index * 2) + 1];
+            $nextEdgeX = $polygon[$after * 2] - $polygon[$next * 2];
+            $nextEdgeY = $polygon[($after * 2) + 1] - $polygon[($next * 2) + 1];
+            $edgeLength = hypot($edgeX, $edgeY);
+            if (!is_finite($edgeLength) || $edgeLength <= 0.000000001) {
+                return null;
+            }
+            $edgeScale = max($edgeScale, $edgeLength, hypot($nextEdgeX, $nextEdgeY));
+            $cross = ($edgeX * $nextEdgeY) - ($edgeY * $nextEdgeX);
+            $crossTolerance = max(0.000000000001, $edgeScale * $edgeScale * 0.000000000001);
+            if (abs($cross) <= $crossTolerance) {
+                return null;
+            }
+            $crossOrientation = $cross > 0.0 ? 1 : -1;
+            if ($orientation !== 0 && $crossOrientation !== $orientation) {
+                return null;
+            }
+            $orientation = $crossOrientation;
+            $axes[] = [-$edgeY / $edgeLength, $edgeX / $edgeLength];
+        }
+
+        $centerX = ($rectangle['x1'] + $rectangle['x2']) / 2.0;
+        $centerY = ($rectangle['y1'] + $rectangle['y2']) / 2.0;
+        $halfWidth = ($rectangle['x2'] - $rectangle['x1']) / 2.0;
+        $halfHeight = ($rectangle['y2'] - $rectangle['y1']) / 2.0;
+        foreach ($axes as [$axisX, $axisY]) {
+            $polygonMin = INF;
+            $polygonMax = -INF;
+            for ($index = 0; $index < 4; $index++) {
+                $projection = ($polygon[$index * 2] * $axisX)
+                    + ($polygon[($index * 2) + 1] * $axisY);
+                $polygonMin = min($polygonMin, $projection);
+                $polygonMax = max($polygonMax, $projection);
+            }
+            $rectangleCenter = ($centerX * $axisX) + ($centerY * $axisY);
+            $rectangleRadius = (abs($axisX) * $halfWidth)
+                + (abs($axisY) * $halfHeight);
+            $rectangleMin = $rectangleCenter - $rectangleRadius;
+            $rectangleMax = $rectangleCenter + $rectangleRadius;
+            $projectionScale = max(
+                1.0,
+                abs($polygonMin),
+                abs($polygonMax),
+                abs($rectangleMin),
+                abs($rectangleMax)
+            );
+            $epsilon = max(0.0000001, $projectionScale * 0.000000000001);
+            if ($polygonMax < $rectangleMin - $epsilon
+                || $rectangleMax < $polygonMin - $epsilon) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -5871,9 +6440,11 @@ final class PdfTextExtractor
     }
 
     /**
-     * Suppress only text whose conservative glyph bounds are wholly outside
-     * the effective CropBox/MediaBox. Partial intersections remain visible.
-     * Missing coordinates are unresolved and therefore retained.
+     * Suppress only text whose orientation-aware conservative ink bounds are
+     * wholly outside the effective CropBox/MediaBox. The proven baseline
+     * progression is the longitudinal interval; font height is applied on
+     * the perpendicular axis. Partial intersections remain visible. Missing
+     * coordinates are unresolved and therefore retained.
      *
      * @param array{x:float,y:float,scale:float} $axis
      * @param array{x1:float,y1:float,x2:float,y2:float}|null $pageVisibleBox
@@ -5902,16 +6473,19 @@ final class PdfTextExtractor
             return null;
         }
 
-        $run = $this->positionedTextRun('', $startX, $startY, $endX, $endY, $fontSize, $axis);
-        return $this->imageBoundingBoxIntersectsPageBox(
-            [
-                'x1' => (float) $run['x1'],
-                'y1' => (float) $run['y1'],
-                'x2' => (float) $run['x2'],
-                'y2' => (float) $run['y2'],
-            ],
-            $pageVisibleBox
+        $inkBox = $this->visibilityTextInkBox(
+            $startX,
+            $startY,
+            $endX,
+            $endY,
+            $fontSize,
+            $axis
         );
+        if ($inkBox === null) {
+            return null;
+        }
+
+        return $this->imageBoundingBoxIntersectsPageBox($inkBox, $pageVisibleBox);
     }
 
     /**
@@ -17256,6 +17830,13 @@ final class PdfTextExtractor
                     )) {
                         $encoding['suppressUnmapped'] = false;
                     }
+                    $embeddedFontBounds = $this->embeddedTrueTypeFontBounds(
+                        $objectBody,
+                        $objects
+                    );
+                    if ($embeddedFontBounds !== null) {
+                        $encoding['embeddedFontBounds'] = $embeddedFontBounds;
+                    }
 
                     return $encoding;
                 }
@@ -17308,11 +17889,38 @@ final class PdfTextExtractor
             $baseEncoding = self::GLYPH_NAME_ENCODING;
         }
 
+        $widths = $this->fontWidthsFromObject($objectBody, $objects);
         if ($baseEncoding === null) {
-            return null;
+            // A simple TrueType font may legally omit /Encoding and use its
+            // built-in cmap.  We cannot claim the characters without parsing
+            // that cmap, but /FirstChar plus /Widths still names each source
+            // byte's exact PDF advance. Preserve the raw-byte decoding used
+            // before this record existed while making those bounded metrics
+            // available to positioning and visibility evidence.
+            $widths = $this->declaredWidthsOnlyFromObject($objectBody, $objects);
+            if ($widths === []) {
+                return null;
+            }
+
+            $encoding = [
+                'base' => self::DECLARED_WIDTHS_ONLY_ENCODING,
+                'differences' => [],
+                'suppressUnmapped' => false,
+                'widths' => $widths,
+                'declaredWidthsOnly' => true,
+            ];
+            $baseFont = $this->baseFontNameFromObject($objectBody);
+            if ($baseFont !== null) {
+                $encoding['baseFont'] = $baseFont;
+            }
+            $embeddedFontBounds = $this->embeddedTrueTypeFontBounds($objectBody, $objects);
+            if ($embeddedFontBounds !== null) {
+                $encoding['embeddedFontBounds'] = $embeddedFontBounds;
+            }
+
+            return $encoding;
         }
 
-        $widths = $this->fontWidthsFromObject($objectBody, $objects);
         $suppressUnmapped = $differences === [] && $this->isUnmappedCustomFont($objectBody);
         if ($suppressUnmapped && $this->isType3FontWithSafeDeclaredEncoding($objectBody, $baseEncoding)) {
             $suppressUnmapped = false;
@@ -17330,6 +17938,10 @@ final class PdfTextExtractor
         $baseFont = $this->baseFontNameFromObject($objectBody);
         if ($baseFont !== null) {
             $encoding['baseFont'] = $baseFont;
+        }
+        $embeddedFontBounds = $this->embeddedTrueTypeFontBounds($objectBody, $objects);
+        if ($embeddedFontBounds !== null) {
+            $encoding['embeddedFontBounds'] = $embeddedFontBounds;
         }
 
         return $encoding;
@@ -17362,6 +17974,122 @@ final class PdfTextExtractor
 
         $widths = [];
         foreach ($widthValues as $index => $width) {
+            $widths[$firstChar + $index] = $width;
+        }
+
+        return $widths;
+    }
+
+    /**
+     * Width-only visibility evidence must preserve the exact source-code
+     * index of every declared advance. The general extraction parser is
+     * intentionally permissive, but skipping one malformed array token here
+     * would shift every later width onto the wrong byte and create false
+     * clipping proof.
+     *
+     * @param array<int,string> $objects
+     * @return array<int,float>
+     */
+    private function declaredWidthsOnlyFromObject(string $objectBody, array $objects): array
+    {
+        $tokens = $this->dictionaryTokens($objectBody);
+        if ($tokens === [] || count($tokens) >= $this->maxContentTokens()) {
+            return [];
+        }
+        $entries = [];
+        for ($index = 0, $count = count($tokens); $index < $count;) {
+            $key = $tokens[$index];
+            if (!str_starts_with($key, '/') || !isset($tokens[$index + 1])) {
+                return [];
+            }
+            $name = $this->decodePdfName(substr($key, 1));
+            $valueIndex = $index + 1;
+            $valueLength = isset($tokens[$valueIndex + 2])
+                && preg_match('/^\d+$/D', $tokens[$valueIndex]) === 1
+                && preg_match('/^\d+$/D', $tokens[$valueIndex + 1]) === 1
+                && $tokens[$valueIndex + 2] === 'R'
+                    ? 3
+                    : 1;
+            if (in_array($name, ['Subtype', 'FirstChar', 'LastChar', 'Widths'], true)) {
+                if (isset($entries[$name])) {
+                    return [];
+                }
+                $entries[$name] = [
+                    'index' => $valueIndex,
+                    'length' => $valueLength,
+                ];
+            }
+            $index = $valueIndex + $valueLength;
+        }
+        foreach (['Subtype', 'FirstChar', 'LastChar', 'Widths'] as $name) {
+            if (!isset($entries[$name])) {
+                return [];
+            }
+        }
+        $subtypeEntry = $entries['Subtype'];
+        $subtypeToken = $tokens[$subtypeEntry['index']] ?? null;
+        if ($subtypeEntry['length'] !== 1
+            || !is_string($subtypeToken)
+            || !$this->isPdfNameToken($subtypeToken, 'TrueType')) {
+            return [];
+        }
+
+        $firstCharEntry = $entries['FirstChar'];
+        $lastCharEntry = $entries['LastChar'];
+        if ($firstCharEntry['length'] !== 1 || $lastCharEntry['length'] !== 1) {
+            return [];
+        }
+        $firstCharToken = $tokens[$firstCharEntry['index']] ?? null;
+        $lastCharToken = $tokens[$lastCharEntry['index']] ?? null;
+        if (!is_string($firstCharToken) || !is_string($lastCharToken)
+            || preg_match('/^[+-]?\d+$/D', $firstCharToken) !== 1
+            || preg_match('/^[+-]?\d+$/D', $lastCharToken) !== 1) {
+            return [];
+        }
+        $firstChar = (int) $firstCharToken;
+        $lastChar = (int) $lastCharToken;
+        if ($firstChar < 0 || $firstChar > 255
+            || $lastChar < $firstChar || $lastChar > 255) {
+            return [];
+        }
+
+        $widthEntry = $entries['Widths'];
+        $widthValueToken = $tokens[$widthEntry['index']] ?? null;
+        $widthArray = $widthEntry['length'] === 1
+            && is_string($widthValueToken)
+            && str_starts_with($widthValueToken, '[')
+            ? $widthValueToken
+            : null;
+        if ($widthArray === null
+            && $widthEntry['length'] === 3
+            && is_string($widthValueToken)
+            && preg_match('/^\d+$/D', $widthValueToken) === 1
+        ) {
+            $candidateTokens = $this->contentTokens(
+                $objects[(int) $widthValueToken] ?? ''
+            );
+            if (count($candidateTokens) === 1
+                && str_starts_with($candidateTokens[0], '[')) {
+                $widthArray = $candidateTokens[0];
+            }
+        }
+        if ($widthArray === null || !str_ends_with(trim($widthArray), ']')) {
+            return [];
+        }
+
+        $tokens = $this->arrayTokens($widthArray);
+        $expectedCount = $lastChar - $firstChar + 1;
+        if (count($tokens) !== $expectedCount || $expectedCount > 256) {
+            return [];
+        }
+
+        $widths = [];
+        foreach ($tokens as $index => $token) {
+            $width = $this->numericOperand($token);
+            if ($width === null || !is_finite($width)
+                || $width < 0.0 || $width > self::MAX_TRANSFORM_COMPONENT) {
+                return [];
+            }
             $widths[$firstChar + $index] = $width;
         }
 
@@ -18167,6 +18895,754 @@ final class PdfTextExtractor
         }
 
         return [];
+    }
+
+    /**
+     * Recover a font-wide outline box only from a structurally bounded,
+     * checksum-valid embedded TrueType program. The PDF descriptor is used
+     * solely as a consistency check; it is never sufficient by itself to
+     * shrink visibility geometry.
+     *
+     * @param array<int,string> $objects
+     * @return array{unitsPerEm:int,xMin:int,yMin:int,xMax:int,yMax:int,source:string}|null
+     */
+    private function embeddedTrueTypeFontBounds(string $fontObjectBody, array $objects): ?array
+    {
+        if (preg_match('/\/Subtype\s*\/TrueType\b|\/Subtype\/TrueType\b/', $fontObjectBody) !== 1) {
+            return null;
+        }
+        $descriptors = $this->fontDescriptorBodies($fontObjectBody, $objects);
+        if (count($descriptors) !== 1) {
+            return null;
+        }
+        $descriptorBody = $descriptors[0];
+        if (preg_match_all('/\/FontFile2\b/', $descriptorBody) !== 1) {
+            return null;
+        }
+        $fontFileObjectNumbers = $this->fontFileObjectNumbers($descriptorBody, ['/FontFile2']);
+        if (count($fontFileObjectNumbers) !== 1) {
+            return null;
+        }
+        $fontFileObject = $objects[$fontFileObjectNumbers[0]] ?? null;
+        if (!is_string($fontFileObject)) {
+            return null;
+        }
+        $fontProgram = $this->decodeStreamObject($fontFileObject, $objects);
+        if (!is_string($fontProgram) || $fontProgram === '') {
+            return null;
+        }
+        $bounds = $this->verifiedTrueTypeFontBounds($fontProgram);
+        if ($bounds === null) {
+            return null;
+        }
+
+        if (preg_match_all('/\/FontBBox\s*(\[[^\[\]]*\])/', $descriptorBody, $matches) !== 1) {
+            return null;
+        }
+        $descriptorBounds = $this->numericArrayValues($matches[1][0]);
+        if (count($descriptorBounds) !== 4) {
+            return null;
+        }
+        foreach ($descriptorBounds as $coordinate) {
+            if (!is_finite($coordinate) || abs($coordinate) > self::MAX_TRANSFORM_COMPONENT) {
+                return null;
+            }
+        }
+        if ($descriptorBounds[0] > $descriptorBounds[2]
+            || $descriptorBounds[1] > $descriptorBounds[3]) {
+            return null;
+        }
+        $unitsPerEm = (float) $bounds['unitsPerEm'];
+        $tolerance = (1.0 / 1000.0) + (1.0 / $unitsPerEm) + 0.000001;
+        foreach ([
+            [$descriptorBounds[0] / 1000.0, $bounds['xMin'] / $unitsPerEm, true],
+            [$descriptorBounds[1] / 1000.0, $bounds['yMin'] / $unitsPerEm, true],
+            [$descriptorBounds[2] / 1000.0, $bounds['xMax'] / $unitsPerEm, false],
+            [$descriptorBounds[3] / 1000.0, $bounds['yMax'] / $unitsPerEm, false],
+        ] as [$descriptorCoordinate, $programCoordinate, $minimum]) {
+            if (($minimum && $descriptorCoordinate > $programCoordinate + $tolerance)
+                || (!$minimum && $descriptorCoordinate < $programCoordinate - $tolerance)) {
+                return null;
+            }
+        }
+
+        return $bounds + ['source' => 'embedded-truetype-ungridfitted-outline-v1'];
+    }
+
+    /**
+     * @return array{unitsPerEm:int,xMin:int,yMin:int,xMax:int,yMax:int}|null
+     */
+    private function verifiedTrueTypeFontBounds(string $fontProgram): ?array
+    {
+        $tables = $this->verifiedTrueTypeFontTables($fontProgram);
+        if ($tables === null) {
+            return null;
+        }
+        $head = $tables['head'] ?? null;
+        $maxp = $tables['maxp'] ?? null;
+        $loca = $tables['loca'] ?? null;
+        $glyf = $tables['glyf'] ?? null;
+        if (!is_string($head) || strlen($head) < 54
+            || !is_string($maxp) || strlen($maxp) < 6
+            || !is_string($loca)
+            || !is_string($glyf)) {
+            return null;
+        }
+        if ($this->trueTypeUnsignedLong($head, 12) !== 0x5F0F3CF5) {
+            return null;
+        }
+        $unitsPerEm = $this->trueTypeUnsignedShort($head, 18);
+        $xMin = $this->trueTypeSignedShort($head, 36);
+        $yMin = $this->trueTypeSignedShort($head, 38);
+        $xMax = $this->trueTypeSignedShort($head, 40);
+        $yMax = $this->trueTypeSignedShort($head, 42);
+        $indexToLocFormat = $this->trueTypeSignedShort($head, 50);
+        $glyphCount = $this->trueTypeUnsignedShort($maxp, 4);
+        if ($unitsPerEm === null || $unitsPerEm < 16 || $unitsPerEm > 16384
+            || $xMin === null || $yMin === null || $xMax === null || $yMax === null
+            || $xMin > $xMax || $yMin > $yMax
+            || !in_array($indexToLocFormat, [0, 1], true)
+            || $glyphCount === null || $glyphCount < 1
+            || $glyphCount > self::MAX_EMBEDDED_TRUETYPE_OUTLINE_GLYPHS) {
+            return null;
+        }
+        $locaWidth = $indexToLocFormat === 0 ? 2 : 4;
+        $requiredLocaBytes = ($glyphCount + 1) * $locaWidth;
+        if ($requiredLocaBytes > strlen($loca)) {
+            return null;
+        }
+
+        $glyphOffsets = [];
+        $previousOffset = null;
+        for ($glyphIndex = 0; $glyphIndex <= $glyphCount; $glyphIndex++) {
+            $locaOffset = $glyphIndex * $locaWidth;
+            $glyphOffset = $indexToLocFormat === 0
+                ? $this->trueTypeUnsignedShort($loca, $locaOffset)
+                : $this->trueTypeUnsignedLong($loca, $locaOffset);
+            if ($glyphOffset === null) {
+                return null;
+            }
+            if ($indexToLocFormat === 0) {
+                $glyphOffset *= 2;
+            }
+            if ($glyphOffset > strlen($glyf)
+                || ($previousOffset !== null && $glyphOffset < $previousOffset)) {
+                return null;
+            }
+            $glyphOffsets[] = $glyphOffset;
+            $previousOffset = $glyphOffset;
+        }
+
+        $globalBounds = [
+            'x1' => $xMin,
+            'y1' => $yMin,
+            'x2' => $xMax,
+            'y2' => $yMax,
+        ];
+        $glyphStates = [];
+        $glyphBounds = [];
+        $totalPointCount = 0;
+        $totalComponentCount = 0;
+        $outlineGlyphs = 0;
+        for ($glyphIndex = 0; $glyphIndex < $glyphCount; $glyphIndex++) {
+            $bounds = $this->verifiedTrueTypeGlyphOutlineBounds(
+                $glyf,
+                $glyphOffsets,
+                $glyphIndex,
+                $globalBounds,
+                $glyphStates,
+                $glyphBounds,
+                $totalPointCount,
+                $totalComponentCount
+            );
+            if ($bounds === false) {
+                return null;
+            }
+            if (is_array($bounds)) {
+                $outlineGlyphs++;
+            }
+        }
+        if ($outlineGlyphs === 0) {
+            return null;
+        }
+
+        return [
+            'unitsPerEm' => $unitsPerEm,
+            'xMin' => $xMin,
+            'yMin' => $yMin,
+            'xMax' => $xMax,
+            'yMax' => $yMax,
+        ];
+    }
+
+    /**
+     * Validate the ungridfitted outline represented by one glyf entry. Glyph
+     * instructions are structurally skipped, not executed: the resulting box
+     * is device-independent outline geometry and is not a hinted raster bound.
+     *
+     * @param list<int> $glyphOffsets
+     * @param array{x1:int,y1:int,x2:int,y2:int} $globalBounds
+     * @param array<int,int> $glyphStates
+     * @param array<int,array{x1:float,y1:float,x2:float,y2:float}|null> $glyphBounds
+     * @return array{x1:float,y1:float,x2:float,y2:float}|false|null
+     */
+    private function verifiedTrueTypeGlyphOutlineBounds(
+        string $glyf,
+        array $glyphOffsets,
+        int $glyphIndex,
+        array $globalBounds,
+        array &$glyphStates,
+        array &$glyphBounds,
+        int &$totalPointCount,
+        int &$totalComponentCount,
+        int $depth = 0
+    ): array|false|null {
+        if (array_key_exists($glyphIndex, $glyphBounds)) {
+            return $glyphBounds[$glyphIndex];
+        }
+        if (($glyphStates[$glyphIndex] ?? 0) === 1
+            || $depth > self::MAX_EMBEDDED_TRUETYPE_COMPOSITE_DEPTH) {
+            return false;
+        }
+        $glyphStart = $glyphOffsets[$glyphIndex] ?? null;
+        $glyphEnd = $glyphOffsets[$glyphIndex + 1] ?? null;
+        if (!is_int($glyphStart) || !is_int($glyphEnd)
+            || $glyphStart < 0 || $glyphEnd < $glyphStart
+            || $glyphEnd > strlen($glyf)) {
+            return false;
+        }
+        if ($glyphStart === $glyphEnd) {
+            $glyphStates[$glyphIndex] = 2;
+            $glyphBounds[$glyphIndex] = null;
+            return null;
+        }
+        if ($glyphEnd - $glyphStart < 10) {
+            return false;
+        }
+
+        $contours = $this->trueTypeSignedShort($glyf, $glyphStart);
+        $glyphXMin = $this->trueTypeSignedShort($glyf, $glyphStart + 2);
+        $glyphYMin = $this->trueTypeSignedShort($glyf, $glyphStart + 4);
+        $glyphXMax = $this->trueTypeSignedShort($glyf, $glyphStart + 6);
+        $glyphYMax = $this->trueTypeSignedShort($glyf, $glyphStart + 8);
+        if ($contours === null || $contours < -1
+            || $glyphXMin === null || $glyphYMin === null
+            || $glyphXMax === null || $glyphYMax === null
+            || $glyphXMin > $glyphXMax || $glyphYMin > $glyphYMax) {
+            return false;
+        }
+        $claimedBounds = [
+            'x1' => $glyphXMin,
+            'y1' => $glyphYMin,
+            'x2' => $glyphXMax,
+            'y2' => $glyphYMax,
+        ];
+        if (!$this->trueTypeOutlineBoundsAreContained($globalBounds, $claimedBounds)) {
+            return false;
+        }
+
+        $glyphStates[$glyphIndex] = 1;
+        $actualBounds = $contours >= 0
+            ? $this->verifiedTrueTypeSimpleGlyphOutlineBounds(
+                $glyf,
+                $glyphStart,
+                $glyphEnd,
+                $contours,
+                $totalPointCount
+            )
+            : $this->verifiedTrueTypeCompositeGlyphOutlineBounds(
+                $glyf,
+                $glyphOffsets,
+                $glyphStart,
+                $glyphEnd,
+                $globalBounds,
+                $glyphStates,
+                $glyphBounds,
+                $totalPointCount,
+                $totalComponentCount,
+                $depth
+            );
+        if ($actualBounds === false
+            || (is_array($actualBounds)
+                && !$this->trueTypeOutlineBoundsAreContained($claimedBounds, $actualBounds))) {
+            return false;
+        }
+
+        $glyphStates[$glyphIndex] = 2;
+        $glyphBounds[$glyphIndex] = $actualBounds;
+        return $actualBounds;
+    }
+
+    /**
+     * @return array{x1:float,y1:float,x2:float,y2:float}|false|null
+     */
+    private function verifiedTrueTypeSimpleGlyphOutlineBounds(
+        string $glyf,
+        int $glyphStart,
+        int $glyphEnd,
+        int $contourCount,
+        int &$totalPointCount
+    ): array|false|null {
+        $offset = $glyphStart + 10;
+        $lastEndPoint = -1;
+        for ($contourIndex = 0; $contourIndex < $contourCount; $contourIndex++) {
+            $endPoint = $this->trueTypeUnsignedShort($glyf, $offset);
+            if ($endPoint === null || $endPoint <= $lastEndPoint) {
+                return false;
+            }
+            $lastEndPoint = $endPoint;
+            $offset += 2;
+        }
+        $pointCount = $lastEndPoint + 1;
+        if ($pointCount < 0
+            || $pointCount > self::MAX_EMBEDDED_TRUETYPE_OUTLINE_POINTS
+            || $totalPointCount > self::MAX_EMBEDDED_TRUETYPE_OUTLINE_POINTS - $pointCount) {
+            return false;
+        }
+        $totalPointCount += $pointCount;
+
+        $instructionLength = $this->trueTypeUnsignedShort($glyf, $offset);
+        if ($instructionLength === null) {
+            return false;
+        }
+        $offset += 2;
+        if ($instructionLength > $glyphEnd - $offset) {
+            return false;
+        }
+        $offset += $instructionLength;
+
+        $flags = '';
+        while (strlen($flags) < $pointCount) {
+            if ($offset >= $glyphEnd) {
+                return false;
+            }
+            $flag = ord($glyf[$offset++]);
+            if (($flag & 0x80) !== 0) {
+                return false;
+            }
+            $runLength = 1;
+            if (($flag & 0x08) !== 0) {
+                if ($offset >= $glyphEnd) {
+                    return false;
+                }
+                $runLength += ord($glyf[$offset++]);
+            }
+            if ($runLength > $pointCount - strlen($flags)) {
+                return false;
+            }
+            $flags .= str_repeat(chr($flag), $runLength);
+        }
+
+        $xDataStart = $offset;
+        for ($pointIndex = 0; $pointIndex < $pointCount; $pointIndex++) {
+            if ($this->trueTypeSimpleGlyphCoordinateDelta(
+                $glyf,
+                $offset,
+                $glyphEnd,
+                ord($flags[$pointIndex]),
+                true
+            ) === null) {
+                return false;
+            }
+        }
+        $yOffset = $offset;
+        $xOffset = $xDataStart;
+        $x = 0;
+        $y = 0;
+        $bounds = null;
+        for ($pointIndex = 0; $pointIndex < $pointCount; $pointIndex++) {
+            $flag = ord($flags[$pointIndex]);
+            $deltaX = $this->trueTypeSimpleGlyphCoordinateDelta(
+                $glyf,
+                $xOffset,
+                $glyphEnd,
+                $flag,
+                true
+            );
+            $deltaY = $this->trueTypeSimpleGlyphCoordinateDelta(
+                $glyf,
+                $yOffset,
+                $glyphEnd,
+                $flag,
+                false
+            );
+            if ($deltaX === null || $deltaY === null) {
+                return false;
+            }
+            $x = $this->trueTypeBoundedOutlineCoordinate($x, $deltaX);
+            $y = $this->trueTypeBoundedOutlineCoordinate($y, $deltaY);
+            if ($x === null || $y === null) {
+                return false;
+            }
+            $pointBounds = [
+                'x1' => (float) $x,
+                'y1' => (float) $y,
+                'x2' => (float) $x,
+                'y2' => (float) $y,
+            ];
+            $bounds = $bounds === null
+                ? $pointBounds
+                : [
+                    'x1' => min($bounds['x1'], $pointBounds['x1']),
+                    'y1' => min($bounds['y1'], $pointBounds['y1']),
+                    'x2' => max($bounds['x2'], $pointBounds['x2']),
+                    'y2' => max($bounds['y2'], $pointBounds['y2']),
+                ];
+        }
+        if (!$this->trueTypeGlyphTrailingPaddingIsValid($glyf, $yOffset, $glyphEnd)) {
+            return false;
+        }
+
+        return $bounds;
+    }
+
+    /**
+     * @param list<int> $glyphOffsets
+     * @param array{x1:int,y1:int,x2:int,y2:int} $globalBounds
+     * @param array<int,int> $glyphStates
+     * @param array<int,array{x1:float,y1:float,x2:float,y2:float}|null> $glyphBounds
+     * @return array{x1:float,y1:float,x2:float,y2:float}|false|null
+     */
+    private function verifiedTrueTypeCompositeGlyphOutlineBounds(
+        string $glyf,
+        array $glyphOffsets,
+        int $glyphStart,
+        int $glyphEnd,
+        array $globalBounds,
+        array &$glyphStates,
+        array &$glyphBounds,
+        int &$totalPointCount,
+        int &$totalComponentCount,
+        int $depth
+    ): array|false|null {
+        $offset = $glyphStart + 10;
+        $bounds = null;
+        $componentCount = 0;
+        $lastFlags = 0;
+        $useMyMetricsCount = 0;
+        do {
+            $flags = $this->trueTypeUnsignedShort($glyf, $offset);
+            $componentGlyph = $this->trueTypeUnsignedShort($glyf, $offset + 2);
+            if ($flags === null || $componentGlyph === null
+                || $componentGlyph >= count($glyphOffsets) - 1
+                || ($flags & ~0x1FEF) !== 0
+                || ($flags & 0x0002) === 0
+                || (($flags & 0x0800) !== 0 && ($flags & 0x1000) !== 0)
+                || (($flags & 0x0100) !== 0 && ($flags & 0x0020) !== 0)) {
+                return false;
+            }
+            $transformKinds = (($flags & 0x0008) !== 0 ? 1 : 0)
+                + (($flags & 0x0040) !== 0 ? 1 : 0)
+                + (($flags & 0x0080) !== 0 ? 1 : 0);
+            if ($transformKinds > 1) {
+                return false;
+            }
+            if (($flags & 0x0200) !== 0 && ++$useMyMetricsCount > 1) {
+                return false;
+            }
+            $offset += 4;
+
+            if (($flags & 0x0001) !== 0) {
+                $argX = $this->trueTypeSignedShort($glyf, $offset);
+                $argY = $this->trueTypeSignedShort($glyf, $offset + 2);
+                $offset += 4;
+            } else {
+                $argX = $this->trueTypeSignedByte($glyf, $offset);
+                $argY = $this->trueTypeSignedByte($glyf, $offset + 1);
+                $offset += 2;
+            }
+            if ($argX === null || $argY === null || $offset > $glyphEnd) {
+                return false;
+            }
+
+            $xx = 1.0;
+            $xy = 0.0;
+            $yx = 0.0;
+            $yy = 1.0;
+            if (($flags & 0x0008) !== 0) {
+                $scale = $this->trueTypeF2Dot14($glyf, $offset);
+                if ($scale === null) {
+                    return false;
+                }
+                $xx = $scale;
+                $yy = $scale;
+                $offset += 2;
+            } elseif (($flags & 0x0040) !== 0) {
+                $xx = $this->trueTypeF2Dot14($glyf, $offset);
+                $yy = $this->trueTypeF2Dot14($glyf, $offset + 2);
+                if ($xx === null || $yy === null) {
+                    return false;
+                }
+                $offset += 4;
+            } elseif (($flags & 0x0080) !== 0) {
+                $xx = $this->trueTypeF2Dot14($glyf, $offset);
+                $xy = $this->trueTypeF2Dot14($glyf, $offset + 2);
+                $yx = $this->trueTypeF2Dot14($glyf, $offset + 4);
+                $yy = $this->trueTypeF2Dot14($glyf, $offset + 6);
+                if ($xx === null || $xy === null || $yx === null || $yy === null) {
+                    return false;
+                }
+                $offset += 8;
+            }
+            if ($offset > $glyphEnd) {
+                return false;
+            }
+
+            $hasTransform = $transformKinds > 0;
+            if ($hasTransform && ($flags & 0x1800) === 0) {
+                // Legacy fonts disagree on whether a transformed component's
+                // offset is scaled. Exact outline proof requires an explicit
+                // SCALED_COMPONENT_OFFSET or UNSCALED_COMPONENT_OFFSET flag.
+                return false;
+            }
+            // ROUND_XY_TO_GRID affects only hinted device placement. Keep the
+            // raw font-unit offset in this explicitly ungridfitted proof.
+            if (($flags & 0x0800) !== 0) {
+                $translateX = ($xx * $argX) + ($xy * $argY);
+                $translateY = ($yx * $argX) + ($yy * $argY);
+            } else {
+                $translateX = (float) $argX;
+                $translateY = (float) $argY;
+            }
+            foreach ([$xx, $xy, $yx, $yy, $translateX, $translateY] as $coordinate) {
+                if (!is_finite($coordinate)
+                    || abs($coordinate) > self::MAX_EMBEDDED_TRUETYPE_OUTLINE_COORDINATE) {
+                    return false;
+                }
+            }
+
+            $componentBounds = $this->verifiedTrueTypeGlyphOutlineBounds(
+                $glyf,
+                $glyphOffsets,
+                $componentGlyph,
+                $globalBounds,
+                $glyphStates,
+                $glyphBounds,
+                $totalPointCount,
+                $totalComponentCount,
+                $depth + 1
+            );
+            if ($componentBounds === false) {
+                return false;
+            }
+            if (is_array($componentBounds)) {
+                $transformedBounds = null;
+                foreach ([
+                    [$componentBounds['x1'], $componentBounds['y1']],
+                    [$componentBounds['x2'], $componentBounds['y1']],
+                    [$componentBounds['x2'], $componentBounds['y2']],
+                    [$componentBounds['x1'], $componentBounds['y2']],
+                ] as [$pointX, $pointY]) {
+                    $transformedX = ($xx * $pointX) + ($xy * $pointY) + $translateX;
+                    $transformedY = ($yx * $pointX) + ($yy * $pointY) + $translateY;
+                    if (!is_finite($transformedX) || !is_finite($transformedY)
+                        || abs($transformedX) > self::MAX_EMBEDDED_TRUETYPE_OUTLINE_COORDINATE
+                        || abs($transformedY) > self::MAX_EMBEDDED_TRUETYPE_OUTLINE_COORDINATE) {
+                        return false;
+                    }
+                    $pointBounds = [
+                        'x1' => $transformedX,
+                        'y1' => $transformedY,
+                        'x2' => $transformedX,
+                        'y2' => $transformedY,
+                    ];
+                    $transformedBounds = $transformedBounds === null
+                        ? $pointBounds
+                        : [
+                            'x1' => min($transformedBounds['x1'], $pointBounds['x1']),
+                            'y1' => min($transformedBounds['y1'], $pointBounds['y1']),
+                            'x2' => max($transformedBounds['x2'], $pointBounds['x2']),
+                            'y2' => max($transformedBounds['y2'], $pointBounds['y2']),
+                        ];
+                }
+                if ($transformedBounds !== null) {
+                    $bounds = $bounds === null
+                        ? $transformedBounds
+                        : [
+                            'x1' => min($bounds['x1'], $transformedBounds['x1']),
+                            'y1' => min($bounds['y1'], $transformedBounds['y1']),
+                            'x2' => max($bounds['x2'], $transformedBounds['x2']),
+                            'y2' => max($bounds['y2'], $transformedBounds['y2']),
+                        ];
+                }
+            }
+
+            $componentCount++;
+            $totalComponentCount++;
+            if ($componentCount > self::MAX_EMBEDDED_TRUETYPE_COMPONENTS_PER_GLYPH
+                || $totalComponentCount > self::MAX_EMBEDDED_TRUETYPE_COMPOSITE_COMPONENTS) {
+                return false;
+            }
+            $lastFlags = $flags;
+        } while (($lastFlags & 0x0020) !== 0);
+
+        if (($lastFlags & 0x0100) !== 0) {
+            $instructionLength = $this->trueTypeUnsignedShort($glyf, $offset);
+            if ($instructionLength === null) {
+                return false;
+            }
+            $offset += 2;
+            if ($instructionLength > $glyphEnd - $offset) {
+                return false;
+            }
+            $offset += $instructionLength;
+        }
+        if (!$this->trueTypeGlyphTrailingPaddingIsValid($glyf, $offset, $glyphEnd)) {
+            return false;
+        }
+
+        return $bounds;
+    }
+
+    private function trueTypeSimpleGlyphCoordinateDelta(
+        string $glyf,
+        int &$offset,
+        int $glyphEnd,
+        int $flag,
+        bool $xAxis
+    ): ?int {
+        $shortMask = $xAxis ? 0x02 : 0x04;
+        $sameOrPositiveMask = $xAxis ? 0x10 : 0x20;
+        if (($flag & $shortMask) !== 0) {
+            if ($offset >= $glyphEnd) {
+                return null;
+            }
+            $magnitude = ord($glyf[$offset++]);
+            return ($flag & $sameOrPositiveMask) !== 0 ? $magnitude : -$magnitude;
+        }
+        if (($flag & $sameOrPositiveMask) !== 0) {
+            return 0;
+        }
+        $delta = $this->trueTypeSignedShort($glyf, $offset);
+        if ($delta === null) {
+            return null;
+        }
+        $offset += 2;
+        return $delta;
+    }
+
+    private function trueTypeBoundedOutlineCoordinate(int $coordinate, int $delta): ?int
+    {
+        $next = $coordinate + $delta;
+        return is_int($next)
+            && abs((float) $next) <= self::MAX_EMBEDDED_TRUETYPE_OUTLINE_COORDINATE
+                ? $next
+                : null;
+    }
+
+    private function trueTypeSignedByte(string $bytes, int $offset): ?int
+    {
+        if ($offset < 0 || $offset >= strlen($bytes)) {
+            return null;
+        }
+        $value = ord($bytes[$offset]);
+        return $value >= 0x80 ? $value - 0x100 : $value;
+    }
+
+    private function trueTypeF2Dot14(string $bytes, int $offset): ?float
+    {
+        $value = $this->trueTypeSignedShort($bytes, $offset);
+        return $value === null ? null : $value / 16384.0;
+    }
+
+    private function trueTypeGlyphTrailingPaddingIsValid(
+        string $glyf,
+        int $offset,
+        int $glyphEnd
+    ): bool {
+        if ($offset > $glyphEnd || $glyphEnd - $offset > 3) {
+            return false;
+        }
+        return trim(substr($glyf, $offset, $glyphEnd - $offset), "\0") === '';
+    }
+
+    /**
+     * @param array{x1:int|float,y1:int|float,x2:int|float,y2:int|float} $outer
+     * @param array{x1:int|float,y1:int|float,x2:int|float,y2:int|float} $inner
+     */
+    private function trueTypeOutlineBoundsAreContained(array $outer, array $inner): bool
+    {
+        $scale = 1.0;
+        foreach ([$outer['x1'], $outer['y1'], $outer['x2'], $outer['y2'],
+            $inner['x1'], $inner['y1'], $inner['x2'], $inner['y2']] as $coordinate) {
+            if ((!is_float($coordinate) && !is_int($coordinate)) || !is_finite((float) $coordinate)) {
+                return false;
+            }
+            $scale = max($scale, abs((float) $coordinate));
+        }
+        $epsilon = max(0.0000001, $scale * 0.000000000001);
+        return $inner['x1'] >= $outer['x1'] - $epsilon
+            && $inner['y1'] >= $outer['y1'] - $epsilon
+            && $inner['x2'] <= $outer['x2'] + $epsilon
+            && $inner['y2'] <= $outer['y2'] + $epsilon;
+    }
+
+    /** @return array<string,string>|null */
+    private function verifiedTrueTypeFontTables(string $fontProgram): ?array
+    {
+        $length = strlen($fontProgram);
+        if ($length < 12
+            || (!str_starts_with($fontProgram, "\x00\x01\x00\x00")
+                && !str_starts_with($fontProgram, 'true'))) {
+            return null;
+        }
+        $tableCount = $this->trueTypeUnsignedShort($fontProgram, 4);
+        if ($tableCount === null || $tableCount < 4 || $tableCount > 128) {
+            return null;
+        }
+        $directoryEnd = 12 + ($tableCount * 16);
+        if ($directoryEnd > $length) {
+            return null;
+        }
+        $tables = [];
+        $ranges = [];
+        for ($index = 0; $index < $tableCount; $index++) {
+            $recordOffset = 12 + ($index * 16);
+            $tag = substr($fontProgram, $recordOffset, 4);
+            $tableOffset = $this->trueTypeUnsignedLong($fontProgram, $recordOffset + 8);
+            $tableLength = $this->trueTypeUnsignedLong($fontProgram, $recordOffset + 12);
+            if (preg_match('/^[\x20-\x7E]{4}$/D', $tag) !== 1
+                || isset($tables[$tag])
+                || $tableOffset === null || $tableLength === null || $tableLength < 1
+                || $tableOffset < $directoryEnd || $tableOffset % 4 !== 0
+                || $tableOffset > $length || $tableLength > $length - $tableOffset) {
+                return null;
+            }
+            $ranges[] = [$tableOffset, $tableOffset + $tableLength];
+            $tables[$tag] = substr($fontProgram, $tableOffset, $tableLength);
+        }
+        usort($ranges, static fn (array $left, array $right): int => $left[0] <=> $right[0]);
+        $previousEnd = $directoryEnd;
+        foreach ($ranges as [$start, $end]) {
+            if ($start < $previousEnd) {
+                return null;
+            }
+            $previousEnd = $end;
+        }
+
+        $checksum = 0;
+        for ($offset = 0; $offset < $length; $offset += 4) {
+            $word = substr($fontProgram, $offset, 4);
+            if (strlen($word) < 4) {
+                $word = str_pad($word, 4, "\0");
+            }
+            $value = $this->trueTypeUnsignedLong($word, 0);
+            if ($value === null) {
+                return null;
+            }
+            $checksum = ($checksum + $value) & 0xFFFFFFFF;
+        }
+        if ($checksum !== 0xB1B0AFBA) {
+            return null;
+        }
+
+        foreach (['head', 'maxp', 'loca', 'glyf'] as $requiredTable) {
+            if (!isset($tables[$requiredTable])) {
+                return null;
+            }
+        }
+
+        return $tables;
     }
 
     /**
@@ -24302,6 +25778,12 @@ final class PdfTextExtractor
                         $toUnicodeMap,
                         $fontEncoding
                     );
+                    $operandBoundsComplete = $this->estimatedTextBoundsAreComplete(
+                        $textRenderingMode,
+                        $textRise,
+                        $currentTransformationMatrixKnown
+                    ) && (($fontEncoding['declaredWidthsOnly'] ?? false) !== true
+                        || $operandHasReliableAdvance);
                     [$nextTextEndX, $nextTextEndY] = $this->advanceTextEndPointForOperand(
                         $operandStartX,
                         $operandStartY,
@@ -24324,11 +25806,7 @@ final class PdfTextExtractor
                             $currentFontSize,
                             $axis,
                             $pageVisibleBox,
-                            $this->estimatedTextBoundsAreComplete(
-                                $textRenderingMode,
-                                $textRise,
-                                $currentTransformationMatrixKnown
-                            )
+                            $operandBoundsComplete
                         )
                     );
                     if ($activeActualTextIndex !== null) {
@@ -24389,11 +25867,7 @@ final class PdfTextExtractor
                                         $currentFontSize,
                                         $axis,
                                         $pageVisibleBox,
-                                        $this->estimatedTextBoundsAreComplete(
-                                            $textRenderingMode,
-                                            $textRise,
-                                            $currentTransformationMatrixKnown
-                                        )
+                                        $operandBoundsComplete
                                     )
                                 );
                             }
@@ -25009,6 +26483,19 @@ final class PdfTextExtractor
                         $textRise,
                         $currentTransformationMatrixKnown
                     );
+                    $fontVisibilityGeometry = $includeVisibilityEvidence
+                        ? $this->embeddedFontVisibilityGeometry(
+                            $fontEncoding,
+                            $writingMode,
+                            $currentTextXAxisX,
+                            $currentTextXAxisY,
+                            $currentTextYAxisX,
+                            $currentTextYAxisY,
+                            $characterSpacing,
+                            $wordSpacing,
+                            $horizontalScale
+                        )
+                        : null;
                     $startX = $currentTextEndX ?? $currentTextX;
                     $startY = $currentTextEndY ?? $currentTextY;
                     $resolvedTextPositionBoundary = !$isArtifactContent && $pendingTextPositionBoundary;
@@ -25039,6 +26526,14 @@ final class PdfTextExtractor
                         $toUnicodeMap,
                         $fontEncoding
                     );
+                    if (($fontEncoding['declaredWidthsOnly'] ?? false) === true
+                        && !$operandHasReliableAdvance
+                    ) {
+                        // Do not let the ordinary half-em fallback certify an
+                        // undeclared source code merely because sibling codes
+                        // had exact width-only metrics.
+                        $estimatedBoundsComplete = false;
+                    }
                     [$nextTextEndX, $nextTextEndY] = $this->advanceTextEndPointForOperand(
                         $startX,
                         $startY,
@@ -25118,7 +26613,8 @@ final class PdfTextExtractor
                                 $characterSpacing,
                                 $wordSpacing,
                                 $horizontalScale,
-                                $axis
+                                $axis,
+                                $fontVisibilityGeometry
                             );
                             $actualTextVisibilityOperationBoxes[$activeActualTextIndex][$visibilityOperation] = [
                                 'known' => $estimatedBoundsComplete,
@@ -25169,17 +26665,23 @@ final class PdfTextExtractor
                                 $segmentHasInk = ($segment['hasInk'] ?? true) === true;
                                 $segmentRun['visibilityInkKnown'] = !$segmentHasInk
                                     || $estimatedBoundsComplete;
-                                $segmentRun['visibilityBox'] = $segmentHasInk
-                                    && $estimatedBoundsComplete
-                                    ? $this->visibilityTextInkBox(
+                                $segmentVisibilityPolygon = null;
+                                $segmentRun['visibilityBox'] = null;
+                                if ($segmentHasInk && $estimatedBoundsComplete) {
+                                    $segmentRun['visibilityBox'] = $this->visibilityTextInkBox(
                                         $startX + ((float) ($segment['inkStartOffset'] ?? $segment['startOffset']) * $axis['x']),
                                         $startY + ((float) ($segment['inkStartOffset'] ?? $segment['startOffset']) * $axis['y']),
                                         $startX + ((float) ($segment['inkEndOffset'] ?? $segment['endOffset']) * $axis['x']),
                                         $startY + ((float) ($segment['inkEndOffset'] ?? $segment['endOffset']) * $axis['y']),
                                         $currentFontSize,
-                                        $axis
-                                    )
-                                    : null;
+                                        $axis,
+                                        $segmentVisibilityPolygon,
+                                        $fontVisibilityGeometry
+                                    );
+                                }
+                                if ($segmentVisibilityPolygon !== null) {
+                                    $segmentRun['visibilityPolygon'] = $segmentVisibilityPolygon;
+                                }
                             }
                             $pageBoxStatus = $this->textOccurrencePageBoxStatus(
                                 $segmentStartX,
@@ -25540,6 +27042,7 @@ final class PdfTextExtractor
      * @param array{cidWidths?:array<int,float>,cidDefaultWidth?:float,codeSpaceRanges?:list<array{start:int,end:int,width:int}>,map?:array<string,string>,sourceToCid?:array<string,int>}|null $toUnicodeMap
      * @param array{baseFont?:string,differences?:array<int,string>,widths?:array<int,float>}|null $fontEncoding
      * @param array{x:float,y:float,scale:float} $axis
+     * @param array<string,mixed>|null $fontVisibilityGeometry
      * @return array{x1:float,y1:float,x2:float,y2:float}|null
      */
     private function visibilityTextOperandInkBox(
@@ -25552,7 +27055,8 @@ final class PdfTextExtractor
         float $characterSpacing,
         float $wordSpacing,
         float $horizontalScale,
-        array $axis
+        array $axis,
+        ?array $fontVisibilityGeometry = null
     ): ?array {
         $box = null;
         foreach ($this->textOperandSegmentsWithBoundaryEvidence(
@@ -25568,13 +27072,16 @@ final class PdfTextExtractor
             if (($segment['hasInk'] ?? true) !== true) {
                 continue;
             }
+            $unusedPolygon = null;
             $segmentBox = $this->visibilityTextInkBox(
                 $startX + ((float) ($segment['inkStartOffset'] ?? $segment['startOffset']) * $axis['x']),
                 $startY + ((float) ($segment['inkStartOffset'] ?? $segment['startOffset']) * $axis['y']),
                 $startX + ((float) ($segment['inkEndOffset'] ?? $segment['endOffset']) * $axis['x']),
                 $startY + ((float) ($segment['inkEndOffset'] ?? $segment['endOffset']) * $axis['y']),
                 $fontSize,
-                $axis
+                $axis,
+                $unusedPolygon,
+                $fontVisibilityGeometry
             );
             if ($segmentBox !== null) {
                 $box = $box === null ? $segmentBox : $this->unionRectangles($box, $segmentBox);
@@ -25585,12 +27092,148 @@ final class PdfTextExtractor
     }
 
     /**
+     * Use embedded outline bounds only on a proven, forward horizontal text
+     * progression. Negative spacing or degenerate text axes can place glyph
+     * origins outside the segment endpoints and retain the generic box.
+     *
+     * @param array<string,mixed>|null $fontEncoding
+     * @return array<string,mixed>|null
+     */
+    private function embeddedFontVisibilityGeometry(
+        ?array $fontEncoding,
+        int $writingMode,
+        float $xAxisX,
+        float $xAxisY,
+        float $yAxisX,
+        float $yAxisY,
+        float $characterSpacing,
+        float $wordSpacing,
+        float $horizontalScale
+    ): ?array {
+        $bounds = is_array($fontEncoding['embeddedFontBounds'] ?? null)
+            ? $fontEncoding['embeddedFontBounds']
+            : null;
+        if ($bounds === null
+            || ($bounds['source'] ?? null) !== 'embedded-truetype-ungridfitted-outline-v1'
+            || $writingMode !== 0
+            || !is_finite($characterSpacing) || $characterSpacing < 0.0
+            || !is_finite($wordSpacing) || $wordSpacing < 0.0
+            || !is_finite($horizontalScale) || $horizontalScale <= 0.0
+            || $horizontalScale > self::MAX_TRANSFORM_COMPONENT) {
+            return null;
+        }
+        foreach (['unitsPerEm', 'xMin', 'yMin', 'xMax', 'yMax'] as $field) {
+            if (!is_int($bounds[$field] ?? null)) {
+                return null;
+            }
+        }
+        if ($bounds['unitsPerEm'] < 16 || $bounds['unitsPerEm'] > 16384
+            || $bounds['xMin'] > $bounds['xMax']
+            || $bounds['yMin'] > $bounds['yMax']) {
+            return null;
+        }
+        foreach ([$xAxisX, $xAxisY, $yAxisX, $yAxisY] as $component) {
+            if (!is_finite($component) || abs($component) > self::MAX_TRANSFORM_COMPONENT) {
+                return null;
+            }
+        }
+        $xLength = hypot($xAxisX, $xAxisY);
+        $yLength = hypot($yAxisX, $yAxisY);
+        $determinant = ($xAxisX * $yAxisY) - ($xAxisY * $yAxisX);
+        if ($xLength <= 0.000001 || $yLength <= 0.000001
+            || abs($determinant) <= $xLength * $yLength * 0.000000001) {
+            return null;
+        }
+
+        return $bounds + [
+            'xAxisX' => $xAxisX,
+            'xAxisY' => $xAxisY,
+            'yAxisX' => $yAxisX,
+            'yAxisY' => $yAxisY,
+            'horizontalScale' => $horizontalScale,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed>|null $geometry
+     * @return list<float>|null Four conservative page-space points.
+     */
+    private function visibilityEmbeddedFontInkPolygon(
+        float $startX,
+        float $startY,
+        float $endX,
+        float $endY,
+        ?float $fontSize,
+        ?array $geometry
+    ): ?array {
+        if ($geometry === null || $fontSize === null
+            || !is_finite($fontSize) || $fontSize <= 0.0
+            || $fontSize > self::MAX_TRANSFORM_COMPONENT) {
+            return null;
+        }
+        foreach (['unitsPerEm', 'yMin', 'yMax'] as $field) {
+            if (!is_int($geometry[$field] ?? null)) {
+                return null;
+            }
+        }
+        foreach (['xAxisX', 'xAxisY', 'yAxisX', 'yAxisY', 'horizontalScale'] as $field) {
+            if ((!is_float($geometry[$field] ?? null) && !is_int($geometry[$field] ?? null))
+                || !is_finite((float) $geometry[$field])) {
+                return null;
+            }
+        }
+        $unitsPerEm = $geometry['unitsPerEm'];
+        if ($unitsPerEm < 16 || $unitsPerEm > 16384) {
+            return null;
+        }
+        $xAxisX = (float) $geometry['xAxisX'];
+        $xAxisY = (float) $geometry['xAxisY'];
+        $deltaX = $endX - $startX;
+        $deltaY = $endY - $startY;
+        $xLength = hypot($xAxisX, $xAxisY);
+        $deltaLength = hypot($deltaX, $deltaY);
+        $cross = ($deltaX * $xAxisY) - ($deltaY * $xAxisX);
+        $dot = ($deltaX * $xAxisX) + ($deltaY * $xAxisY);
+        $alignmentTolerance = max(0.0000001, $deltaLength * $xLength * 0.000000001);
+        if ($xLength <= 0.000001 || $dot < -$alignmentTolerance
+            || abs($cross) > $alignmentTolerance) {
+            return null;
+        }
+
+        // Expand the program's verified vertical limits by 1/64 em before
+        // transforming them. The start/end pair already delimits the proven
+        // baseline advance; the end is after the final glyph, not another
+        // glyph origin at which a font-wide xMax may be added.
+        $fontUnitPadding = max(1, (int) ceil($unitsPerEm / 64.0));
+        $yMin = ($geometry['yMin'] - $fontUnitPadding) / $unitsPerEm;
+        $yMax = ($geometry['yMax'] + $fontUnitPadding) / $unitsPerEm;
+        $yMinScale = $fontSize * $yMin;
+        $yMaxScale = $fontSize * $yMax;
+        $yAxisX = (float) $geometry['yAxisX'];
+        $yAxisY = (float) $geometry['yAxisY'];
+        $points = [
+            $startX + ($yAxisX * $yMinScale),
+            $startY + ($yAxisY * $yMinScale),
+            $endX + ($yAxisX * $yMinScale),
+            $endY + ($yAxisY * $yMinScale),
+            $endX + ($yAxisX * $yMaxScale),
+            $endY + ($yAxisY * $yMaxScale),
+            $startX + ($yAxisX * $yMaxScale),
+            $startY + ($yAxisY * $yMaxScale),
+        ];
+
+        return $this->visibilityFinitePointTuple($points, 4) ? $points : null;
+    }
+
+    /**
      * Use the proven baseline progression as the longitudinal ink interval.
      * Font height remains deliberately conservative in the perpendicular
      * direction because a font program's glyph outline box is not always
      * available to this lightweight interpreter.
      *
      * @param array{x:float,y:float,scale:float} $axis
+     * @param list<float>|null $polygon
+     * @param array<string,mixed>|null $fontVisibilityGeometry
      * @return array{x1:float,y1:float,x2:float,y2:float}|null
      */
     private function visibilityTextInkBox(
@@ -25599,11 +27242,38 @@ final class PdfTextExtractor
         float $endX,
         float $endY,
         ?float $fontSize,
-        array $axis
+        array $axis,
+        ?array &$polygon = null,
+        ?array $fontVisibilityGeometry = null
     ): ?array {
+        $polygon = null;
         foreach ([$startX, $startY, $endX, $endY] as $coordinate) {
             if (!is_finite($coordinate)) {
                 return null;
+            }
+        }
+        $verifiedFontPolygon = $this->visibilityEmbeddedFontInkPolygon(
+            $startX,
+            $startY,
+            $endX,
+            $endY,
+            $fontSize,
+            $fontVisibilityGeometry
+        );
+        if ($verifiedFontPolygon !== null) {
+            $box = null;
+            foreach (array_chunk($verifiedFontPolygon, 2) as [$pointX, $pointY]) {
+                $point = [
+                    'x1' => $pointX,
+                    'y1' => $pointY,
+                    'x2' => $pointX,
+                    'y2' => $pointY,
+                ];
+                $box = $box === null ? $point : $this->unionRectangles($box, $point);
+            }
+            if ($box !== null && $this->finiteRectangle($box)) {
+                $polygon = $verifiedFontPolygon;
+                return $box;
             }
         }
         $axisX = (float) ($axis['x'] ?? 1.0);
@@ -25618,19 +27288,32 @@ final class PdfTextExtractor
         $normalX = -$axisY;
         $normalY = $axisX;
         $box = null;
+        $points = [];
         foreach ([
             [$startX, $startY, -0.25 * $height],
-            [$startX, $startY, $height],
             [$endX, $endY, -0.25 * $height],
             [$endX, $endY, $height],
+            [$startX, $startY, $height],
         ] as [$x, $y, $offset]) {
             $pointX = $x + ($normalX * $offset);
             $pointY = $y + ($normalY * $offset);
+            if (!is_finite($pointX) || !is_finite($pointY)) {
+                return null;
+            }
+            $points[] = $pointX;
+            $points[] = $pointY;
             $point = ['x1' => $pointX, 'y1' => $pointY, 'x2' => $pointX, 'y2' => $pointY];
             $box = $box === null ? $point : $this->unionRectangles($box, $point);
         }
 
-        return $box !== null && $this->finiteRectangle($box) ? $box : null;
+        if ($box === null || !$this->finiteRectangle($box)) {
+            return null;
+        }
+        if (hypot($endX - $startX, $endY - $startY) > 0.000001) {
+            $polygon = $points;
+        }
+
+        return $box;
     }
 
     /**
@@ -28818,6 +30501,11 @@ final class PdfTextExtractor
     private function decodeSimpleEncodedBytes(string $bytes, array $fontEncoding): string
     {
         $baseEncoding = (string) ($fontEncoding['base'] ?? 'WinAnsiEncoding');
+        if ($baseEncoding === self::DECLARED_WIDTHS_ONLY_ENCODING) {
+            // Width-only evidence must not invent Unicode semantics. This is
+            // byte-for-byte the fallback used when no encoding was available.
+            return $bytes;
+        }
         if ($baseEncoding === 'MacRomanEncoding' && ($fontEncoding['differences'] ?? []) === []) {
             return $this->decodeMacRomanBytes($bytes);
         }

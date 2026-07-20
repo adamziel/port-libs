@@ -208,7 +208,7 @@ function port_libs_generate_searchable_pdf_resource_fixture(
             foreach (port_libs_pdf_resource_page_lines($page) as $line) {
                 foreach ($line['cells'] as $cell) {
                     $commands[] = sprintf(
-                        'BT /F1 %.1F Tf %d %d Tm (%s) Tj ET',
+                        'BT /F1 %.1F Tf 1 0 0 1 %d %d Tm (%s) Tj ET',
                         $line['fontSize'],
                         $cell['x'],
                         $line['y'],

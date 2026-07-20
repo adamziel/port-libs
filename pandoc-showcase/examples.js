@@ -94,13 +94,24 @@ function selectedView(example = selectedExample()) {
   return example && example.views ? example.views[state.view] || null : null;
 }
 
-function isBrowsableView(view) {
-  return Boolean(view && view.ok && view.path && view.bytes > 0
+function isTypedPdfStatusPreview(view, viewName) {
+  return Boolean(viewName === 'wpBlocks'
+    && view
+    && view.ok === false
+    && /(?:^|\/)wordpress-blocks-preview\.html$/.test(String(view.path || ''))
+    && (view.status === 'incomplete' || view.status === 'unsupported_no_text'));
+}
+
+function isBrowsableView(view, viewName) {
+  return Boolean(view && (view.ok || isTypedPdfStatusPreview(view, viewName)) && view.path && view.bytes > 0
     && view.bytes <= state.automaticViewMaxBytes);
 }
 
 function browsableExamples() {
-  return state.examples.filter((example) => isBrowsableView(example.views && example.views.phpHtml));
+  return state.examples.filter((example) => (
+    isBrowsableView(example.views && example.views.phpHtml, 'phpHtml')
+    || isBrowsableView(example.views && example.views.wpBlocks, 'wpBlocks')
+  ));
 }
 
 function setStatus(message, { visible = false, tone = 'info' } = {}) {
@@ -143,14 +154,14 @@ function syncExampleUrl() {
 }
 
 function ensureBrowsableView() {
-  if (isBrowsableView(selectedView())) {
+  if (isBrowsableView(selectedView(), state.view)) {
     return;
   }
 
   const example = selectedExample();
   for (const fallbackView of [defaultView, 'phpHtml', 'haskell']) {
     const view = example && example.views ? example.views[fallbackView] : null;
-    if (isBrowsableView(view)) {
+    if (isBrowsableView(view, fallbackView)) {
       state.view = fallbackView;
       return;
     }
@@ -215,7 +226,7 @@ function updateControls() {
   nextButton.disabled = examples.length < 2 || busy;
   viewButtons.forEach((button) => {
     const view = example && example.views ? example.views[button.dataset.exampleView] : null;
-    button.disabled = !ready || !isBrowsableView(view) || busy;
+    button.disabled = !ready || !isBrowsableView(view, button.dataset.exampleView) || busy;
   });
   downloadSource.setAttribute('aria-disabled', String(busy));
   downloadSource.tabIndex = busy ? -1 : 0;
@@ -779,7 +790,7 @@ function loadSelectedExample() {
   leavePlaygroundView();
   const example = selectedExample();
   const view = selectedView(example);
-  if (!example || !isBrowsableView(view)) {
+  if (!example || !isBrowsableView(view, state.view)) {
     unloadCurrentExample();
     setStatus('No ' + viewLabels[state.view] + ' result is available for this example.');
     return;

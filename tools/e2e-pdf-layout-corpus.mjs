@@ -309,6 +309,7 @@ const outerSnapshotExpression = `(() => {
 const iframeSnapshotExpression = `(() => {
   const rawText = String(document.body?.innerText || '');
   const bodyText = rawText.replace(/\\s+/g, ' ').trim();
+  const statusPreview = document.querySelector('[data-pandoc-pdf-preview-status]');
   const paragraphs = Array.from(document.querySelectorAll('p'));
   const compactLength = (value) => Array.from(String(value || '').replace(/\\s+/gu, '')).length;
   const singleGlyphParagraphs = paragraphs
@@ -391,6 +392,7 @@ const iframeSnapshotExpression = `(() => {
     ready: document.readyState === 'complete' && pendingImages === 0,
     rawText,
     bodyText,
+    previewStatus: String(statusPreview?.dataset?.pandocPdfPreviewStatus || ''),
     textBytes: new TextEncoder().encode(bodyText).length,
     paragraphs: paragraphs.length,
     headings: document.querySelectorAll('h1, h2, h3, h4, h5, h6').length,
@@ -448,7 +450,7 @@ function significantCharacters(value) {
   return String(value || '').normalize('NFC').replace(/[\t\n\r\f ]+/gu, '');
 }
 
-function criterionErrors(criteria, verification, snapshot) {
+function criterionErrors(criteria, verification, snapshot, { skipEditableContent = false } = {}) {
   const checks = {
     minTextBytes: ['textBytes', (actual, expected) => actual >= expected],
     minParagraphs: ['paragraphs', (actual, expected) => actual >= expected],
@@ -465,6 +467,7 @@ function criterionErrors(criteria, verification, snapshot) {
   };
   const errors = [];
   for (const [criterion, [field, passes]] of Object.entries(checks)) {
+    if (skipEditableContent && criterion !== 'maxSingleGlyphParagraphs') continue;
     if (!(criterion in criteria)) continue;
     const actual = snapshot[field];
     const expected = criteria[criterion];
@@ -472,26 +475,28 @@ function criterionErrors(criteria, verification, snapshot) {
       errors.push(`${criterion}: expected ${expected}, observed ${Array.isArray(actual) ? actual.length : actual}`);
     }
   }
-  if (!criteria.allowNoText && snapshot.textBytes === 0) {
-    errors.push('the preview is unexpectedly empty');
-  }
-  for (const requiredText of Array.isArray(criteria.requiredText) ? criteria.requiredText : []) {
-    if (!snapshot.bodyText.includes(String(requiredText))) {
-      errors.push(`requiredText: missing ${JSON.stringify(requiredText)}`);
+  if (!skipEditableContent) {
+    if (!criteria.allowNoText && snapshot.textBytes === 0) {
+      errors.push('the preview is unexpectedly empty');
     }
-  }
-  let orderedOffset = -1;
-  for (const orderedText of Array.isArray(criteria.orderedText) ? criteria.orderedText : []) {
-    orderedOffset = snapshot.bodyText.indexOf(String(orderedText), orderedOffset + 1);
-    if (orderedOffset < 0) {
-      errors.push(`orderedText: missing or out of order ${JSON.stringify(orderedText)}`);
-      break;
+    for (const requiredText of Array.isArray(criteria.requiredText) ? criteria.requiredText : []) {
+      if (!snapshot.bodyText.includes(String(requiredText))) {
+        errors.push(`requiredText: missing ${JSON.stringify(requiredText)}`);
+      }
     }
-  }
-  const significantText = significantCharacters(snapshot.rawText);
-  for (const expectedText of Array.isArray(verification.exactSignificantText) ? verification.exactSignificantText : []) {
-    if (!significantText.includes(significantCharacters(expectedText))) {
-      errors.push(`exactSignificantText: missing exact character sequence ${JSON.stringify(expectedText)}`);
+    let orderedOffset = -1;
+    for (const orderedText of Array.isArray(criteria.orderedText) ? criteria.orderedText : []) {
+      orderedOffset = snapshot.bodyText.indexOf(String(orderedText), orderedOffset + 1);
+      if (orderedOffset < 0) {
+        errors.push(`orderedText: missing or out of order ${JSON.stringify(orderedText)}`);
+        break;
+      }
+    }
+    const significantText = significantCharacters(snapshot.rawText);
+    for (const expectedText of Array.isArray(verification.exactSignificantText) ? verification.exactSignificantText : []) {
+      if (!significantText.includes(significantCharacters(expectedText))) {
+        errors.push(`exactSignificantText: missing exact character sequence ${JSON.stringify(expectedText)}`);
+      }
     }
   }
   if (verification.forbidControlCharacters && snapshot.forbiddenControls.length > 0) {
@@ -521,6 +526,23 @@ function criterionErrors(criteria, verification, snapshot) {
     }
   }
   return errors;
+}
+
+function expectedTypedPdfPreviewStatus(document) {
+  const expectation = document.conversionExpectation?.wpBlocks;
+  const status = String(expectation?.status || '');
+  return expectation?.ok === false && ['incomplete', 'unsupported_no_text'].includes(status)
+    ? status
+    : '';
+}
+
+function previewStatusErrors(expectedStatus, snapshot) {
+  const actualStatus = String(snapshot.previewStatus || '');
+  if (actualStatus === expectedStatus) return [];
+  if (expectedStatus) {
+    return [`typed conversion refusal: expected ${expectedStatus}, observed ${actualStatus || 'no status marker'}`];
+  }
+  return actualStatus ? [`unexpected conversion-refusal status marker: ${actualStatus}`] : [];
 }
 
 function verificationEvidence(document, snapshot) {
@@ -895,9 +917,13 @@ async function main() {
         throw new VerificationError(`The picker does not contain ${expectedId}.`);
       }
       const snapshot = await waitForExample(page, options, document, iframeClients, parentFrameContexts);
+      const expectedPreviewStatus = expectedTypedPdfPreviewStatus(document);
       const errors = [
         ...layoutErrors(snapshot.outer),
-        ...criterionErrors(document.success || {}, document.verification || {}, snapshot.frame),
+        ...previewStatusErrors(expectedPreviewStatus, snapshot.frame),
+        ...criterionErrors(document.success || {}, document.verification || {}, snapshot.frame, {
+          skipEditableContent: expectedPreviewStatus !== '',
+        }),
       ];
       if (snapshot.frame.documentOverflow > 2) errors.push(`preview overflows by ${snapshot.frame.documentOverflow}px`);
       if (snapshot.frame.spacedGlyphRuns.length > 0) errors.push(`sustained inter-glyph spacing remains: ${snapshot.frame.spacedGlyphRuns.join(' | ')}`);
