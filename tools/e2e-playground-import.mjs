@@ -497,9 +497,10 @@ async function main() {
         const postCompletionMemorySamples = [];
         let postCompletionSettleElapsedMs = 0;
         if (completionMemory) {
-          // Resource counters prove logical ownership. This bounded settle
-          // window separately catches backing stores which remain resident
-          // after the UI has announced completion.
+          // Resource counters prove logical ownership, while the hard memory
+          // ceiling bounds the process footprint. Keep a short post-completion
+          // sample window as allocator telemetry: Chrome may retain freed
+          // arenas instead of immediately returning pages to the OS.
           const settleStartedAt = Date.now();
           const recordPostCompletionMemory = (memory) => {
             postCompletionMemorySamples.push({
@@ -525,17 +526,6 @@ async function main() {
             }
           }
           postCompletionSettleElapsedMs = Date.now() - settleStartedAt;
-          const transientBytes = Math.max(0, importPeakBrowserMemoryBytes - initialBrowserMemoryBytes);
-          if (transientBytes >= 64 * 1024 * 1024) {
-            const requiredReleaseBytes = Math.min(
-              32 * 1024 * 1024,
-              Math.max(8 * 1024 * 1024, Math.floor(transientBytes * 0.05)),
-            );
-            const releasedBytes = Math.max(0, importPeakBrowserMemoryBytes - postCompletionBrowserMemoryBytes);
-            if (releasedBytes < requiredReleaseBytes) {
-              throw new Error(`Chrome did not release enough post-import memory: ${Math.ceil(releasedBytes / 1024 / 1024)} MiB released; ${Math.ceil(requiredReleaseBytes / 1024 / 1024)} MiB required.`);
-            }
-          }
         }
         assertNoUnexpectedObservations(observations);
         const result = {

@@ -136,7 +136,7 @@ assert(importE2e.includes('Could not measure Chrome memory while the safety ceil
 assert(importE2e.includes('sampleBrowserMemory();') && importE2e.includes('Initial Chrome footprint'), 'Expected browser memory to be sampled before import and again before accepting success.');
 assert(importE2e.includes('Chrome exceeded the ${options.maxBrowserMemoryMb} MiB browser-memory safety ceiling'), 'Expected the E2E memory ceiling to fail closed with a useful diagnostic.');
 assert(importE2e.includes("['activeLoadingTasks', 'activeDocuments', 'activePages', 'activeCanvases', 'activeRenderTasks']"), 'Expected release E2E to reject live PDF.js resources after completion.');
-assert(importE2e.includes('Chrome did not release enough post-import memory'), 'Expected release E2E to enforce a bounded post-completion memory drop.');
+assert(!importE2e.includes('Chrome did not release enough post-import memory'), 'Post-completion OS memory samples must remain telemetry rather than assuming that Chrome immediately decommits freed allocator arenas.');
 assert(importE2e.includes('maxElapsedMs: 5 * 60 * 1000')
   && importE2e.includes('importDeadlineMs'), 'Expected dense release imports to have a default five-minute elapsed ceiling, not only an optional after-the-fact check.');
 assert(importE2e.includes("['console errors', observations.consoleErrors]")
