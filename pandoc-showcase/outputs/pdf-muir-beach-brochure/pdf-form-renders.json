@@ -1,0 +1,108 @@
+{
+    "version": 1,
+    "samplePath": "samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf",
+    "requests": [
+        {
+            "id": "form-1cd17c0a5b9abeae56d8545fbd55",
+            "path": "samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf",
+            "page": 1,
+            "bbox": {
+                "x1": 19.4719,
+                "y1": 459.65,
+                "x2": 269.672,
+                "y2": 542.81
+            },
+            "formId": "pdf-form-p1-n2-o256",
+            "object": 256,
+            "paintOrder": 2,
+            "precedingText": "Muir Beach",
+            "followingText": "At Muir Beach, a complex network of freshwater wetlands, lagoon, and dunes defines the meeting",
+            "label": "PDF figure on page 1"
+        },
+        {
+            "id": "form-14e865c566337c44272fda1e2950",
+            "path": "samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf",
+            "page": 4,
+            "bbox": {
+                "x1": 430.16,
+                "y1": 148.6,
+                "x2": 625.28,
+                "y2": 256.24
+            },
+            "formId": "pdf-form-p4-n2-o56",
+            "object": 56,
+            "paintOrder": 2,
+            "precedingText": "Shoreline Highway (Hwy. 1) meets Muir Woods Road. The Coastal, Redwood Creek,",
+            "followingText": "www.nps.gov/goga",
+            "label": "PDF figure on page 4"
+        },
+        {
+            "id": "form-12a88119c312896dbc6806054fbb",
+            "path": "samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf",
+            "page": 4,
+            "bbox": {
+                "x1": 121.056,
+                "y1": 452.794,
+                "x2": 562.742,
+                "y2": 727.783
+            },
+            "formId": "pdf-form-p4-n3-o50",
+            "object": 50,
+            "paintOrder": 3,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 4"
+        },
+        {
+            "id": "form-56a97125b3a59cd6aa6214cb6548",
+            "path": "samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf",
+            "page": 4,
+            "bbox": {
+                "x1": 274.718,
+                "y1": 516.548,
+                "x2": 334.613,
+                "y2": 572.039
+            },
+            "formId": "pdf-form-p4-n4-o52",
+            "object": 52,
+            "paintOrder": 4,
+            "precedingText": "Pelican Inn",
+            "followingText": "RECREATION AREA",
+            "label": "PDF figure on page 4"
+        },
+        {
+            "id": "form-26e69c5844a92d4a10db66e0afe4",
+            "path": "samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf",
+            "page": 4,
+            "bbox": {
+                "x1": 312.299,
+                "y1": 506.272,
+                "x2": 358.395,
+                "y2": 548.257
+            },
+            "formId": "pdf-form-p4-n5-o54",
+            "object": 54,
+            "paintOrder": 5,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 4"
+        },
+        {
+            "id": "form-6b699dbe97ec2c86f0ce2dab5f8c",
+            "path": "samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf",
+            "page": 4,
+            "bbox": {
+                "x1": 430.16,
+                "y1": 42.5113,
+                "x2": 625.28,
+                "y2": 154.111
+            },
+            "formId": "pdf-form-p4-n6-o58",
+            "object": 58,
+            "paintOrder": 6,
+            "precedingText": "Shoreline Highway (Hwy. 1) meets Muir Woods Road. The Coastal, Redwood Creek,",
+            "followingText": "www.nps.gov/goga",
+            "label": "PDF figure on page 4"
+        }
+    ]
+}

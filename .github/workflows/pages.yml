@@ -25,14 +25,144 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Set up PHP for the production plugin build
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: zip
+
+      - name: Build and verify the exact production plugin archive
+        run: |
+          set -euo pipefail
+          php tools/build-playground-converter-plugin.php
+          php tools/verify-playground-converter-distribution.php
+          first_archive_hash="$(sha256sum pandoc-showcase/playground/port-libs-playground-converter.zip)"
+          first_manifest_hash="$(sha256sum pandoc-showcase/playground/port-libs-playground-converter.manifest.json)"
+          php tools/build-playground-converter-plugin.php
+          test "$first_archive_hash" = "$(sha256sum pandoc-showcase/playground/port-libs-playground-converter.zip)"
+          test "$first_manifest_hash" = "$(sha256sum pandoc-showcase/playground/port-libs-playground-converter.manifest.json)"
+          php tools/verify-playground-converter-distribution.php
+          unzip -p pandoc-showcase/playground/port-libs-playground-converter.zip \
+            port-libs-playground-converter/port-libs-playground-converter.php \
+            > "$RUNNER_TEMP/port-libs-playground-converter.php"
+          php -l "$RUNNER_TEMP/port-libs-playground-converter.php"
+
+      - name: Assemble the allowlisted Pages site
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          install -d _site _site/lanes _site/pandoc-showcase
+          install -m 0644 .nojekyll index.html porting.html porting-summary.json _site/
+          cp -R pandoc-showcase/. _site/pandoc-showcase/
+
+          for lane in \
+            libsqlite \
+            lightningcss \
+            gitoxide \
+            markerpdf \
+            readability \
+            pandoc \
+            quadrable \
+            syncthing \
+            difftastic \
+            rclone \
+            esbuild \
+            dolt
+          do
+            install -d "_site/lanes/$lane"
+            install -m 0644 \
+              "lanes/$lane/lane-status.json" \
+              "lanes/$lane/UPSTREAM_TEST_MANIFEST.json" \
+              "_site/lanes/$lane/"
+          done
+
+      - name: Verify the allowlisted Pages payload
+        run: |
+          set -euo pipefail
+          test -f _site/.nojekyll
+          test -s _site/index.html
+          test -s _site/porting.html
+          test -s _site/porting-summary.json
+          test -s _site/pandoc-showcase/index.html
+          test -s _site/pandoc-showcase/examples.html
+          test -s _site/pandoc-showcase/playground-converter.html
+          test -s _site/pandoc-showcase/playground/port-libs-playground-converter.zip
+          test -s _site/pandoc-showcase/playground/port-libs-playground-converter.manifest.json
+          unzip -tq _site/pandoc-showcase/playground/port-libs-playground-converter.zip
+
+          for candidate in _site/* _site/.[!.]*; do
+            test -e "$candidate" || continue
+            entry="${candidate##*/}"
+            case "$entry" in
+              .nojekyll|index.html|porting.html|porting-summary.json|lanes|pandoc-showcase) ;;
+              *) printf 'Unexpected top-level Pages path: %s\n' "$entry" >&2; exit 1 ;;
+            esac
+          done
+
+          forbidden_path="$(find _site \
+            \( -type d \( \
+              -name .git -o \
+              -name artifacts -o \
+              -name audits -o \
+              -name tools -o \
+              -name tests -o \
+              -name worktrees \
+            \) -o -iname '*fronda*' -o -iname '*private*' \) \
+            -print -quit)"
+          test -z "$forbidden_path"
+          test -z "$(find _site -type l -print -quit)"
+          test -z "$(find _site -type f -iname '*.pdf' \
+            ! -path '_site/pandoc-showcase/samples/*' -print -quit)"
+
+          if grep -R -I -i -l -E \
+            '(wydawnictwofronda|frondalux|fronda.?lux|lux.?90|/Users/admin|port-libs-worktrees)' \
+            _site
+          then
+            printf 'Private or local-only identifier found in Pages payload.\n' >&2
+            exit 1
+          fi
+
+          for lane in \
+            libsqlite lightningcss gitoxide markerpdf readability pandoc \
+            quadrable syncthing difftastic rclone esbuild dolt
+          do
+            test -s "_site/lanes/$lane/lane-status.json"
+            test -s "_site/lanes/$lane/UPSTREAM_TEST_MANIFEST.json"
+          done
+
       - name: Configure Pages
         uses: actions/configure-pages@v6
 
       - name: Upload static dashboard
         uses: actions/upload-pages-artifact@v5
         with:
-          path: .
+          path: _site
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+      - name: Verify the deployed production archive and PDF.js smoke assets
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          base="${PAGE_URL%/}/pandoc-showcase"
+          curl --fail --location --retry 8 --retry-all-errors \
+            "$base/playground/port-libs-playground-converter.zip?deploy=${GITHUB_SHA}" \
+            --output "$RUNNER_TEMP/port-libs-playground-converter.zip"
+          curl --fail --location --retry 8 --retry-all-errors \
+            "$base/playground/port-libs-playground-converter.manifest.json?deploy=${GITHUB_SHA}" \
+            --output "$RUNNER_TEMP/port-libs-playground-converter.manifest.json"
+          php tools/verify-playground-converter-distribution.php \
+            "$RUNNER_TEMP/port-libs-playground-converter.zip" \
+            "$RUNNER_TEMP/port-libs-playground-converter.manifest.json"
+          test "$(sha256sum pandoc-showcase/playground/port-libs-playground-converter.zip | cut -d' ' -f1)" \
+            = "$(sha256sum "$RUNNER_TEMP/port-libs-playground-converter.zip" | cut -d' ' -f1)"
+          curl --fail --location --retry 8 --retry-all-errors \
+            "$base/samples/pdf-layout-unstructured-rotated-page-rotated-page-90.pdf" \
+            --output "$RUNNER_TEMP/pages-smoke.pdf"
+          grep -a -m1 -q '%PDF-' "$RUNNER_TEMP/pages-smoke.pdf"
+          curl --fail --location --retry 8 --retry-all-errors \
+            "$base/vendor/pdfjs/pdf.min.mjs" --output "$RUNNER_TEMP/pdf.min.mjs"
+          test -s "$RUNNER_TEMP/pdf.min.mjs"

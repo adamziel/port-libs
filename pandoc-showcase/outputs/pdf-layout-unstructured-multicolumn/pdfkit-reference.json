@@ -1,0 +1,1403 @@
+{
+    "extractor": "macOS PDFKit",
+    "pageCount": 2,
+    "pages": [
+        {
+            "height": 841.89,
+            "lines": [
+                {
+                    "height": 12.897,
+                    "text": "Dense Passage Retrieval for Open-Domain Question Answering",
+                    "width": 388.05,
+                    "x": 104.748,
+                    "y": 757.199
+                },
+                {
+                    "height": 12.814,
+                    "text": "Vladimir Karpukhin∗ , Barlas O˘",
+                    "width": 162.965,
+                    "x": 138.733,
+                    "y": 723.871
+                },
+                {
+                    "height": 12.814,
+                    "text": "guz∗ , Sewon Min†, Patrick Lewis,",
+                    "width": 165.083,
+                    "x": 296.718,
+                    "y": 723.871
+                },
+                {
+                    "height": 12.815,
+                    "text": "Ledell Wu, Sergey Edunov, Danqi Chen‡, Wen-tau Yih",
+                    "width": 277.879,
+                    "x": 161.327,
+                    "y": 709.813
+                },
+                {
+                    "height": 12.898,
+                    "text": "Facebook AI †University of Washington ‡Princeton University",
+                    "width": 345.79,
+                    "x": 127.372,
+                    "y": 695.673
+                },
+                {
+                    "height": 11.286,
+                    "text": "{vladk, barlaso, plewis, ledell, edunov, scottyih}@fb.com",
+                    "width": 406.476,
+                    "x": 97.028,
+                    "y": 681.988
+                },
+                {
+                    "height": 9.229,
+                    "text": "sewon@cs.washington.edu",
+                    "width": 164.982,
+                    "x": 217.775,
+                    "y": 668.602
+                },
+                {
+                    "height": 9.229,
+                    "text": "danqic@cs.princeton.edu",
+                    "width": 164.982,
+                    "x": 217.775,
+                    "y": 654.654
+                },
+                {
+                    "height": 346.64,
+                    "text": "arXiv:2004.04906v3 [cs.CL] 30 Sep 2020",
+                    "width": 20,
+                    "x": 17,
+                    "y": 232
+                },
+                {
+                    "height": 10.748,
+                    "text": "Abstract",
+                    "width": 44.485,
+                    "x": 158.891,
+                    "y": 605.891
+                },
+                {
+                    "height": 8.907,
+                    "text": "Open-domain question answering relies on ef-",
+                    "width": 185.902,
+                    "x": 89.008,
+                    "y": 586.276
+                },
+                {
+                    "height": 8.907,
+                    "text": "ficient passage retrieval to select candidate",
+                    "width": 184.248,
+                    "x": 89.008,
+                    "y": 574.321
+                },
+                {
+                    "height": 8.907,
+                    "text": "contexts, where traditional sparse vector space",
+                    "width": 184.248,
+                    "x": 89.008,
+                    "y": 562.366
+                },
+                {
+                    "height": 8.907,
+                    "text": "models, such as TF-IDF or BM25, are the de",
+                    "width": 184.248,
+                    "x": 89.008,
+                    "y": 550.41
+                },
+                {
+                    "height": 8.907,
+                    "text": "facto method. In this work, we show that",
+                    "width": 184.248,
+                    "x": 89.008,
+                    "y": 538.455
+                },
+                {
+                    "height": 8.907,
+                    "text": "retrieval can be practically implemented us-",
+                    "width": 185.902,
+                    "x": 89.008,
+                    "y": 526.5
+                },
+                {
+                    "height": 8.907,
+                    "text": "ing dense representations alone, where em-",
+                    "width": 185.908,
+                    "x": 89.008,
+                    "y": 514.545
+                },
+                {
+                    "height": 8.907,
+                    "text": "beddings are learned from a small number",
+                    "width": 184.418,
+                    "x": 89.008,
+                    "y": 502.59
+                },
+                {
+                    "height": 8.907,
+                    "text": "of questions and passages by a simple dual-",
+                    "width": 185.902,
+                    "x": 89.008,
+                    "y": 490.635
+                },
+                {
+                    "height": 8.907,
+                    "text": "encoder framework.",
+                    "width": 82.441,
+                    "x": 89.008,
+                    "y": 478.679
+                },
+                {
+                    "height": 8.907,
+                    "text": "When evaluated on a",
+                    "width": 91.028,
+                    "x": 182.228,
+                    "y": 478.679
+                },
+                {
+                    "height": 8.907,
+                    "text": "wide range of open-domain QA datasets, our",
+                    "width": 184.776,
+                    "x": 88.649,
+                    "y": 466.724
+                },
+                {
+                    "height": 8.907,
+                    "text": "dense retriever outperforms a strong Lucene-",
+                    "width": 185.902,
+                    "x": 89.008,
+                    "y": 454.769
+                },
+                {
+                    "height": 8.907,
+                    "text": "BM25 system greatly by 9%-19% absolute in",
+                    "width": 184.248,
+                    "x": 89.008,
+                    "y": 442.814
+                },
+                {
+                    "height": 8.907,
+                    "text": "terms of top-20 passage retrieval accuracy, and",
+                    "width": 184.248,
+                    "x": 89.008,
+                    "y": 430.859
+                },
+                {
+                    "height": 8.907,
+                    "text": "helps our end-to-end QA system establish new",
+                    "width": 184.607,
+                    "x": 89.008,
+                    "y": 418.903
+                },
+                {
+                    "height": 8.907,
+                    "text": "state-of-the-art on multiple open-domain QA",
+                    "width": 184.607,
+                    "x": 89.008,
+                    "y": 406.948
+                },
+                {
+                    "height": 10.495,
+                    "text": "benchmarks.1",
+                    "width": 54.117,
+                    "x": 89.008,
+                    "y": 394.993
+                },
+                {
+                    "height": 10.748,
+                    "text": "1 Introduction",
+                    "width": 82.814,
+                    "x": 72,
+                    "y": 372.691
+                },
+                {
+                    "height": 9.753,
+                    "text": "Open-domain question answering (QA) (Voorhees,",
+                    "width": 219.631,
+                    "x": 72,
+                    "y": 352.272
+                },
+                {
+                    "height": 9.753,
+                    "text": "1999) is a task that answers factoid questions us-",
+                    "width": 220.899,
+                    "x": 71.182,
+                    "y": 338.723
+                },
+                {
+                    "height": 9.753,
+                    "text": "ing a large collection of documents. While early",
+                    "width": 218.651,
+                    "x": 72,
+                    "y": 325.173
+                },
+                {
+                    "height": 9.753,
+                    "text": "QA systems are often complicated and consist of",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 311.624
+                },
+                {
+                    "height": 9.753,
+                    "text": "multiple components (Ferrucci (2012); Moldovan",
+                    "width": 218.263,
+                    "x": 72,
+                    "y": 298.075
+                },
+                {
+                    "height": 9.753,
+                    "text": "et al. (2003), inter alia), the advances of reading",
+                    "width": 218.267,
+                    "x": 72,
+                    "y": 284.526
+                },
+                {
+                    "height": 9.753,
+                    "text": "comprehension models suggest a much simplified",
+                    "width": 218.264,
+                    "x": 72,
+                    "y": 270.977
+                },
+                {
+                    "height": 9.753,
+                    "text": "two-stage framework: (1) a context retriever first",
+                    "width": 218.268,
+                    "x": 72,
+                    "y": 257.427
+                },
+                {
+                    "height": 9.753,
+                    "text": "selects a small subset of passages where some",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 243.878
+                },
+                {
+                    "height": 9.753,
+                    "text": "of them contain the answer to the question, and",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 230.329
+                },
+                {
+                    "height": 9.753,
+                    "text": "then (2) a machine reader can thoroughly exam-",
+                    "width": 220.078,
+                    "x": 72,
+                    "y": 216.78
+                },
+                {
+                    "height": 9.753,
+                    "text": "ine the retrieved contexts and identify the correct",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 203.231
+                },
+                {
+                    "height": 9.753,
+                    "text": "answer (Chen et al., 2017). Although reducing",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 189.681
+                },
+                {
+                    "height": 9.753,
+                    "text": "open-domain QA to machine reading is a very rea-",
+                    "width": 220.083,
+                    "x": 72,
+                    "y": 176.132
+                },
+                {
+                    "height": 9.753,
+                    "text": "sonable strategy, a huge performance degradation",
+                    "width": 218.272,
+                    "x": 72,
+                    "y": 162.583
+                },
+                {
+                    "height": 11.719,
+                    "text": "is often observed in practice2, indicating the needs",
+                    "width": 218.269,
+                    "x": 72,
+                    "y": 149.034
+                },
+                {
+                    "height": 9.753,
+                    "text": "of improving retrieval.",
+                    "width": 98.367,
+                    "x": 72,
+                    "y": 135.485
+                },
+                {
+                    "height": 10.229,
+                    "text": "∗Equal contribution",
+                    "width": 71.138,
+                    "x": 88.139,
+                    "y": 118.661
+                },
+                {
+                    "height": 9.799,
+                    "text": "1The code and trained models have been released at",
+                    "width": 205.616,
+                    "x": 84.653,
+                    "y": 107.787
+                },
+                {
+                    "height": 8.016,
+                    "text": "https://github.com/facebookresearch/DPR.",
+                    "width": 152.465,
+                    "x": 72,
+                    "y": 97.824
+                },
+                {
+                    "height": 9.799,
+                    "text": "2For instance, the exact match score on SQuAD v1.1 drops",
+                    "width": 205.615,
+                    "x": 84.653,
+                    "y": 86.95
+                },
+                {
+                    "height": 8.016,
+                    "text": "from above 80% to less than 40% (Yang et al., 2019a).",
+                    "width": 195.808,
+                    "x": 72,
+                    "y": 76.987
+                },
+                {
+                    "height": 9.753,
+                    "text": "Retrieval in open-domain QA is usually imple-",
+                    "width": 209.171,
+                    "x": 318.185,
+                    "y": 606.034
+                },
+                {
+                    "height": 9.753,
+                    "text": "mented using TF-IDF or BM25 (Robertson and",
+                    "width": 218.273,
+                    "x": 307.276,
+                    "y": 592.485
+                },
+                {
+                    "height": 9.753,
+                    "text": "Zaragoza, 2009), which matches keywords effi-",
+                    "width": 220.075,
+                    "x": 307.276,
+                    "y": 578.936
+                },
+                {
+                    "height": 9.753,
+                    "text": "ciently with an inverted index and can be seen",
+                    "width": 218.273,
+                    "x": 307.276,
+                    "y": 565.387
+                },
+                {
+                    "height": 9.753,
+                    "text": "as representing the question and context in high-",
+                    "width": 220.075,
+                    "x": 307.276,
+                    "y": 551.838
+                },
+                {
+                    "height": 9.753,
+                    "text": "dimensional, sparse vectors (with weighting). Con-",
+                    "width": 220.082,
+                    "x": 307.276,
+                    "y": 538.288
+                },
+                {
+                    "height": 9.753,
+                    "text": "versely, the dense, latent semantic encoding is com-",
+                    "width": 220.351,
+                    "x": 307.003,
+                    "y": 524.739
+                },
+                {
+                    "height": 9.753,
+                    "text": "plementary to sparse representations by design. For",
+                    "width": 218.45,
+                    "x": 307.276,
+                    "y": 511.19
+                },
+                {
+                    "height": 9.753,
+                    "text": "example, synonyms or paraphrases that consist of",
+                    "width": 218.27,
+                    "x": 307.276,
+                    "y": 497.641
+                },
+                {
+                    "height": 9.753,
+                    "text": "completely different tokens may still be mapped to",
+                    "width": 218.269,
+                    "x": 307.276,
+                    "y": 484.092
+                },
+                {
+                    "height": 9.753,
+                    "text": "vectors close to each other. Consider the question",
+                    "width": 218.537,
+                    "x": 307.003,
+                    "y": 470.542
+                },
+                {
+                    "height": 9.753,
+                    "text": "“Who is the bad guy in lord of the rings?”, which can",
+                    "width": 224.167,
+                    "x": 303.032,
+                    "y": 456.993
+                },
+                {
+                    "height": 9.753,
+                    "text": "be answered from the context “Sala Baker is best",
+                    "width": 218.263,
+                    "x": 307.276,
+                    "y": 443.444
+                },
+                {
+                    "height": 9.404,
+                    "text": "known for portraying the villain Sauron in the Lord",
+                    "width": 218.266,
+                    "x": 307.276,
+                    "y": 430.146
+                },
+                {
+                    "height": 9.753,
+                    "text": "of the Rings trilogy.” A term-based system would",
+                    "width": 218.264,
+                    "x": 307.276,
+                    "y": 416.346
+                },
+                {
+                    "height": 9.753,
+                    "text": "have difficulty retrieving such a context, while",
+                    "width": 218.273,
+                    "x": 307.276,
+                    "y": 402.796
+                },
+                {
+                    "height": 9.753,
+                    "text": "a dense retrieval system would be able to better",
+                    "width": 218.451,
+                    "x": 307.276,
+                    "y": 389.247
+                },
+                {
+                    "height": 9.753,
+                    "text": "match “bad guy” with “villain” and fetch the cor-",
+                    "width": 220.074,
+                    "x": 307.276,
+                    "y": 375.698
+                },
+                {
+                    "height": 9.753,
+                    "text": "rect context. Dense encodings are also learnable",
+                    "width": 218.268,
+                    "x": 307.276,
+                    "y": 362.149
+                },
+                {
+                    "height": 9.753,
+                    "text": "by adjusting the embedding functions, which pro-",
+                    "width": 220.075,
+                    "x": 307.276,
+                    "y": 348.6
+                },
+                {
+                    "height": 9.753,
+                    "text": "vides additional flexibility to have a task-specific",
+                    "width": 218.54,
+                    "x": 307.003,
+                    "y": 335.05
+                },
+                {
+                    "height": 9.753,
+                    "text": "representation. With special in-memory data struc-",
+                    "width": 220.078,
+                    "x": 307.276,
+                    "y": 321.501
+                },
+                {
+                    "height": 9.753,
+                    "text": "tures and indexing schemes, retrieval can be done",
+                    "width": 218.27,
+                    "x": 307.276,
+                    "y": 307.952
+                },
+                {
+                    "height": 9.753,
+                    "text": "efficiently using maximum inner product search",
+                    "width": 218.273,
+                    "x": 307.276,
+                    "y": 294.403
+                },
+                {
+                    "height": 9.753,
+                    "text": "(MIPS) algorithms (e.g., Shrivastava and Li (2014);",
+                    "width": 219.538,
+                    "x": 306.916,
+                    "y": 280.854
+                },
+                {
+                    "height": 9.753,
+                    "text": "Guo et al. (2016)).",
+                    "width": 80.891,
+                    "x": 307.276,
+                    "y": 267.304
+                },
+                {
+                    "height": 9.753,
+                    "text": "However, it is generally believed that learn-",
+                    "width": 209.171,
+                    "x": 318.185,
+                    "y": 252.708
+                },
+                {
+                    "height": 9.753,
+                    "text": "ing a good dense vector representation needs a",
+                    "width": 218.273,
+                    "x": 307.276,
+                    "y": 239.159
+                },
+                {
+                    "height": 9.753,
+                    "text": "large number of labeled pairs of question and con-",
+                    "width": 220.083,
+                    "x": 307.276,
+                    "y": 225.609
+                },
+                {
+                    "height": 9.753,
+                    "text": "texts. Dense retrieval methods have thus never",
+                    "width": 218.451,
+                    "x": 307.276,
+                    "y": 212.06
+                },
+                {
+                    "height": 9.753,
+                    "text": "be shown to outperform TF-IDF/BM25 for open-",
+                    "width": 220.075,
+                    "x": 307.276,
+                    "y": 198.511
+                },
+                {
+                    "height": 9.753,
+                    "text": "domain QA before ORQA (Lee et al., 2019), which",
+                    "width": 218.266,
+                    "x": 307.276,
+                    "y": 184.962
+                },
+                {
+                    "height": 9.753,
+                    "text": "proposes a sophisticated inverse cloze task (ICT)",
+                    "width": 218.996,
+                    "x": 307.276,
+                    "y": 171.413
+                },
+                {
+                    "height": 9.753,
+                    "text": "objective, predicting the blocks that contain the",
+                    "width": 218.273,
+                    "x": 307.276,
+                    "y": 157.863
+                },
+                {
+                    "height": 9.753,
+                    "text": "masked sentence, for additional pretraining. The",
+                    "width": 218.273,
+                    "x": 307.276,
+                    "y": 144.314
+                },
+                {
+                    "height": 9.753,
+                    "text": "question encoder and the reader model are then fine-",
+                    "width": 220.083,
+                    "x": 307.276,
+                    "y": 130.765
+                },
+                {
+                    "height": 9.753,
+                    "text": "tuned using pairs of questions and answers jointly.",
+                    "width": 220.18,
+                    "x": 307.276,
+                    "y": 117.216
+                },
+                {
+                    "height": 9.753,
+                    "text": "Although ORQA successfully demonstrates that",
+                    "width": 218.662,
+                    "x": 306.883,
+                    "y": 103.667
+                },
+                {
+                    "height": 9.753,
+                    "text": "dense retrieval can outperform BM25, setting new",
+                    "width": 218.661,
+                    "x": 307.276,
+                    "y": 90.117
+                },
+                {
+                    "height": 9.753,
+                    "text": "state-of-the-art results on multiple open-domain",
+                    "width": 218.273,
+                    "x": 307.276,
+                    "y": 76.568
+                }
+            ],
+            "number": 1,
+            "rotation": 0,
+            "text": "Dense Passage Retrieval for Open-Domain Question Answering\nVladimir Karpukhin∗ , Barlas O˘\nguz∗ , Sewon Min†, Patrick Lewis,\nLedell Wu, Sergey Edunov, Danqi Chen‡, Wen-tau Yih\nFacebook AI †University of Washington ‡Princeton University\n{vladk, barlaso, plewis, ledell, edunov, scottyih}@fb.com\nsewon@cs.washington.edu\ndanqic@cs.princeton.edu\narXiv:2004.04906v3 [cs.CL] 30 Sep 2020\nAbstract\nOpen-domain question answering relies on ef-\nficient passage retrieval to select candidate\ncontexts, where traditional sparse vector space\nmodels, such as TF-IDF or BM25, are the de\nfacto method. In this work, we show that\nretrieval can be practically implemented us-\ning dense representations alone, where em-\nbeddings are learned from a small number\nof questions and passages by a simple dual-\nencoder framework. When evaluated on a\nwide range of open-domain QA datasets, our\ndense retriever outperforms a strong Lucene-\nBM25 system greatly by 9%-19% absolute in\nterms of top-20 passage retrieval accuracy, and\nhelps our end-to-end QA system establish new\nstate-of-the-art on multiple open-domain QA\nbenchmarks.1\n1 Introduction\nOpen-domain question answering (QA) (Voorhees,\n1999) is a task that answers factoid questions us-\ning a large collection of documents. While early\nQA systems are often complicated and consist of\nmultiple components (Ferrucci (2012); Moldovan\net al. (2003), inter alia), the advances of reading\ncomprehension models suggest a much simplified\ntwo-stage framework: (1) a context retriever first\nselects a small subset of passages where some\nof them contain the answer to the question, and\nthen (2) a machine reader can thoroughly exam-\nine the retrieved contexts and identify the correct\nanswer (Chen et al., 2017). Although reducing\nopen-domain QA to machine reading is a very rea-\nsonable strategy, a huge performance degradation\nis often observed in practice2, indicating the needs\nof improving retrieval.\n∗Equal contribution\n1The code and trained models have been released at\nhttps://github.com/facebookresearch/DPR.\n2For instance, the exact match score on SQuAD v1.1 drops\nfrom above 80% to less than 40% (Yang et al., 2019a).\nRetrieval in open-domain QA is usually imple-\nmented using TF-IDF or BM25 (Robertson and\nZaragoza, 2009), which matches keywords effi-\nciently with an inverted index and can be seen\nas representing the question and context in high-\ndimensional, sparse vectors (with weighting). Con-\nversely, the dense, latent semantic encoding is com-\nplementary to sparse representations by design. For\nexample, synonyms or paraphrases that consist of\ncompletely different tokens may still be mapped to\nvectors close to each other. Consider the question\n“Who is the bad guy in lord of the rings?”, which can\nbe answered from the context “Sala Baker is best\nknown for portraying the villain Sauron in the Lord\nof the Rings trilogy.” A term-based system would\nhave difficulty retrieving such a context, while\na dense retrieval system would be able to better\nmatch “bad guy” with “villain” and fetch the cor-\nrect context. Dense encodings are also learnable\nby adjusting the embedding functions, which pro-\nvides additional flexibility to have a task-specific\nrepresentation. With special in-memory data struc-\ntures and indexing schemes, retrieval can be done\nefficiently using maximum inner product search\n(MIPS) algorithms (e.g., Shrivastava and Li (2014);\nGuo et al. (2016)).\nHowever, it is generally believed that learn-\ning a good dense vector representation needs a\nlarge number of labeled pairs of question and con-\ntexts. Dense retrieval methods have thus never\nbe shown to outperform TF-IDF/BM25 for open-\ndomain QA before ORQA (Lee et al., 2019), which\nproposes a sophisticated inverse cloze task (ICT)\nobjective, predicting the blocks that contain the\nmasked sentence, for additional pretraining. The\nquestion encoder and the reader model are then fine-\ntuned using pairs of questions and answers jointly.\nAlthough ORQA successfully demonstrates that\ndense retrieval can outperform BM25, setting new\nstate-of-the-art results on multiple open-domain",
+            "width": 595.276
+        },
+        {
+            "height": 841.89,
+            "lines": [
+                {
+                    "height": 9.753,
+                    "text": "QA datasets, it also suffers from two weaknesses.",
+                    "width": 220.176,
+                    "x": 72,
+                    "y": 765.767
+                },
+                {
+                    "height": 9.753,
+                    "text": "First, ICT pretraining is computationally intensive",
+                    "width": 218.267,
+                    "x": 72,
+                    "y": 752.217
+                },
+                {
+                    "height": 9.753,
+                    "text": "and it is not completely clear that regular sentences",
+                    "width": 218.266,
+                    "x": 72,
+                    "y": 738.668
+                },
+                {
+                    "height": 9.753,
+                    "text": "are good surrogates of questions in the objective",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 725.119
+                },
+                {
+                    "height": 9.753,
+                    "text": "function. Second, because the context encoder is",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 711.57
+                },
+                {
+                    "height": 9.753,
+                    "text": "not fine-tuned using pairs of questions and answers,",
+                    "width": 219.634,
+                    "x": 72,
+                    "y": 698.021
+                },
+                {
+                    "height": 9.753,
+                    "text": "the corresponding representations could be subop-",
+                    "width": 220.083,
+                    "x": 72,
+                    "y": 684.471
+                },
+                {
+                    "height": 9.753,
+                    "text": "timal.",
+                    "width": 25.156,
+                    "x": 72,
+                    "y": 670.922
+                },
+                {
+                    "height": 9.753,
+                    "text": "In this paper, we address the question: can we",
+                    "width": 207.357,
+                    "x": 82.909,
+                    "y": 656.403
+                },
+                {
+                    "height": 9.753,
+                    "text": "train a better dense embedding model using only",
+                    "width": 218.651,
+                    "x": 72,
+                    "y": 642.853
+                },
+                {
+                    "height": 9.753,
+                    "text": "pairs of questions and passages (or answers), with-",
+                    "width": 220.079,
+                    "x": 72,
+                    "y": 629.304
+                },
+                {
+                    "height": 9.753,
+                    "text": "out additional pretraining? By leveraging the now",
+                    "width": 218.66,
+                    "x": 72,
+                    "y": 615.755
+                },
+                {
+                    "height": 9.753,
+                    "text": "standard BERT pretrained model (Devlin et al.,",
+                    "width": 219.63,
+                    "x": 72,
+                    "y": 602.206
+                },
+                {
+                    "height": 9.753,
+                    "text": "2019) and a dual-encoder architecture (Bromley",
+                    "width": 218.651,
+                    "x": 72,
+                    "y": 588.657
+                },
+                {
+                    "height": 9.753,
+                    "text": "et al., 1994), we focus on developing the right",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 575.107
+                },
+                {
+                    "height": 9.753,
+                    "text": "training scheme using a relatively small number",
+                    "width": 218.451,
+                    "x": 72,
+                    "y": 561.558
+                },
+                {
+                    "height": 9.753,
+                    "text": "of question and passage pairs. Through a series",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 548.009
+                },
+                {
+                    "height": 9.753,
+                    "text": "of careful ablation studies, our final solution is",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 534.46
+                },
+                {
+                    "height": 9.753,
+                    "text": "surprisingly simple: the embedding is optimized",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 520.911
+                },
+                {
+                    "height": 9.753,
+                    "text": "for maximizing inner products of the question and",
+                    "width": 218.265,
+                    "x": 72,
+                    "y": 507.361
+                },
+                {
+                    "height": 9.753,
+                    "text": "relevant passage vectors, with an objective compar-",
+                    "width": 220.083,
+                    "x": 72,
+                    "y": 493.812
+                },
+                {
+                    "height": 9.753,
+                    "text": "ing all pairs of questions and passages in a batch.",
+                    "width": 220.176,
+                    "x": 72,
+                    "y": 480.263
+                },
+                {
+                    "height": 9.753,
+                    "text": "Our Dense Passage Retriever (DPR) is exception-",
+                    "width": 220.081,
+                    "x": 72,
+                    "y": 466.714
+                },
+                {
+                    "height": 9.753,
+                    "text": "ally strong. It not only outperforms BM25 by a",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 453.165
+                },
+                {
+                    "height": 9.753,
+                    "text": "large margin (65.2% vs. 42.9% in Top-5 accuracy),",
+                    "width": 219.634,
+                    "x": 72,
+                    "y": 439.615
+                },
+                {
+                    "height": 9.753,
+                    "text": "but also results in a substantial improvement on",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 426.066
+                },
+                {
+                    "height": 9.753,
+                    "text": "the end-to-end QA accuracy compared to ORQA",
+                    "width": 218.662,
+                    "x": 72,
+                    "y": 412.517
+                },
+                {
+                    "height": 9.753,
+                    "text": "(41.5% vs. 33.3%) in the open Natural Questions",
+                    "width": 218.633,
+                    "x": 71.64,
+                    "y": 398.968
+                },
+                {
+                    "height": 9.753,
+                    "text": "setting (Lee et al., 2019; Kwiatkowski et al., 2019).",
+                    "width": 220.083,
+                    "x": 72,
+                    "y": 385.419
+                },
+                {
+                    "height": 9.753,
+                    "text": "Our contributions are twofold. First, we demon-",
+                    "width": 209.171,
+                    "x": 82.909,
+                    "y": 370.899
+                },
+                {
+                    "height": 9.753,
+                    "text": "strate that with the proper training setup, sim-",
+                    "width": 220.075,
+                    "x": 72,
+                    "y": 357.35
+                },
+                {
+                    "height": 9.753,
+                    "text": "ply fine-tuning the question and passage encoders",
+                    "width": 218.27,
+                    "x": 72,
+                    "y": 343.801
+                },
+                {
+                    "height": 9.753,
+                    "text": "on existing question-passage pairs is sufficient to",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 330.251
+                },
+                {
+                    "height": 9.753,
+                    "text": "greatly outperform BM25. Our empirical results",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 316.702
+                },
+                {
+                    "height": 9.753,
+                    "text": "also suggest that additional pretraining may not be",
+                    "width": 218.268,
+                    "x": 72,
+                    "y": 303.153
+                },
+                {
+                    "height": 9.753,
+                    "text": "needed. Second, we verify that, in the context of",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 289.604
+                },
+                {
+                    "height": 9.753,
+                    "text": "open-domain question answering, a higher retrieval",
+                    "width": 218.266,
+                    "x": 72,
+                    "y": 276.055
+                },
+                {
+                    "height": 9.753,
+                    "text": "precision indeed translates to a higher end-to-end",
+                    "width": 218.27,
+                    "x": 72,
+                    "y": 262.505
+                },
+                {
+                    "height": 9.753,
+                    "text": "QA accuracy. By applying a modern reader model",
+                    "width": 218.269,
+                    "x": 72,
+                    "y": 248.956
+                },
+                {
+                    "height": 9.753,
+                    "text": "to the top retrieved passages, we achieve compara-",
+                    "width": 220.08,
+                    "x": 72,
+                    "y": 235.407
+                },
+                {
+                    "height": 9.753,
+                    "text": "ble or better results on multiple QA datasets in the",
+                    "width": 218.269,
+                    "x": 72,
+                    "y": 221.858
+                },
+                {
+                    "height": 9.753,
+                    "text": "open-retrieval setting, compared to several, much",
+                    "width": 218.27,
+                    "x": 72,
+                    "y": 208.309
+                },
+                {
+                    "height": 9.753,
+                    "text": "complicated systems.",
+                    "width": 93.327,
+                    "x": 72,
+                    "y": 194.759
+                },
+                {
+                    "height": 10.748,
+                    "text": "2 Background",
+                    "width": 80.829,
+                    "x": 72,
+                    "y": 167.489
+                },
+                {
+                    "height": 9.753,
+                    "text": "The problem of open-domain QA studied in this",
+                    "width": 218.607,
+                    "x": 71.662,
+                    "y": 144.314
+                },
+                {
+                    "height": 9.753,
+                    "text": "paper can be described as follows. Given a factoid",
+                    "width": 218.272,
+                    "x": 72,
+                    "y": 130.765
+                },
+                {
+                    "height": 9.753,
+                    "text": "question, such as “Who first voiced Meg on Family",
+                    "width": 218.273,
+                    "x": 72,
+                    "y": 117.216
+                },
+                {
+                    "height": 9.753,
+                    "text": "Guy?” or “Where was the 8th Dalai Lama born?”, a",
+                    "width": 218.661,
+                    "x": 71.607,
+                    "y": 103.667
+                },
+                {
+                    "height": 9.753,
+                    "text": "system is required to answer it using a large corpus",
+                    "width": 218.266,
+                    "x": 72,
+                    "y": 90.117
+                },
+                {
+                    "height": 9.753,
+                    "text": "of diversified topics. More specifically, we assume",
+                    "width": 218.269,
+                    "x": 72,
+                    "y": 76.568
+                },
+                {
+                    "height": 9.753,
+                    "text": "the extractive QA setting, in which the answer is",
+                    "width": 218.273,
+                    "x": 307.276,
+                    "y": 765.767
+                },
+                {
+                    "height": 9.753,
+                    "text": "restricted to a span appearing in one or more pas-",
+                    "width": 220.075,
+                    "x": 307.276,
+                    "y": 752.217
+                },
+                {
+                    "height": 9.753,
+                    "text": "sages in the corpus. Assume that our collection",
+                    "width": 218.273,
+                    "x": 307.276,
+                    "y": 738.668
+                },
+                {
+                    "height": 11.417,
+                    "text": "contains D documents, d1,d2,···,dD. We first",
+                    "width": 218.268,
+                    "x": 307.276,
+                    "y": 724.24
+                },
+                {
+                    "height": 9.753,
+                    "text": "split each of the documents into text passages of",
+                    "width": 218.273,
+                    "x": 307.276,
+                    "y": 711.57
+                },
+                {
+                    "height": 11.719,
+                    "text": "equal lengths as the basic retrieval units3 and get M",
+                    "width": 217.078,
+                    "x": 307.276,
+                    "y": 698.021
+                },
+                {
+                    "height": 11.416,
+                    "text": "total passages in our corpus C= {p1,p2,...,pM },",
+                    "width": 219.631,
+                    "x": 307.276,
+                    "y": 683.593
+                },
+                {
+                    "height": 10.753,
+                    "text": "where each passage pi can be viewed as a sequence",
+                    "width": 218.659,
+                    "x": 306.883,
+                    "y": 670.096
+                },
+                {
+                    "height": 13.638,
+                    "text": "of tokens w(i)",
+                    "width": 60.119,
+                    "x": 307.276,
+                    "y": 655.837
+                },
+                {
+                    "height": 15.951,
+                    "text": "1 ,w(i)",
+                    "width": 32.682,
+                    "x": 357.632,
+                    "y": 653.523
+                },
+                {
+                    "height": 15.951,
+                    "text": "2 ,···,w(i)",
+                    "width": 53.895,
+                    "x": 380.551,
+                    "y": 653.523
+                },
+                {
+                    "height": 13.912,
+                    "text": "|pi|. Given a question q,",
+                    "width": 102.224,
+                    "x": 424.683,
+                    "y": 651.852
+                },
+                {
+                    "height": 13.638,
+                    "text": "the task is to find a span w(i)",
+                    "width": 122.377,
+                    "x": 307.276,
+                    "y": 637.155
+                },
+                {
+                    "height": 14.247,
+                    "text": "s ,w(i)",
+                    "width": 32.682,
+                    "x": 419.89,
+                    "y": 636.545
+                },
+                {
+                    "height": 15.951,
+                    "text": "s+1,···,w(i)",
+                    "width": 58.868,
+                    "x": 442.809,
+                    "y": 634.841
+                },
+                {
+                    "height": 10.363,
+                    "text": "e from",
+                    "width": 33.628,
+                    "x": 491.915,
+                    "y": 636.545
+                },
+                {
+                    "height": 10.754,
+                    "text": "one of the passages pi that can answer the question.",
+                    "width": 220.181,
+                    "x": 307.276,
+                    "y": 622.779
+                },
+                {
+                    "height": 9.753,
+                    "text": "Notice that to cover a wide variety of domains, the",
+                    "width": 218.269,
+                    "x": 307.276,
+                    "y": 610.056
+                },
+                {
+                    "height": 9.753,
+                    "text": "corpus size can easily range from millions of docu-",
+                    "width": 220.081,
+                    "x": 307.276,
+                    "y": 596.507
+                },
+                {
+                    "height": 9.753,
+                    "text": "ments (e.g., Wikipedia) to billions (e.g., the Web).",
+                    "width": 220.18,
+                    "x": 307.276,
+                    "y": 582.958
+                },
+                {
+                    "height": 9.753,
+                    "text": "As a result, any open-domain QA system needs to",
+                    "width": 218.662,
+                    "x": 306.883,
+                    "y": 569.409
+                },
+                {
+                    "height": 9.753,
+                    "text": "include an efficient retriever component that can se-",
+                    "width": 220.083,
+                    "x": 307.276,
+                    "y": 555.86
+                },
+                {
+                    "height": 9.753,
+                    "text": "lect a small set of relevant texts, before applying the",
+                    "width": 218.266,
+                    "x": 307.276,
+                    "y": 542.31
+                },
+                {
+                    "height": 11.719,
+                    "text": "reader to extract the answer (Chen et al., 2017).4",
+                    "width": 217.769,
+                    "x": 307.276,
+                    "y": 528.761
+                },
+                {
+                    "height": 11.417,
+                    "text": "Formally speaking, a retriever R : (q,C) →CF",
+                    "width": 216.971,
+                    "x": 307.276,
+                    "y": 514.333
+                },
+                {
+                    "height": 9.927,
+                    "text": "is a function that takes as input a question qand a",
+                    "width": 218.27,
+                    "x": 307.276,
+                    "y": 501.663
+                },
+                {
+                    "height": 10.538,
+                    "text": "corpus Cand returns a much smaller filter set of",
+                    "width": 218.267,
+                    "x": 307.276,
+                    "y": 488.114
+                },
+                {
+                    "height": 11.416,
+                    "text": "texts CF ⊂C, where |CF|= k ≪|C|. For a fixed",
+                    "width": 218.273,
+                    "x": 307.276,
+                    "y": 473.686
+                },
+                {
+                    "height": 9.927,
+                    "text": "k, a retriever can be evaluated in isolation on top-k",
+                    "width": 218.268,
+                    "x": 307.276,
+                    "y": 461.015
+                },
+                {
+                    "height": 9.753,
+                    "text": "retrieval accuracy, which is the fraction of ques-",
+                    "width": 220.08,
+                    "x": 307.276,
+                    "y": 447.466
+                },
+                {
+                    "height": 11.417,
+                    "text": "tions for which CFcontains a span that answers the",
+                    "width": 218.268,
+                    "x": 307.276,
+                    "y": 433.038
+                },
+                {
+                    "height": 9.753,
+                    "text": "question.",
+                    "width": 39.698,
+                    "x": 307.276,
+                    "y": 420.368
+                },
+                {
+                    "height": 10.748,
+                    "text": "3 Dense Passage Retriever (DPR)",
+                    "width": 177.858,
+                    "x": 307.276,
+                    "y": 395.735
+                },
+                {
+                    "height": 9.753,
+                    "text": "We focus our research in this work on improv-",
+                    "width": 220.587,
+                    "x": 306.763,
+                    "y": 374.447
+                },
+                {
+                    "height": 9.753,
+                    "text": "ing the retrieval component in open-domain QA.",
+                    "width": 220.176,
+                    "x": 307.276,
+                    "y": 360.897
+                },
+                {
+                    "height": 9.927,
+                    "text": "Given a collection of M text passages, the goal of",
+                    "width": 218.269,
+                    "x": 307.276,
+                    "y": 347.348
+                },
+                {
+                    "height": 9.753,
+                    "text": "our dense passage retriever (DPR) is to index all",
+                    "width": 218.273,
+                    "x": 307.276,
+                    "y": 333.799
+                },
+                {
+                    "height": 9.753,
+                    "text": "the passages in a low-dimensional and continuous",
+                    "width": 218.269,
+                    "x": 307.276,
+                    "y": 320.25
+                },
+                {
+                    "height": 9.753,
+                    "text": "space, such that it can retrieve efficiently the top",
+                    "width": 218.273,
+                    "x": 307.276,
+                    "y": 306.701
+                },
+                {
+                    "height": 9.927,
+                    "text": "k passages relevant to the input question for the",
+                    "width": 218.268,
+                    "x": 307.276,
+                    "y": 293.151
+                },
+                {
+                    "height": 9.927,
+                    "text": "reader at run-time. Note that M can be very large",
+                    "width": 218.262,
+                    "x": 307.276,
+                    "y": 279.602
+                },
+                {
+                    "height": 9.753,
+                    "text": "(e.g., 21 million passages in our experiments, de-",
+                    "width": 220.441,
+                    "x": 306.916,
+                    "y": 266.053
+                },
+                {
+                    "height": 9.927,
+                    "text": "scribed in Section 4.1) and kis usually small, such",
+                    "width": 218.263,
+                    "x": 307.276,
+                    "y": 252.504
+                },
+                {
+                    "height": 9.927,
+                    "text": "as 20–100.",
+                    "width": 47.268,
+                    "x": 307.276,
+                    "y": 238.955
+                },
+                {
+                    "height": 9.807,
+                    "text": "3.1 Overview",
+                    "width": 69.164,
+                    "x": 307.276,
+                    "y": 215.921
+                },
+                {
+                    "height": 9.753,
+                    "text": "Our dense passage retriever (DPR) uses a dense",
+                    "width": 218.273,
+                    "x": 307.276,
+                    "y": 197.953
+                },
+                {
+                    "height": 11.416,
+                    "text": "encoder EP (·) which maps any text passage to a d-",
+                    "width": 220.078,
+                    "x": 307.276,
+                    "y": 183.526
+                },
+                {
+                    "height": 9.753,
+                    "text": "dimensional real-valued vectors and builds an index",
+                    "width": 218.544,
+                    "x": 307.276,
+                    "y": 170.855
+                },
+                {
+                    "height": 9.927,
+                    "text": "for all the M passages that we will use for retrieval.",
+                    "width": 220.18,
+                    "x": 307.276,
+                    "y": 157.306
+                },
+                {
+                    "height": 9.799,
+                    "text": "3The ideal size and boundary of a text passage are func-",
+                    "width": 207.107,
+                    "x": 319.928,
+                    "y": 137.675
+                },
+                {
+                    "height": 8.016,
+                    "text": "tions of both the retriever and reader. We also experimented",
+                    "width": 218.272,
+                    "x": 307.276,
+                    "y": 127.712
+                },
+                {
+                    "height": 8.016,
+                    "text": "with natural paragraphs in our preliminary trials and found that",
+                    "width": 218.587,
+                    "x": 306.953,
+                    "y": 117.75
+                },
+                {
+                    "height": 8.016,
+                    "text": "using fixed-length passages performs better in both retrieval",
+                    "width": 218.268,
+                    "x": 307.276,
+                    "y": 107.787
+                },
+                {
+                    "height": 8.016,
+                    "text": "and final QA accuracy, as observed by Wang et al. (2019).",
+                    "width": 208.334,
+                    "x": 307.276,
+                    "y": 97.824
+                },
+                {
+                    "height": 9.799,
+                    "text": "4Exceptions include (Seo et al., 2019) and (Roberts et al.,",
+                    "width": 206.74,
+                    "x": 319.928,
+                    "y": 86.95
+                },
+                {
+                    "height": 8.016,
+                    "text": "2020), which retrieves and generates the answers, respectively.",
+                    "width": 218.27,
+                    "x": 307.276,
+                    "y": 76.987
+                }
+            ],
+            "number": 2,
+            "rotation": 0,
+            "text": "QA datasets, it also suffers from two weaknesses.\nFirst, ICT pretraining is computationally intensive\nand it is not completely clear that regular sentences\nare good surrogates of questions in the objective\nfunction. Second, because the context encoder is\nnot fine-tuned using pairs of questions and answers,\nthe corresponding representations could be subop-\ntimal.\nIn this paper, we address the question: can we\ntrain a better dense embedding model using only\npairs of questions and passages (or answers), with-\nout additional pretraining? By leveraging the now\nstandard BERT pretrained model (Devlin et al.,\n2019) and a dual-encoder architecture (Bromley\net al., 1994), we focus on developing the right\ntraining scheme using a relatively small number\nof question and passage pairs. Through a series\nof careful ablation studies, our final solution is\nsurprisingly simple: the embedding is optimized\nfor maximizing inner products of the question and\nrelevant passage vectors, with an objective compar-\ning all pairs of questions and passages in a batch.\nOur Dense Passage Retriever (DPR) is exception-\nally strong. It not only outperforms BM25 by a\nlarge margin (65.2% vs. 42.9% in Top-5 accuracy),\nbut also results in a substantial improvement on\nthe end-to-end QA accuracy compared to ORQA\n(41.5% vs. 33.3%) in the open Natural Questions\nsetting (Lee et al., 2019; Kwiatkowski et al., 2019).\nOur contributions are twofold. First, we demon-\nstrate that with the proper training setup, sim-\nply fine-tuning the question and passage encoders\non existing question-passage pairs is sufficient to\ngreatly outperform BM25. Our empirical results\nalso suggest that additional pretraining may not be\nneeded. Second, we verify that, in the context of\nopen-domain question answering, a higher retrieval\nprecision indeed translates to a higher end-to-end\nQA accuracy. By applying a modern reader model\nto the top retrieved passages, we achieve compara-\nble or better results on multiple QA datasets in the\nopen-retrieval setting, compared to several, much\ncomplicated systems.\n2 Background\nThe problem of open-domain QA studied in this\npaper can be described as follows. Given a factoid\nquestion, such as “Who first voiced Meg on Family\nGuy?” or “Where was the 8th Dalai Lama born?”, a\nsystem is required to answer it using a large corpus\nof diversified topics. More specifically, we assume\nthe extractive QA setting, in which the answer is\nrestricted to a span appearing in one or more pas-\nsages in the corpus. Assume that our collection\ncontains D documents, d1,d2,···,dD. We first\nsplit each of the documents into text passages of\nequal lengths as the basic retrieval units3 and get M\ntotal passages in our corpus C= {p1,p2,...,pM },\nwhere each passage pi can be viewed as a sequence\nof tokens w(i)\n1 ,w(i)\n2 ,···,w(i)\n|pi|. Given a question q,\nthe task is to find a span w(i)\ns ,w(i)\ns+1,···,w(i)\ne from\none of the passages pi that can answer the question.\nNotice that to cover a wide variety of domains, the\ncorpus size can easily range from millions of docu-\nments (e.g., Wikipedia) to billions (e.g., the Web).\nAs a result, any open-domain QA system needs to\ninclude an efficient retriever component that can se-\nlect a small set of relevant texts, before applying the\nreader to extract the answer (Chen et al., 2017).4\nFormally speaking, a retriever R : (q,C) →CF\nis a function that takes as input a question qand a\ncorpus Cand returns a much smaller filter set of\ntexts CF ⊂C, where |CF|= k ≪|C|. For a fixed\nk, a retriever can be evaluated in isolation on top-k\nretrieval accuracy, which is the fraction of ques-\ntions for which CFcontains a span that answers the\nquestion.\n3 Dense Passage Retriever (DPR)\nWe focus our research in this work on improv-\ning the retrieval component in open-domain QA.\nGiven a collection of M text passages, the goal of\nour dense passage retriever (DPR) is to index all\nthe passages in a low-dimensional and continuous\nspace, such that it can retrieve efficiently the top\nk passages relevant to the input question for the\nreader at run-time. Note that M can be very large\n(e.g., 21 million passages in our experiments, de-\nscribed in Section 4.1) and kis usually small, such\nas 20–100.\n3.1 Overview\nOur dense passage retriever (DPR) uses a dense\nencoder EP (·) which maps any text passage to a d-\ndimensional real-valued vectors and builds an index\nfor all the M passages that we will use for retrieval.\n3The ideal size and boundary of a text passage are func-\ntions of both the retriever and reader. We also experimented\nwith natural paragraphs in our preliminary trials and found that\nusing fixed-length passages performs better in both retrieval\nand final QA accuracy, as observed by Wang et al. (2019).\n4Exceptions include (Seo et al., 2019) and (Roberts et al.,\n2020), which retrieves and generates the answers, respectively.",
+            "width": 595.276
+        }
+    ]
+}

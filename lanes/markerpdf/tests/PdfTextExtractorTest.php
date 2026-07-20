@@ -18,6 +18,27 @@ $pdfWithStreams = static function (array $streams): string {
     return $pdf . "%%EOF";
 };
 
+$pdfWithPageContentArray = static function (array $streams): string {
+    $references = [];
+    foreach (array_keys(array_values($streams)) as $index) {
+        $references[] = ($index + 5) . ' 0 R';
+    }
+
+    $pdf = "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents ["
+        . implode(' ', $references)
+        . "] >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n";
+    foreach (array_values($streams) as $index => $content) {
+        $objectNumber = $index + 5;
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf . "%%EOF";
+};
+
 $ascii85Encode = static function (string $bytes): string {
     $encoded = '';
     foreach (str_split($bytes, 4) as $chunk) {
@@ -2589,7 +2610,249 @@ $pdfWithHybridXrefStreamAndTablePreviousBranches = static function () use ($xref
     return $pdf . "trailer << /Size 10 /Root 1 0 R /XRefStm {$xrefStreamOffset} /Prev {$contentBranchXrefOffset} >>\nstartxref\n{$latestXrefOffset}\n%%EOF";
 };
 
+$sameShapeTaggedCachePdf = static function (string $variant): string {
+    if (!in_array($variant, ['Alpha', 'Bravo'], true)) {
+        throw new RuntimeException('Unsupported tagged cache fixture variant.');
+    }
+    $content = "BT /F1 12 Tf 72 720 Td (Anchor {$variant}) Tj ET";
+    $uriVariant = strtolower($variant);
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 6 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R /Annots [8 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /StructTreeRoot /K 7 0 R >>\nendobj\n"
+        . "7 0 obj\n<< /Type /StructElem /S /P /P 6 0 R /Pg 3 0 R /K 0 /Act#75alText (Tagged {$variant}) >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Annot /Subtype /Link /Rect [70 710 200 740] /A << /S /URI /URI (https://{$uriVariant}.example.test/) >> >>\nendobj\n"
+        . "9 0 obj\n<< /Fixture (same-shape-middle-padding) >>\nendobj\n"
+        . "10 0 obj\n<< /Fixture (same-shape-cache-tail) >>\nendobj\n%%EOF";
+};
+
 return [
+    'continues page text and graphics state across ordered Contents array members' => static function (TestRunner $t) use ($pdfWithPageContentArray): void {
+        $pdf = $pdfWithPageContentArray([
+            'q 1 0 0 1 10 20 cm BT /F1 12 Tf 1 0 0 1 72 720 Tm',
+            '(Recovered continuation) Tj 0 -18 Td (Second source line) Tj ET Q',
+        ]);
+        $extractor = new PdfTextExtractor();
+
+        $t->same(
+            ['Recovered continuation', 'Second source line'],
+            $extractor->extractTextRuns($pdf)
+        );
+        $t->same([
+            ['page' => 1, 'stream' => 2, 'text' => 'Recovered continuation'],
+            ['page' => 1, 'stream' => 2, 'text' => 'Second source line'],
+        ], $extractor->extractTextLineItems($pdf));
+
+        $positioned = $extractor->extractPositionedTextRuns($pdf);
+        $t->same(['Recovered continuation', 'Second source line'], array_column($positioned, 'text'));
+        $t->same([2, 2], array_column($positioned, 'stream'));
+        $t->same(82.0, $positioned[0]['textX1'] ?? null);
+        $t->same(740.0, $positioned[0]['textY1'] ?? null);
+        $t->same(722.0, $positioned[1]['textY1'] ?? null);
+    },
+    'preserves split Contents dictionary syntax while expanding Form XObjects' => static function (TestRunner $t): void {
+        $firstContent = 'BT /F1 12 Tf 1 0 0 1 72 720 Tm /Span << /MCID ';
+        $secondContent = '7 >> BDC (Split dictionary line) Tj EMC ET q /Fm1 Do Q';
+        $formContent = 'BT /F1 12 Tf 1 0 0 1 20 20 Tm (Form line) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            . "/Resources << /Font << /F1 4 0 R >> /XObject << /Fm1 7 0 R >> >> "
+            . "/Contents [5 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($firstContent) . " >>\nstream\n{$firstContent}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($secondContent) . " >>\nstream\n{$secondContent}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 100 100] "
+            . "/Resources << /Font << /F1 4 0 R >> >> /Length " . strlen($formContent) . " >>\n"
+            . "stream\n{$formContent}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same(
+            ['Split dictionary line', 'Form line'],
+            $extractor->extractTextLines($pdf)
+        );
+        $t->same([
+            ['page' => 1, 'stream' => 2, 'text' => 'Split dictionary line'],
+            ['page' => 1, 'stream' => 2, 'text' => 'Form line'],
+        ], $extractor->extractTextLineItems($pdf));
+        $positioned = $extractor->extractPositionedTextRuns($pdf);
+        $t->same(['Split dictionary line', 'Form line'], array_column($positioned, 'text'));
+        $t->same([2, 2], array_column($positioned, 'stream'));
+    },
+    'executes a repeated Contents reference at each ordered occurrence' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 1 0 0 1 72 720 Tm (Repeated stream text) Tj ET ';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            . "/Resources << /Font << /F1 4 0 R >> >> /Contents [5 0 R 5 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same(
+            ['Repeated stream text', 'Repeated stream text'],
+            $extractor->extractTextRuns($pdf)
+        );
+        $t->same([1, 2], array_column($extractor->extractTextLineItems($pdf), 'stream'));
+        $t->same([1, 2], array_column($extractor->extractPositionedTextRuns($pdf), 'stream'));
+        $t->same(2, $extractor->diagnostics($pdf)['textVisibility']['visibleRuns'] ?? null);
+    },
+    'retains operand source provenance when a text operator begins the next Contents member' => static function (TestRunner $t) use ($pdfWithPageContentArray): void {
+        $pdf = $pdfWithPageContentArray([
+            'BT /F1 12 Tf 1 0 0 1 72 720 Tm (Split operand text)',
+            'Tj ET',
+        ]);
+        $extractor = new PdfTextExtractor();
+
+        $t->same(['Split operand text'], $extractor->extractTextRuns($pdf));
+        $t->same([
+            ['page' => 1, 'stream' => 1, 'text' => 'Split operand text'],
+        ], $extractor->extractTextLineItems($pdf));
+        $positioned = $extractor->extractPositionedTextRuns($pdf);
+        $t->same(['Split operand text'], array_column($positioned, 'text'));
+        $t->same([1], array_column($positioned, 'stream'));
+    },
+    'closes cross-member ActualText once with its semantic operand provenance' => static function (TestRunner $t) use ($pdfWithPageContentArray): void {
+        $pdf = $pdfWithPageContentArray([
+            '/Span << /ActualText (Replacement text) >> BDC BT /F1 12 Tf 1 0 0 1 72 720 Tm',
+            '(hidden glyphs) Tj ET EMC',
+        ]);
+        $extractor = new PdfTextExtractor();
+
+        $t->same(['Replacement text'], $extractor->extractTextRuns($pdf));
+        $t->same([
+            ['page' => 1, 'stream' => 1, 'text' => 'Replacement text'],
+        ], $extractor->extractTextLineItems($pdf));
+        $positioned = $extractor->extractPositionedTextRuns($pdf);
+        $t->same(['Replacement text'], array_column($positioned, 'text'));
+        $t->same([1], array_column($positioned, 'stream'));
+    },
+    'indexes generation independent free xref conflicts without changing compressed member selection' => static function (TestRunner $t): void {
+        $extractor = new PdfTextExtractor();
+        $indexMethod = new ReflectionMethod($extractor, 'xrefFreeReferencePrefixes');
+        $allowsMethod = new ReflectionMethod($extractor, 'xrefAllowsEmbeddedObject');
+        $compressed = [
+            'status' => 'compressed',
+            'objectStreamNumber' => 7,
+            'objectStreamIndex' => 0,
+        ];
+        $conflictingEntries = [
+            '3:0' => $compressed,
+            '3:1' => ['status' => 'f'],
+            '30:2' => ['status' => 'f'],
+        ];
+        $freePrefixes = $indexMethod->invoke($extractor, $conflictingEntries);
+
+        $t->same(['3:' => true, '30:' => true], $freePrefixes);
+        $t->same(false, $allowsMethod->invoke(
+            $extractor,
+            3,
+            7,
+            0,
+            $conflictingEntries,
+            $freePrefixes
+        ));
+
+        $selectedEntries = ['3:0' => $compressed, '30:2' => ['status' => 'f']];
+        $selectedFreePrefixes = $indexMethod->invoke($extractor, $selectedEntries);
+        $t->same(true, $allowsMethod->invoke(
+            $extractor,
+            3,
+            7,
+            0,
+            $selectedEntries,
+            $selectedFreePrefixes
+        ));
+        $t->same(false, $allowsMethod->invoke(
+            $extractor,
+            3,
+            7,
+            1,
+            $selectedEntries,
+            $selectedFreePrefixes
+        ));
+    },
+    'recognizes only tokenized escaped structure replacement names across slash and percent delimiters' => static function (TestRunner $t): void {
+        $extractor = new PdfTextExtractor();
+        $method = new ReflectionMethod($extractor, 'pdfValueContainsStructReplacementName');
+
+        $t->same(true, $method->invoke(
+            $extractor,
+            '<< /Type /StructElem /Act#75alText (replacement/with%delimiters) /Noise /Value >>'
+        ));
+        $t->same(true, $method->invoke(
+            $extractor,
+            "<< /K [ << /Alt (nested/value%text) >> ] % /E (comment decoy)\n >>"
+        ));
+        $t->same(false, $method->invoke(
+            $extractor,
+            "<< /ActualTextual (not a key) /Label (/ActualText /Alt /E) % /ActualText (comment decoy)\n /E /NameOnly >>"
+        ));
+    },
+    'isolates same shaped object graph caches when one extractor processes different PDFs' => static function (
+        TestRunner $t
+    ) use ($sameShapeTaggedCachePdf): void {
+        $extractor = new PdfTextExtractor();
+        $alphaPdf = $sameShapeTaggedCachePdf('Alpha');
+        $bravoPdf = $sameShapeTaggedCachePdf('Bravo');
+
+        $alpha = $extractor->diagnostics($alphaPdf);
+        $t->same(['Anchor Alpha'], $extractor->extractTextLines($alphaPdf));
+        $t->same('Tagged Alpha', $alpha['taggedStructureItems'][0]['text'] ?? null);
+        $t->same('https://alpha.example.test/', $alpha['linkAnnotations'][0]['uri'] ?? null);
+        $t->same('Anchor Alpha', $alpha['linkAnnotations'][0]['text'] ?? null);
+
+        $bravo = $extractor->diagnostics($bravoPdf);
+        $t->same(['Anchor Bravo'], $extractor->extractTextLines($bravoPdf));
+        $t->same('Tagged Bravo', $bravo['taggedStructureItems'][0]['text'] ?? null);
+        $t->same('https://bravo.example.test/', $bravo['linkAnnotations'][0]['uri'] ?? null);
+        $t->same('Anchor Bravo', $bravo['linkAnnotations'][0]['text'] ?? null);
+
+        $alphaWarm = $extractor->diagnostics($alphaPdf);
+        $t->same($alpha['taggedStructureItems'], $alphaWarm['taggedStructureItems']);
+        $t->same($alpha['taggedStructureBlocks'], $alphaWarm['taggedStructureBlocks']);
+        $t->same($alpha['taggedTables'], $alphaWarm['taggedTables']);
+        $t->same($alpha['linkAnnotations'], $alphaWarm['linkAnnotations']);
+        $t->same(['Anchor Alpha'], $extractor->extractTextLines($alphaPdf));
+
+        $password = 'cache-secret-marker';
+        $passwordExtractor = new PdfTextExtractor(['pdfPassword' => $password]);
+        $passwordExtractor->extractPageInventory($alphaPdf);
+        $objectGraphKey = (new ReflectionProperty($passwordExtractor, 'pdfObjectsCacheKey'))->getValue($passwordExtractor);
+        $t->same(64, is_string($objectGraphKey) ? strlen($objectGraphKey) : 0);
+        $t->same(false, is_string($objectGraphKey) && str_contains($objectGraphKey, $password));
+    },
+    'keeps inherited page provenance exact when a shared structure child is memoized per page' => static function (TestRunner $t): void {
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 10 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 6 0 R] /Count 2 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n"
+            . "6 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /StructTreeRoot /K [11 0 R 12 0 R] >>\nendobj\n"
+            . "11 0 obj\n<< /Type /StructElem /S /Sect /P 10 0 R /Pg 3 0 R /K [0 13 0 R] >>\nendobj\n"
+            . "12 0 obj\n<< /Type /StructElem /S /Sect /P 10 0 R /Pg 6 0 R /K [0 13 0 R] >>\nendobj\n"
+            . "13 0 obj\n<< /Type /StructElem /S /Span /P 11 0 R /K 0 >>\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $first = $extractor->diagnostics($pdf)['taggedStructureItems'];
+        $second = $extractor->diagnostics($pdf)['taggedStructureItems'];
+        $byObject = [];
+        foreach ($first as $item) {
+            $byObject[$item['objectNumber']] = $item;
+        }
+
+        $t->same([1], $byObject[11]['pageNumbers'] ?? null);
+        $t->same([3], $byObject[11]['pageObjects'] ?? null);
+        $t->same([2], $byObject[12]['pageNumbers'] ?? null);
+        $t->same([6], $byObject[12]['pageObjects'] ?? null);
+        $t->same(false, array_key_exists('pageNumbers', $byObject[13] ?? []));
+        $t->same($first, $second);
+    },
     'extracts literal and array text operators from content streams' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = "BT /F1 12 Tf 72 720 Td (Hello \\(WP\\)) Tj [(Data) 120 ( Liberation)] TJ ET";
         $runs = (new PdfTextExtractor())->extractTextRuns($pdfWithContent($content));
@@ -3533,6 +3796,7 @@ return [
                 'contentReference' => 99,
                 'contentObject' => null,
                 'reason' => 'unresolved_content_reference',
+                'resolutionReason' => 'content-reference-missing',
                 'filters' => [],
             ],
         ], $diagnostics['pageExtractionIssues']);
@@ -6938,6 +7202,7 @@ return [
         $t->same(1, count($diagnostics['taggedStructureBlocks']));
         $t->same('Repeated paragraph.', $diagnostics['taggedStructureBlocks'][0]['text']);
         $t->same('H1', $diagnostics['taggedStructureBlocks'][0]['resolvedRole']);
+        $t->true(!isset($diagnostics['taggedStructureBlocks'][0]['sourceProvenance']), 'An unscoped StructElem must not acquire guessed page provenance.');
         $t->same([], $diagnostics['missingUnicodeFonts']);
         $t->same(0, $diagnostics['suppressedGlyphRuns']);
         $t->true(!str_contains($plainText, '?PKEA'));
@@ -6981,9 +7246,16 @@ return [
         $t->same(2, count($diagnostics['taggedStructureBlocks']));
         $t->same('Page One Heading', $diagnostics['taggedStructureBlocks'][0]['text']);
         $t->same('H1', $diagnostics['taggedStructureBlocks'][0]['resolvedRole']);
+        $t->same([1], $diagnostics['taggedStructureBlocks'][0]['pageNumbers'] ?? null);
+        $t->same([3], $diagnostics['taggedStructureBlocks'][0]['pageObjects'] ?? null);
+        $t->same('unique-page', $diagnostics['taggedStructureBlocks'][0]['sourceProvenance']['pageScope'] ?? null);
         $t->same('table', $diagnostics['taggedStructureBlocks'][1]['kind']);
         $t->same(13, $diagnostics['taggedStructureBlocks'][1]['objectNumber']);
+        $t->same([2], $diagnostics['taggedStructureBlocks'][1]['pageNumbers'] ?? null);
+        $t->same([7], $diagnostics['taggedStructureBlocks'][1]['pageObjects'] ?? null);
         $t->same('Name', $diagnostics['taggedStructureBlocks'][1]['rows'][0][0]['text']);
+        $t->same([2], $diagnostics['taggedStructureBlocks'][1]['rows'][0][0]['pageNumbers'] ?? null);
+        $t->same(16, $diagnostics['taggedStructureBlocks'][1]['rows'][0][0]['sourceProvenance']['objectNumber'] ?? null);
         $t->same('Count', $diagnostics['taggedStructureBlocks'][1]['rows'][0][1]['text']);
         $t->same('Bananas', $diagnostics['taggedStructureBlocks'][1]['rows'][1][0]['text']);
         $t->same('7', $diagnostics['taggedStructureBlocks'][1]['rows'][1][1]['text']);

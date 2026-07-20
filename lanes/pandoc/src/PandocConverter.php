@@ -158,7 +158,7 @@ final class PandocConverter
 
     /**
      * @param array{readerOptions?: array<string, mixed>, writerOptions?: array<string, mixed>, extractMedia?: string|array<string, mixed>, extract-media?: string|array<string, mixed>} $options
-     * @return array{output:string, media:list<array<string, mixed>>, diagnostics:list<string>}
+     * @return array{output:string, media:list<array<string, mixed>>, diagnostics:list<string>, sourceIntegrity?:array<string,bool|int|null>}
      */
     public static function convertWithMedia(string $bytes, string $from, string $to, array $options = []): array
     {
@@ -193,10 +193,83 @@ final class PandocConverter
             }
         }
 
-        return [
+        $result = [
             'output' => self::write($document, $to, $writerOptions),
             'media' => self::publicMediaEntries($entries),
             'diagnostics' => $diagnostics,
+        ];
+        $sourceIntegrity = self::documentSourceIntegrity($document);
+        if ($sourceIntegrity !== null) {
+            $result['sourceIntegrity'] = $sourceIntegrity;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Expose only the bounded publication-critical PDF coverage and ledger summary. This
+     * lets out-of-process showcase and review tooling fail closed without
+     * serializing the reader's potentially very large diagnostic metadata.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function documentSourceIntegrity(AstNode $document): ?array
+    {
+        $meta = $document->attr('meta', []);
+        if (!is_array($meta)
+            || (!array_key_exists('pdfSemanticTextComplete', $meta)
+                && !array_key_exists('pdfSourceBindingComplete', $meta))) {
+            return null;
+        }
+
+        $disposition = is_array($meta['pdfSourceDisposition'] ?? null)
+            ? $meta['pdfSourceDisposition']
+            : [];
+        $documentComplete = ($meta['pdfDocumentComplete'] ?? null) === true;
+        $semanticTextComplete = ($meta['pdfSemanticTextComplete'] ?? null) === true;
+        $sourceBindingComplete = ($meta['pdfSourceBindingComplete'] ?? null) === true;
+        $sourceEdgeMappingComplete = ($disposition['sourceEdgeMappingComplete'] ?? null) === true;
+        $orderedCharactersPreserved = ($disposition['orderedSignificantCharactersPreserved'] ?? null) === true;
+        $unresolved = is_int($disposition['unresolvedOccurrenceCount'] ?? null)
+            ? $disposition['unresolvedOccurrenceCount']
+            : null;
+        $textLayerStatus = is_string($meta['pdfTextLayerStatus'] ?? null)
+            ? $meta['pdfTextLayerStatus']
+            : null;
+        $needsOcr = ($meta['pdfNeedsOcr'] ?? null) === true;
+        $pageRepresentationComplete = ($meta['pdfPageRepresentationComplete'] ?? null) === true;
+
+        return [
+            'complete' => $documentComplete
+                && $semanticTextComplete
+                && $sourceBindingComplete
+                && $sourceEdgeMappingComplete
+                && $orderedCharactersPreserved
+                && $unresolved === 0
+                && $pageRepresentationComplete,
+            'pdfDocumentComplete' => $documentComplete,
+            'pdfTextComplete' => ($meta['pdfTextComplete'] ?? null) === true,
+            'pdfNoTextClassificationComplete' => ($meta['pdfNoTextClassificationComplete'] ?? null) === true,
+            'pdfSemanticTextComplete' => $semanticTextComplete,
+            'pdfSourceBindingComplete' => $sourceBindingComplete,
+            'pdfSourceEdgeMappingComplete' => $sourceEdgeMappingComplete,
+            'pdfOrderedSignificantCharactersPreserved' => $orderedCharactersPreserved,
+            'pdfUnresolvedSourceOccurrences' => $unresolved,
+            'pdfTextLayerStatus' => $textLayerStatus,
+            'pdfNeedsOcr' => $needsOcr,
+            'pdfPageCount' => max(0, (int) ($meta['pdfPageCount'] ?? 0)),
+            'pdfTextRepresentedPageNumbers' => is_array($meta['pdfTextRepresentedPageNumbers'] ?? null)
+                ? array_values(array_map('intval', $meta['pdfTextRepresentedPageNumbers']))
+                : [],
+            'pdfPagesNeedingImageRepresentation' => is_array(
+                $meta['pdfPagesNeedingImageRepresentation'] ?? null
+            )
+                ? array_values(array_map('intval', $meta['pdfPagesNeedingImageRepresentation']))
+                : [],
+            'pdfRepresentedPageNumbers' => is_array($meta['pdfRepresentedPageNumbers'] ?? null)
+                ? array_values(array_map('intval', $meta['pdfRepresentedPageNumbers']))
+                : [],
+            'pdfPageRepresentationComplete' => $pageRepresentationComplete,
         ];
     }
 
@@ -263,7 +336,7 @@ final class PandocConverter
 
     /**
      * @param array{readerOptions?: array<string, mixed>, writerOptions?: array<string, mixed>, extractMedia?: string|array<string, mixed>, extract-media?: string|array<string, mixed>} $options
-     * @return array{output:string, media:list<array<string, mixed>>, diagnostics:list<string>}
+     * @return array{output:string, media:list<array<string, mixed>>, diagnostics:list<string>, sourceIntegrity?:array<string,bool|int|null>}
      */
     public static function convertFileWithMedia(string $path, string $from, string $to, array $options = []): array
     {

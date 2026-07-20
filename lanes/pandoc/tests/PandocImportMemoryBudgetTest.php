@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
+use PortLibs\MarkerPDF\BrowserPdfFactsProvider;
+
 $root = dirname(__DIR__, 3);
+require_once $root . '/tools/generate-pdf-resource-fixture.php';
 
 /**
  * @param array<string, mixed> $arguments
@@ -88,7 +91,99 @@ $measure = static function (string $memoryLimit, array $arguments, int $timeoutS
     ];
 };
 
+/**
+ * Build an 8–10 MiB, 250-page searchable PDF with 5,000 visible positioned
+ * lines. Legal PDF comments fill only the remaining upload-size envelope.
+ *
+ * @return array{path:string,pages:int,linesPerPage:int,textLines:int,lastLineMarker:string,bytes:int,sha256:string}
+ */
+$largeSearchablePdfFixture = static function (): array {
+    $path = tempnam(sys_get_temp_dir(), 'port-libs-pdf-250-');
+    if ($path === false) {
+        throw new RuntimeException('Could not allocate the 250-page PDF resource fixture.');
+    }
+    try {
+        return port_libs_generate_searchable_pdf_resource_fixture($path);
+    } catch (Throwable $error) {
+        @unlink($path);
+        throw $error;
+    }
+};
+
+/**
+ * Independently inventory the visible per-line markers without retaining the
+ * complete 8–10 MiB source in the test process.
+ *
+ * @return array{pages:int,textLines:int,minLinesPerPage:int,maxLinesPerPage:int,lastLineMarker:string}
+ */
+$searchablePdfLineInventory = static function (string $path): array {
+    $stream = fopen($path, 'rb');
+    if (!is_resource($stream)) {
+        throw new RuntimeException('Could not inspect the searchable PDF resource fixture.');
+    }
+    $pageLines = [];
+    $lastLineMarker = '';
+    try {
+        while (($sourceLine = fgets($stream)) !== false) {
+            preg_match_all(
+                '/RESOURCE PAGE ([0-9]{3,4}) LINE ([0-9]{2})/',
+                $sourceLine,
+                $matches,
+                PREG_SET_ORDER
+            );
+            foreach ($matches as $match) {
+                $page = (int) $match[1];
+                $line = (int) $match[2];
+                $pageLines[$page][$line] = true;
+                $lastLineMarker = $match[0];
+            }
+        }
+    } finally {
+        fclose($stream);
+    }
+    if ($pageLines === []) {
+        throw new RuntimeException('The searchable PDF resource fixture has no visible line inventory.');
+    }
+    ksort($pageLines, SORT_NUMERIC);
+    $lineCounts = array_map('count', $pageLines);
+
+    return [
+        'pages' => count($pageLines),
+        'textLines' => array_sum($lineCounts),
+        'minLinesPerPage' => min($lineCounts),
+        'maxLinesPerPage' => max($lineCounts),
+        'lastLineMarker' => $lastLineMarker,
+    ];
+};
+
 return [
+    'generates valid positioned text matrices for the searchable PDF resource fixture' => static function (
+        TestRunner $t
+    ): void {
+        $path = tempnam(sys_get_temp_dir(), 'port-libs-pdf-matrix-');
+        if ($path === false) {
+            throw new RuntimeException('Could not allocate the PDF matrix fixture.');
+        }
+        try {
+            port_libs_generate_searchable_pdf_resource_fixture($path, 2, 2);
+            $pdf = file_get_contents($path);
+            if (!is_string($pdf)) {
+                throw new RuntimeException('Could not read the PDF matrix fixture.');
+            }
+            $facts = (new BrowserPdfFactsProvider())->extract($pdf, [
+                'pdfStartPage' => 1,
+                'pdfMaxPages' => 2,
+            ]);
+
+            $t->same([1, 2], $facts->inventory()['pageNumbers'] ?? null);
+            foreach ($facts->pages() as $page) {
+                $t->same([], $page->issues(), 'Generated PDF text operators must be structurally valid.');
+                $t->same(20, count($page->text()['spans'] ?? []));
+            }
+        } finally {
+            @unlink($path);
+        }
+    },
     'keeps a one megabyte HTML import below the compact reader memory budget' => static function (TestRunner $t) use ($measure, $root): void {
         $run = $measure('16M', [
             'input' => $root . '/lanes/readability/fixtures/mozilla/guardian-1/source.html',
@@ -143,8 +238,52 @@ return [
         $t->same(false, $run['timedOut'], $run['raw']);
         $t->same(0, $run['exitCode'], $run['raw']);
         $t->true(is_array($result), 'Expected JSON memory measurements for the PDF import.');
-        $t->same(91881, $result['outputBytes'] ?? null);
-        $t->same('26e8e4f4a579716896a08b52f6d5d6b9cf6f5b382b766e74c36da1ab0877bb7f', $result['outputSha256'] ?? null);
+        $t->same(102322, $result['outputBytes'] ?? null);
+        $t->same('5a5a36ce07d475c466994d14e61fd3a2f69094f5edfe575585792875ee511219', $result['outputSha256'] ?? null);
         $t->true((int) ($result['peakBytes'] ?? PHP_INT_MAX) <= 44 * 1024 * 1024, 'The PDF geometry and prose repair path should remain inside its 48 MiB process budget.');
+    },
+    'keeps an eight megabyte 250 page searchable PDF below the large import PHP ceiling' => static function (
+        TestRunner $t
+    ) use ($measure, $largeSearchablePdfFixture, $searchablePdfLineInventory): void {
+        $fixture = $largeSearchablePdfFixture();
+        $path = $fixture['path'];
+        try {
+            $sourceBytes = filesize($path);
+            $t->true(is_int($sourceBytes) && $sourceBytes >= 8_000_000 && $sourceBytes <= 10_500_000);
+            $t->same(250, $fixture['pages']);
+            $t->same(20, $fixture['linesPerPage']);
+            $t->same(5_000, $fixture['textLines']);
+            $t->same($sourceBytes, $fixture['bytes']);
+            $t->same('a7a87708838ec85540a42204dae49a1301459220d8240915a5433d51491b82d6', $fixture['sha256']);
+            $t->same('RESOURCE PAGE 250 LINE 20', $fixture['lastLineMarker']);
+            $inventory = $searchablePdfLineInventory($path);
+            $t->same(250, $inventory['pages']);
+            $t->same(5_000, $inventory['textLines']);
+            $t->same(20, $inventory['minLinesPerPage']);
+            $t->same(20, $inventory['maxLinesPerPage']);
+            $t->same('RESOURCE PAGE 250 LINE 20', $inventory['lastLineMarker']);
+            $run = $measure('128M', [
+                'input' => $path,
+                'from' => 'pdf',
+                'to' => 'wordpress',
+                'mode' => 'file',
+                'reader-options' => json_encode([
+                    'pdfGeometryTables' => true,
+                    'pdfRepairProseText' => true,
+                ], JSON_THROW_ON_ERROR),
+            ], 180);
+            $result = $run['result'];
+
+            $t->same(false, $run['timedOut'], $run['raw']);
+            $t->same(0, $run['exitCode'], $run['raw']);
+            $t->true(is_array($result), 'Expected isolated resource measurements for the 250-page PDF.');
+            $t->same($sourceBytes, $result['sourceBytes'] ?? null);
+            $t->true((int) ($result['outputBytes'] ?? 0) > 500_000, 'The dense searchable workload should contribute substantial output.');
+            $t->true((int) ($result['nodeCount'] ?? 0) >= 10_000, 'The AST must retain the 5,000-line workload across all 250 pages.');
+            $t->true((int) ($result['peakBytes'] ?? PHP_INT_MAX) < 128 * 1024 * 1024, 'The import must retain substantial headroom below the 384 MiB contract ceiling.');
+            $t->true((float) ($result['totalElapsedMs'] ?? INF) < 120_000, 'The isolated conversion must finish inside a bounded request window.');
+        } finally {
+            @unlink($path);
+        }
     },
 ];

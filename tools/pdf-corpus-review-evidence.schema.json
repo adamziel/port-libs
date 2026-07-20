@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://port-libs.local/schemas/pdf-corpus-review-evidence.schema.json",
+  "title": "PDF corpus manual review evidence",
+  "description": "Binds one human verdict to an immutable PDF, an immutable execution report, and source/output screenshots at desktop and mobile viewports.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "corpusId",
+    "artifact",
+    "executionReport",
+    "screenshots",
+    "verdict"
+  ],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "corpusId": {"type": "string", "minLength": 1},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bytes", "sha256"],
+      "properties": {
+        "bytes": {"type": "integer", "minimum": 5},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "executionReport": {"$ref": "#/$defs/fileIdentity"},
+    "screenshots": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["desktop", "mobile"],
+      "properties": {
+        "desktop": {"$ref": "#/$defs/screenshotPair"},
+        "mobile": {"$ref": "#/$defs/screenshotPair"}
+      }
+    },
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "reviewer", "reviewedAt", "notes"],
+      "properties": {
+        "result": {"enum": ["pass", "fail"]},
+        "reviewer": {"type": "string", "minLength": 1},
+        "reviewedAt": {"type": "string", "format": "date-time"},
+        "notes": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "fileIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "bytes": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "screenshotPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "output"],
+      "properties": {
+        "source": {"$ref": "#/$defs/pngIdentity"},
+        "output": {"$ref": "#/$defs/pngIdentity"}
+      }
+    },
+    "pngIdentity": {
+      "allOf": [
+        {"$ref": "#/$defs/fileIdentity"},
+        {
+          "type": "object",
+          "properties": {
+            "path": {"type": "string", "pattern": "\\.png$"}
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+    "version": 1,
+    "samplePath": "samples/pdf-layout-vdl-theatre-script-ASC_script_format_example.pdf",
+    "requests": [
+        {
+            "version": 1,
+            "method": "pdfjs-whole-page-raster",
+            "sourceSha256": "588849052d7f4450b3a186c25d1a3ea4798d568b4bfd21c115a53479833ee298",
+            "page": 1,
+            "pageObject": 51,
+            "pageBox": [
+                0,
+                0,
+                595.276,
+                841.89
+            ],
+            "pageBoxSource": "CropBox",
+            "pageRotation": 0,
+            "width": 1191,
+            "height": 1684,
+            "mimeType": "image/png",
+            "id": "pdf-page-raster-f15d3954327dd8d78c5d261b164a82da",
+            "requestDigest": "f15d3954327dd8d78c5d261b164a82daa89a7abae2235622c0452532db263e97",
+            "path": "samples/pdf-layout-vdl-theatre-script-ASC_script_format_example.pdf",
+            "label": "PDF page 1",
+            "precedingText": null,
+            "followingText": "Script formatting example p.1"
+        }
+    ]
+}

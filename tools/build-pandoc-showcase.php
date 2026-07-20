@@ -11,9 +11,12 @@ require __DIR__ . '/bootstrap.php';
 
 ini_set('display_errors', 'stderr');
 error_reporting(E_ALL & ~E_DEPRECATED);
+// The main builder keeps the generated manifest and full comparison page in
+// memory at the same time. Large real-world samples can exceed PHP's common
+// 128 MiB CLI default even though each isolated conversion is bounded.
+raise_memory_limit('512M');
 
 if (($argv[1] ?? '') === '--convert-local') {
-    raise_memory_limit('512M');
     $path = $argv[2] ?? '';
     $format = $argv[3] ?? '';
     $to = $argv[4] ?? '';
@@ -40,6 +43,7 @@ if (($argv[1] ?? '') === '--convert-local') {
         file_put_contents($mediaManifest, json_encode([
             'media' => $converted['media'],
             'diagnostics' => $converted['diagnostics'],
+            'sourceIntegrity' => $converted['sourceIntegrity'] ?? null,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
         echo $converted['output'];
         exit(0);
@@ -56,6 +60,13 @@ $rawBase = 'https://raw.githubusercontent.com/jgm/pandoc/' . PandocFormatRegistr
 $refreshSources = in_array('--refresh-sources', $argv, true);
 
 const SHOWCASE_EXAMPLES_AUTOMATIC_MAX_BYTES = 250000;
+// Keep the static viewer in step with the WordPress importer's bounded
+// browser-rendered PDF handoff. Whole-page requests represent pages whose
+// ordinary extraction has no visible counterpart; Form XObjects cover
+// diagrams, charts, and other vector scenes that are not ordinary image
+// streams. Their independent caps keep page coverage from crowding out Forms.
+const SHOWCASE_PDF_FORM_RENDER_MAX_REQUESTS = 48;
+const SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS = 96;
 
 if (($argv[1] ?? '') === '--build-examples-page') {
     $manifestPath = $siteDir . '/manifest.json';
@@ -192,6 +203,39 @@ function remote_sample(string $id, string $format, string $url, string $filename
         'source' => $source,
         'filename' => $filename,
     ];
+}
+
+/** @return list<array<string, mixed>> */
+function pdf_layout_corpus_samples(): array
+{
+    $path = __DIR__ . '/pdf-layout-corpus-manifest.json';
+    $decoded = json_decode((string) file_get_contents($path), true);
+    if (!is_array($decoded)) {
+        throw new RuntimeException("Unable to read PDF layout corpus manifest at {$path}.");
+    }
+
+    $samples = [];
+    foreach ($decoded as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        foreach (['id', 'label', 'url', 'filename', 'source'] as $required) {
+            if (!is_string($entry[$required] ?? null) || $entry[$required] === '') {
+                throw new RuntimeException("PDF layout corpus entry is missing {$required}.");
+            }
+        }
+        $samples[] = remote_sample(
+            'pdf-layout-' . $entry['id'],
+            'pdf',
+            $entry['url'],
+            $entry['filename'],
+            $entry['label'],
+            $entry['source'],
+            (string) ($entry['notes'] ?? '')
+        );
+    }
+
+    return $samples;
 }
 
 /**
@@ -1078,6 +1122,7 @@ RST;
             inline_sample('xml-outline-generic', 'xml', 'generic-outline.xml', 'Generic XML outline', "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<document><title>Generic XML outline</title><section><heading>Inventory</heading><p>Plain XML read through the generic XML path.</p></section></document>\n", 'Inline generic XML document.'),
         ],
         'pdf' => [
+            ...pdf_layout_corpus_samples(),
             [
                 'id' => 'pdf-irs-w4',
                 'format' => 'pdf',
@@ -1259,7 +1304,8 @@ function showcase_converter_options(string $from, string $to): array
     $canonicalInput = PandocConverter::canonicalInputFormat($from);
     $canonicalOutput = PandocConverter::canonicalOutputFormat($to);
     if ($canonicalInput === 'pdf') {
-        $readerOptions['maxTextBytes'] = 100000;
+        $readerOptions['maxTextBytes'] = PHP_INT_MAX;
+        $readerOptions['pdfFastTextOnly'] = false;
         $readerOptions['pdfGeometryTables'] = true;
         $readerOptions['pdfRepairProseText'] = true;
     }
@@ -1275,6 +1321,279 @@ function showcase_converter_options(string $from, string $to): array
         'readerOptions' => $readerOptions,
         'writerOptions' => $writerOptions,
     ]);
+}
+
+/**
+ * Build the bounded browser-render plan consumed by the lightweight static
+ * example viewer. PDF.js paints whole pages which have no extracted visual
+ * counterpart before optional Form-XObject crops. The latter preserve
+ * vectors, nested Forms, clipping, and compositing that a stream-level image
+ * extractor cannot reconstruct.
+ *
+ * @return array{ok:bool,path:string,bytes:int,count:int,error?:string}|null
+ */
+function showcase_pdf_form_render_plan(string $sourcePath, string $format, string $samplePath, string $outDir): ?array
+{
+    if (PandocConverter::canonicalInputFormat($format) !== 'pdf') {
+        return null;
+    }
+
+    try {
+        $options = showcase_converter_options($format, 'wordpress');
+        $readerOptions = is_array($options['readerOptions'] ?? null) ? $options['readerOptions'] : [];
+        $readerOptions['pdfCollectFormXObjectPlacements'] = true;
+        $document = PandocConverter::readFile($sourcePath, $format, $readerOptions);
+        $requests = showcase_pdf_render_requests($document, $samplePath);
+
+        if ($requests === []) {
+            return null;
+        }
+
+        $filename = 'pdf-form-renders.json';
+        $absolutePath = $outDir . '/' . $filename;
+        $encoded = json_encode([
+            'version' => 1,
+            'samplePath' => $samplePath,
+            'requests' => $requests,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if (!is_string($encoded) || file_put_contents($absolutePath, $encoded . "\n") === false) {
+            throw new RuntimeException('Unable to write PDF Form render plan.');
+        }
+
+        return [
+            'ok' => true,
+            'path' => 'outputs/' . basename($outDir) . '/' . $filename,
+            'bytes' => (int) filesize($absolutePath),
+            'count' => count($requests),
+        ];
+    } catch (Throwable $error) {
+        return [
+            'ok' => false,
+            'path' => '',
+            'bytes' => 0,
+            'count' => 0,
+            'error' => sanitize_generated_text($error->getMessage()),
+        ];
+    }
+}
+
+/**
+ * Preserve each signed whole-page request exactly, adding only static-viewer
+ * routing and placement data, before collecting optional Form crops.
+ *
+ * @return list<array<string,mixed>>
+ */
+function showcase_pdf_render_requests(AstNode $document, string $samplePath): array
+{
+    $metadata = $document->attr('meta', []);
+    $metadata = is_array($metadata) ? $metadata : [];
+    $pageRequests = is_array($metadata['pdfPageRasterRequests'] ?? null)
+        ? $metadata['pdfPageRasterRequests']
+        : [];
+    $pageAnchors = showcase_pdf_page_text_anchors($document, $metadata);
+    $requests = [];
+    $pageRequestCount = 0;
+    foreach ($pageRequests as $pageRequest) {
+        if (!is_array($pageRequest) || $pageRequestCount >= SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS) {
+            continue;
+        }
+        $page = $pageRequest['page'] ?? null;
+        if (!is_int($page) || $page < 1) {
+            continue;
+        }
+        $request = $pageRequest;
+        $request['path'] = $samplePath;
+        $request['label'] = 'PDF page ' . $page;
+        $request['precedingText'] = $pageAnchors[$page]['precedingText'] ?? null;
+        $request['followingText'] = $pageAnchors[$page]['followingText'] ?? null;
+        $requests[] = $request;
+        $pageRequestCount++;
+    }
+
+    $placements = is_array($metadata['pdfFormXObjectPlacements'] ?? null)
+        ? $metadata['pdfFormXObjectPlacements']
+        : [];
+    $formRequestCount = 0;
+    foreach ($placements as $placement) {
+        if (!is_array($placement)
+            || ($placement['visible'] ?? false) !== true
+            || ($placement['placementEligible'] ?? false) !== true) {
+            continue;
+        }
+        $bbox = showcase_pdf_form_render_bbox($placement['bbox'] ?? null);
+        if ($bbox === null) {
+            continue;
+        }
+        $width = $bbox['x2'] - $bbox['x1'];
+        $height = $bbox['y2'] - $bbox['y1'];
+        // Small decorative forms do not belong in an article preview.
+        // This matches the server-side browser-render request threshold.
+        if ($width < 12.0 || $height < 12.0 || $width > 10000.0 || $height > 10000.0) {
+            continue;
+        }
+        $formId = (string) ($placement['id'] ?? 'form');
+        $page = max(1, (int) ($placement['page'] ?? 1));
+        $requests[] = [
+            'id' => 'form-' . substr(hash('sha256', $samplePath . "\0" . $formId), 0, 28),
+            'path' => $samplePath,
+            'page' => $page,
+            'bbox' => $bbox,
+            'formId' => $formId,
+            'object' => (int) ($placement['object'] ?? 0),
+            'paintOrder' => (int) ($placement['paintOrder'] ?? 0),
+            'precedingText' => is_string($placement['precedingText'] ?? null) ? $placement['precedingText'] : null,
+            'followingText' => is_string($placement['followingText'] ?? null) ? $placement['followingText'] : null,
+            'label' => 'PDF figure on page ' . $page,
+        ];
+        $formRequestCount++;
+        if ($formRequestCount >= SHOWCASE_PDF_FORM_RENDER_MAX_REQUESTS) {
+            break;
+        }
+    }
+
+    return $requests;
+}
+
+/**
+ * Bind requested physical pages to text already present in the same AST. Only
+ * unambiguous top-level source-node provenance is eligible: a following block
+ * on the same or a later page places the image before text, while a page after
+ * all text uses the final earlier block. Empty and non-monotonic ledgers stay
+ * unanchored rather than guessing a cross-page insertion point.
+ *
+ * @param array<string,mixed> $metadata
+ * @return array<int,array{precedingText:?string,followingText:?string}>
+ */
+function showcase_pdf_page_text_anchors(AstNode $document, array $metadata): array
+{
+    $sourceDisposition = is_array($metadata['pdfSourceDisposition'] ?? null)
+        ? $metadata['pdfSourceDisposition']
+        : [];
+    $sourceEdges = is_array($sourceDisposition['sourceEdges'] ?? null)
+        ? $sourceDisposition['sourceEdges']
+        : [];
+    $pagesByNodeId = [];
+    foreach ($sourceEdges as $sourceEdge) {
+        if (!is_array($sourceEdge)
+            || ($sourceEdge['target'] ?? null) !== 'output'
+            || !is_int($sourceEdge['page'] ?? null)
+            || $sourceEdge['page'] < 1
+            || !is_array($sourceEdge['destinationNodeIds'] ?? null)) {
+            continue;
+        }
+        foreach ($sourceEdge['destinationNodeIds'] as $nodeId) {
+            if (!is_string($nodeId) || $nodeId === '') {
+                continue;
+            }
+            $pagesByNodeId[$nodeId][$sourceEdge['page']] = true;
+        }
+    }
+
+    $topLevelNodeIdCounts = [];
+    foreach ($document->children() as $block) {
+        $nodeId = $block->attr('sourceNodeId');
+        if (is_string($nodeId) && $nodeId !== '') {
+            $topLevelNodeIdCounts[$nodeId] = ($topLevelNodeIdCounts[$nodeId] ?? 0) + 1;
+        }
+    }
+
+    $blocks = [];
+    $lastPage = 0;
+    foreach ($document->children() as $block) {
+        $nodeId = $block->attr('sourceNodeId');
+        if (!is_string($nodeId)
+            || $nodeId === ''
+            || ($topLevelNodeIdCounts[$nodeId] ?? 0) !== 1
+            || count($pagesByNodeId[$nodeId] ?? []) !== 1) {
+            continue;
+        }
+        $page = (int) array_key_first($pagesByNodeId[$nodeId]);
+        $text = showcase_pdf_anchor_text($block);
+        if ($page < 1 || $text === '') {
+            continue;
+        }
+        if ($page < $lastPage) {
+            return [];
+        }
+        $lastPage = $page;
+        $blocks[] = ['page' => $page, 'text' => $text];
+    }
+
+    $anchors = [];
+    $requestPages = [];
+    foreach (is_array($metadata['pdfPageRasterRequests'] ?? null)
+        ? $metadata['pdfPageRasterRequests']
+        : [] as $request) {
+        if (is_array($request) && is_int($request['page'] ?? null) && $request['page'] > 0) {
+            $requestPages[$request['page']] = true;
+        }
+    }
+    foreach (array_keys($requestPages) as $requestPage) {
+        $precedingText = null;
+        $followingText = null;
+        foreach ($blocks as $block) {
+            if ($block['page'] >= $requestPage) {
+                $followingText = $block['text'];
+                break;
+            }
+            $precedingText = $block['text'];
+        }
+        $anchors[$requestPage] = [
+            'precedingText' => $followingText === null ? $precedingText : null,
+            'followingText' => $followingText,
+        ];
+    }
+
+    return $anchors;
+}
+
+function showcase_pdf_anchor_text(AstNode $node): string
+{
+    $text = $node->attr('text');
+    if (is_string($text) && trim($text) !== '') {
+        return showcase_pdf_normalize_anchor_text($text);
+    }
+
+    $parts = [];
+    foreach ($node->children() as $child) {
+        $childText = showcase_pdf_anchor_text($child);
+        if ($childText !== '') {
+            $parts[] = $childText;
+        }
+    }
+
+    return showcase_pdf_normalize_anchor_text(implode(' ', $parts));
+}
+
+function showcase_pdf_normalize_anchor_text(string $text): string
+{
+    $normalized = preg_replace('/\s+/u', ' ', trim($text));
+
+    return is_string($normalized) ? $normalized : '';
+}
+
+/**
+ * @return array{x1:float,y1:float,x2:float,y2:float}|null
+ */
+function showcase_pdf_form_render_bbox(mixed $bbox): ?array
+{
+    if (!is_array($bbox)) {
+        return null;
+    }
+    foreach (['x1', 'y1', 'x2', 'y2'] as $coordinate) {
+        if (!is_numeric($bbox[$coordinate] ?? null) || !is_finite((float) $bbox[$coordinate])) {
+            return null;
+        }
+    }
+    $x1 = (float) $bbox['x1'];
+    $y1 = (float) $bbox['y1'];
+    $x2 = (float) $bbox['x2'];
+    $y2 = (float) $bbox['y2'];
+    if ($x2 <= $x1 || $y2 <= $y1) {
+        return null;
+    }
+
+    return compact('x1', 'y1', 'x2', 'y2');
 }
 
 /**
@@ -1413,7 +1732,7 @@ function run_process(array $cmd, int $timeoutSeconds = 0, ?string $workingDirect
 }
 
 /**
- * @return array{ok:bool, path?:string, error?:string, media?:list<array<string,mixed>>, mediaDiagnostics?:list<string>}
+ * @return array{ok:bool, path?:string, error?:string, media?:list<array<string,mixed>>, mediaDiagnostics?:list<string>, sourceIntegrity?:array<string,mixed>|null}
  */
 function write_output_from_process(string $dir, string $name, string $sourcePath, string $from, string $to): array
 {
@@ -1447,41 +1766,55 @@ function write_output_from_process(string $dir, string $name, string $sourcePath
         }
     }
     $result = run_process([PHP_BINARY, __FILE__, '--convert-local', $sourcePath, $from, $to, $mediaDir, 'media', $manifestPath, $pdfRasterManifest], $timeout);
-    if ($result['exitCode'] === 0) {
-        $stdout = $to === 'html'
-            ? wrap_local_html_document($result['stdout'], 'PHP Pandoc HTML output')
-            : $result['stdout'];
-        file_put_contents($dir . '/' . $name, $stdout);
-
-        $manifest = read_media_manifest($manifestPath, basename($dir));
-        if (is_file($manifestPath)) {
-            unlink($manifestPath);
-        }
-        if ($pdfRasterManifest !== '' && is_file($pdfRasterManifest)) {
-            unlink($pdfRasterManifest);
-        }
-
-        return [
-            'ok' => true,
-            'path' => 'outputs/' . basename($dir) . '/' . $name,
-            'media' => $manifest['media'],
-            'mediaDiagnostics' => $manifest['diagnostics'],
-        ];
-    }
-
-    $message = sanitize_generated_text(trim($result['stderr'] . "\n" . $result['stdout']));
-    if ($message === '') {
-        $message = 'Local converter exited with code ' . $result['exitCode'];
-    }
+    $manifest = read_media_manifest($manifestPath, basename($dir));
     if (is_file($manifestPath)) {
         unlink($manifestPath);
     }
     if ($pdfRasterManifest !== '' && is_file($pdfRasterManifest)) {
         unlink($pdfRasterManifest);
     }
+    $emptyPdfOutput = PandocConverter::canonicalInputFormat($from) === 'pdf'
+        && trim($result['stdout']) === '';
+    if ($result['exitCode'] === 0 && !$emptyPdfOutput) {
+        $stdout = $to === 'html'
+            ? wrap_local_html_document($result['stdout'], 'PHP Pandoc HTML output')
+            : $result['stdout'];
+        file_put_contents($dir . '/' . $name, $stdout);
+
+        return [
+            'ok' => true,
+            'path' => 'outputs/' . basename($dir) . '/' . $name,
+            'media' => $manifest['media'],
+            'mediaDiagnostics' => $manifest['diagnostics'],
+            'sourceIntegrity' => $manifest['sourceIntegrity'],
+        ];
+    }
+
+    $pdfTextLayerStatus = is_array($manifest['sourceIntegrity'] ?? null)
+        && is_string($manifest['sourceIntegrity']['pdfTextLayerStatus'] ?? null)
+            ? $manifest['sourceIntegrity']['pdfTextLayerStatus']
+            : null;
+    $message = $emptyPdfOutput
+        ? ($pdfTextLayerStatus === 'incomplete'
+            ? 'incomplete: PDF source extraction did not complete, so no safe editable output was generated.'
+            : 'unsupported_no_text: PDF conversion produced no visible text, page asset, or placeholder.')
+        : sanitize_generated_text(trim($result['stderr'] . "\n" . $result['stdout']));
+    if ($message === '') {
+        $message = 'Local converter exited with code ' . $result['exitCode'];
+    }
+    if (is_file($dir . '/' . $name)) {
+        unlink($dir . '/' . $name);
+    }
     file_put_contents($dir . '/' . $name . '.error.txt', $message);
 
-    return ['ok' => false, 'error' => $message, 'path' => 'outputs/' . basename($dir) . '/' . $name . '.error.txt'];
+    return [
+        'ok' => false,
+        'error' => $message,
+        'path' => 'outputs/' . basename($dir) . '/' . $name . '.error.txt',
+        'media' => $manifest['media'],
+        'mediaDiagnostics' => $manifest['diagnostics'],
+        'sourceIntegrity' => $manifest['sourceIntegrity'],
+    ];
 }
 
 /**
@@ -1524,16 +1857,20 @@ function showcase_pdf_raster_images_from_manifest(string $path): array
 }
 
 /**
- * @return array{media:list<array<string,mixed>>, diagnostics:list<string>}
+ * @return array{media:list<array<string,mixed>>, diagnostics:list<string>, sourceIntegrity:array<string,mixed>|null}
  */
 function read_media_manifest(string $path, string $sampleId): array
 {
     if (!is_file($path)) {
-        return ['media' => [], 'diagnostics' => []];
+        return ['media' => [], 'diagnostics' => [], 'sourceIntegrity' => null];
     }
     $json = json_decode((string) file_get_contents($path), true);
     if (!is_array($json)) {
-        return ['media' => [], 'diagnostics' => ['extract-media-manifest-unreadable']];
+        return [
+            'media' => [],
+            'diagnostics' => ['extract-media-manifest-unreadable'],
+            'sourceIntegrity' => null,
+        ];
     }
 
     $media = [];
@@ -1554,7 +1891,15 @@ function read_media_manifest(string $path, string $sampleId): array
         }
     }
 
-    return ['media' => $media, 'diagnostics' => $diagnostics];
+    $sourceIntegrity = is_array($json['sourceIntegrity'] ?? null)
+        ? $json['sourceIntegrity']
+        : null;
+
+    return [
+        'media' => $media,
+        'diagnostics' => $diagnostics,
+        'sourceIntegrity' => $sourceIntegrity,
+    ];
 }
 
 /**
@@ -2735,6 +3080,63 @@ function showcase_pdf_import_quality(string $siteDir, array $record): ?array
     $nativeSourceCoverage = round((float) $nativeTextMetrics['expectedCoverage'], 3);
     $referenceMetrics = is_array($reference['metrics'] ?? null) ? $reference['metrics'] : [];
     $wpVisual = showcase_output_visual_signature($siteDir, $wpPath);
+    $sourceIntegrity = is_array($record['wpBlocks']['sourceIntegrity'] ?? null)
+        ? $record['wpBlocks']['sourceIntegrity']
+        : [];
+    $unsupportedNoText = ($sourceIntegrity['pdfTextLayerStatus'] ?? null) === 'unsupported_no_text'
+        && ($sourceIntegrity['pdfNeedsOcr'] ?? null) === true;
+    if ($unsupportedNoText) {
+        $representedPages = is_array($sourceIntegrity['pdfRepresentedPageNumbers'] ?? null)
+            ? array_values(array_map('intval', $sourceIntegrity['pdfRepresentedPageNumbers']))
+            : [];
+        $pageCount = max(0, (int) ($sourceIntegrity['pdfPageCount'] ?? 0));
+        $pageRepresentationComplete = ($sourceIntegrity['pdfPageRepresentationComplete'] ?? null) === true
+            && $pageCount > 0
+            && count($representedPages) === $pageCount;
+        $gates = [
+            'text_completeness' => [
+                'status' => 'review',
+                'expected' => 'explicit unsupported_no_text classification; no invented OCR body text; retain any sparse painted stamp',
+                'actual' => $sourceIntegrity['pdfTextLayerStatus'],
+                'detail' => 'The native reader found no usable painted body text. Any sparse visible stamp is retained, while non-painting overlay text is not copied into editable body text; OCR remains outside this importer.',
+            ],
+            'native_source_coverage' => [
+                'status' => 'review',
+                'expected' => 'not applicable without painted native text',
+                'actual' => $nativeSourceCoverage,
+                'detail' => 'Non-painting overlay text is intentionally excluded from visible source coverage.',
+            ],
+            'pdf_geometry_reference' => [
+                'status' => $pageRepresentationComplete ? 'review' : 'fail',
+                'expected' => 'typed no-text boundary plus one represented occurrence per page',
+                'actual' => [
+                    'pages' => $pageCount,
+                    'representedPages' => $representedPages,
+                    'reference' => $referenceMetrics,
+                ],
+                'detail' => $pageRepresentationComplete
+                    ? 'Every source page remains visible through a safely proven painted page-image occurrence while OCR semantics remain unsupported.'
+                    : 'One or more source pages lack a safely proven painted page image or placeholder; no exact visual representation is claimed.',
+            ],
+            'paragraph_merge_split' => [
+                'status' => 'review',
+                'expected' => 'zero OCR-derived semantic paragraphs; a sparse painted stamp may remain',
+                'actual' => max(0, (int) ($wpVisual['p'] ?? 0)),
+                'detail' => 'An image-backed page cannot be scored for body-paragraph reconstruction without OCR; a sparse painted stamp is kept as visible source content.',
+            ],
+            'ocr_boundary' => [
+                'status' => $pageRepresentationComplete ? 'review' : 'fail',
+                'expected' => $pageCount,
+                'actual' => count($representedPages),
+                'detail' => $pageRepresentationComplete
+                    ? 'Every page is represented by a safely decoded and sanitized image derived from its exact painted page occurrence; OCR remains explicitly out of scope.'
+                    : 'One or more no-text PDF pages disappeared without an original asset or visible placeholder.',
+            ],
+        ];
+        showcase_add_output_integrity_gates($gates, $siteDir, $record, $wpPath);
+
+        return showcase_import_quality_result($gates);
+    }
     $tableDominant = showcase_pdf_output_is_table_dominant($siteDir, $wpPath);
     $textCompletenessScore = $tableDominant
         ? (float) $textMetrics['expectedCoverage']
@@ -2759,7 +3161,11 @@ function showcase_pdf_import_quality(string $siteDir, array $record): ?array
             true
         ),
         'pdf_geometry_reference' => showcase_pdf_geometry_reference_gate($referenceMetrics),
-        'paragraph_merge_split' => showcase_pdf_paragraph_geometry_gate($referenceMetrics, $wpVisual),
+        'paragraph_merge_split' => showcase_pdf_paragraph_geometry_gate(
+            $referenceMetrics,
+            $wpVisual,
+            showcase_pdf_paragraph_fragmentation_metrics($siteDir, $wpPath)
+        ),
     ];
 
     showcase_add_output_integrity_gates($gates, $siteDir, $record, $wpPath);
@@ -2955,23 +3361,43 @@ function showcase_pdf_geometry_reference_gate(array $metrics): array
     $pages = max(0, (int) ($metrics['pageCount'] ?? 0));
     $textPages = max(0, (int) ($metrics['textPageCount'] ?? 0));
     $lines = max(0, (int) ($metrics['lineCount'] ?? 0));
+    $scanWithoutTextLayer = $pages > 0 && $textPages === 0 && $lines === 0;
+    $completeTextPageCoverage = $pages > 0 && $textPages === $pages && $lines > 0;
+    $partialTextPageCoverage = $pages > 0 && $textPages > 0 && $textPages < $pages && $lines > 0;
+    $textPageCoverage = $pages === 0 ? 0.0 : round($textPages / $pages, 4);
 
     return [
-        'status' => $pages > 0 && $textPages > 0 && $lines > 0 ? 'pass' : 'fail',
-        'expected' => 'native PDF page and line geometry',
-        'actual' => ['pages' => $pages, 'textPages' => $textPages, 'lines' => $lines],
-        'detail' => 'macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree.',
+        'status' => $completeTextPageCoverage
+            ? 'pass'
+            : (($scanWithoutTextLayer || $partialTextPageCoverage) ? 'review' : 'fail'),
+        'expected' => $scanWithoutTextLayer
+            ? 'page geometry plus an explicit unsupported-text-layer status and page occurrence representation'
+            : 'native PDF page geometry and text-line evidence for every page',
+        'actual' => [
+            'pages' => $pages,
+            'textPages' => $textPages,
+            'textPageCoverage' => $textPageCoverage,
+            'lines' => $lines,
+        ],
+        'detail' => $scanWithoutTextLayer
+            ? 'PDFKit exposed scanned pages but no native text layer. OCR is outside this importer; publication requires an explicit unsupported status plus retained page originals or placeholders.'
+            : ($partialTextPageCoverage
+                ? 'PDFKit exposed text lines on only ' . $textPages . '/' . $pages . ' pages; the remaining page occurrences must not disappear silently.'
+                : 'macOS PDFKit independently exposed source page boundaries and visual text lines on every page; untagged PDFs do not expose an HTML heading/list/table/image tree.'),
     ];
 }
 
 /**
  * @param array<string,mixed> $metrics
  * @param array<string,int> $wpVisual
- * @return array{status:string,expected:string,actual:array<string,int>,detail:string}
+ * @param array<string,int|float> $fragmentation
+ * @return array{status:string,expected:string,actual:array<string,int|float>,detail:string}
  */
-function showcase_pdf_paragraph_geometry_gate(array $metrics, array $wpVisual): array
+function showcase_pdf_paragraph_geometry_gate(array $metrics, array $wpVisual, array $fragmentation = []): array
 {
     $sourceLines = max(0, (int) ($metrics['lineCount'] ?? 0));
+    $sourcePages = max(0, (int) ($metrics['pageCount'] ?? 0));
+    $sourceTextPages = max(0, (int) ($metrics['textPageCount'] ?? 0));
     $textPages = max(1, (int) ($metrics['textPageCount'] ?? 0));
     $paragraphs = max(0, (int) ($wpVisual['p'] ?? 0));
     $textBlocks = $paragraphs
@@ -2982,19 +3408,90 @@ function showcase_pdf_paragraph_geometry_gate(array $metrics, array $wpVisual): 
         + max(0, (int) ($wpVisual['pre'] ?? 0))
         + max(0, (int) ($wpVisual['linegroup'] ?? 0));
     $maxParagraphs = $sourceLines < 20 ? PHP_INT_MAX : max(1, (int) floor($sourceLines * 0.90));
+    $measuredParagraphs = max(0, (int) ($fragmentation['paragraphs'] ?? $paragraphs));
+    $veryShortParagraphs = max(0, (int) ($fragmentation['veryShortParagraphs'] ?? 0));
+    $singleTokenParagraphs = max(0, (int) ($fragmentation['singleTokenParagraphs'] ?? 0));
+    $veryShortShare = $measuredParagraphs === 0 ? 0.0 : round($veryShortParagraphs / $measuredParagraphs, 4);
+    $singleTokenShare = $measuredParagraphs === 0 ? 0.0 : round($singleTokenParagraphs / $measuredParagraphs, 4);
+    $severelyFragmented = $measuredParagraphs >= 20
+        && ($veryShortShare >= 0.50 || $singleTokenShare >= 0.60);
 
-    $status = $textBlocks < $textPages
-        ? 'fail'
-        : ($paragraphs > $maxParagraphs ? 'review' : 'pass');
+    $scanWithoutTextLayer = $sourcePages > 0 && $sourceTextPages === 0 && $sourceLines === 0;
+    $status = $scanWithoutTextLayer
+        ? 'review'
+        : ($textBlocks < $textPages
+            ? 'fail'
+            : (($paragraphs > $maxParagraphs || $severelyFragmented) ? 'review' : 'pass'));
 
     return [
         'status' => $status,
-        'expected' => $sourceLines < 20
+        'expected' => $scanWithoutTextLayer
+            ? 'an explicit unsupported-text-layer status without invented semantic paragraphs'
+            : ($sourceLines < 20
             ? 'at least ' . $textPages . ' semantic text blocks'
-            : 'at least ' . $textPages . ' semantic text blocks and no more than 90% of ' . $sourceLines . ' visual lines as paragraphs',
-        'actual' => ['textBlocks' => $textBlocks, 'paragraphs' => $paragraphs, 'sourceLines' => $sourceLines],
-        'detail' => 'native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line.',
+            : 'at least ' . $textPages . ' semantic text blocks, no more than 90% of ' . $sourceLines . ' visual lines as paragraphs, and no severe short-fragment majority'),
+        'actual' => [
+            'textBlocks' => $textBlocks,
+            'paragraphs' => $paragraphs,
+            'sourceLines' => $sourceLines,
+            'veryShortParagraphs' => $veryShortParagraphs,
+            'veryShortShare' => $veryShortShare,
+            'singleTokenParagraphs' => $singleTokenParagraphs,
+            'singleTokenShare' => $singleTokenShare,
+        ],
+        'detail' => $scanWithoutTextLayer
+            ? 'A page-only scan cannot be scored for paragraph reconstruction because OCR is outside this importer.'
+            : ($severelyFragmented
+                ? 'The output is severely fragmented: ' . $veryShortParagraphs . '/' . $measuredParagraphs . ' paragraphs contain at most three characters and ' . $singleTokenParagraphs . '/' . $measuredParagraphs . ' contain at most one lexical token.'
+                : 'native line geometry and output lexical shape guard against collapsing a multi-page source or emitting visual fragments as standalone paragraphs.'),
     ];
+}
+
+/**
+ * Measure paragraph shape from the emitted document. Counts alone cannot spot
+ * a reconstruction that turns individual glyphs or labels into paragraphs.
+ *
+ * @return array{paragraphs:int,veryShortParagraphs:int,singleTokenParagraphs:int}
+ */
+function showcase_pdf_paragraph_fragmentation_metrics(string $siteDir, string $relativePath): array
+{
+    $metrics = ['paragraphs' => 0, 'veryShortParagraphs' => 0, 'singleTokenParagraphs' => 0];
+    $html = showcase_output_html($siteDir, $relativePath);
+    if ($html === '' || !class_exists(DOMDocument::class)) {
+        return $metrics;
+    }
+
+    $dom = new DOMDocument();
+    $previous = libxml_use_internal_errors(true);
+    try {
+        $loaded = $dom->loadHTML(
+            '<!doctype html><html><head><meta charset="utf-8"></head><body>' . showcase_visible_html($html) . '</body></html>',
+            LIBXML_NONET
+        );
+    } finally {
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+    }
+    if (!$loaded) {
+        return $metrics;
+    }
+
+    foreach ($dom->getElementsByTagName('p') as $paragraph) {
+        $text = preg_replace('/\s+/u', ' ', showcase_dom_visible_text($paragraph)) ?? '';
+        $text = trim($text);
+        if ($text === '') {
+            continue;
+        }
+        $metrics['paragraphs']++;
+        if (mb_strlen($text, 'UTF-8') <= 3) {
+            $metrics['veryShortParagraphs']++;
+        }
+        if (count(showcase_text_tokens($text)) <= 1) {
+            $metrics['singleTokenParagraphs']++;
+        }
+    }
+
+    return $metrics;
 }
 
 /**
@@ -3002,6 +3499,40 @@ function showcase_pdf_paragraph_geometry_gate(array $metrics, array $wpVisual): 
  */
 function showcase_add_output_integrity_gates(array &$gates, string $siteDir, array $record, string $wpPath): void
 {
+    if (PandocConverter::canonicalInputFormat((string) ($record['format'] ?? '')) === 'pdf') {
+        $integrity = is_array($record['wpBlocks']['sourceIntegrity'] ?? null)
+            ? $record['wpBlocks']['sourceIntegrity']
+            : [];
+        $unresolved = is_int($integrity['pdfUnresolvedSourceOccurrences'] ?? null)
+            ? $integrity['pdfUnresolvedSourceOccurrences']
+            : null;
+        $pageRepresentationComplete = ($integrity['pdfPageRepresentationComplete'] ?? null) === true;
+        $complete = ($integrity['complete'] ?? null) === true
+            && ($integrity['pdfDocumentComplete'] ?? null) === true
+            && ($integrity['pdfSemanticTextComplete'] ?? null) === true
+            && ($integrity['pdfSourceBindingComplete'] ?? null) === true
+            && ($integrity['pdfSourceEdgeMappingComplete'] ?? null) === true
+            && ($integrity['pdfOrderedSignificantCharactersPreserved'] ?? null) === true
+            && $unresolved === 0
+            && $pageRepresentationComplete;
+        $gates['pdf_source_integrity'] = [
+            'status' => $complete ? 'pass' : 'fail',
+            'expected' => [
+                'pdfDocumentComplete' => true,
+                'pdfSemanticTextComplete' => true,
+                'pdfSourceBindingComplete' => true,
+                'pdfSourceEdgeMappingComplete' => true,
+                'pdfOrderedSignificantCharactersPreserved' => true,
+                'pdfUnresolvedSourceOccurrences' => 0,
+                'pdfPageRepresentationComplete' => true,
+            ],
+            'actual' => $integrity === [] ? null : $integrity,
+            'detail' => $complete
+                ? 'the complete PDF is covered and every required source occurrence has an exact ordered output edge or evidenced disposition'
+                : 'PDF document coverage or source integrity is unavailable or incomplete; this output is not eligible for a quality pass or publication',
+        ];
+    }
+
     $mediaProblems = showcase_media_problem_diagnostics($record['wpBlocks']['mediaDiagnostics'] ?? []);
     $gates['media_imported'] = [
         'status' => $mediaProblems === [] ? 'pass' : 'review',
@@ -3138,13 +3669,24 @@ function showcase_media_problem_diagnostics(mixed $diagnostics): array
     if (!is_array($diagnostics)) {
         return [];
     }
+    $normalized = array_values(array_filter(array_map('strval', $diagnostics), static fn (string $item): bool => $item !== ''));
+    $unimportantObjectIds = [];
+    foreach ($normalized as $diagnostic) {
+        if (preg_match('/^extract-media-pdf-image-unimportant:([^:]+):/i', $diagnostic, $match) === 1) {
+            $unimportantObjectIds[(string) $match[1]] = true;
+        }
+    }
+
     $problems = [];
-    foreach ($diagnostics as $diagnostic) {
-        $diagnostic = (string) $diagnostic;
+    foreach ($normalized as $diagnostic) {
         if ($diagnostic === '' || str_starts_with($diagnostic, 'extract-media-pdf-image-unimportant:')) {
             continue;
         }
-        if (preg_match('/(?:missing|failed|unreadable|invalid|skipped|too-large|limit|conflict)/i', $diagnostic) === 1) {
+        if (preg_match('/^extract-media-pdf-image-placement-unavailable:([^:]+)$/i', $diagnostic, $match) === 1
+            && isset($unimportantObjectIds[(string) $match[1]])) {
+            continue;
+        }
+        if (preg_match('/(?:missing|failed|unreadable|invalid|skipped|too-large|limit|conflict|unanchored|placement-unavailable)/i', $diagnostic) === 1) {
             $problems[] = $diagnostic;
         }
     }
@@ -3824,6 +4366,98 @@ function haskell_pandoc_timeout_seconds(string $path): int
     return ShowcaseHaskellReferenceTimeout::secondsFor($path);
 }
 
+/**
+ * Keep a successful external reference reusable when neither its source nor
+ * the installed Haskell Pandoc changed. This prevents a pathological office
+ * reader from replacing a known-good baseline with a timeout artifact during
+ * an otherwise unrelated showcase rebuild.
+ *
+ * @return array{html:string,sourceSha256:string,pandocVersion:string,renderedWithCiteproc:bool}|null
+ */
+function cached_haskell_pandoc_reference(string $dir, string $path, string $format): ?array
+{
+    if (haskell_pandoc_timeout_seconds($path) <= 300) {
+        return null;
+    }
+    $htmlPath = $dir . '/haskell.html';
+    if (!is_file($htmlPath) || !is_file($path)) {
+        return null;
+    }
+    $html = file_get_contents($htmlPath);
+    $sourceSha256 = hash_file('sha256', $path);
+    if (!is_string($html) || $html === '' || !is_string($sourceSha256) || $sourceSha256 === '') {
+        return null;
+    }
+
+    $pandocVersion = haskell_pandoc_version_signature();
+    $metadataPath = $dir . '/haskell.cache.json';
+    if (is_file($metadataPath)) {
+        $metadata = json_decode((string) file_get_contents($metadataPath), true);
+        if (!is_array($metadata)
+            || ($metadata['sourceSha256'] ?? null) !== $sourceSha256
+            || ($metadata['pandocVersion'] ?? null) !== $pandocVersion
+            || ($metadata['format'] ?? null) !== $format) {
+            return null;
+        }
+    }
+
+    return [
+        'html' => $html,
+        'sourceSha256' => $sourceSha256,
+        'pandocVersion' => $pandocVersion,
+        'renderedWithCiteproc' => showcase_bibliography_input_format($format),
+    ];
+}
+
+function haskell_pandoc_version_signature(): string
+{
+    static $signature = null;
+    if (is_string($signature)) {
+        return $signature;
+    }
+    $result = run_process(['pandoc', '--version'], 10);
+    $firstLine = strtok(trim((string) ($result['stdout'] ?? '')), "\r\n");
+    $signature = is_string($firstLine) && $firstLine !== ''
+        ? sanitize_generated_text($firstLine)
+        : 'pandoc-version-unavailable';
+
+    return $signature;
+}
+
+/** @param array{html:string,sourceSha256:string,pandocVersion:string,renderedWithCiteproc:bool} $cached */
+function restore_cached_haskell_pandoc_reference(string $dir, string $format, array $cached): array
+{
+    file_put_contents($dir . '/haskell.html', $cached['html']);
+    file_put_contents($dir . '/haskell.cache.json', json_encode([
+        'sourceSha256' => $cached['sourceSha256'],
+        'pandocVersion' => $cached['pandocVersion'],
+        'format' => $format,
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+
+    return [
+        'ok' => true,
+        'path' => 'outputs/' . basename($dir) . '/haskell.html',
+        'renderedWithCiteproc' => $cached['renderedWithCiteproc'],
+        'cached' => true,
+    ];
+}
+
+function write_haskell_pandoc_cache_metadata(string $dir, string $path, string $format): void
+{
+    if (haskell_pandoc_timeout_seconds($path) <= 300) {
+        return;
+    }
+    $sourceSha256 = is_file($path) ? hash_file('sha256', $path) : false;
+    if (!is_string($sourceSha256) || $sourceSha256 === '') {
+        return;
+    }
+    file_put_contents($dir . '/haskell.cache.json', json_encode([
+        'sourceSha256' => $sourceSha256,
+        'pandocVersion' => haskell_pandoc_version_signature(),
+        'format' => $format,
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+}
+
 function run_haskell_pandoc(string $path, string $format, string $dir): array
 {
     $out = $dir . '/haskell.html';
@@ -3864,6 +4498,7 @@ function run_haskell_pandoc(string $path, string $format, string $dir): array
         $body,
         $renderedWithCiteproc ? 'Haskell Pandoc Citeproc HTML output' : 'Haskell Pandoc HTML output'
     ));
+    write_haskell_pandoc_cache_metadata($dir, $path, $format);
 
     return [
         'ok' => true,
@@ -4185,15 +4820,90 @@ function showcase_examples_view(array $record, string $view, string $siteDir): a
 
 /**
  * @param array<string, mixed> $record
- * @return array{ok:bool,path:string,bytes:int}
+ * @param array{ok?:bool,status?:string}|null $conversionExpectation
+ * @return array{ok:bool,path:string,bytes:int,status?:string}
  */
-function showcase_examples_wordpress_preview_view(array $record, string $siteDir): array
+function showcase_examples_wordpress_preview_view(
+    array $record,
+    string $siteDir,
+    ?array $conversionExpectation = null
+): array
 {
     $rawView = showcase_examples_view($record, 'wpBlocks', $siteDir);
     if (!$rawView['ok'] || $rawView['path'] === '') {
-        return $rawView;
-    }
+        $integrity = is_array($record['wpBlocks']['sourceIntegrity'] ?? null)
+            ? $record['wpBlocks']['sourceIntegrity']
+            : [];
+        $pageCount = max(0, (int) ($integrity['pdfPageCount'] ?? 0));
+        $representedPages = is_array($integrity['pdfRepresentedPageNumbers'] ?? null)
+            ? array_values($integrity['pdfRepresentedPageNumbers'])
+            : null;
+        $pagesNeedingRepresentation = is_array($integrity['pdfPagesNeedingImageRepresentation'] ?? null)
+            ? array_values(array_map('intval', $integrity['pdfPagesNeedingImageRepresentation']))
+            : null;
+        $expectedStatus = is_string($conversionExpectation['status'] ?? null)
+            ? $conversionExpectation['status']
+            : '';
+        $incomplete = ($integrity['pdfTextLayerStatus'] ?? null) === 'incomplete'
+            && ($integrity['pdfNeedsOcr'] ?? null) === false
+            && ($integrity['pdfTextComplete'] ?? null) === false
+            && ($integrity['pdfNoTextClassificationComplete'] ?? null) === false
+            && ($integrity['pdfDocumentComplete'] ?? null) === false
+            && ($integrity['pdfPageRepresentationComplete'] ?? null) === false
+            && $pageCount > 0
+            && $representedPages === []
+            && ($conversionExpectation['ok'] ?? null) === false
+            && $expectedStatus === 'incomplete';
+        $unsupportedNoText = ($integrity['pdfTextLayerStatus'] ?? null) === 'unsupported_no_text'
+            && ($integrity['pdfNeedsOcr'] ?? null) === true
+            && ($integrity['pdfTextComplete'] ?? null) === true
+            && ($integrity['pdfNoTextClassificationComplete'] ?? null) === true
+            && ($integrity['pdfDocumentComplete'] ?? null) === true
+            && ($integrity['pdfSemanticTextComplete'] ?? null) === true
+            && ($integrity['pdfPageRepresentationComplete'] ?? null) === false
+            && $pageCount > 0
+            && $pagesNeedingRepresentation === range(1, $pageCount)
+            && $representedPages === []
+            && ($conversionExpectation['ok'] ?? null) === false
+            && $expectedStatus === 'unsupported_no_text';
+        if ((!$incomplete && !$unsupportedNoText) || $rawView['path'] === '') {
+            return $rawView;
+        }
 
+        // This is a reviewer status page, not Gutenberg output. Keep the
+        // canonical conversion failed while making the unresolved extraction
+        // boundary inspectable beside the original PDF in the public reviewer.
+        if ($unsupportedNoText) {
+            $pageLabel = $pageCount === 1 ? '1 fully decoded source page has' : $pageCount . ' fully decoded source pages have';
+            $statusBody = '<main class="pandoc-pdf-import-status" data-pandoc-pdf-preview-status="unsupported_no_text">'
+                . '<h1>PDF has no editable native text</h1><p>' . h($pageLabel)
+                . ' no usable painted text. OCR is outside this importer, and no static original-page representation was produced.</p>'
+                . '<p>No editable WordPress import was generated. The browser-assisted path can render the exact source pages for review.</p>'
+                . '</main>';
+            $previewTitle = 'PDF import status: no editable native text';
+        } else {
+            $pageLabel = $pageCount === 1 ? '1 source page was' : $pageCount . ' source pages were';
+            $statusBody = '<main class="pandoc-pdf-import-status" data-pandoc-pdf-preview-status="incomplete">'
+                . '<h1>PDF extraction incomplete</h1><p>' . h($pageLabel)
+                . ' detected, but page-content extraction did not complete and no safe editable content or original page representation was produced.</p>'
+                . '<p>No editable WordPress import was generated. The source remains unresolved; review the original PDF instead.</p>'
+                . '</main>';
+            $previewTitle = 'PDF import status: extraction incomplete';
+        }
+        $previewPath = dirname($rawView['path']) . '/wordpress-blocks-preview.html';
+        $previewAbsolutePath = $siteDir . '/' . $previewPath;
+        $previewBody = wrap_wordpress_block_preview_document($statusBody, $previewTitle);
+        if (file_put_contents($previewAbsolutePath, $previewBody) === false) {
+            return ['ok' => false, 'path' => '', 'bytes' => 0];
+        }
+
+        return [
+            'ok' => false,
+            'path' => $previewPath,
+            'bytes' => (int) filesize($previewAbsolutePath),
+            'status' => $expectedStatus,
+        ];
+    }
     $rawPath = $siteDir . '/' . $rawView['path'];
     $rawBody = is_file($rawPath) ? file_get_contents($rawPath) : false;
     if (!is_string($rawBody)) {
@@ -4220,13 +4930,56 @@ function showcase_examples_wordpress_preview_view(array $record, string $siteDir
  */
 function showcase_examples_index(array $records, string $siteDir, string $generatedAt): array
 {
+    $conversionExpectations = [];
+    $layoutManifest = json_decode(
+        (string) file_get_contents(__DIR__ . '/pdf-layout-corpus-manifest.json'),
+        true
+    );
+    if (is_array($layoutManifest)) {
+        foreach ($layoutManifest as $entry) {
+            if (!is_array($entry) || !is_string($entry['id'] ?? null)) {
+                continue;
+            }
+            $expectation = $entry['conversionExpectation'] ?? null;
+            if (is_array($expectation)) {
+                $conversionExpectations['pdf-layout-' . $entry['id']] = $expectation;
+            }
+        }
+    }
+
     $examples = [];
     foreach ($records as $record) {
         $id = (string) ($record['id'] ?? '');
         if ($id === '') {
             continue;
         }
-        $examples[] = [
+        $conversionExpectation = is_array($conversionExpectations[$id] ?? null)
+            ? $conversionExpectations[$id]
+            : [];
+        foreach (['phpHtml', 'wpBlocks'] as $viewName) {
+            $view = is_array($record[$viewName] ?? null) ? $record[$viewName] : [];
+            $expected = is_array($conversionExpectation[$viewName] ?? null)
+                ? $conversionExpectation[$viewName]
+                : [];
+            $actualOk = ($view['ok'] ?? false) === true;
+            $actualStatus = is_string($view['sourceIntegrity']['pdfTextLayerStatus'] ?? null)
+                ? $view['sourceIntegrity']['pdfTextLayerStatus']
+                : '';
+            if (!$actualOk && $expected === []) {
+                throw new RuntimeException(
+                    "{$id} {$viewName} failed without an explicit conversionExpectation."
+                );
+            }
+            if ($expected !== [] && (
+                ($expected['ok'] ?? null) !== $actualOk
+                || ($expected['status'] ?? null) !== $actualStatus
+            )) {
+                throw new RuntimeException(
+                    "{$id} {$viewName} diverged from its explicit conversionExpectation."
+                );
+            }
+        }
+        $example = [
             'id' => $id,
             'format' => (string) ($record['format'] ?? ''),
             'label' => (string) ($record['label'] ?? $id),
@@ -4237,10 +4990,28 @@ function showcase_examples_index(array $records, string $siteDir, string $genera
             'sampleSize' => (int) ($record['sampleSize'] ?? 0),
             'views' => [
                 'phpHtml' => showcase_examples_view($record, 'phpHtml', $siteDir),
-                'wpBlocks' => showcase_examples_wordpress_preview_view($record, $siteDir),
+                'wpBlocks' => showcase_examples_wordpress_preview_view(
+                    $record,
+                    $siteDir,
+                    is_array($conversionExpectation['wpBlocks'] ?? null)
+                        ? $conversionExpectation['wpBlocks']
+                        : null
+                ),
                 'haskell' => showcase_examples_view($record, 'haskell', $siteDir),
             ],
         ];
+        $formRenders = is_array($record['pdfFormRenders'] ?? null) ? $record['pdfFormRenders'] : [];
+        $formRenderPath = ltrim((string) ($formRenders['path'] ?? ''), '/');
+        $formRenderAbsolutePath = $formRenderPath === '' ? '' : $siteDir . '/' . $formRenderPath;
+        if (($formRenders['ok'] ?? false) === true && is_file($formRenderAbsolutePath)) {
+            $example['pdfFormRenders'] = [
+                'ok' => true,
+                'path' => $formRenderPath,
+                'bytes' => (int) filesize($formRenderAbsolutePath),
+                'count' => (int) ($formRenders['count'] ?? 0),
+            ];
+        }
+        $examples[] = $example;
     }
 
     $defaultExampleId = '';
@@ -4303,13 +5074,14 @@ function showcase_write_examples_page(string $siteDir, array $records, string $g
     // Otherwise a UI-only update can be hidden behind a stale CSS or JavaScript cache.
     $assetVersion = substr(hash('sha256', $indexJson . "\n" . $css . "\n" . $javascript), 0, 12);
     $page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
-    $page .= '<title>Adam&#039;s Pandoc → PHP Port</title><link rel="stylesheet" href="examples.css?v=' . h($assetVersion) . '"></head>';
+    $page .= '<title>Adam&#039;s Pandoc → PHP Port</title><link rel="icon" href="data:,"><link rel="stylesheet" href="examples.css?v=' . h($assetVersion) . '"></head>';
     $page .= '<body><main class="example-browser"><div class="picker-area"><div class="example-toolbar">';
     $page .= '<button id="previous-example" class="example-arrow previous-arrow" type="button" aria-label="Previous example" title="Previous example" disabled><span class="arrow-glyph" aria-hidden="true">←</span><span class="arrow-label">Previous example</span></button>';
     $page .= '<h1 class="example-title">Adam&#039;s Pandoc → PHP Port</h1>';
     $page .= '<div class="picker-controls"><label class="screen-reader-text" for="example-picker">Example</label><select id="example-picker" disabled><option>Loading examples…</option></select></div>';
     $page .= '<a id="download-source" class="download-source" href="" download hidden>Download original</a>';
-    $page .= '<button id="try-own-file" class="try-own-file" type="button">Try your own file</button><input id="own-file-input" type="file" hidden>';
+    $page .= '<button id="try-own-file" class="try-own-file" type="button">Try your own file</button><button id="cancel-own-file" class="try-own-file" type="button" hidden disabled>Cancel import</button><input id="own-file-input" type="file" hidden>';
+    $page .= '<dialog id="own-pdf-output-dialog" class="own-pdf-output-dialog"><form method="dialog"><h2>PDF pages</h2><p id="own-pdf-output-message">Choose how this PDF should become WordPress pages.</p><label><input type="radio" name="own-pdf-output-mode" value="single" checked> One WordPress page</label><label><input type="radio" name="own-pdf-output-mode" value="pages"> One child page per PDF page</label><div class="dialog-actions"><button type="submit" value="cancel" class="dialog-cancel">Cancel</button><button type="submit" value="import" class="dialog-import">Import PDF</button></div></form></dialog>';
     $page .= '<button id="next-example" class="example-arrow next-arrow" type="button" aria-label="Next example" title="Next example" disabled><span class="arrow-glyph" aria-hidden="true">→</span><span class="arrow-label">Next example</span></button></div>';
     $page .= '<p id="viewer-status" class="viewer-status" role="status" aria-live="polite" hidden>Preparing the selected example…</p></div>';
     $page .= '<div class="view-tabs" role="group" aria-label="Preview format">';
@@ -4322,6 +5094,560 @@ function showcase_write_examples_page(string $siteDir, array $records, string $g
     file_put_contents($siteDir . '/examples.html', rtrim($page) . "\n");
     file_put_contents($siteDir . '/examples.css', rtrim($css) . "\n");
     file_put_contents($siteDir . '/examples.js', rtrim($javascript) . "\n");
+    showcase_write_pdf_layout_corpus_review_page($siteDir, $index);
+}
+
+/** @param array<string,mixed> $examplesIndex */
+function showcase_write_pdf_layout_corpus_review_page(string $siteDir, array $examplesIndex): void
+{
+    $manifestPath = __DIR__ . '/pdf-layout-corpus-manifest.json';
+    $entries = json_decode((string) file_get_contents($manifestPath), true);
+    if (!is_array($entries)) {
+        throw new RuntimeException("Unable to read PDF layout corpus manifest at {$manifestPath}.");
+    }
+
+    $examplesById = [];
+    foreach ($examplesIndex['examples'] ?? [] as $example) {
+        if (is_array($example) && is_string($example['id'] ?? null)) {
+            $examplesById[$example['id']] = $example;
+        }
+    }
+
+    $reviewEntries = [];
+    foreach ($entries as $entry) {
+        if (!is_array($entry) || !is_string($entry['id'] ?? null) || !is_string($entry['label'] ?? null)) {
+            continue;
+        }
+        $exampleId = 'pdf-layout-' . $entry['id'];
+        $example = $examplesById[$exampleId] ?? null;
+        $wordpressView = is_array($example['views']['wpBlocks'] ?? null)
+            ? $example['views']['wpBlocks']
+            : [];
+        $conversionOk = ($wordpressView['ok'] ?? false) === true;
+        $previewStatus = is_string($wordpressView['status'] ?? null)
+            ? $wordpressView['status']
+            : '';
+        $conversionExpectation = is_array($entry['conversionExpectation']['wpBlocks'] ?? null)
+            ? $entry['conversionExpectation']['wpBlocks']
+            : [];
+        $expectedFailureStatus = is_string($conversionExpectation['status'] ?? null)
+            ? $conversionExpectation['status']
+            : '';
+        $expectedTypedFailure = ($conversionExpectation['ok'] ?? null) === false
+            && in_array($expectedFailureStatus, ['incomplete', 'unsupported_no_text'], true)
+            && !$conversionOk
+            && $previewStatus === $expectedFailureStatus;
+        $previewPath = $conversionOk || $expectedTypedFailure
+            ? (string) ($wordpressView['path'] ?? '')
+            : '';
+        $samplePath = is_array($example) ? (string) ($example['samplePath'] ?? '') : '';
+        if ($previewPath === '' || $samplePath === '') {
+            throw new RuntimeException("PDF layout reviewer is missing generated paths for {$exampleId}.");
+        }
+        $reviewEntries[] = [
+            'id' => $exampleId,
+            'label' => $entry['label'],
+            'kind' => (string) ($entry['kind'] ?? 'PDF layout'),
+            'notes' => (string) ($entry['notes'] ?? ''),
+            'source' => (string) ($entry['source'] ?? ''),
+            'sourceUrl' => (string) ($entry['url'] ?? ''),
+            'samplePath' => $samplePath,
+            'previewPath' => $previewPath,
+            'conversionOk' => $conversionOk,
+            'previewStatus' => $previewStatus,
+            'conversionExpectation' => is_array($entry['conversionExpectation'] ?? null)
+                ? $entry['conversionExpectation']
+                : null,
+            'success' => is_array($entry['success'] ?? null) ? $entry['success'] : [],
+        ];
+    }
+    if (count($reviewEntries) < 10) {
+        throw new RuntimeException('PDF layout reviewer requires at least 10 generated corpus entries.');
+    }
+
+    $payload = json_encode([
+        'generatedAt' => (string) ($examplesIndex['generatedAt'] ?? gmdate('c')),
+        'examples' => $reviewEntries,
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    if (!is_string($payload)) {
+        throw new RuntimeException('Unable to encode PDF layout reviewer data.');
+    }
+    $css = showcase_pdf_layout_reviewer_css();
+    $javascript = showcase_pdf_layout_reviewer_javascript();
+    $version = substr(hash('sha256', $payload . "\n" . $css . "\n" . $javascript), 0, 12);
+
+    $page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        . '<title>PDF layout reviewer</title><link rel="stylesheet" href="pdf-layout-review.css?v=' . h($version) . '"></head><body>'
+        . '<main class="reviewer" data-active-view="compare"><header class="review-header">'
+        . '<div class="review-heading"><div><h1>PDF layout reviewer</h1><p id="review-position">Loading the public test corpus…</p></div>'
+        . '<div class="review-verdict" role="group" aria-label="Your review"><button type="button" data-verdict="pass">Looks good</button>'
+        . '<button type="button" data-verdict="fail">Needs work</button></div></div>'
+        . '<div class="review-toolbar"><button id="review-previous" class="review-arrow" type="button" aria-label="Previous document">←</button>'
+        . '<label class="screen-reader-text" for="review-picker">PDF document</label><select id="review-picker"></select>'
+        . '<a id="review-download" class="review-action" href="" download>Download original</a>'
+        . '<a id="review-detail" class="review-action" href="examples.html">Open detail tabs</a>'
+        . '<button id="review-next" class="review-arrow" type="button" aria-label="Next document">→</button></div>'
+        . '<div class="review-context"><div><strong id="review-kind"></strong><span id="review-notes"></span><small id="review-source"></small></div>'
+        . '<div class="view-switcher" role="group" aria-label="Reviewer view"><button type="button" data-review-view="compare" aria-pressed="true">Compare</button>'
+        . '<button type="button" data-review-view="converted" aria-pressed="false">Converted</button><button type="button" data-review-view="original" aria-pressed="false">Original</button></div></div>'
+        . '<details class="quality-panel" open><summary><span>Automatic success criteria</span><strong id="quality-summary">Waiting for preview</strong></summary>'
+        . '<ul id="quality-criteria" aria-live="polite"></ul></details></header>'
+        . '<section class="review-workspace" aria-label="PDF conversion comparison">'
+        . '<article class="review-pane original-pane" data-pane="original"><div class="pane-title"><h2>Original PDF</h2><span id="original-status">Not loaded</span></div>'
+        . '<div id="original-viewer" class="original-frame" role="document" aria-label="Original PDF document"><div id="original-pages"></div></div></article>'
+        . '<article class="review-pane converted-pane" data-pane="converted"><div class="pane-title"><h2>Converted WordPress preview</h2><span id="converted-status">Loading</span></div>'
+        . '<iframe id="converted-frame" title="Converted WordPress preview" sandbox="allow-same-origin"></iframe></article></section></main>'
+        . '<script id="pdf-layout-review-data" type="application/json">' . $payload . '</script>'
+        . '<script type="module" src="pdf-layout-review.js?v=' . h($version) . '"></script></body></html>';
+    file_put_contents($siteDir . '/pdf-layout-corpus.html', $page . "\n");
+    file_put_contents($siteDir . '/pdf-layout-review.css', rtrim($css) . "\n");
+    file_put_contents($siteDir . '/pdf-layout-review.js', rtrim($javascript) . "\n");
+}
+
+function showcase_pdf_layout_reviewer_css(): string
+{
+    return <<<'CSS'
+:root {
+  color-scheme: light;
+  --ink: #17212b;
+  --muted: #5d6875;
+  --line: #cfd8e3;
+  --paper: #fff;
+  --wash: #edf2f7;
+  --accent: #1559c5;
+  --ok: #08783f;
+  --bad: #b12626;
+}
+* { box-sizing: border-box; }
+html, body { min-width: 0; min-height: 100%; margin: 0; }
+body { overflow: hidden; background: var(--wash); color: var(--ink); font: 14px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+button, select, a { font: inherit; }
+button, select, .review-action { min-height: 42px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); color: var(--ink); }
+button, .review-action { cursor: pointer; }
+button:hover, .review-action:hover { border-color: var(--accent); background: #eef5ff; }
+button:focus-visible, select:focus-visible, a:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 32%, transparent); outline-offset: 1px; }
+.screen-reader-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.reviewer { display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100svh; }
+.review-header { position: relative; z-index: 10; isolation: isolate; transform: translateZ(0); display: grid; gap: 9px; padding: 12px clamp(12px, 2vw, 24px); border-bottom: 1px solid var(--line); background: var(--paper); box-shadow: 0 2px 10px rgba(23, 33, 43, .08); }
+.review-heading, .review-context { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-width: 0; }
+.review-heading h1 { margin: 0; font-size: clamp(20px, 2.1vw, 28px); line-height: 1.05; }
+.review-heading p { margin: 3px 0 0; color: var(--muted); }
+.review-verdict, .view-switcher { display: flex; gap: 5px; flex: none; }
+.review-verdict button, .view-switcher button { min-height: 34px; padding: 5px 11px; }
+.review-verdict button[aria-pressed="true"][data-verdict="pass"] { border-color: var(--ok); background: #e6f6ed; color: #04572d; }
+.review-verdict button[aria-pressed="true"][data-verdict="fail"] { border-color: var(--bad); background: #fff0f0; color: #8d1717; }
+.review-toolbar { display: grid; grid-template-columns: 54px minmax(220px, 1fr) auto auto 54px; gap: 7px; min-width: 0; }
+.review-toolbar select { width: 100%; min-width: 0; padding: 0 34px 0 12px; font-weight: 650; }
+.review-arrow { padding: 0; font-size: 26px; line-height: 1; }
+.review-action { display: inline-flex; align-items: center; justify-content: center; padding: 0 13px; text-decoration: none; white-space: nowrap; }
+.review-context > div:first-child { display: flex; align-items: baseline; gap: 9px; min-width: 0; overflow: hidden; }
+.review-context strong { flex: none; color: var(--accent); font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
+.review-context span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-context small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.view-switcher button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: #fff; }
+.quality-panel { min-width: 0; border-top: 1px solid #e2e8f0; padding-top: 7px; }
+.quality-panel summary { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--muted); }
+.quality-panel summary strong { margin-left: auto; font-size: 12px; }
+.quality-panel ul { display: flex; flex-wrap: wrap; gap: 5px; margin: 7px 0 0; padding: 0; list-style: none; }
+.quality-panel li { padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; background: #f8fafc; font-size: 12px; }
+.quality-panel li[data-status="pass"] { border-color: #8ac7a6; background: #edf9f2; color: #075b31; }
+.quality-panel li[data-status="fail"] { border-color: #e1a0a0; background: #fff1f1; color: #8d1717; }
+.quality-panel li[data-status="pending"] { color: var(--muted); }
+.review-workspace { position: relative; z-index: 0; isolation: isolate; contain: paint; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1px; min-width: 0; min-height: 0; background: var(--line); }
+.review-pane { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; background: var(--paper); }
+.pane-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 34px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+.pane-title h2 { margin: 0; font-size: 13px; }
+.pane-title span { color: var(--muted); font-size: 12px; }
+.review-pane iframe { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; border: 0; background: #fff; }
+.original-frame { width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: auto; padding: 18px; background: #343a40; }
+#original-pages { display: grid; justify-items: center; gap: 18px; min-width: 0; }
+.original-page { display: block; max-width: 100%; height: auto; background: #fff; box-shadow: 0 3px 16px rgba(0, 0, 0, .34); }
+.original-error { align-self: start; max-width: 560px; margin: 12px auto; padding: 14px; border-radius: 8px; background: #fff0f0; color: var(--bad); }
+.reviewer[data-active-view="converted"] .review-workspace, .reviewer[data-active-view="original"] .review-workspace { grid-template-columns: minmax(0, 1fr); }
+.reviewer[data-active-view="converted"] [data-pane="original"], .reviewer[data-active-view="original"] [data-pane="converted"] { display: none; }
+@media (max-width: 820px) {
+  body { overflow: auto; }
+  .reviewer { height: auto; min-height: 100svh; grid-template-rows: auto minmax(70svh, 1fr); }
+  .review-header { position: sticky; top: 0; padding: 9px; }
+  .review-heading { align-items: flex-start; }
+  .review-heading h1 { font-size: 18px; }
+  .review-heading p { font-size: 12px; }
+  .review-verdict button { min-height: 32px; padding: 4px 8px; font-size: 12px; }
+  .review-toolbar { grid-template-columns: 48px minmax(0, 1fr) 48px; }
+  .review-toolbar .review-action { min-height: 36px; }
+  #review-download { grid-column: 1 / span 2; }
+  #review-detail { grid-column: 3; padding: 0 8px; font-size: 0; }
+  #review-detail::after { content: "Tabs"; font-size: 12px; }
+  #review-next { grid-column: 3; grid-row: 1; }
+  .review-context { align-items: flex-start; }
+  .review-context > div:first-child { display: grid; gap: 1px; }
+  .review-context small { display: none; }
+  .view-switcher button { padding: 4px 8px; font-size: 12px; }
+  .quality-panel:not([open]) { padding-bottom: 0; }
+  .review-workspace { min-height: 70svh; }
+  .reviewer[data-active-view="compare"] .review-workspace { grid-template-columns: 1fr; grid-template-rows: minmax(55svh, 1fr) minmax(55svh, 1fr); }
+}
+CSS;
+}
+
+function showcase_pdf_layout_reviewer_javascript(): string
+{
+    return <<<'JS'
+const payload = JSON.parse(document.querySelector('#pdf-layout-review-data')?.textContent || '{}');
+const examples = Array.isArray(payload.examples) ? payload.examples : [];
+if (examples.length < 1) throw new Error('The PDF layout reviewer has no examples.');
+
+const root = document.querySelector('.reviewer');
+const picker = document.querySelector('#review-picker');
+const previous = document.querySelector('#review-previous');
+const next = document.querySelector('#review-next');
+const download = document.querySelector('#review-download');
+const detail = document.querySelector('#review-detail');
+const position = document.querySelector('#review-position');
+const kind = document.querySelector('#review-kind');
+const notes = document.querySelector('#review-notes');
+const source = document.querySelector('#review-source');
+const originalFrame = document.querySelector('#original-viewer');
+const originalPages = document.querySelector('#original-pages');
+const convertedFrame = document.querySelector('#converted-frame');
+const originalStatus = document.querySelector('#original-status');
+const convertedStatus = document.querySelector('#converted-status');
+const criteriaList = document.querySelector('#quality-criteria');
+const qualitySummary = document.querySelector('#quality-summary');
+const viewButtons = [...document.querySelectorAll('[data-review-view]')];
+const verdictButtons = [...document.querySelectorAll('[data-verdict]')];
+const storagePrefix = 'port-libs:pdf-layout-review:';
+let pdfjsLibraryPromise = null;
+let originalLoadingTask = null;
+let originalDocument = null;
+let originalRenderGeneration = 0;
+let activeIndex = 0;
+let activeView = new URL(location.href).searchParams.get('view');
+if (!['compare', 'converted', 'original'].includes(activeView)) {
+  activeView = matchMedia('(max-width: 820px)').matches ? 'converted' : 'compare';
+}
+
+for (const example of examples) {
+  const option = document.createElement('option');
+  option.value = example.id;
+  option.textContent = example.label;
+  picker.append(option);
+}
+
+function selectedExample() { return examples[activeIndex]; }
+function updateUrl() {
+  const url = new URL(location.href);
+  url.searchParams.set('example', selectedExample().id);
+  url.searchParams.set('view', activeView);
+  history.replaceState(null, '', url);
+}
+function setFramePath(frame, path) {
+  if (frame.dataset.loadedPath === path) return;
+  frame.dataset.loadedPath = path;
+  frame.src = path;
+}
+function pdfjsLibrary() {
+  if (!pdfjsLibraryPromise) {
+    pdfjsLibraryPromise = import('./vendor/pdfjs/pdf.min.mjs').then((library) => {
+      library.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdfjs/pdf.worker.min.mjs', location.href).href;
+      return library;
+    });
+  }
+  return pdfjsLibraryPromise;
+}
+function cancelOriginalRender(clear = true) {
+  originalRenderGeneration += 1;
+  const loadingTask = originalLoadingTask;
+  const pdfDocument = originalDocument;
+  originalLoadingTask = null;
+  originalDocument = null;
+  if (loadingTask?.destroy) void loadingTask.destroy().catch(() => {});
+  if (pdfDocument?.destroy) void pdfDocument.destroy().catch(() => {});
+  delete originalFrame.dataset.requestedPath;
+  delete originalFrame.dataset.loadedPath;
+  if (clear) originalPages.replaceChildren();
+}
+async function renderOriginalPdf(example) {
+  const path = example.samplePath;
+  if (originalFrame.dataset.loadedPath === path && originalPages.querySelector('canvas')) return;
+  if (originalFrame.dataset.requestedPath === path) return;
+  cancelOriginalRender();
+  const generation = originalRenderGeneration;
+  originalFrame.dataset.requestedPath = path;
+  originalStatus.textContent = 'Loading original';
+  try {
+    const library = await pdfjsLibrary();
+    if (generation !== originalRenderGeneration) return;
+    const base = new URL('.', location.href);
+    const task = library.getDocument({
+      url: new URL(path, base).href,
+      cMapUrl: new URL('vendor/pdfjs/cmaps/', base).href,
+      cMapPacked: true,
+      standardFontDataUrl: new URL('vendor/pdfjs/standard_fonts/', base).href,
+      wasmUrl: new URL('vendor/pdfjs/wasm/', base).href,
+    });
+    originalLoadingTask = task;
+    const pdfDocument = await task.promise;
+    if (generation !== originalRenderGeneration) {
+      await pdfDocument.destroy();
+      return;
+    }
+    originalLoadingTask = null;
+    originalDocument = pdfDocument;
+    for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+      if (generation !== originalRenderGeneration) return;
+      originalStatus.textContent = `Rendering original page ${pageNumber} of ${pdfDocument.numPages}`;
+      const page = await pdfDocument.getPage(pageNumber);
+      const baseViewport = page.getViewport({ scale: 1 });
+      const availableWidth = Math.max(240, originalFrame.clientWidth - 36);
+      const cssScale = Math.min(1.45, availableWidth / Math.max(1, baseViewport.width));
+      const outputScale = Math.min(2, Math.max(1, devicePixelRatio || 1));
+      const viewport = page.getViewport({ scale: cssScale * outputScale });
+      const canvas = document.createElement('canvas');
+      canvas.className = 'original-page';
+      canvas.width = Math.max(1, Math.ceil(viewport.width));
+      canvas.height = Math.max(1, Math.ceil(viewport.height));
+      canvas.style.width = `${viewport.width / outputScale}px`;
+      canvas.style.height = `${viewport.height / outputScale}px`;
+      canvas.setAttribute('aria-label', `Original PDF page ${pageNumber}`);
+      originalPages.append(canvas);
+      const context = canvas.getContext('2d', { alpha: false });
+      if (!context) throw new Error('Canvas rendering is unavailable.');
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: context, viewport }).promise;
+      page.cleanup();
+    }
+    if (generation !== originalRenderGeneration) return;
+    originalFrame.dataset.loadedPath = path;
+    originalStatus.textContent = `Original loaded · ${pdfDocument.numPages} page${pdfDocument.numPages === 1 ? '' : 's'}`;
+  } catch (error) {
+    if (generation !== originalRenderGeneration) return;
+    delete originalFrame.dataset.requestedPath;
+    delete originalFrame.dataset.loadedPath;
+    originalPages.replaceChildren();
+    const message = document.createElement('p');
+    message.className = 'original-error';
+    message.textContent = error instanceof Error ? error.message : String(error);
+    originalPages.append(message);
+    originalStatus.textContent = 'Could not render original';
+  }
+}
+function unloadOriginalWhenHidden() {
+  if (activeView !== 'converted') return;
+  cancelOriginalRender();
+  originalStatus.textContent = 'Not loaded in converted-only view';
+}
+function renderVerdict() {
+  let verdict = '';
+  try { verdict = localStorage.getItem(storagePrefix + selectedExample().id) || ''; } catch {}
+  for (const button of verdictButtons) button.setAttribute('aria-pressed', String(button.dataset.verdict === verdict));
+}
+function setView(view, updateHistory = true) {
+  if (!['compare', 'converted', 'original'].includes(view)) return;
+  activeView = view;
+  root.dataset.activeView = view;
+  for (const button of viewButtons) button.setAttribute('aria-pressed', String(button.dataset.reviewView === view));
+  const example = selectedExample();
+  if (view !== 'converted') {
+    void renderOriginalPdf(example);
+  } else {
+    unloadOriginalWhenHidden();
+  }
+  if (view !== 'original') setFramePath(convertedFrame, example.previewPath);
+  if (updateHistory) updateUrl();
+}
+function criterionLabel(key, expected) {
+  const labels = {
+    minTextBytes: `At least ${expected} visible-text bytes`,
+    minParagraphs: `At least ${expected} paragraphs`,
+    minHeadings: `At least ${expected} headings`,
+    minTables: `At least ${expected} tables`,
+    maxTables: `No more than ${expected} tables`,
+    minLists: `At least ${expected} lists`,
+    minCodeBlocks: `At least ${expected} code blocks`,
+    maxCodeBlocks: `No more than ${expected} code blocks`,
+    minLineOrientedBlocks: `At least ${expected} line-oriented blocks`,
+    maxLineOrientedBlocks: `No more than ${expected} line-oriented blocks`,
+    minDialogueParagraphs: `At least ${expected} editable dialogue paragraphs`,
+    maxSingleGlyphParagraphs: `No more than ${expected} single-glyph paragraphs`,
+    requiredText: `Required text: ${(Array.isArray(expected) ? expected : [expected]).join(' · ')}`,
+    orderedText: `Reading order: ${(Array.isArray(expected) ? expected : [expected]).join(' → ')}`,
+    allowNoText: 'Image-only source may have no extracted text',
+  };
+  return labels[key] || `${key}: ${JSON.stringify(expected)}`;
+}
+function renderCriteria(results = null) {
+  const success = selectedExample().success || {};
+  criteriaList.replaceChildren();
+  const entries = Object.entries(success);
+  entries.push(['noSpacedGlyphRuns', true], ['noHorizontalOverflow', true], ['readablePdfFills', true]);
+  const extraLabels = {
+    noSpacedGlyphRuns: 'No sustained inter-glyph spacing',
+    noHorizontalOverflow: 'No horizontal overflow',
+    readablePdfFills: 'Readable text on PDF-derived fills',
+  };
+  for (const [key, expected] of entries) {
+    const item = document.createElement('li');
+    item.textContent = extraLabels[key] || criterionLabel(key, expected);
+    item.dataset.status = results ? (results[key] ? 'pass' : 'fail') : 'pending';
+    criteriaList.append(item);
+  }
+  if (!results) {
+    qualitySummary.textContent = 'Waiting for preview';
+    return;
+  }
+  const failed = Object.values(results).filter((passed) => !passed).length;
+  qualitySummary.textContent = failed === 0 ? 'All automatic checks pass' : `${failed} automatic check${failed === 1 ? '' : 's'} need attention`;
+  qualitySummary.style.color = failed === 0 ? 'var(--ok)' : 'var(--bad)';
+}
+function iframeMetrics(documentNode) {
+  const bodyText = String(documentNode.body?.innerText || '').replace(/\s+/g, ' ').trim();
+  const paragraphs = [...documentNode.querySelectorAll('p')];
+  const compactLength = (value) => Array.from(String(value || '').replace(/\s+/gu, '')).length;
+  const singleGlyphParagraphs = paragraphs.filter((node) => compactLength(node.textContent) === 1).length;
+  const spacedGlyphPattern = /(?:^|[^\p{L}\p{M}])(?:[\p{L}\p{M}]\s+){4,}[\p{L}\p{M}](?=$|[^\p{L}\p{M}])/gu;
+  let spacedGlyphRuns = 0;
+  for (const node of documentNode.querySelectorAll('p,h1,h2,h3,h4,h5,h6,li,pre,td,th')) {
+    spacedGlyphRuns += [...String(node.textContent || '').matchAll(spacedGlyphPattern)].length;
+  }
+  const rgb = (value) => {
+    const match = String(value || '').match(/^rgba?\(\s*(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)/i);
+    return match ? match.slice(1, 4).map(Number) : null;
+  };
+  const luminance = (channels) => channels.map((channel) => channel / 255).map((channel) => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4).reduce((sum, channel, index) => sum + channel * [.2126, .7152, .0722][index], 0);
+  let lowContrastPdfFills = 0;
+  for (const node of documentNode.querySelectorAll('[data-pdf-fill-color]')) {
+    if (!String(node.textContent || '').trim()) continue;
+    const style = documentNode.defaultView?.getComputedStyle(node);
+    if (!style) continue;
+    const foreground = rgb(style.color);
+    const background = rgb(style.backgroundColor);
+    if (!foreground || !background) continue;
+    const ratio = (Math.max(luminance(foreground), luminance(background)) + .05) / (Math.min(luminance(foreground), luminance(background)) + .05);
+    if (ratio < 4.5) lowContrastPdfFills += 1;
+  }
+  return {
+    bodyText,
+    textBytes: new TextEncoder().encode(bodyText).length,
+    paragraphs: paragraphs.length,
+    headings: documentNode.querySelectorAll('h1,h2,h3,h4,h5,h6').length,
+    tables: documentNode.querySelectorAll('table').length,
+    lists: documentNode.querySelectorAll('ul,ol').length,
+    codeBlocks: documentNode.querySelectorAll('pre.wp-block-code,.wp-block-code pre').length,
+    lineOrientedBlocks: documentNode.querySelectorAll('pre.wp-block-verse,.wp-block-verse').length,
+    dialogueParagraphs: documentNode.querySelectorAll('p > strong:first-child + br').length,
+    singleGlyphParagraphs,
+    spacedGlyphRuns,
+    lowContrastPdfFills,
+    horizontalOverflow: Math.max(0, (documentNode.documentElement?.scrollWidth || 0) - (documentNode.documentElement?.clientWidth || 0)),
+  };
+}
+function evaluateCriteria(metrics) {
+  const criteria = selectedExample().success || {};
+  const result = {};
+  const comparisons = {
+    minTextBytes: (value) => metrics.textBytes >= value,
+    minParagraphs: (value) => metrics.paragraphs >= value,
+    minHeadings: (value) => metrics.headings >= value,
+    minTables: (value) => metrics.tables >= value,
+    maxTables: (value) => metrics.tables <= value,
+    minLists: (value) => metrics.lists >= value,
+    minCodeBlocks: (value) => metrics.codeBlocks >= value,
+    maxCodeBlocks: (value) => metrics.codeBlocks <= value,
+    minLineOrientedBlocks: (value) => metrics.lineOrientedBlocks >= value,
+    maxLineOrientedBlocks: (value) => metrics.lineOrientedBlocks <= value,
+    minDialogueParagraphs: (value) => metrics.dialogueParagraphs >= value,
+    maxSingleGlyphParagraphs: (value) => metrics.singleGlyphParagraphs <= value,
+    allowNoText: () => true,
+    requiredText: (values) => values.every((value) => metrics.bodyText.includes(String(value))),
+    orderedText: (values) => {
+      let offset = -1;
+      return values.every((value) => {
+        offset = metrics.bodyText.indexOf(String(value), offset + 1);
+        return offset >= 0;
+      });
+    },
+  };
+  for (const [key, expected] of Object.entries(criteria)) result[key] = comparisons[key] ? comparisons[key](expected) : true;
+  result.noSpacedGlyphRuns = metrics.spacedGlyphRuns === 0;
+  result.noHorizontalOverflow = metrics.horizontalOverflow <= 2;
+  result.readablePdfFills = metrics.lowContrastPdfFills === 0;
+  return result;
+}
+function selectExample(index, updateHistory = true) {
+  activeIndex = (index + examples.length) % examples.length;
+  const example = selectedExample();
+  picker.value = example.id;
+  position.textContent = `${activeIndex + 1} of ${examples.length} public corpus documents`;
+  kind.textContent = example.kind;
+  notes.textContent = example.notes;
+  source.textContent = example.source;
+  download.href = example.samplePath;
+  download.download = example.samplePath.split('/').pop() || 'original.pdf';
+  detail.href = `examples.html?example=${encodeURIComponent(example.id)}`;
+  document.title = `${example.label} · PDF layout reviewer`;
+  convertedStatus.textContent = 'Loading conversion';
+  renderCriteria();
+  setFramePath(convertedFrame, example.previewPath);
+  if (activeView !== 'converted') {
+    void renderOriginalPdf(example);
+  } else {
+    unloadOriginalWhenHidden();
+  }
+  renderVerdict();
+  if (updateHistory) updateUrl();
+}
+
+picker.addEventListener('change', () => selectExample(examples.findIndex((example) => example.id === picker.value)));
+previous.addEventListener('click', () => selectExample(activeIndex - 1));
+next.addEventListener('click', () => selectExample(activeIndex + 1));
+for (const button of viewButtons) button.addEventListener('click', () => setView(button.dataset.reviewView));
+for (const button of verdictButtons) button.addEventListener('click', () => {
+  const selected = button.getAttribute('aria-pressed') === 'true' ? '' : button.dataset.verdict;
+  try {
+    if (selected) localStorage.setItem(storagePrefix + selectedExample().id, selected);
+    else localStorage.removeItem(storagePrefix + selectedExample().id);
+  } catch {}
+  renderVerdict();
+});
+convertedFrame.addEventListener('load', () => {
+  const example = selectedExample();
+  if (convertedFrame.dataset.loadedPath !== example.previewPath) return;
+  if (example.previewStatus === 'incomplete' || example.previewStatus === 'unsupported_no_text') {
+    renderCriteria();
+    const noNativeText = example.previewStatus === 'unsupported_no_text';
+    convertedStatus.textContent = noNativeText
+      ? 'No editable native text · browser page review required'
+      : 'Extraction incomplete · no editable import';
+    qualitySummary.textContent = noNativeText
+      ? 'Not scored · OCR outside importer'
+      : 'Not scored · source extraction unresolved';
+    qualitySummary.style.color = 'var(--bad)';
+    return;
+  }
+  try {
+    const metrics = iframeMetrics(convertedFrame.contentDocument);
+    renderCriteria(evaluateCriteria(metrics));
+    convertedStatus.textContent = `${metrics.textBytes.toLocaleString()} text bytes`;
+  } catch (error) {
+    convertedStatus.textContent = 'Could not inspect preview';
+    qualitySummary.textContent = error instanceof Error ? error.message : String(error);
+    qualitySummary.style.color = 'var(--bad)';
+  }
+});
+addEventListener('keydown', (event) => {
+  if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement) return;
+  if (event.key === 'ArrowLeft') selectExample(activeIndex - 1);
+  if (event.key === 'ArrowRight') selectExample(activeIndex + 1);
+});
+
+const requestedId = new URL(location.href).searchParams.get('example');
+const requestedIndex = examples.findIndex((example) => example.id === requestedId);
+activeIndex = requestedIndex >= 0 ? requestedIndex : 0;
+setView(activeView, false);
+selectExample(activeIndex);
+JS;
 }
 
 function showcase_examples_css(): string
@@ -4438,6 +5764,21 @@ select:disabled { cursor: not-allowed; opacity: .58; }
 .download-source:hover { border-color: var(--accent); background: #e6eefb; }
 .try-own-file:hover:not(:disabled) { border-color: var(--accent); background: #e6eefb; }
 .download-source[aria-disabled="true"] { cursor: wait; opacity: .58; pointer-events: none; }
+.own-pdf-output-dialog {
+  width: min(92vw, 460px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0;
+  box-shadow: 0 20px 60px #13233a55;
+}
+.own-pdf-output-dialog::backdrop { background: #13233a88; }
+.own-pdf-output-dialog form { display: grid; gap: 14px; padding: 22px; }
+.own-pdf-output-dialog h2,
+.own-pdf-output-dialog p { margin: 0; }
+.own-pdf-output-dialog label { display: flex; gap: 9px; align-items: flex-start; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.dialog-actions button { min-height: 42px; padding: 8px 14px; border: 1px solid #aeb9c7; border-radius: 8px; }
+.dialog-import { background: var(--accent); color: #fff; border-color: var(--accent) !important; }
 .view-tabs {
   display: flex;
   grid-row: 2;
@@ -4564,6 +5905,20 @@ CSS;
 function showcase_examples_javascript(): string
 {
     return <<<'JS'
+import {
+  pdfFormRendererResourceSnapshot,
+  renderPdfFormRequests,
+  renderPdfFormRequestsIncrementally,
+  renderPdfPageRasterRequests,
+  renderPdfPageRasterRequestsIncrementally,
+} from './pdfjs-form-rasterizer.mjs';
+import {
+  cancelImportMutationDurably,
+  createImportJobSession,
+  createPlaygroundPersistence,
+  recoverImportMutation,
+} from './import-job-session.mjs';
+
 const catalogUrl = 'examples-index.json';
 const viewLabels = {
   phpHtml: 'HTML',
@@ -4572,10 +5927,25 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'jp2-placeholder-20260714';
+const playgroundPluginBuild = 'verified-pdf-import-20260716';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 const playgroundPdfRasterByteLimit = 24_000_000;
+const playgroundPdfFormTotalPixelLimit = 48_000_000;
+const playgroundPdfFormTotalImageByteLimit = 24_000_000;
+const playgroundPdfPageTotalPixelLimit = 128_000_000;
+const playgroundPdfPageTotalImageByteLimit = 64 * 1024 * 1024;
+const pdfPageRasterMethod = 'pdfjs-whole-page-raster';
+const ownFileStatusPollIntervalMs = 1_000;
+const ownFileAdvanceRecoveryAttempts = 3;
+// The static example browser runs on the visitor's device, including phones.
+// Keep optional PDF visual enrichment deliberately smaller than the importer handoff:
+// it is an optional preview, never a reason to exhaust the browser.
+const staticPdfPreviewMaxSourceBytes = 4_000_000;
+const staticPdfPreviewMaxRequests = 8;
+const staticPdfPreviewMaxPixels = 2_100_000;
+const staticPdfPreviewMaxTotalPixels = 8_400_000;
+const staticPdfPreviewMaxImageBytes = 8_000_000;
 
 const examplePicker = document.getElementById('example-picker');
 const previousButton = document.getElementById('previous-example');
@@ -4584,8 +5954,22 @@ const viewButtons = Array.from(document.querySelectorAll('[data-example-view]'))
 const viewerStatus = document.getElementById('viewer-status');
 const downloadSource = document.getElementById('download-source');
 const tryOwnFileButton = document.getElementById('try-own-file');
+const cancelOwnFileButton = document.getElementById('cancel-own-file');
 const ownFileInput = document.getElementById('own-file-input');
+const ownPdfOutputDialog = document.getElementById('own-pdf-output-dialog');
+const ownPdfOutputMessage = document.getElementById('own-pdf-output-message');
+const ownPdfOutputInputs = Array.from(document.querySelectorAll('input[name="own-pdf-output-mode"]'));
 const frame = document.getElementById('example-frame');
+
+const ownFileImportSession = createImportJobSession({
+  storage: browserStorage(),
+  storageKey: 'port-libs.playground-active-import.v1',
+});
+const ownFilePlaygroundPersistence = createPlaygroundPersistence({
+  storage: browserStorage(),
+  storageKey: 'port-libs.playground-import-site.v1',
+  devicePath: `port-libs/${window.location.host}/playground-import-site-v1`,
+});
 
 const state = {
   examples: [],
@@ -4596,6 +5980,7 @@ const state = {
   loadToken: 0,
   ownFileToken: 0,
   ownFileBusy: false,
+  ownFileCancelRequested: false,
   frameMode: 'example',
   playgroundClient: null,
   playgroundReady: false,
@@ -4603,6 +5988,9 @@ const state = {
   startPlaygroundWeb: null,
   decodePdfJbig2Rasters: null,
   decodePdfJpxRasters: null,
+  staticPdfPreviewCache: new Map(),
+  staticPdfPreviewAbortController: null,
+  lastOwnFileJob: null,
 };
 
 function selectedExample() {
@@ -4613,13 +6001,24 @@ function selectedView(example = selectedExample()) {
   return example && example.views ? example.views[state.view] || null : null;
 }
 
-function isBrowsableView(view) {
-  return Boolean(view && view.ok && view.path && view.bytes > 0
+function isTypedPdfStatusPreview(view, viewName) {
+  return Boolean(viewName === 'wpBlocks'
+    && view
+    && view.ok === false
+    && /(?:^|\/)wordpress-blocks-preview\.html$/.test(String(view.path || ''))
+    && (view.status === 'incomplete' || view.status === 'unsupported_no_text'));
+}
+
+function isBrowsableView(view, viewName) {
+  return Boolean(view && (view.ok || isTypedPdfStatusPreview(view, viewName)) && view.path && view.bytes > 0
     && view.bytes <= state.automaticViewMaxBytes);
 }
 
 function browsableExamples() {
-  return state.examples.filter((example) => isBrowsableView(example.views && example.views.phpHtml));
+  return state.examples.filter((example) => (
+    isBrowsableView(example.views && example.views.phpHtml, 'phpHtml')
+    || isBrowsableView(example.views && example.views.wpBlocks, 'wpBlocks')
+  ));
 }
 
 function setStatus(message, { visible = false, tone = 'info' } = {}) {
@@ -4662,14 +6061,14 @@ function syncExampleUrl() {
 }
 
 function ensureBrowsableView() {
-  if (isBrowsableView(selectedView())) {
+  if (isBrowsableView(selectedView(), state.view)) {
     return;
   }
 
   const example = selectedExample();
   for (const fallbackView of [defaultView, 'phpHtml', 'haskell']) {
     const view = example && example.views ? example.views[fallbackView] : null;
-    if (isBrowsableView(view)) {
+    if (isBrowsableView(view, fallbackView)) {
       state.view = fallbackView;
       return;
     }
@@ -4734,18 +6133,29 @@ function updateControls() {
   nextButton.disabled = examples.length < 2 || busy;
   viewButtons.forEach((button) => {
     const view = example && example.views ? example.views[button.dataset.exampleView] : null;
-    button.disabled = !ready || !isBrowsableView(view) || busy;
+    button.disabled = !ready || !isBrowsableView(view, button.dataset.exampleView) || busy;
   });
   downloadSource.setAttribute('aria-disabled', String(busy));
   downloadSource.tabIndex = busy ? -1 : 0;
   tryOwnFileButton.disabled = busy;
+  const cancellable = busy
+    && String(state.lastOwnFileJob?.jobId || '') !== ''
+    && !['complete', 'failed', 'cancelled'].includes(String(state.lastOwnFileJob?.status || ''));
+  cancelOwnFileButton.hidden = !cancellable;
+  cancelOwnFileButton.disabled = !cancellable || state.ownFileCancelRequested;
+  cancelOwnFileButton.textContent = state.ownFileCancelRequested ? 'Cancelling after this step…' : 'Cancel import';
   ownFileInput.disabled = busy;
   updateViewButtons();
 }
 
 function setOwnFileBusy(busy, label = '') {
   state.ownFileBusy = busy;
-  tryOwnFileButton.textContent = busy ? label : 'Try your own file';
+  const savedImport = ownFileImportSession.load();
+  tryOwnFileButton.textContent = busy
+    ? label
+    : (savedImport?.cancellationRequested
+      ? 'Finish cancelling import'
+      : (savedImport ? 'Resume saved import' : 'Try your own file'));
   updateControls();
 }
 
@@ -4762,24 +6172,532 @@ function leavePlaygroundView() {
   state.playgroundBootPromise = null;
   delete frame.dataset.loadedPath;
   frame.removeAttribute('src');
+  frame.removeAttribute('srcdoc');
   frame.setAttribute('sandbox', '');
 }
 
 function unloadCurrentExample() {
+  abortStaticPdfPreview({ clearCache: true });
   state.loadToken += 1;
   delete frame.dataset.loadedPath;
+  delete frame.dataset.previewMode;
+  delete frame.dataset.previewStatus;
   frame.removeAttribute('src');
+  frame.removeAttribute('srcdoc');
   frame.hidden = true;
+}
+
+function staticPdfPreviewAbortError(signal) {
+  if (signal?.reason instanceof Error) {
+    return signal.reason;
+  }
+  const error = new Error('PDF figure/page-image preview was cancelled.');
+  error.name = 'AbortError';
+  return error;
+}
+
+function throwIfStaticPdfPreviewAborted(signal) {
+  if (signal?.aborted) {
+    throw staticPdfPreviewAbortError(signal);
+  }
+}
+
+function abortStaticPdfPreview({ clearCache = false } = {}) {
+  const controller = state.staticPdfPreviewAbortController;
+  state.staticPdfPreviewAbortController = null;
+  if (controller && !controller.signal.aborted) {
+    controller.abort();
+  }
+  for (const [key, entry] of state.staticPdfPreviewCache) {
+    if (entry?.controller === controller && entry.pending) {
+      state.staticPdfPreviewCache.delete(key);
+    }
+  }
+  if (clearCache) {
+    state.staticPdfPreviewCache.clear();
+  }
+}
+
+function rememberStaticPdfPreview(key, entry) {
+  state.staticPdfPreviewCache.delete(key);
+  state.staticPdfPreviewCache.set(key, entry);
+  // One completed srcdoc can already contain several data-URI PNGs. Keep a
+  // single LRU entry so switching through the catalogue cannot retain a
+  // growing gallery in JavaScript memory.
+  while (state.staticPdfPreviewCache.size > 1) {
+    const oldestKey = state.staticPdfPreviewCache.keys().next().value;
+    const oldest = state.staticPdfPreviewCache.get(oldestKey);
+    state.staticPdfPreviewCache.delete(oldestKey);
+    if (oldest?.pending && !oldest.controller.signal.aborted) {
+      oldest.controller.abort();
+    }
+  }
+}
+
+function isCurrentExampleLoad(token, example, view) {
+  const currentView = selectedView();
+  return token === state.loadToken
+    && state.frameMode === 'example'
+    && selectedExample()?.id === example.id
+    && currentView?.path === view.path;
+}
+
+function staticPdfFormPreviewEnabled(example, viewName) {
+  const forms = example && example.pdfFormRenders;
+  return (viewName === 'phpHtml' || viewName === 'wpBlocks')
+    && Boolean(forms && forms.ok && forms.path && Number(forms.bytes) > 0);
+}
+
+function staticPdfPreviewCacheKey(example, viewName, view) {
+  return [example.id, viewName, view.path].join('\u001f');
+}
+
+function staticPreviewUrl(path) {
+  return new URL(path, window.location.href).href;
+}
+
+async function fetchStaticPreviewText(path, label, signal) {
+  throwIfStaticPdfPreviewAborted(signal);
+  const response = await fetch(staticPreviewUrl(path), { cache: 'no-store', signal });
+  throwIfStaticPdfPreviewAborted(signal);
+  if (!response.ok) {
+    throw new Error(label + ' could not be loaded (' + response.status + ').');
+  }
+
+  const text = await response.text();
+  throwIfStaticPdfPreviewAborted(signal);
+  return { text, url: response.url || staticPreviewUrl(path) };
+}
+
+function staticPdfSourceLimitError() {
+  const error = new Error('This PDF exceeds the static preview size limit.');
+  error.code = 'static-pdf-source-limit';
+  return error;
+}
+
+function staticPdfSourceLimitExceeded(error) {
+  return error && typeof error === 'object' && error.code === 'static-pdf-source-limit';
+}
+
+async function fetchStaticPdfSource(samplePath, manifestUrl, signal) {
+  const candidates = [
+    staticPreviewUrl(samplePath),
+    new URL(samplePath, manifestUrl).href,
+  ].filter((candidate, index, all) => candidate && all.indexOf(candidate) === index);
+  let failure = null;
+  for (const url of candidates) {
+    try {
+      throwIfStaticPdfPreviewAborted(signal);
+      const response = await fetch(url, { cache: 'no-store', signal });
+      throwIfStaticPdfPreviewAborted(signal);
+      if (!response.ok) {
+        throw new Error('The original PDF could not be loaded (' + response.status + ').');
+      }
+      const announcedBytes = Number(response.headers.get('content-length'));
+      if (Number.isFinite(announcedBytes) && announcedBytes > staticPdfPreviewMaxSourceBytes) {
+        throw staticPdfSourceLimitError();
+      }
+
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      throwIfStaticPdfPreviewAborted(signal);
+      if (bytes.byteLength > staticPdfPreviewMaxSourceBytes) {
+        throw staticPdfSourceLimitError();
+      }
+      return bytes;
+    } catch (error) {
+      if (signal?.aborted) {
+        throw staticPdfPreviewAbortError(signal);
+      }
+      if (staticPdfSourceLimitExceeded(error)) {
+        throw error;
+      }
+      failure = error;
+    }
+  }
+
+  throw failure || new Error('The original PDF could not be loaded.');
+}
+
+function staticPdfFilesByPath(requests, samplePath, bytes) {
+  const files = new Map();
+  if (samplePath) {
+    files.set(samplePath, bytes);
+  }
+  for (const request of requests) {
+    const path = String(request?.path || '');
+    if (path) {
+      files.set(path, bytes);
+    }
+  }
+
+  return files;
+}
+
+function rewriteStaticPreviewMediaUrls(previewDocument, viewUrl) {
+  for (const element of previewDocument.querySelectorAll('img[src], source[src], video[src], audio[src], track[src], object[data]')) {
+    const attribute = element.hasAttribute('data') ? 'data' : 'src';
+    const value = String(element.getAttribute(attribute) || '').trim();
+    if (!value || /^(?:[a-z][a-z0-9+.-]*:|#|\/\/)/i.test(value)) {
+      continue;
+    }
+    try {
+      element.setAttribute(attribute, new URL(value, viewUrl).href);
+    } catch {
+      // Keep malformed output untouched; the static preview remains safer
+      // than failing the entire enhanced view over one optional media URL.
+    }
+  }
+}
+
+function normalizedPreviewText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function normalizedPdfTextAnchor(value) {
+  // Positioned PDF text can retain a line-ending hyphen even though the
+  // reflowed preview joins the rest of that word.  Anchors are only used as
+  // unique prefixes, so trim the terminal discretionary hyphen generically.
+  return normalizedPreviewText(value).replace(/(?:-|\u00ad)$/u, '');
+}
+
+function staticPdfUniqueTextAnchor(candidates, text) {
+  if (text.length < 3) {
+    return null;
+  }
+  const matches = candidates.filter((element) => normalizedPreviewText(element.textContent).includes(text));
+  return matches.length === 1 ? { element: matches[0], index: candidates.indexOf(matches[0]) } : null;
+}
+
+function staticPdfTextAnchor(previewDocument, request) {
+  const candidates = Array.from(previewDocument.body?.querySelectorAll('p, li, figcaption, h1, h2, h3, h4, h5, h6, pre, td, th') || []);
+  const preceding = normalizedPdfTextAnchor(request?.precedingText || request?.anchorBefore);
+  const following = normalizedPdfTextAnchor(request?.followingText || request?.anchorAfter);
+  const precedingAnchor = staticPdfUniqueTextAnchor(candidates, preceding);
+  const followingAnchor = staticPdfUniqueTextAnchor(candidates, following);
+  // Match the importer: a unique following anchor is safest when it follows
+  // the preceding one, and must receive the figure before its text. Ambiguous
+  // text never becomes a guessed placement in the static preview.
+  if (followingAnchor && (!precedingAnchor || precedingAnchor.index < followingAnchor.index)) {
+    return { ...followingAnchor, position: 'before' };
+  }
+  if (precedingAnchor) {
+    return { ...precedingAnchor, position: 'after' };
+  }
+
+  return null;
+}
+
+function staticPdfFormFigure(previewDocument, request, rendered, ordinal) {
+  const figure = previewDocument.createElement('figure');
+  figure.className = 'pandoc-pdf-form-figure wp-block-image';
+  figure.dataset.pdfFormRequest = String(request?.id || ordinal + 1);
+  if (Number.isInteger(request?.object)) {
+    figure.dataset.pdfFormObject = String(request.object);
+  }
+  const label = String(request?.alt || request?.label || request?.title || '').trim();
+  const fallbackLabel = request?.method === pdfPageRasterMethod
+    ? 'PDF page image ' + (ordinal + 1)
+    : 'PDF figure ' + (ordinal + 1);
+  if (rendered?.bytes instanceof Uint8Array) {
+    const image = previewDocument.createElement('img');
+    image.alt = label || fallbackLabel;
+    image.dataset.pandocPdfFormRendered = 'true';
+    image.decoding = 'async';
+    const mimeType = String(rendered.mimeType || 'image/png');
+    image.src = 'data:' + mimeType + ';base64,' + base64FromBytes(rendered.bytes);
+    figure.append(image);
+  } else {
+    figure.classList.add('pandoc-pdf-form-placeholder');
+    const message = previewDocument.createElement('p');
+    const detail = String(rendered?.error || '').replace(/\s+/g, ' ').trim().slice(0, 240);
+    message.textContent = (label || fallbackLabel) + ' could not be rendered in this browser'
+      + (detail ? ': ' + detail : '.');
+    figure.append(message);
+  }
+  const caption = String(request?.caption || request?.label || '').trim();
+  if (caption) {
+    const figcaption = previewDocument.createElement('figcaption');
+    figcaption.textContent = caption;
+    figure.append(figcaption);
+  }
+
+  return figure;
+}
+
+function injectStaticPdfFormFigures(previewDocument, requests, rendered) {
+  const requestsById = new Map(requests.map((request) => [String(request?.id || ''), request]));
+  const insertionPoints = new Map();
+  const body = previewDocument.body || previewDocument.documentElement;
+  let successful = 0;
+  let failed = 0;
+  rendered.forEach((item, ordinal) => {
+    const request = requestsById.get(String(item?.requestId || '')) || requests[ordinal] || {};
+    const figure = staticPdfFormFigure(previewDocument, request, item, ordinal);
+    const anchor = staticPdfTextAnchor(previewDocument, request);
+    const insertionPoint = anchor?.position === 'after' ? insertionPoints.get(anchor.element) || anchor.element : null;
+    if (anchor?.position === 'before' && anchor.element.parentNode) {
+      anchor.element.before(figure);
+    } else if (insertionPoint?.parentNode) {
+      insertionPoint.after(figure);
+      insertionPoints.set(anchor.element, figure);
+    } else {
+      body.append(figure);
+    }
+    if (item?.bytes instanceof Uint8Array) {
+      successful += 1;
+    } else {
+      failed += 1;
+    }
+  });
+
+  return { successful, failed };
+}
+
+function addStaticPdfFormStyles(previewDocument) {
+  if (previewDocument.getElementById('pandoc-pdf-form-preview-styles')) {
+    return;
+  }
+  const style = previewDocument.createElement('style');
+  style.id = 'pandoc-pdf-form-preview-styles';
+  style.textContent = '.pandoc-pdf-form-figure{margin:1.25em 0}.pandoc-pdf-form-figure img{display:block;max-width:100%;height:auto}.pandoc-pdf-form-figure figcaption{margin-top:.45em;color:#4b5563;font-size:.9em}.pandoc-pdf-form-placeholder{padding:1em;border:1px dashed #aeb9c7;color:#4b5563}.pandoc-pdf-form-placeholder p{margin:0}';
+  (previewDocument.head || previewDocument.documentElement).append(style);
+}
+
+function staticPdfFormPlaceholderResults(requests, message) {
+  return requests.map((request) => ({
+    requestId: String(request?.id || ''),
+    error: message,
+  }));
+}
+
+function staticPdfResultsInManifestOrder(requests, rendered) {
+  const resultsById = new Map();
+  for (const item of rendered || []) {
+    const requestId = String(item?.requestId || '');
+    if (!resultsById.has(requestId)) resultsById.set(requestId, []);
+    resultsById.get(requestId).push(item);
+  }
+  return requests.map((request) => {
+    const requestId = String(request?.id || '');
+    const queue = resultsById.get(requestId) || [];
+    return queue.shift() || {
+      requestId,
+      error: 'This PDF figure/page image did not return a browser render result.',
+    };
+  });
+}
+
+function staticPdfFormRequestPlan(requests) {
+  const renderable = requests.slice(0, staticPdfPreviewMaxRequests);
+  const skipped = staticPdfFormPlaceholderResults(
+    requests.slice(staticPdfPreviewMaxRequests),
+    'This static preview renders at most ' + staticPdfPreviewMaxRequests + ' PDF figures/page images to keep browser memory bounded.',
+  );
+  return { renderable, skipped };
+}
+
+function staticPdfSourceIsTooLarge(example) {
+  const sourceBytes = Number(example?.sampleSize);
+  return Number.isFinite(sourceBytes) && sourceBytes > staticPdfPreviewMaxSourceBytes;
+}
+
+async function buildStaticPdfFormPreview(example, view, reportProgress, signal) {
+  const formMetadata = example.pdfFormRenders;
+  const [staticOutput, manifestOutput] = await Promise.all([
+    fetchStaticPreviewText(view.path, 'The static preview', signal),
+    fetchStaticPreviewText(formMetadata.path, 'The PDF visual/page-image manifest', signal),
+  ]);
+  throwIfStaticPdfPreviewAborted(signal);
+  let manifest;
+  try {
+    manifest = JSON.parse(manifestOutput.text);
+  } catch {
+    throw new Error('The PDF visual/page-image manifest is not valid JSON.');
+  }
+  const requests = Array.isArray(manifest?.requests) ? manifest.requests : [];
+  const samplePath = String(manifest?.samplePath || example.samplePath || '').trim();
+  if (requests.length === 0 || !samplePath) {
+    throw new Error('The PDF visual/page-image manifest has no renderable source.');
+  }
+
+  const plan = staticPdfFormRequestPlan(requests);
+  let rendered = plan.skipped;
+  if (staticPdfSourceIsTooLarge(example)) {
+    rendered = staticPdfFormPlaceholderResults(
+      requests,
+      'This PDF exceeds the static preview size limit; its visual/page image is shown as a placeholder.',
+    );
+  } else {
+    try {
+      reportProgress('Opening the original PDF for its figures/page images…');
+      const sourceBytes = await fetchStaticPdfSource(samplePath, manifestOutput.url, signal);
+      const renderedRequests = [];
+      let remainingPixels = staticPdfPreviewMaxTotalPixels;
+      let remainingImageBytes = staticPdfPreviewMaxImageBytes;
+      for (const group of pdfRenderRequestGroups(plan.renderable)) {
+        const pageRaster = group.method === pdfPageRasterMethod;
+        const filesByPath = staticPdfFilesByPath(group.requests, samplePath, sourceBytes);
+        const renderOptions = {
+          ...(pageRaster
+            ? {
+              source: pdfPageRasterSource(filesByPath, group.requests),
+              requests: group.requests.map(pdfPageRasterRequestForRenderer),
+            }
+            : { filesByPath, requests: group.requests }),
+          pdfjs: playgroundPdfJsConfig(),
+          maxPixels: staticPdfPreviewMaxPixels,
+          maxTotalPixels: remainingPixels,
+          maxTotalImageBytes: remainingImageBytes,
+          signal,
+          onProgress({ completed, total, label }) {
+            reportProgress(total > 0 ? label + ' (' + completed + ' of ' + total + ')' : label);
+          },
+        };
+        const groupResults = pageRaster
+          ? await renderPdfPageRasterRequests(renderOptions)
+          : await renderPdfFormRequests(renderOptions);
+        for (const renderedItem of groupResults) {
+          const item = pdfRenderedMediaItem(renderedItem);
+          renderedRequests.push(item);
+          if (!item.error && item.bytes instanceof Uint8Array) {
+            const pixels = Math.max(0, Number(item.width) || 0) * Math.max(0, Number(item.height) || 0);
+            remainingPixels = Math.max(0, remainingPixels - pixels);
+            remainingImageBytes = Math.max(0, remainingImageBytes - item.bytes.byteLength);
+          }
+          if (item.budgetExhausted === 'pixels') remainingPixels = 0;
+          if (item.budgetExhausted === 'image-bytes') remainingImageBytes = 0;
+        }
+      }
+      throwIfStaticPdfPreviewAborted(signal);
+      rendered = staticPdfResultsInManifestOrder(
+        requests,
+        [...renderedRequests, ...plan.skipped],
+      );
+    } catch (error) {
+      if (signal?.aborted) {
+        throw staticPdfPreviewAbortError(signal);
+      }
+      if (!staticPdfSourceLimitExceeded(error)) {
+        throw error;
+      }
+      rendered = staticPdfFormPlaceholderResults(
+        requests,
+        'This PDF exceeds the static preview size limit; its visual/page image is shown as a placeholder.',
+      );
+    }
+  }
+  throwIfStaticPdfPreviewAborted(signal);
+  const previewDocument = new DOMParser().parseFromString(staticOutput.text, 'text/html');
+  rewriteStaticPreviewMediaUrls(previewDocument, staticOutput.url);
+  addStaticPdfFormStyles(previewDocument);
+  const counts = injectStaticPdfFormFigures(previewDocument, requests, rendered);
+  if (counts.successful === 0 && counts.failed === 0) {
+    throw new Error('The PDF renderer returned no figure/page-image results.');
+  }
+
+  return {
+    html: '<!doctype html>\n' + previewDocument.documentElement.outerHTML,
+    ...counts,
+  };
+}
+
+function staticPdfFormPreviewDocument(example, view, viewName, reportProgress) {
+  const key = staticPdfPreviewCacheKey(example, viewName, view);
+  const cached = state.staticPdfPreviewCache.get(key);
+  if (cached && !cached.controller.signal.aborted) {
+    rememberStaticPdfPreview(key, cached);
+    return cached.promise;
+  }
+  if (cached) {
+    state.staticPdfPreviewCache.delete(key);
+  }
+
+  const controller = new AbortController();
+  const entry = {
+    controller,
+    pending: true,
+    promise: null,
+  };
+  const preview = buildStaticPdfFormPreview(example, view, reportProgress, controller.signal);
+  entry.promise = preview;
+  state.staticPdfPreviewAbortController = controller;
+  rememberStaticPdfPreview(key, entry);
+  preview.then(
+    () => {
+      entry.pending = false;
+      if (state.staticPdfPreviewAbortController === controller) {
+        state.staticPdfPreviewAbortController = null;
+      }
+    },
+    () => {
+      entry.pending = false;
+      if (state.staticPdfPreviewAbortController === controller) {
+        state.staticPdfPreviewAbortController = null;
+      }
+      if (state.staticPdfPreviewCache.get(key) === entry) {
+        state.staticPdfPreviewCache.delete(key);
+      }
+    },
+  );
+
+  return preview;
+}
+
+function loadStaticPreviewUrl(example, view, token, warning = '') {
+  window.requestAnimationFrame(() => {
+    if (!isCurrentExampleLoad(token, example, view)) {
+      return;
+    }
+    frame.removeAttribute('srcdoc');
+    frame.dataset.previewMode = warning ? 'fallback' : 'url';
+    if (warning) {
+      frame.dataset.previewStatus = warning;
+    } else {
+      delete frame.dataset.previewStatus;
+    }
+    frame.src = view.path;
+  });
+}
+
+async function loadStaticPdfFormPreview(example, view, viewName, token) {
+  try {
+    const preview = await staticPdfFormPreviewDocument(example, view, viewName, (message) => {
+      if (isCurrentExampleLoad(token, example, view)) {
+        setStatus(message, { visible: true });
+      }
+    });
+    if (!isCurrentExampleLoad(token, example, view)) {
+      return;
+    }
+    frame.dataset.previewMode = 'pdf-forms';
+    frame.dataset.previewStatus = 'Loaded ' + example.label + ' with ' + preview.successful
+      + ' PDF figure/page image' + (preview.successful === 1 ? '' : 's')
+      + (preview.failed > 0 ? '; ' + preview.failed + ' figure/page-image placeholder' + (preview.failed === 1 ? ' is' : 's are') + ' shown.' : '.');
+    frame.removeAttribute('src');
+    frame.srcdoc = preview.html;
+  } catch (error) {
+    if (!isCurrentExampleLoad(token, example, view)) {
+      return;
+    }
+    const detail = error instanceof Error ? error.message : String(error);
+    loadStaticPreviewUrl(
+      example,
+      view,
+      token,
+      'Could not render PDF figures/page images here (' + detail + '). Showing the static preview instead.',
+    );
+  }
 }
 
 function loadSelectedExample() {
   if (state.ownFileBusy) {
     return;
   }
+  abortStaticPdfPreview();
   leavePlaygroundView();
   const example = selectedExample();
   const view = selectedView(example);
-  if (!example || !isBrowsableView(view)) {
+  if (!example || !isBrowsableView(view, state.view)) {
     unloadCurrentExample();
     setStatus('No ' + viewLabels[state.view] + ' result is available for this example.');
     return;
@@ -4787,20 +6705,23 @@ function loadSelectedExample() {
 
   const token = state.loadToken + 1;
   state.loadToken = token;
+  const viewName = state.view;
   frame.hidden = false;
   frame.loading = 'eager';
   frame.dataset.loadedPath = view.path;
+  delete frame.dataset.previewMode;
+  delete frame.dataset.previewStatus;
   frame.setAttribute('sandbox', '');
+  frame.removeAttribute('srcdoc');
   frame.removeAttribute('src');
   frame.src = 'about:blank';
-  setStatus('Loading ' + example.label + '…');
+  setStatus('Loading ' + example.label + '…', { visible: true });
 
-  window.requestAnimationFrame(() => {
-    if (token !== state.loadToken) {
-      return;
-    }
-    frame.src = view.path;
-  });
+  if (staticPdfFormPreviewEnabled(example, viewName)) {
+    void loadStaticPdfFormPreview(example, view, viewName, token);
+    return;
+  }
+  loadStaticPreviewUrl(example, view, token);
 }
 
 function moveExample(direction) {
@@ -4845,7 +6766,7 @@ async function startOwnFilePlayground() {
       const playgroundModule = await import(playgroundClientModuleUrl);
       state.startPlaygroundWeb = playgroundModule.startPlaygroundWeb;
     }
-    state.playgroundClient = await state.startPlaygroundWeb({
+    const startOptions = {
       iframe: frame,
       remoteUrl: 'https://playground.wordpress.net/remote.html',
       blueprint: {
@@ -4871,10 +6792,25 @@ async function startOwnFilePlayground() {
           },
         ],
       },
-    });
+    };
+    state.playgroundClient = await state.startPlaygroundWeb(
+      ownFilePlaygroundPersistence.startOptions(startOptions),
+    );
     await state.playgroundClient.isReady();
+    try {
+      await ownFilePlaygroundPersistence.persist(state.playgroundClient, (message) => {
+        setOwnFileBusy(true, message);
+        setStatus(message, { visible: true });
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      setStatus('This Playground could not be saved in browser storage: ' + detail, { visible: true });
+    }
     state.playgroundReady = true;
   } catch (error) {
+    // A CDN or startup failure does not prove that the OPFS snapshot is
+    // corrupt. Keep its pointer so retrying cannot replace a valid WordPress
+    // tree (and hundreds of durable page checkpoints) with a fresh site.
     state.playgroundBootPromise = null;
     state.playgroundClient = null;
     state.playgroundReady = false;
@@ -4882,12 +6818,263 @@ async function startOwnFilePlayground() {
   }
 }
 
-async function openOwnFile(file) {
-  if (!file || file.size <= 0) {
-    setStatus('Choose a non-empty file to open in WordPress Playground.');
+function chooseOwnPdfOutputMode({ recovery = false, job = null } = {}) {
+  if (!ownPdfOutputDialog || typeof ownPdfOutputDialog.showModal !== 'function') {
+    return Promise.resolve(recovery ? 'pages' : 'single');
+  }
+  const actual = Math.max(0, Number(job?.failure?.actualBytes) || Number(job?.output?.assembledBytes) || 0);
+  const allowed = Math.max(0, Number(job?.failure?.allowedBytes) || Number(job?.output?.singlePageLimitBytes) || 0);
+  ownPdfOutputMessage.textContent = recovery
+    ? `${formatBytes(actual)} of converted blocks exceeds the safe ${formatBytes(allowed)} single-page limit. No partial page was created; continue with the saved conversion.`
+    : 'Choose how this PDF should become WordPress pages.';
+  for (const input of ownPdfOutputInputs) {
+    input.disabled = recovery && input.value === 'single';
+    input.checked = input.value === (recovery ? 'pages' : 'single');
+  }
+
+  return new Promise((resolve) => {
+    const closed = () => {
+      ownPdfOutputDialog.removeEventListener('close', closed);
+      if (ownPdfOutputDialog.returnValue !== 'import') {
+        resolve(null);
+        return;
+      }
+      resolve(ownPdfOutputInputs.find((input) => input.checked)?.value || (recovery ? 'pages' : 'single'));
+    };
+    ownPdfOutputDialog.addEventListener('close', closed);
+    ownPdfOutputDialog.showModal();
+  });
+}
+
+function createOwnFileJobReporter(token) {
+  const reportedEventKeys = new Set();
+
+  return (snapshot) => {
+    ownFileImportSession.remember(snapshot);
+    state.lastOwnFileJob = snapshot;
+    if (!ownFileRequestIsCurrent(token)) {
+      return;
+    }
+    const label = ownFileImportProgressLabel(snapshot);
+    const latestEvent = ownFileImportLatestNewEvent(snapshot, reportedEventKeys);
+    const message = latestEvent ? `${label} ${latestEvent}` : label;
+    setOwnFileBusy(true, message);
+    setStatus(message, { visible: true });
+  };
+}
+
+async function driveOwnFileImport(playgroundClient, initialJob, token, reportJob, file = null, bytes = null) {
+  let job = initialJob;
+  const formBudget = {
+    remainingPixels: playgroundPdfFormTotalPixelLimit,
+    remainingImageBytes: playgroundPdfFormTotalImageByteLimit,
+  };
+  const pageBudget = {
+    remainingPixels: playgroundPdfPageTotalPixelLimit,
+    remainingImageBytes: playgroundPdfPageTotalImageByteLimit,
+  };
+  while (!['complete', 'failed', 'cancelled'].includes(String(job.status || ''))) {
+    if (!ownFileRequestIsCurrent(token)) {
+      return job;
+    }
+    if (state.ownFileCancelRequested) {
+      job = await cancelOwnFileImport(playgroundClient, job, reportJob, token);
+      reportJob(job);
+      break;
+    }
+    if (job.status === 'awaiting_output_mode') {
+      const recoveredMode = await chooseOwnPdfOutputMode({ recovery: true, job });
+      if (recoveredMode !== 'pages') {
+        setStatus('The completed conversion remains saved in WordPress Playground.', { visible: true });
+        return job;
+      }
+      job = await ownFilePluginRequest(
+        playgroundClient,
+        `/imports/${encodeURIComponent(job.jobId)}/output-mode`,
+        { pdfOutputMode: 'pages' },
+      );
+      reportJob(job);
+      continue;
+    }
+    if (Array.isArray(job.renderRequests) && job.renderRequests.length > 0) {
+      for (const group of pdfRenderRequestGroups(job.renderRequests)) {
+        const requests = group.requests;
+        const pageRaster = group.method === pdfPageRasterMethod;
+        const budget = pageRaster ? pageBudget : formBudget;
+        const filesByPath = budget.remainingPixels <= 0 || budget.remainingImageBytes <= 0
+          ? new Map()
+          : await pdfFilesForOwnFile(playgroundClient, job, file, bytes, requests);
+        const renderOptions = {
+          ...(pageRaster
+            ? {
+              source: pdfPageRasterSource(filesByPath, requests),
+              requests: requests.map(pdfPageRasterRequestForRenderer),
+            }
+            : { filesByPath, requests }),
+          pdfjs: playgroundPdfJsConfig(),
+          maxTotalPixels: budget.remainingPixels,
+          maxTotalImageBytes: budget.remainingImageBytes,
+          onProgress({ completed, total, label }) {
+            if (!ownFileRequestIsCurrent(token)) {
+              return;
+            }
+            const progress = `${label} (${completed} of ${total})`;
+            setOwnFileBusy(true, progress);
+            setStatus(progress, { visible: true });
+          },
+        };
+        const renderer = pageRaster
+          ? renderPdfPageRasterRequestsIncrementally
+          : renderPdfFormRequestsIncrementally;
+        for await (const renderedItem of renderer(renderOptions)) {
+          const item = pdfRenderedMediaItem(renderedItem);
+          if (!ownFileRequestIsCurrent(token)) {
+            return job;
+          }
+          if (state.ownFileCancelRequested) {
+            job = await cancelOwnFileImport(playgroundClient, job, reportJob, token);
+            reportJob(job);
+            break;
+          }
+          if (!item.error && item.bytes instanceof Uint8Array) {
+            const pixels = Math.max(0, Number(item.width) || 0) * Math.max(0, Number(item.height) || 0);
+            budget.remainingPixels = Math.max(0, budget.remainingPixels - pixels);
+            budget.remainingImageBytes = Math.max(0, budget.remainingImageBytes - item.bytes.byteLength);
+          }
+          if (item.budgetExhausted === 'pixels') budget.remainingPixels = 0;
+          if (item.budgetExhausted === 'image-bytes') budget.remainingImageBytes = 0;
+          job = await submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob, token);
+          reportJob(job);
+          if (['complete', 'failed', 'cancelled'].includes(String(job.status || ''))) {
+            break;
+          }
+        }
+        if (['complete', 'failed', 'cancelled'].includes(String(job.status || ''))) {
+          break;
+        }
+      }
+      continue;
+    }
+    if (job.status === 'awaiting_renderer') {
+      throw new Error('WordPress requested a PDF figure/page image, but did not provide a renderable request. Please try the file again.');
+    }
+    job = await advanceOwnFileImport(playgroundClient, job, token, reportJob);
+    reportJob(job);
+  }
+
+  return job;
+}
+
+async function cancelOwnFileImport(playgroundClient, job, reportJob = () => {}, token = state.ownFileToken) {
+  const jobId = encodeURIComponent(String(job?.jobId || ''));
+  if (!jobId) {
+    throw new Error('WordPress did not return an import job identifier to cancel.');
+  }
+  return cancelImportMutationDurably({
+    cancel: () => ownFilePluginRequest(playgroundClient, `/imports/${jobId}/cancel`, {}),
+    readStatus: () => ownFilePluginRequest(playgroundClient, `/imports/${jobId}`, undefined, 'GET'),
+    onSnapshot: reportJob,
+    isActive: () => ownFileRequestIsCurrent(token) && state.ownFileCancelRequested,
+    onRetry({ attempt }) {
+      const label = `Cancellation is waiting for the current checkpoint (${attempt}). Checking again…`;
+      setOwnFileBusy(true, label);
+      setStatus(label, { visible: true });
+    },
+  });
+}
+
+async function submitOwnFileRenderedMedia(playgroundClient, job, item, reportJob, token) {
+  const jobId = encodeURIComponent(String(job?.jobId || ''));
+  const requestId = String(item?.requestId || '');
+  if (!jobId || !requestId) {
+    throw new Error('WordPress returned an invalid PDF visual/page-image request.');
+  }
+  const rendererPayload = item.error
+    ? { requestId, error: item.error }
+    : {
+      requestId,
+      bytes: base64FromBytes(item.bytes),
+      mimeType: item.mimeType,
+      width: item.width,
+      height: item.height,
+    };
+  if (state.ownFileCancelRequested) {
+    return cancelOwnFileImport(playgroundClient, job, reportJob, token);
+  }
+  try {
+    return await ownFilePluginRequest(
+      playgroundClient,
+      `/imports/${jobId}/rendered-media`,
+      rendererPayload,
+    );
+  } catch (error) {
+    if (state.ownFileCancelRequested) {
+      return cancelOwnFileImport(playgroundClient, job, reportJob, token);
+    }
+    const recovered = await ownFilePluginRequest(playgroundClient, `/imports/${jobId}`, undefined, 'GET');
+    reportJob(recovered);
+    const stillOutstanding = (recovered.renderRequests || [])
+      .some((request) => String(request?.id || '') === requestId);
+    if (!stillOutstanding || ['complete', 'failed', 'cancelled'].includes(String(recovered.status || ''))) {
+      return recovered;
+    }
+    if (state.ownFileCancelRequested) {
+      return cancelOwnFileImport(playgroundClient, recovered, reportJob, token);
+    }
+    try {
+      return await ownFilePluginRequest(
+        playgroundClient,
+        `/imports/${jobId}/rendered-media`,
+        rendererPayload,
+      );
+    } catch (retryError) {
+      if (state.ownFileCancelRequested) {
+        return cancelOwnFileImport(playgroundClient, recovered, reportJob, token);
+      }
+      const detail = retryError instanceof Error ? retryError.message : String(retryError);
+      throw new Error(`${detail} The rendered PDF visual/page image remains saved for a later Resume saved import attempt.`);
+    }
+  }
+}
+
+async function openCompletedOwnFileImport(playgroundClient, job, token, label) {
+  ownFileImportSession.forget(job.jobId);
+  state.lastOwnFileJob = job;
+  if (!ownFileRequestIsCurrent(token)) {
+    return;
+  }
+  const data = job.result;
+  try {
+    await playgroundClient.goTo(playgroundPath(data.pageUrl));
+  } catch (pageError) {
+    // Conversion and publication have already committed at this point. A
+    // very large front-end render must not be reported as if saved work was
+    // lost; try the editor and retain success if neither view can render.
+    try {
+      await playgroundClient.goTo(playgroundPath(data.editUrl));
+    } catch {
+      const detail = pageError instanceof Error ? pageError.message : String(pageError);
+      setStatus(
+        'The import completed and the WordPress page was saved, but Playground could not display it: ' + detail,
+        { visible: true, tone: 'success' },
+      );
+      return;
+    }
+  }
+  if (ownFileRequestIsCurrent(token)) {
+    setStatus('Import complete. Converted pages were verified privately and published. Opened a new WordPress page for ' + label + '.', { visible: true, tone: 'success' });
+  }
+}
+
+async function resumeSavedOwnFileImport() {
+  const saved = ownFileImportSession.load();
+  if (!saved || state.ownFileBusy) {
+    setOwnFileBusy(false);
     return;
   }
 
+  abortStaticPdfPreview({ clearCache: true });
+  state.ownFileCancelRequested = saved.cancellationRequested === true;
   const token = state.ownFileToken + 1;
   state.ownFileToken = token;
   const reusingPlayground = state.frameMode === 'playground'
@@ -4896,6 +7083,80 @@ async function openOwnFile(file) {
   state.frameMode = 'playground';
   state.loadToken += 1;
   delete frame.dataset.loadedPath;
+  delete frame.dataset.previewMode;
+  delete frame.dataset.previewStatus;
+  frame.removeAttribute('srcdoc');
+  if (!reusingPlayground) {
+    frame.removeAttribute('src');
+    frame.removeAttribute('sandbox');
+  }
+  frame.hidden = false;
+  frame.loading = 'eager';
+  setOwnFileBusy(true, state.playgroundReady ? 'Resuming saved import…' : 'Restoring saved Playground…');
+  setStatus('Restoring the saved WordPress import…', { visible: true });
+
+  try {
+    await bootOwnFilePlayground();
+    const playgroundClient = state.playgroundClient;
+    if (!playgroundClient || !ownFileRequestIsCurrent(token)) {
+      return;
+    }
+    let job = await ownFilePluginRequest(
+      playgroundClient,
+      `/imports/${encodeURIComponent(saved.jobId)}`,
+      undefined,
+      'GET',
+    );
+    const reportJob = createOwnFileJobReporter(token);
+    reportJob(job);
+    job = await driveOwnFileImport(playgroundClient, job, token, reportJob);
+    if (job.status === 'awaiting_output_mode') {
+      return;
+    }
+    if (job.status === 'cancelled') {
+      ownFileImportSession.forget(job.jobId);
+      setStatus('Import cancelled. No further WordPress page or media work will run.', { visible: true });
+      return;
+    }
+    if (job.status === 'failed' || !job.result) {
+      throw new Error(job.message || 'The saved conversion failed.');
+    }
+    await openCompletedOwnFileImport(playgroundClient, job, token, 'the saved document');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/not found|does not exist|unknown import|404/i.test(message)) {
+      ownFileImportSession.forget(saved.jobId);
+    }
+    if (ownFileRequestIsCurrent(token)) {
+      setStatus('Could not resume the saved import: ' + message, { visible: true, tone: 'error' });
+    }
+  } finally {
+    if (token === state.ownFileToken) {
+      setOwnFileBusy(false);
+    }
+  }
+}
+
+async function openOwnFile(file, pdfOutputMode = 'single') {
+  if (!file || file.size <= 0) {
+    setStatus('Choose a non-empty file to open in WordPress Playground.');
+    return;
+  }
+
+  abortStaticPdfPreview({ clearCache: true });
+  state.lastOwnFileJob = null;
+  state.ownFileCancelRequested = false;
+  const token = state.ownFileToken + 1;
+  state.ownFileToken = token;
+  const reusingPlayground = state.frameMode === 'playground'
+    && state.playgroundReady
+    && state.playgroundClient;
+  state.frameMode = 'playground';
+  state.loadToken += 1;
+  delete frame.dataset.loadedPath;
+  delete frame.dataset.previewMode;
+  delete frame.dataset.previewStatus;
+  frame.removeAttribute('srcdoc');
   if (!reusingPlayground) {
     frame.removeAttribute('src');
     frame.removeAttribute('sandbox');
@@ -4922,7 +7183,7 @@ async function openOwnFile(file) {
 
     setOwnFileBusy(true, 'Preparing file…');
     setStatus('Preparing ' + file.name + ' for upload…', { visible: true });
-    const prepared = await payloadFromOwnFile(file, (message) => {
+    const prepared = await payloadFromOwnFile(file, pdfOutputMode, (message) => {
       setOwnFileBusy(true, message);
       setStatus(message, { visible: true });
     });
@@ -4937,32 +7198,27 @@ async function openOwnFile(file) {
       return;
     }
 
-    setOwnFileBusy(true, 'Converting…');
-    setStatus('Converting ' + file.name + '…', { visible: true });
-    const response = await playgroundClient.request({
-      method: 'POST',
-      url: '/wp-json/port-libs/v1/convert',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...prepared.payload, stagedPath }),
+    setOwnFileBusy(true, 'Creating import…');
+    setStatus('Creating an import job for ' + file.name + '…', { visible: true });
+    let job = await ownFilePluginRequest(playgroundClient, '/imports', {
+      ...prepared.payload,
+      stagedPath,
     });
-    const text = typeof response.text === 'function' ? await response.text() : response.text;
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error('WordPress Playground returned an unreadable conversion response. Please try the file again.');
-    }
-    if (!data.ok) {
-      throw new Error(data.message || 'Conversion failed.');
-    }
-    if (!ownFileRequestIsCurrent(token)) {
+    const reportJob = createOwnFileJobReporter(token);
+    reportJob(job);
+    job = await driveOwnFileImport(playgroundClient, job, token, reportJob, file, prepared.bytes);
+    if (job.status === 'awaiting_output_mode') {
       return;
     }
-
-    await playgroundClient.goTo(playgroundPath(data.pageUrl));
-    if (ownFileRequestIsCurrent(token)) {
-      setStatus('Opened a new WordPress page for ' + file.name + '.', { visible: true, tone: 'success' });
+    if (job.status === 'cancelled') {
+      ownFileImportSession.forget(job.jobId);
+      setStatus('Import cancelled. No further WordPress page or media work will run.', { visible: true });
+      return;
     }
+    if (job.status === 'failed' || !job.result) {
+      throw new Error(job.message || 'Conversion failed.');
+    }
+    await openCompletedOwnFileImport(playgroundClient, job, token, file.name);
   } catch (error) {
     if (ownFileRequestIsCurrent(token)) {
       const message = error instanceof Error ? error.message : String(error);
@@ -4983,13 +7239,345 @@ async function openOwnFile(file) {
   }
 }
 
-async function payloadFromOwnFile(file, reportProgress) {
+// The release E2E driver opts in with ?e2e=... and verifies the actual
+// WordPress rows after the UI reports success. Keep the hook absent for
+// ordinary visitors and return only integrity counts, never document text.
+if (new URL(window.location.href).searchParams.has('e2e')) {
+  window.__portLibsImportE2E = {
+    async inspectLastImport() {
+      const job = state.lastOwnFileJob;
+      const client = state.playgroundClient;
+      if (!job?.result || !client) {
+        throw new Error('No completed Playground import is available for inspection.');
+      }
+      const children = Array.isArray(job.result.children)
+        ? job.result.children
+        : (Array.isArray(job.result.posts) ? job.result.posts : []);
+      const ids = [];
+      const resultsByPostId = new Map();
+      const collectPostIds = (result) => {
+        if (!result || typeof result !== 'object') return;
+        const postId = Number(result.postId) || 0;
+        if (postId > 0) {
+          ids.push(postId);
+          if (!resultsByPostId.has(postId)) resultsByPostId.set(postId, result);
+        }
+        for (const key of ['children', 'posts', 'documents']) {
+          for (const child of Array.isArray(result[key]) ? result[key] : []) collectPostIds(child);
+        }
+      };
+      collectPostIds(job.result);
+      const uniqueIds = Array.from(new Set(ids));
+      const posts = [];
+      for (const postId of uniqueIds) {
+        const response = await client.request({
+          method: 'GET',
+          url: `/wp-json/wp/v2/pages/${postId}?context=view`,
+        });
+        const body = typeof response.text === 'function' ? await response.text() : response.text;
+        const page = JSON.parse(String(body || '{}'));
+        const raw = String(page?.content?.rendered || '');
+        const visible = new DOMParser().parseFromString(raw.replace(/<!--.*?-->/gs, ' '), 'text/html')
+          .body.textContent.replace(/\s+/g, ' ').trim();
+        const result = resultsByPostId.get(postId) || {};
+        posts.push({
+          postId,
+          status: String(page?.status || ''),
+          contentBytes: new TextEncoder().encode(raw).byteLength,
+          visibleTextBytes: new TextEncoder().encode(visible).byteLength,
+          imageCount: (raw.match(/<img\b/gi) || []).length,
+          rawDataProvenanceCount: (raw.match(/data-pandoc-media-(?:canonical-)?source=["']data:/gi) || []).length,
+          importNoticeCount: (raw.match(/port-libs-(?:conversion-notice|import-quality)/gi) || []).length,
+          intentionalBlank: Boolean(result.intentionalBlank),
+          restErrorCode: String(page?.code || ''),
+        });
+      }
+
+      return {
+        jobId: String(job.jobId || ''),
+        resultPostId: Number(job.result.postId) || 0,
+        resultKind: String(job.result.kind || ''),
+        pdfOutputMode: String(job.output?.pdfOutputMode || job.pdfOutputMode || ''),
+        pageCount: Math.max(0, Number(job.result.pageCount) || 0),
+        childPostCount: children.length,
+        rendererResources: pdfFormRendererResourceSnapshot(),
+        posts,
+      };
+    },
+  };
+}
+
+async function ownFilePluginRequest(playgroundClient, path, payload = {}, method = 'POST') {
+  const request = {
+    method,
+    url: `/wp-json/port-libs/v1${path}`,
+  };
+  if (method !== 'GET') {
+    request.headers = { 'Content-Type': 'application/json' };
+    request.body = JSON.stringify(payload);
+  }
+  const response = await playgroundClient.request(request);
+  const text = typeof response.text === 'function' ? await response.text() : response.text;
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error('WordPress Playground returned an unreadable import-job response. Please try the file again.');
+  }
+  const jobErrorSnapshot = data
+    && typeof data === 'object'
+    && String(data.jobId || '') !== ''
+    && ['failed', 'retryable_failure'].includes(String(data.status || ''));
+  if (!data.ok && !jobErrorSnapshot) {
+    const error = new Error(data.message || 'Conversion failed.');
+    error.status = Number(data?.data?.status || response?.httpStatusCode || response?.status || 0);
+    throw error;
+  }
+
+  return data;
+}
+
+async function advanceOwnFileImport(playgroundClient, job, token, reportJob) {
+  const jobId = encodeURIComponent(String(job?.jobId || ''));
+  if (!jobId) {
+    throw new Error('WordPress did not return an import job identifier. Please try the file again.');
+  }
+  const stopPolling = startOwnFileImportStatusPolling(playgroundClient, jobId, token, reportJob);
+  try {
+    return await recoverImportMutation({
+      mutate: () => ownFilePluginRequest(playgroundClient, `/imports/${jobId}/advance`, {}),
+      readStatus: () => ownFilePluginRequest(playgroundClient, `/imports/${jobId}`, undefined, 'GET'),
+      onSnapshot: reportJob,
+      isActive: () => ownFileRequestIsCurrent(token) && !state.ownFileCancelRequested,
+      shouldCancel: () => state.ownFileCancelRequested,
+      cancel: () => cancelOwnFileImport(playgroundClient, job, reportJob, token),
+      maxMutationRetries: ownFileAdvanceRecoveryAttempts,
+      statusChecksPerRetry: 3,
+      onRecovery({ mutationAttempt, maxMutationRetries, statusAttempt, statusChecks }) {
+        const recoveryLabel = `The server request ended unexpectedly. Checking saved progress (${statusAttempt} of ${statusChecks}) before retry ${mutationAttempt} of ${maxMutationRetries}…`;
+        setOwnFileBusy(true, recoveryLabel);
+        setStatus(recoveryLabel, { visible: true });
+      },
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error || 'Unknown server error');
+    throw new Error(`${detail} The completed page checkpoints remain saved in this Playground, but automatic recovery stopped to avoid a retry loop.`);
+  } finally {
+    stopPolling();
+  }
+}
+
+function startOwnFileImportStatusPolling(playgroundClient, jobId, token, reportJob) {
+  let stopped = false;
+  let timer = null;
+  const poll = async () => {
+    if (stopped || !ownFileRequestIsCurrent(token)) {
+      return;
+    }
+    try {
+      const snapshot = await ownFilePluginRequest(
+        playgroundClient,
+        `/imports/${jobId}`,
+        undefined,
+        'GET',
+      );
+      if (!stopped && ownFileRequestIsCurrent(token)) {
+        reportJob(snapshot);
+      }
+    } catch {
+      // The in-flight advance response remains authoritative. A transient
+      // status poll failure should not abandon an otherwise healthy import.
+    } finally {
+      if (!stopped && ownFileRequestIsCurrent(token)) {
+        timer = window.setTimeout(poll, ownFileStatusPollIntervalMs);
+      }
+    }
+  };
+  timer = window.setTimeout(poll, ownFileStatusPollIntervalMs);
+
+  return () => {
+    stopped = true;
+    if (timer !== null) {
+      window.clearTimeout(timer);
+    }
+  };
+}
+
+function ownFileImportProgressLabel(job) {
+  const progress = job && typeof job.progress === 'object' ? job.progress : {};
+  const label = String(progress.label || 'Import is continuing…');
+  const completed = Math.max(0, Number(progress.completed || 0));
+  const total = Math.max(1, Number(progress.total || 1));
+
+  const details = [];
+  const metrics = job && typeof job.metrics === 'object' ? job.metrics : {};
+  const pdfTotal = Math.max(0, Number(metrics.pdfPagesTotal || 0));
+  const pdfCompleted = Math.max(0, Number(metrics.pdfPagesExtracted || 0));
+  if (pdfTotal > 0 && pdfCompleted < pdfTotal) {
+    details.push(`${pdfCompleted} of ${pdfTotal} PDF pages saved`);
+  }
+  const publication = job && typeof job.publication === 'object' ? job.publication : {};
+  const publicationTotal = Math.max(0, Number(publication.total || 0));
+  if (publicationTotal > 0 && String(job?.status || '') === 'ready_to_publish') {
+    details.push(`${Math.max(0, Number(publication.completed || 0))} of ${publicationTotal} pages published`);
+  }
+  const step = total > 1 ? `${label} (${completed} of ${total})` : label;
+
+  return details.length > 0 ? `${step} ${details.join('; ')}.` : step;
+}
+
+function ownFileImportLatestNewEvent(job, reportedEventKeys) {
+  let latestMessage = '';
+  for (const event of Array.isArray(job?.events) ? job.events : []) {
+    const key = [event?.time ?? '', event?.stage ?? '', event?.message ?? ''].join('\u001f');
+    if (reportedEventKeys.has(key)) {
+      continue;
+    }
+    reportedEventKeys.add(key);
+    const message = String(event?.message || '').trim();
+    if (message) {
+      latestMessage = message;
+    }
+  }
+
+  return latestMessage;
+}
+
+function pdfRenderRequestGroups(requests) {
+  const groups = new Map();
+  for (const request of Array.isArray(requests) ? requests : []) {
+    const path = String(request?.path || '');
+    const sourceKey = String(request?.sourceKey || path);
+    const method = request?.method === pdfPageRasterMethod
+      ? pdfPageRasterMethod
+      : 'pdf-form-xobject';
+    const groupKey = `${method}\u001f${sourceKey}`;
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, { method, requests: [] });
+    }
+    groups.get(groupKey).requests.push(request);
+  }
+
+  return Array.from(groups.values());
+}
+
+function pdfPageRasterSource(filesByPath, requests) {
+  for (const request of requests || []) {
+    const path = String(request?.path || '');
+    if (path && filesByPath?.has(path)) return filesByPath.get(path);
+  }
+  return filesByPath instanceof Map ? filesByPath.values().next().value : undefined;
+}
+
+function pdfPageRasterRequestForRenderer(request) {
+  return {
+    version: request?.version,
+    method: request?.method,
+    id: request?.id,
+    sourceSha256: request?.sourceSha256,
+    page: request?.page,
+    pageObject: request?.pageObject,
+    pageBox: request?.pageBox,
+    pageBoxSource: request?.pageBoxSource,
+    pageRotation: request?.pageRotation,
+    width: request?.width,
+    height: request?.height,
+    mimeType: request?.mimeType,
+    requestDigest: request?.requestDigest,
+  };
+}
+
+function pdfRenderedMediaItem(item) {
+  if (item?.error || item?.bytes instanceof Uint8Array) return item;
+  if (!(item?.contents instanceof Uint8Array)) return item;
+  return {
+    requestId: String(item.requestId || ''),
+    bytes: item.contents,
+    mimeType: item.mimeType,
+    width: item.width,
+    height: item.height,
+  };
+}
+
+async function pdfFilesForOwnFile(playgroundClient, job, file, bytes, renderRequests = null) {
+  const files = new Map();
+  const requests = Array.isArray(renderRequests)
+    ? renderRequests
+    : (Array.isArray(job?.renderRequests) ? job.renderRequests : []);
+  if (file && isLikelyPdfFile(file) && bytes instanceof Uint8Array) {
+    files.set(file.name, bytes);
+  }
+  for (const request of requests) {
+    const path = String(request?.path || '');
+    if (path && file && isLikelyPdfFile(file) && bytes instanceof Uint8Array) {
+      // The server sanitizes upload names before it persists the job. This is
+      // a one-file import, so each requested source path refers to these
+      // browser-held PDF bytes even when its sanitized name differs locally.
+      files.set(path, bytes);
+    }
+  }
+
+  for (const request of requests) {
+    const path = String(request?.path || '');
+    if (!path || files.has(path)) {
+      continue;
+    }
+    const source = await ownFilePdfRenderSource(playgroundClient, job, request);
+    if (source) {
+      files.set(path, source);
+    }
+  }
+
+  return files;
+}
+
+async function ownFilePdfRenderSource(playgroundClient, job, request) {
+  const jobId = encodeURIComponent(String(job?.jobId || ''));
+  const requestId = encodeURIComponent(String(request?.id || ''));
+  if (!jobId || !requestId) {
+    return null;
+  }
+  try {
+    const source = await ownFilePluginRequest(
+      playgroundClient,
+      `/imports/${jobId}/render-source/${requestId}`,
+      undefined,
+      'GET',
+    );
+    const encoded = String(source.bytes || '');
+    if (!encoded) {
+      return null;
+    }
+
+    return bytesFromBase64(encoded);
+  } catch {
+    // Older plugin builds do not expose a stored ZIP member. PDF.js will
+    // report the unavailable figure/page image to WordPress, which leaves the
+    // available fallback in place while the rest of the document is imported.
+    return null;
+  }
+}
+
+function playgroundPdfJsConfig() {
+  const base = new URL('vendor/pdfjs/', window.location.href).href;
+
+  return {
+    pdfjsModuleUrl: new URL('pdf.min.mjs', base).href,
+    pdfjsWorkerUrl: new URL('pdf.worker.min.mjs', base).href,
+    pdfjsWasmUrl: new URL('wasm/', base).href,
+    pdfjsCMapUrl: new URL('cmaps/', base).href,
+    pdfjsStandardFontDataUrl: new URL('standard_fonts/', base).href,
+  };
+}
+
+async function payloadFromOwnFile(file, pdfOutputMode, reportProgress) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const payload = {
     filename: file.name,
     title: titleFromFilename(file.name),
     imageMode: 'important',
     pdfMode: 'layout',
+    pdfOutputMode: pdfOutputMode === 'pages' ? 'pages' : 'single',
   };
   if (!isLikelyPdfFile(file)) {
     return { payload, bytes };
@@ -5098,6 +7686,24 @@ function base64FromBytes(bytes) {
   return btoa(binary);
 }
 
+function bytesFromBase64(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes;
+}
+
+function browserStorage() {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 function isLikelyPdfFile(file) {
   return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 }
@@ -5118,6 +7724,7 @@ function playgroundPath(url) {
 }
 
 async function initialize() {
+  setOwnFileBusy(false);
   try {
     const response = await fetch(catalogUrl, { cache: 'no-store' });
     if (!response.ok) {
@@ -5163,15 +7770,32 @@ tryOwnFileButton.addEventListener('click', () => {
   if (state.ownFileBusy) {
     return;
   }
+  if (ownFileImportSession.load()) {
+    void resumeSavedOwnFileImport();
+    return;
+  }
   ownFileInput.value = '';
   ownFileInput.click();
 });
 
-ownFileInput.addEventListener('change', () => {
+cancelOwnFileButton.addEventListener('click', () => {
+  if (!state.ownFileBusy || !state.lastOwnFileJob?.jobId || state.ownFileCancelRequested) {
+    return;
+  }
+  state.ownFileCancelRequested = true;
+  ownFileImportSession.requestCancellation(state.lastOwnFileJob.jobId);
+  updateControls();
+  setStatus('Cancellation requested. Finishing only the current bounded checkpoint…', { visible: true });
+});
+
+ownFileInput.addEventListener('change', async () => {
   const file = ownFileInput.files && ownFileInput.files[0];
   ownFileInput.value = '';
   if (file) {
-    void openOwnFile(file);
+    const outputMode = isLikelyPdfFile(file) ? await chooseOwnPdfOutputMode() : 'single';
+    if (outputMode) {
+      void openOwnFile(file, outputMode);
+    }
   }
 });
 
@@ -5193,7 +7817,18 @@ viewButtons.forEach((button) => {
 frame.addEventListener('load', () => {
   const example = selectedExample();
   const path = frame.dataset.loadedPath;
-  if (!example || !path || frame.getAttribute('src') !== path) {
+  if (!example || !path) {
+    return;
+  }
+  if (frame.dataset.previewMode === 'pdf-forms' && frame.hasAttribute('srcdoc')) {
+    setStatus(frame.dataset.previewStatus || 'Loaded ' + example.label + '.', { visible: true, tone: 'success' });
+    return;
+  }
+  if (frame.getAttribute('src') !== path) {
+    return;
+  }
+  if (frame.dataset.previewMode === 'fallback') {
+    setStatus(frame.dataset.previewStatus || 'Showing the static preview instead.', { visible: true });
     return;
   }
   setStatus('Loaded ' + example.label + '.');
@@ -5270,10 +7905,41 @@ HTML));
     $legacyDocFaithfulness = [];
     $pdfWithoutReference = [];
     $pdfFaithfulness = [];
+    $incompletePdfQuality = [];
     $xmlWithoutReference = [];
     $xmlFaithfulness = [];
     $preservedRawHtml = [];
     $unexpectedCustomHtml = [];
+    $fragmentationMetrics = [];
+    $fragmentationGate = [];
+    $completeGeometryGate = showcase_pdf_geometry_reference_gate([
+        'pageCount' => 3,
+        'textPageCount' => 3,
+        'lineCount' => 30,
+    ]);
+    $partialGeometryGate = showcase_pdf_geometry_reference_gate([
+        'pageCount' => 3,
+        'textPageCount' => 1,
+        'lineCount' => 10,
+    ]);
+    $scanGeometryGate = showcase_pdf_geometry_reference_gate([
+        'pageCount' => 3,
+        'textPageCount' => 0,
+        'lineCount' => 0,
+    ]);
+    $unanchoredMediaProblems = showcase_media_problem_diagnostics([
+        'extract-media-pdf-image-unanchored:42',
+    ]);
+    $unavailableMediaProblems = showcase_media_problem_diagnostics([
+        'extract-media-pdf-image-placement-unavailable:43',
+    ]);
+    $missingPageOccurrenceProblems = showcase_media_problem_diagnostics([
+        'extract-media-pdf-image-missing-page-occurrence:pdf-image-p2-n1',
+    ]);
+    $unimportantUnavailableMediaProblems = showcase_media_problem_diagnostics([
+        'extract-media-pdf-image-unimportant:42:small',
+        'extract-media-pdf-image-placement-unavailable:42',
+    ]);
     $nativeLatexSemantics = showcase_source_import_semantics(
         dirname(__DIR__) . '/lanes/pandoc/fixtures/latex-reader/academic-article.tex',
         'latex'
@@ -5317,12 +7983,34 @@ HTML));
                     'ok' => true,
                     'path' => 'wordpress.html',
                     'mediaDiagnostics' => [],
+                    'sourceIntegrity' => [
+                        'complete' => true,
+                        'pdfDocumentComplete' => true,
+                        'pdfSemanticTextComplete' => true,
+                        'pdfSourceBindingComplete' => true,
+                        'pdfSourceEdgeMappingComplete' => true,
+                        'pdfOrderedSignificantCharactersPreserved' => true,
+                        'pdfUnresolvedSourceOccurrences' => 0,
+                        'pdfPageRepresentationComplete' => true,
+                    ],
                 ],
                 'wpBlockCounts' => ['paragraph' => 1],
             ];
             $pdfFaithfulness = showcase_record_faithfulness($unbenchmarkedDir, $pdfRecord);
             $pdfRecord['faithfulness'] = $pdfFaithfulness;
             $pdfWithoutReference = showcase_record_import_quality($unbenchmarkedDir, $pdfRecord);
+            $incompletePdfRecord = $pdfRecord;
+            $incompletePdfRecord['wpBlocks']['sourceIntegrity'] = [
+                'complete' => false,
+                'pdfDocumentComplete' => true,
+                'pdfSemanticTextComplete' => false,
+                'pdfSourceBindingComplete' => false,
+                'pdfSourceEdgeMappingComplete' => false,
+                'pdfOrderedSignificantCharactersPreserved' => true,
+                'pdfUnresolvedSourceOccurrences' => 3,
+                'pdfPageRepresentationComplete' => false,
+            ];
+            $incompletePdfQuality = showcase_record_import_quality($unbenchmarkedDir, $incompletePdfRecord);
             $xmlRecord = [
                 'format' => 'xml',
                 'haskell' => ['ok' => false],
@@ -5398,13 +8086,239 @@ HTML));
             $semanticFaithfulness = showcase_record_faithfulness($unbenchmarkedDir, $semanticRecord);
             $semanticRecord['faithfulness'] = $semanticFaithfulness;
             $semanticQuality = showcase_record_import_quality($unbenchmarkedDir, $semanticRecord);
+            file_put_contents(
+                $unbenchmarkedDir . '/fragmented.html',
+                implode('', array_fill(0, 20, '<p>A</p>'))
+            );
+            $fragmentationMetrics = showcase_pdf_paragraph_fragmentation_metrics(
+                $unbenchmarkedDir,
+                'fragmented.html'
+            );
+            $fragmentationGate = showcase_pdf_paragraph_geometry_gate(
+                ['pageCount' => 1, 'textPageCount' => 1, 'lineCount' => 100],
+                ['p' => 20],
+                $fragmentationMetrics
+            );
         } finally {
             @unlink($unbenchmarkedDir . '/wordpress.html');
             @unlink($unbenchmarkedDir . '/php.html');
             @unlink($unbenchmarkedDir . '/semantic-haskell.html');
             @unlink($unbenchmarkedDir . '/semantic-wordpress.html');
+            @unlink($unbenchmarkedDir . '/fragmented.html');
             @rmdir($unbenchmarkedDir);
         }
+    }
+
+    $syntheticPageRequests = [];
+    $syntheticSourceSha = hash('sha256', 'showcase-page-render-source');
+    for ($page = 1; $page <= SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS + 1; $page++) {
+        $syntheticRequestDigest = hash('sha256', 'showcase-page-render-request-' . $page);
+        $syntheticPageRequests[] = [
+            'version' => 1,
+            'method' => 'pdfjs-whole-page-raster',
+            'sourceSha256' => $syntheticSourceSha,
+            'page' => $page,
+            'pageObject' => 100 + $page,
+            'pageBox' => [0.0, 0.0, 612.0, 792.0],
+            'pageBoxSource' => 'MediaBox',
+            'pageRotation' => 0,
+            'width' => 1224,
+            'height' => 1584,
+            'mimeType' => 'image/png',
+            'id' => 'pdf-page-raster-' . substr($syntheticRequestDigest, 0, 32),
+            'requestDigest' => $syntheticRequestDigest,
+        ];
+    }
+    $syntheticPdfMetadata = [
+        'pdfPageRasterRequests' => $syntheticPageRequests,
+        'pdfFormXObjectPlacements' => [[
+            'id' => 'synthetic-form',
+            'page' => 3,
+            'object' => 42,
+            'paintOrder' => 7,
+            'bbox' => ['x1' => 10.0, 'y1' => 20.0, 'x2' => 210.0, 'y2' => 140.0],
+            'visible' => true,
+            'placementEligible' => true,
+            'precedingText' => 'Synthetic form predecessor.',
+            'followingText' => 'Synthetic form successor.',
+        ]],
+        'pdfSourceDisposition' => [
+            'sourceEdges' => [[
+                'target' => 'output',
+                'page' => 2,
+                'destinationNodeIds' => ['synthetic-page-two'],
+            ], [
+                'target' => 'output',
+                'page' => 3,
+                'destinationNodeIds' => ['synthetic-page-three'],
+            ]],
+        ],
+    ];
+    $syntheticPdfDocument = new AstNode('document', ['meta' => $syntheticPdfMetadata], [
+        new AstNode('paragraph', ['text' => 'Unproven text must not become an anchor.']),
+        new AstNode('heading', [
+            'text' => 'First proven page-two heading.',
+            'sourceNodeId' => 'synthetic-page-two',
+        ]),
+        new AstNode('paragraph', [
+            'text' => 'Last proven page-three paragraph.',
+            'sourceNodeId' => 'synthetic-page-three',
+        ]),
+    ]);
+    $syntheticSamplePath = 'samples/synthetic-page-render.pdf';
+    $syntheticRenderRequests = showcase_pdf_render_requests($syntheticPdfDocument, $syntheticSamplePath);
+    $syntheticRenderRepeat = showcase_pdf_render_requests($syntheticPdfDocument, $syntheticSamplePath);
+    $syntheticCorePreserved = true;
+    for ($index = 0; $index < SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS; $index++) {
+        $renderedCore = $syntheticRenderRequests[$index] ?? null;
+        if (!is_array($renderedCore)) {
+            $syntheticCorePreserved = false;
+            break;
+        }
+        unset(
+            $renderedCore['path'],
+            $renderedCore['label'],
+            $renderedCore['precedingText'],
+            $renderedCore['followingText']
+        );
+        if ($renderedCore !== $syntheticPageRequests[$index]) {
+            $syntheticCorePreserved = false;
+            break;
+        }
+    }
+    $syntheticPageMethods = array_map(
+        static fn (array $request): mixed => $request['method'] ?? null,
+        array_slice($syntheticRenderRequests, 0, SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS)
+    );
+    $syntheticFormRequest = $syntheticRenderRequests[SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS] ?? null;
+    $pdfRenderPlanProbe = [
+        'ok' => count($syntheticRenderRequests) === SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS + 1
+            && count(array_unique($syntheticPageMethods, SORT_REGULAR)) === 1
+            && ($syntheticPageMethods[0] ?? null) === 'pdfjs-whole-page-raster'
+            && is_array($syntheticFormRequest)
+            && ($syntheticFormRequest['object'] ?? null) === 42
+            && $syntheticCorePreserved
+            && $syntheticRenderRequests === $syntheticRenderRepeat
+            && ($syntheticRenderRequests[0]['path'] ?? null) === $syntheticSamplePath
+            && ($syntheticRenderRequests[0]['label'] ?? null) === 'PDF page 1'
+            && ($syntheticRenderRequests[0]['precedingText'] ?? null) === null
+            && ($syntheticRenderRequests[0]['followingText'] ?? null) === 'First proven page-two heading.'
+            && ($syntheticRenderRequests[95]['precedingText'] ?? null) === 'Last proven page-three paragraph.'
+            && ($syntheticRenderRequests[95]['followingText'] ?? null) === null,
+        'requestCount' => count($syntheticRenderRequests),
+        'pageRequestCount' => count($syntheticPageMethods),
+        'firstRequestMethod' => $syntheticPageMethods[0] ?? null,
+        'formObjectAfterPages' => is_array($syntheticFormRequest) ? ($syntheticFormRequest['object'] ?? null) : null,
+        'coreRequestsPreserved' => $syntheticCorePreserved,
+        'stable' => $syntheticRenderRequests === $syntheticRenderRepeat,
+        'firstFollowingText' => $syntheticRenderRequests[0]['followingText'] ?? null,
+        'lastPagePrecedingText' => $syntheticRenderRequests[95]['precedingText'] ?? null,
+    ];
+
+    $readPdfRenderFixture = static function (string $source, string $samplePath): array {
+        try {
+            $options = showcase_converter_options('pdf', 'wordpress');
+            $readerOptions = is_array($options['readerOptions'] ?? null) ? $options['readerOptions'] : [];
+            $readerOptions['pdfCollectFormXObjectPlacements'] = true;
+            $document = PandocConverter::readFile($source, 'pdf', $readerOptions);
+            $metadata = $document->attr('meta', []);
+            $metadata = is_array($metadata) ? $metadata : [];
+            $coreRequests = is_array($metadata['pdfPageRasterRequests'] ?? null)
+                ? $metadata['pdfPageRasterRequests']
+                : [];
+            $requests = showcase_pdf_render_requests($document, $samplePath);
+            $repeat = showcase_pdf_render_requests($document, $samplePath);
+            $pageRequests = array_slice($requests, 0, min(
+                count($coreRequests),
+                SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS
+            ));
+            $corePreserved = count($pageRequests) === min(
+                count($coreRequests),
+                SHOWCASE_PDF_PAGE_RASTER_MAX_REQUESTS
+            );
+            foreach ($pageRequests as $index => $pageRequest) {
+                unset(
+                    $pageRequest['path'],
+                    $pageRequest['label'],
+                    $pageRequest['precedingText'],
+                    $pageRequest['followingText']
+                );
+                if ($pageRequest !== $coreRequests[$index]) {
+                    $corePreserved = false;
+                    break;
+                }
+            }
+            $nonEmptyBlocks = array_values(array_filter(
+                array_map(
+                    static fn (AstNode $block): string => showcase_pdf_anchor_text($block),
+                    $document->children()
+                ),
+                static fn (string $text): bool => $text !== ''
+            ));
+
+            return [
+                'count' => count($pageRequests),
+                'firstPage' => $pageRequests[0]['page'] ?? null,
+                'lastPage' => $pageRequests[count($pageRequests) - 1]['page'] ?? null,
+                'firstPrecedingText' => $pageRequests[0]['precedingText'] ?? null,
+                'firstFollowingText' => $pageRequests[0]['followingText'] ?? null,
+                'lastPrecedingText' => $pageRequests[count($pageRequests) - 1]['precedingText'] ?? null,
+                'lastFollowingText' => $pageRequests[count($pageRequests) - 1]['followingText'] ?? null,
+                'firstDocumentText' => $nonEmptyBlocks[0] ?? null,
+                'lastDocumentText' => $nonEmptyBlocks[count($nonEmptyBlocks) - 1] ?? null,
+                'routingStable' => array_reduce(
+                    $pageRequests,
+                    static fn (bool $valid, array $request): bool => $valid
+                        && ($request['path'] ?? null) === $samplePath,
+                    true
+                ),
+                'coreRequestsPreserved' => $corePreserved,
+                'stable' => $requests === $repeat,
+            ];
+        } catch (Throwable $error) {
+            return ['error' => sanitize_generated_text($error->getMessage())];
+        }
+    };
+    $pdfRenderFixtures = [
+        'vdl' => $readPdfRenderFixture(
+            $root . '/pandoc-showcase/samples/pdf-layout-vdl-theatre-script-ASC_script_format_example.pdf',
+            'samples/pdf-layout-vdl-theatre-script-ASC_script_format_example.pdf'
+        ),
+        'motograph' => $readPdfRenderFixture(
+            $root . '/pandoc-showcase/samples/pdf-archive-motograph-book-motograph-moving-picture-book.pdf',
+            'samples/pdf-archive-motograph-book-motograph-moving-picture-book.pdf'
+        ),
+        'mineru' => $readPdfRenderFixture(
+            $root . '/pandoc-showcase/samples/pdf-layout-mineru-small-ocr-small_ocr.pdf',
+            'samples/pdf-layout-mineru-small-ocr-small_ocr.pdf'
+        ),
+    ];
+    $pdfRenderFixturesOk = ($pdfRenderFixtures['vdl']['count'] ?? null) === 1
+        && ($pdfRenderFixtures['vdl']['firstPage'] ?? null) === 1
+        && ($pdfRenderFixtures['vdl']['firstPrecedingText'] ?? null) === null
+        && ($pdfRenderFixtures['vdl']['firstFollowingText'] ?? null)
+            === ($pdfRenderFixtures['vdl']['firstDocumentText'] ?? null)
+        && ($pdfRenderFixtures['motograph']['count'] ?? null) === 46
+        && ($pdfRenderFixtures['motograph']['firstPage'] ?? null) === 2
+        && ($pdfRenderFixtures['motograph']['lastPage'] ?? null) === 47
+        && ($pdfRenderFixtures['motograph']['firstFollowingText'] ?? null) === null
+        && ($pdfRenderFixtures['motograph']['lastFollowingText'] ?? null) === null
+        && ($pdfRenderFixtures['motograph']['firstPrecedingText'] ?? null)
+            === ($pdfRenderFixtures['motograph']['lastDocumentText'] ?? null)
+        && ($pdfRenderFixtures['motograph']['lastPrecedingText'] ?? null)
+            === ($pdfRenderFixtures['motograph']['lastDocumentText'] ?? null)
+        && ($pdfRenderFixtures['mineru']['count'] ?? null) === 8
+        && ($pdfRenderFixtures['mineru']['firstPage'] ?? null) === 1
+        && ($pdfRenderFixtures['mineru']['lastPage'] ?? null) === 8
+        && ($pdfRenderFixtures['mineru']['firstPrecedingText'] ?? null) === null
+        && ($pdfRenderFixtures['mineru']['firstFollowingText'] ?? null) === null
+        && ($pdfRenderFixtures['mineru']['lastPrecedingText'] ?? null) === null
+        && ($pdfRenderFixtures['mineru']['lastFollowingText'] ?? null) === null;
+    foreach ($pdfRenderFixtures as $fixture) {
+        $pdfRenderFixturesOk = $pdfRenderFixturesOk
+            && ($fixture['routingStable'] ?? false) === true
+            && ($fixture['coreRequestsPreserved'] ?? false) === true
+            && ($fixture['stable'] ?? false) === true;
     }
     $ok = $baseline === $expected
         && $wordpress === $expected
@@ -5418,17 +8332,31 @@ HTML));
         && (($legacyDocWithoutReference['status'] ?? null) === 'unbenchmarked')
         && (($pdfFaithfulness['baseline'] ?? null) === null)
         && (($pdfWithoutReference['status'] ?? null) === 'unbenchmarked')
+        && (($pdfWithoutReference['gates']['pdf_source_integrity']['status'] ?? null) === 'pass')
+        && (($incompletePdfQuality['status'] ?? null) === 'fail')
+        && (($incompletePdfQuality['gates']['pdf_source_integrity']['status'] ?? null) === 'fail')
         && (($xmlFaithfulness['baseline'] ?? null) === null)
         && (($xmlWithoutReference['status'] ?? null) === 'unbenchmarked')
         && (($preservedRawHtml['gates']['custom_html_percentage']['status'] ?? null) === 'pass')
         && (($unexpectedCustomHtml['gates']['custom_html_percentage']['status'] ?? null) === 'fail')
+        && (($completeGeometryGate['status'] ?? null) === 'pass')
+        && (($partialGeometryGate['status'] ?? null) === 'review')
+        && (($scanGeometryGate['status'] ?? null) === 'review')
+        && (($fragmentationMetrics['veryShortParagraphs'] ?? null) === 20)
+        && (($fragmentationGate['status'] ?? null) === 'review')
+        && $unanchoredMediaProblems === ['extract-media-pdf-image-unanchored:42']
+        && $unavailableMediaProblems === ['extract-media-pdf-image-placement-unavailable:43']
+        && $missingPageOccurrenceProblems === ['extract-media-pdf-image-missing-page-occurrence:pdf-image-p2-n1']
+        && $unimportantUnavailableMediaProblems === []
         && (($nativeLatexSemantics['metadata']['title'][0] ?? null) === 'A Native LaTeX Import Study')
         && in_array('latex-title-block', $nativeLatexSemantics['structures'] ?? [], true)
         && in_array('latex-abstract', $nativeLatexSemantics['structures'] ?? [], true)
         && in_array('latex-table-of-contents', $nativeLatexSemantics['structures'] ?? [], true)
         && in_array('pandoc-csl-bibliography', $nativeLatexSemantics['structures'] ?? [], true)
         && (($semanticFaithfulness['comparisons']['wpBlocks']['textScore'] ?? 0.0) === 1.0)
-        && (($semanticQuality['gates']['source_metadata_semantics']['status'] ?? null) === 'pass');
+        && (($semanticQuality['gates']['source_metadata_semantics']['status'] ?? null) === 'pass')
+        && ($pdfRenderPlanProbe['ok'] ?? false) === true
+        && $pdfRenderFixturesOk;
     fwrite(STDOUT, json_encode([
         'ok' => $ok,
         'baseline' => $baseline,
@@ -5442,13 +8370,27 @@ HTML));
         'legacyDocWithoutReferenceBaseline' => $legacyDocFaithfulness['baseline'] ?? null,
         'pdfWithoutReferenceStatus' => $pdfWithoutReference['status'] ?? null,
         'pdfWithoutReferenceBaseline' => $pdfFaithfulness['baseline'] ?? null,
+        'pdfSourceIntegrityStatus' => $pdfWithoutReference['gates']['pdf_source_integrity']['status'] ?? null,
+        'incompletePdfStatus' => $incompletePdfQuality['status'] ?? null,
+        'incompletePdfSourceIntegrityStatus' => $incompletePdfQuality['gates']['pdf_source_integrity']['status'] ?? null,
         'xmlWithoutReferenceStatus' => $xmlWithoutReference['status'] ?? null,
         'xmlWithoutReferenceBaseline' => $xmlFaithfulness['baseline'] ?? null,
         'preservedRawHtmlStatus' => $preservedRawHtml['gates']['custom_html_percentage']['status'] ?? null,
         'unexpectedCustomHtmlStatus' => $unexpectedCustomHtml['gates']['custom_html_percentage']['status'] ?? null,
+        'completeGeometryStatus' => $completeGeometryGate['status'] ?? null,
+        'partialGeometryStatus' => $partialGeometryGate['status'] ?? null,
+        'scanGeometryStatus' => $scanGeometryGate['status'] ?? null,
+        'fragmentationMetrics' => $fragmentationMetrics,
+        'fragmentationStatus' => $fragmentationGate['status'] ?? null,
+        'unanchoredMediaProblems' => $unanchoredMediaProblems,
+        'unavailableMediaProblems' => $unavailableMediaProblems,
+        'missingPageOccurrenceProblems' => $missingPageOccurrenceProblems,
+        'unimportantUnavailableMediaProblems' => $unimportantUnavailableMediaProblems,
         'nativeLatexSemanticStructures' => $nativeLatexSemantics['structures'] ?? [],
         'semanticComparisonTextScore' => $semanticFaithfulness['comparisons']['wpBlocks']['textScore'] ?? null,
         'semanticMetadataStatus' => $semanticQuality['gates']['source_metadata_semantics']['status'] ?? null,
+        'pdfRenderPlanProbe' => $pdfRenderPlanProbe,
+        'pdfRenderFixtures' => $pdfRenderFixtures,
     ], JSON_UNESCAPED_SLASHES) . PHP_EOL);
     exit($ok ? 0 : 1);
 }
@@ -5507,12 +8449,21 @@ foreach ($samples as $sample) {
     }
     $sourcePath = is_file($target) ? $target : $target . '.download-error.txt';
     $outDir = $outputsDir . '/' . $id;
+    $cachedHaskell = is_file($target)
+        ? cached_haskell_pandoc_reference($outDir, $target, $format)
+        : null;
     ensure_clean_dir($outDir);
+    $samplePath = rel($sourcePath, $siteDir);
 
-    $haskell = is_file($target) ? run_haskell_pandoc($target, $format, $outDir) : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
+    $haskell = is_array($cachedHaskell)
+        ? restore_cached_haskell_pandoc_reference($outDir, $format, $cachedHaskell)
+        : (is_file($target)
+            ? run_haskell_pandoc($target, $format, $outDir)
+            : ['ok' => false, 'error' => $downloadError ?? 'missing source file']);
     $externalReference = is_file($target) ? run_external_reference($target, $format, $outDir) : null;
     $phpHtml = is_file($target) ? write_output_from_process($outDir, 'php.html', $target, $format, 'html') : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
     $wpBlocks = is_file($target) ? write_output_from_process($outDir, 'wordpress-blocks.html', $target, $format, 'wordpress') : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
+    $pdfFormRenders = is_file($target) ? showcase_pdf_form_render_plan($target, $format, $samplePath, $outDir) : null;
     $wpBlockCounts = (($wpBlocks['ok'] ?? false) === true && isset($wpBlocks['path']))
         ? wordpress_block_counts($siteDir . '/' . $wpBlocks['path'])
         : [];
@@ -5532,7 +8483,7 @@ foreach ($samples as $sample) {
         'description' => (string) ($sample['description'] ?? ''),
         'source' => (string) $sample['source'],
         'sourceUrl' => (string) ($sample['url'] ?? ''),
-        'samplePath' => rel($sourcePath, $siteDir),
+        'samplePath' => $samplePath,
         'sampleSize' => is_file($target) ? filesize($target) : 0,
         'preview' => $preview,
         'support' => $support[$format] ?? ['status' => 'partial', 'implementation' => 'unknown', 'notes' => ''],
@@ -5544,6 +8495,9 @@ foreach ($samples as $sample) {
         'bibliographySource' => $bibliographySource,
         'importSemantics' => $importSemantics,
     ];
+    if ($pdfFormRenders !== null) {
+        $record['pdfFormRenders'] = $pdfFormRenders;
+    }
     if ($externalReference !== null) {
         $record['externalReference'] = $externalReference;
     }

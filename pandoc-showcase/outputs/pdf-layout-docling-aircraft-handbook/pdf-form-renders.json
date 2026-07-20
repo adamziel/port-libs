@@ -1,0 +1,159 @@
+{
+    "version": 1,
+    "samplePath": "samples/pdf-layout-docling-aircraft-handbook-amt_handbook_sample.pdf",
+    "requests": [
+        {
+            "id": "form-268373371e3a28f29270f4752182",
+            "path": "samples/pdf-layout-docling-aircraft-handbook-amt_handbook_sample.pdf",
+            "page": 1,
+            "bbox": {
+                "x1": 320.246,
+                "y1": 185.668,
+                "x2": 530.246,
+                "y2": 322.668
+            },
+            "formId": "pdf-form-p1-n1-o53",
+            "object": 53,
+            "paintOrder": 1,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 1"
+        },
+        {
+            "id": "form-fb29bfb2bf2562a9c638b770ed33",
+            "path": "samples/pdf-layout-docling-aircraft-handbook-amt_handbook_sample.pdf",
+            "page": 1,
+            "bbox": {
+                "x1": 401.246,
+                "y1": 224.361,
+                "x2": 611.246,
+                "y2": 337.361
+            },
+            "formId": "pdf-form-p1-n2-o54",
+            "object": 54,
+            "paintOrder": 2,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 1"
+        },
+        {
+            "id": "form-eaec3df79fb82bae4b1a9b98cfd9",
+            "path": "samples/pdf-layout-docling-aircraft-handbook-amt_handbook_sample.pdf",
+            "page": 1,
+            "bbox": {
+                "x1": 396.246,
+                "y1": 78.8461,
+                "x2": 606.246,
+                "y2": 190.846
+            },
+            "formId": "pdf-form-p1-n3-o55",
+            "object": 55,
+            "paintOrder": 3,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 1"
+        },
+        {
+            "id": "form-1d5b26b98ebc98627d61dffb0e11",
+            "path": "samples/pdf-layout-docling-aircraft-handbook-amt_handbook_sample.pdf",
+            "page": 1,
+            "bbox": {
+                "x1": 362.246,
+                "y1": 94.6674,
+                "x2": 430.246,
+                "y2": 165.667
+            },
+            "formId": "pdf-form-p1-n4-o56",
+            "object": 56,
+            "paintOrder": 4,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 1"
+        },
+        {
+            "id": "form-f843b466cc20a8df06e6d82dab6c",
+            "path": "samples/pdf-layout-docling-aircraft-handbook-amt_handbook_sample.pdf",
+            "page": 1,
+            "bbox": {
+                "x1": 125.996,
+                "y1": 87.54,
+                "x2": 240.996,
+                "y2": 151.54
+            },
+            "formId": "pdf-form-p1-n5-o57",
+            "object": 57,
+            "paintOrder": 5,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 1"
+        },
+        {
+            "id": "form-9c9c06e6790199a6836727b79bd8",
+            "path": "samples/pdf-layout-docling-aircraft-handbook-amt_handbook_sample.pdf",
+            "page": 1,
+            "bbox": {
+                "x1": 70.9961,
+                "y1": 173.54,
+                "x2": 200.996,
+                "y2": 238.54
+            },
+            "formId": "pdf-form-p1-n6-o58",
+            "object": 58,
+            "paintOrder": 6,
+            "precedingText": "styles and in various shapes and sizes. The wing type that is",
+            "followingText": "Flexloc nut",
+            "label": "PDF figure on page 1"
+        },
+        {
+            "id": "form-38ee5aebff08ea6a0d2023b54a22",
+            "path": "samples/pdf-layout-docling-aircraft-handbook-amt_handbook_sample.pdf",
+            "page": 1,
+            "bbox": {
+                "x1": 202.996,
+                "y1": 167.54,
+                "x2": 340.996,
+                "y2": 231.54
+            },
+            "formId": "pdf-form-p1-n8-o60",
+            "object": 60,
+            "paintOrder": 8,
+            "precedingText": "styles and in various shapes and sizes. The wing type that is",
+            "followingText": "Elastic stop nut",
+            "label": "PDF figure on page 1"
+        },
+        {
+            "id": "form-87f190ca193578a1c3ea78eea47f",
+            "path": "samples/pdf-layout-docling-aircraft-handbook-amt_handbook_sample.pdf",
+            "page": 1,
+            "bbox": {
+                "x1": 82.9961,
+                "y1": 94.3017,
+                "x2": 154.996,
+                "y2": 150.302
+            },
+            "formId": "pdf-form-p1-n9-o61",
+            "object": 61,
+            "paintOrder": 9,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 1"
+        },
+        {
+            "id": "form-57943a723f5c74b8a9c804f6856b",
+            "path": "samples/pdf-layout-docling-aircraft-handbook-amt_handbook_sample.pdf",
+            "page": 1,
+            "bbox": {
+                "x1": 222.996,
+                "y1": 92.54,
+                "x2": 346.996,
+                "y2": 161.54
+            },
+            "formId": "pdf-form-p1-n10-o62",
+            "object": 62,
+            "paintOrder": 10,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 1"
+        }
+    ]
+}

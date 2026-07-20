@@ -1,0 +1,540 @@
+{
+    "extractor": "macOS PDFKit",
+    "pageCount": 1,
+    "pages": [
+        {
+            "height": 774,
+            "lines": [
+                {
+                    "height": 11.47,
+                    "text": "pulleys, provided the inner race of the bearing is clamped",
+                    "width": 237.13,
+                    "x": 71.992,
+                    "y": 718.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "to the supporting structure by the nut and bolt. Plates must",
+                    "width": 237.01,
+                    "x": 71.992,
+                    "y": 706.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "be attached to the structure in a positive manner to eliminate",
+                    "width": 237.03,
+                    "x": 71.992,
+                    "y": 693.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "rotation or misalignment when tightening the bolts or screws.",
+                    "width": 237.02,
+                    "x": 71.992,
+                    "y": 681.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "The two general types of self-locking nuts currently in use",
+                    "width": 237.041,
+                    "x": 71.992,
+                    "y": 656.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "are the all-metal type and the fiber lock type. For the sake of",
+                    "width": 237.01,
+                    "x": 71.993,
+                    "y": 643.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "simplicity, only three typical kinds of self-locking nuts are",
+                    "width": 237.03,
+                    "x": 71.993,
+                    "y": 631.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "considered in this handbook: the Boots self-locking and the",
+                    "width": 237,
+                    "x": 71.993,
+                    "y": 618.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "stainless steel self-locking nuts, representing the all-metal",
+                    "width": 237.06,
+                    "x": 71.993,
+                    "y": 606.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "types; and the elastic stop nut, representing the fiber insert type.",
+                    "width": 237.132,
+                    "x": 71.993,
+                    "y": 593.846
+                },
+                {
+                    "height": 11.34,
+                    "text": "Boots Self-Locking Nut",
+                    "width": 92.78,
+                    "x": 71.992,
+                    "y": 568.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "The Boots self-locking nut is of one piece, all-metal",
+                    "width": 237.045,
+                    "x": 71.992,
+                    "y": 554.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "construction designed to hold tight despite severe vibration.",
+                    "width": 237.018,
+                    "x": 71.992,
+                    "y": 541.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "Note in Figure 7-26 that it has two sections and is essentially",
+                    "width": 237.09,
+                    "x": 71.992,
+                    "y": 529.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "two nuts in one: a locking nut and a load-carrying nut. The",
+                    "width": 237.027,
+                    "x": 71.992,
+                    "y": 516.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "two sections are connected with a spring, which is an integral",
+                    "width": 237.05,
+                    "x": 71.992,
+                    "y": 504.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "part of the nut.",
+                    "width": 58.88,
+                    "x": 71.992,
+                    "y": 491.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "The spring keeps the locking and load-carrying sections such",
+                    "width": 237.038,
+                    "x": 71.992,
+                    "y": 466.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "a distance apart that the two sets of threads are out of phase",
+                    "width": 236.995,
+                    "x": 71.992,
+                    "y": 454.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "or spaced so that a bolt, which has been screwed through the",
+                    "width": 236.995,
+                    "x": 71.992,
+                    "y": 441.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "load-carrying section, must push the locking section outward",
+                    "width": 237.09,
+                    "x": 71.992,
+                    "y": 429.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "against the force of the spring to engage the threads of the",
+                    "width": 237.027,
+                    "x": 71.992,
+                    "y": 416.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "locking section properly.",
+                    "width": 99.71,
+                    "x": 71.992,
+                    "y": 404.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "The spring, through the medium of the locking section, exerts",
+                    "width": 237.05,
+                    "x": 71.992,
+                    "y": 379.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "a constant locking force on the bolt in the same direction as a",
+                    "width": 236.9,
+                    "x": 71.992,
+                    "y": 366.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "force that would tighten the nut. In this nut, the load-carrying",
+                    "width": 236.88,
+                    "x": 71.992,
+                    "y": 354.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "section has the thread strength of a standard nut of comparable",
+                    "width": 236.86,
+                    "x": 71.992,
+                    "y": 341.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "size, while the locking section presses against the threads of",
+                    "width": 236.997,
+                    "x": 71.992,
+                    "y": 329.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "the bolt and locks the nut firmly in position. Only a wrench",
+                    "width": 236.99,
+                    "x": 71.992,
+                    "y": 316.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "applied to the nut loosens it. The nut can be removed and",
+                    "width": 237,
+                    "x": 71.992,
+                    "y": 304.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "reused without impairing its efficiency.",
+                    "width": 157.48,
+                    "x": 71.992,
+                    "y": 291.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "Boots self-locking nuts are made with three different spring",
+                    "width": 237.01,
+                    "x": 71.992,
+                    "y": 266.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "styles and in various shapes and sizes. The wing type that is",
+                    "width": 237,
+                    "x": 71.992,
+                    "y": 254.346
+                },
+                {
+                    "height": 9.616,
+                    "text": "Boots aircraft nut",
+                    "width": 57.207,
+                    "x": 102.416,
+                    "y": 176.619
+                },
+                {
+                    "height": 9.616,
+                    "text": "Elastic anchor nut",
+                    "width": 59.168,
+                    "x": 216.933,
+                    "y": 176.619
+                },
+                {
+                    "height": 9.616,
+                    "text": "Flexloc nut",
+                    "width": 36.392,
+                    "x": 91.686,
+                    "y": 85.074
+                },
+                {
+                    "height": 9.616,
+                    "text": "Fiber locknut",
+                    "width": 43.679,
+                    "x": 162.481,
+                    "y": 85.074
+                },
+                {
+                    "height": 9.616,
+                    "text": "Elastic stop nut",
+                    "width": 50.551,
+                    "x": 237.314,
+                    "y": 85.074
+                },
+                {
+                    "height": 12.832,
+                    "text": "Figure 7-26. Self-locking nuts.",
+                    "width": 109.898,
+                    "x": 72,
+                    "y": 60.99
+                },
+                {
+                    "height": 11.47,
+                    "text": "the most common ranges in size for No. 6 up to 1⁄4 inch, the",
+                    "width": 237.016,
+                    "x": 320.992,
+                    "y": 718.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "Rol-top ranges from 1⁄4 inch to 1⁄6 inch, and the bellows type",
+                    "width": 237.01,
+                    "x": 320.998,
+                    "y": 706.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "ranges in size from No. 8 up to 3⁄8 inch. Wing-type nuts are",
+                    "width": 237.013,
+                    "x": 320.996,
+                    "y": 693.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "made of anodized aluminum alloy, cadmium-plated carbon",
+                    "width": 237.003,
+                    "x": 320.995,
+                    "y": 681.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "steel, or stainless steel. The Rol-top nut is cadmium-plated",
+                    "width": 237.022,
+                    "x": 320.995,
+                    "y": 668.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "steel, and the bellows type is made of aluminum alloy only.",
+                    "width": 237.013,
+                    "x": 320.995,
+                    "y": 656.346
+                },
+                {
+                    "height": 11.47,
+                    "text": ".",
+                    "width": 2.5,
+                    "x": 320.995,
+                    "y": 643.846
+                },
+                {
+                    "height": 11.34,
+                    "text": "Stainless Steel Self-Locking Nut",
+                    "width": 127.5,
+                    "x": 320.995,
+                    "y": 631.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "The stainless steel self-locking nut may be spun on and off",
+                    "width": 237.003,
+                    "x": 320.995,
+                    "y": 616.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "by hand as its locking action takes places only when the",
+                    "width": 236.91,
+                    "x": 320.995,
+                    "y": 604.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "nut is seated against a solid surface and tightened. The nut",
+                    "width": 237.013,
+                    "x": 320.995,
+                    "y": 591.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "consists of two parts: a case with a beveled locking shoulder",
+                    "width": 237.018,
+                    "x": 320.995,
+                    "y": 579.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "and key and a thread insert with a locking shoulder and",
+                    "width": 236.822,
+                    "x": 320.995,
+                    "y": 566.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "slotted keyway. Until the nut is tightened, it spins on the",
+                    "width": 237.011,
+                    "x": 320.995,
+                    "y": 554.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "bolt easily, because the threaded insert is the proper size",
+                    "width": 236.81,
+                    "x": 320.995,
+                    "y": 541.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "for the bolt. However, when the nut is seated against a solid",
+                    "width": 237.017,
+                    "x": 320.995,
+                    "y": 529.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "surface and tightened, the locking shoulder of the insert is",
+                    "width": 237.017,
+                    "x": 320.995,
+                    "y": 516.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "pulled downward and wedged against the locking shoulder",
+                    "width": 236.996,
+                    "x": 320.995,
+                    "y": 504.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "of the case. This action compresses the threaded insert and",
+                    "width": 237,
+                    "x": 320.995,
+                    "y": 491.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "causes it to clench the bolt tightly. The cross-sectional view",
+                    "width": 237.016,
+                    "x": 320.995,
+                    "y": 479.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "in Figure 7-27 shows how the key of the case fits into the",
+                    "width": 237.01,
+                    "x": 320.995,
+                    "y": 466.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "slotted keyway of the insert so that when the case is turned,",
+                    "width": 237.008,
+                    "x": 320.995,
+                    "y": 454.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "the threaded insert is turned with it. Note that the slot is wider",
+                    "width": 237.029,
+                    "x": 320.995,
+                    "y": 441.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "than the key. This permits the slot to be narrowed and the",
+                    "width": 237.01,
+                    "x": 320.995,
+                    "y": 429.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "insert to be compressed when the nut is tightened.",
+                    "width": 199.7,
+                    "x": 320.995,
+                    "y": 416.846
+                },
+                {
+                    "height": 11.34,
+                    "text": "Elastic Stop Nut",
+                    "width": 65.01,
+                    "x": 320.995,
+                    "y": 391.846
+                },
+                {
+                    "height": 11.47,
+                    "text": "The elastic stop nut is a standard nut with the height",
+                    "width": 237.109,
+                    "x": 320.995,
+                    "y": 377.346
+                },
+                {
+                    "height": 11.47,
+                    "text": "increased to accommodate a fiber locking collar. This",
+                    "width": 237.086,
+                    "x": 320.995,
+                    "y": 364.846
+                },
+                {
+                    "height": 9.616,
+                    "text": "Nut case",
+                    "width": 28.632,
+                    "x": 456.756,
+                    "y": 332.387
+                },
+                {
+                    "height": 9.912,
+                    "text": "Untightened nut",
+                    "width": 59.248,
+                    "x": 474.37,
+                    "y": 232.196
+                },
+                {
+                    "height": 9.616,
+                    "text": "Locking shoulder",
+                    "width": 57.439,
+                    "x": 448.551,
+                    "y": 211.063
+                },
+                {
+                    "height": 9.616,
+                    "text": "Threaded nut core",
+                    "width": 61.153,
+                    "x": 434.623,
+                    "y": 186.561
+                },
+                {
+                    "height": 9.616,
+                    "text": "Keyway",
+                    "width": 25.623,
+                    "x": 424.784,
+                    "y": 100.272
+                },
+                {
+                    "height": 9.912,
+                    "text": "Tightened nut",
+                    "width": 50.416,
+                    "x": 479.136,
+                    "y": 91.353
+                },
+                {
+                    "height": 12.832,
+                    "text": "Figure 7-27. Stainless steel self-locking nut.",
+                    "width": 158.399,
+                    "x": 321,
+                    "y": 60.99
+                },
+                {
+                    "height": 12.31,
+                    "text": "7-45",
+                    "width": 20.01,
+                    "x": 537.985,
+                    "y": 33.71
+                }
+            ],
+            "number": 1,
+            "rotation": 0,
+            "text": "pulleys, provided the inner race of the bearing is clamped\nto the supporting structure by the nut and bolt. Plates must\nbe attached to the structure in a positive manner to eliminate\nrotation or misalignment when tightening the bolts or screws.\nThe two general types of self-locking nuts currently in use\nare the all-metal type and the fiber lock type. For the sake of\nsimplicity, only three typical kinds of self-locking nuts are\nconsidered in this handbook: the Boots self-locking and the\nstainless steel self-locking nuts, representing the all-metal\ntypes; and the elastic stop nut, representing the fiber insert type.\nBoots Self-Locking Nut\nThe Boots self-locking nut is of one piece, all-metal\nconstruction designed to hold tight despite severe vibration.\nNote in Figure 7-26 that it has two sections and is essentially\ntwo nuts in one: a locking nut and a load-carrying nut. The\ntwo sections are connected with a spring, which is an integral\npart of the nut.\nThe spring keeps the locking and load-carrying sections such\na distance apart that the two sets of threads are out of phase\nor spaced so that a bolt, which has been screwed through the\nload-carrying section, must push the locking section outward\nagainst the force of the spring to engage the threads of the\nlocking section properly.\nThe spring, through the medium of the locking section, exerts\na constant locking force on the bolt in the same direction as a\nforce that would tighten the nut. In this nut, the load-carrying\nsection has the thread strength of a standard nut of comparable\nsize, while the locking section presses against the threads of\nthe bolt and locks the nut firmly in position. Only a wrench\napplied to the nut loosens it. The nut can be removed and\nreused without impairing its efficiency.\nBoots self-locking nuts are made with three different spring\nstyles and in various shapes and sizes. The wing type that is\nBoots aircraft nut\nElastic anchor nut\nFlexloc nut Fiber locknut Elastic stop nut\nFigure 7-26. Self-locking nuts. the most common ranges in size for No. 6 up to 1⁄4 inch, the\nRol-top ranges from 1⁄4 inch to 1⁄6 inch, and the bellows type\nranges in size from No. 8 up to 3⁄8 inch. Wing-type nuts are\nmade of anodized aluminum alloy, cadmium-plated carbon\nsteel, or stainless steel. The Rol-top nut is cadmium-plated\nsteel, and the bellows type is made of aluminum alloy only.\n.\nStainless Steel Self-Locking Nut\nThe stainless steel self-locking nut may be spun on and off\nby hand as its locking action takes places only when the\nnut is seated against a solid surface and tightened. The nut\nconsists of two parts: a case with a beveled locking shoulder\nand key and a thread insert with a locking shoulder and\nslotted keyway. Until the nut is tightened, it spins on the\nbolt easily, because the threaded insert is the proper size\nfor the bolt. However, when the nut is seated against a solid\nsurface and tightened, the locking shoulder of the insert is\npulled downward and wedged against the locking shoulder\nof the case. This action compresses the threaded insert and\ncauses it to clench the bolt tightly. The cross-sectional view\nin Figure 7-27 shows how the key of the case fits into the\nslotted keyway of the insert so that when the case is turned,\nthe threaded insert is turned with it. Note that the slot is wider\nthan the key. This permits the slot to be narrowed and the\ninsert to be compressed when the nut is tightened.\nElastic Stop Nut\nThe elastic stop nut is a standard nut with the height\nincreased to accommodate a fiber locking collar. This\nNut case\nUntightened nut\nLocking shoulder\nThreaded nut core\nKeyway\nTightened nut\nFigure 7-27. Stainless steel self-locking nut.\n7-45",
+            "width": 594
+        }
+    ]
+}

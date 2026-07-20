@@ -48,7 +48,11 @@ export async function decodePdfJbig2Rasters(input, options = {}) {
 
   let decoder;
   try {
-    decoder = await (options.decoderFactory || (() => JBig2()))();
+    decoder = await (options.decoderFactory || (() => JBig2({
+      // The wrapper and PDF.js use the same JBIG2 WASM binary. Resolving it
+      // here avoids duplicating that binary in the installable plugin ZIP.
+      locateFile: (file) => new URL(`./vendor/pdfjs/wasm/${file}`, import.meta.url).href,
+    })))();
   } catch (error) {
     diagnostics.push(`pdf-jbig2-raster-unavailable:${errorToken(error)}`);
     return { rasters: [], diagnostics };

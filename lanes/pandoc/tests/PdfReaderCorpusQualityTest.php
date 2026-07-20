@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\PandocConverter;
+use PortLibs\Pandoc\PandocJsonReader;
+use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\PdfReader;
+use PortLibs\Pandoc\AstNode;
 
 $pdfWithContent = static function (string $content): string {
     return "%PDF-1.4\n1 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
@@ -19,6 +22,21 @@ $pdfPageWithNoText = static function (): string {
 
 $plainText = static function (string $html): string {
     return preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+};
+
+/** @return list<list<string>> */
+$tableRows = static function (AstNode $table): array {
+    $rows = [];
+    foreach ($table->children() as $section) {
+        foreach ($section->children() as $row) {
+            $rows[] = array_map(
+                static fn (AstNode $cell): string => (string) $cell->attr('text', ''),
+                $row->children()
+            );
+        }
+    }
+
+    return $rows;
 };
 
 $pdfSamplePaths = static function (): array {
@@ -55,6 +73,27 @@ $readPdfSample = static function (string $path, array $options = []): array {
         'tables' => substr_count($blocks, '<!-- wp:table'),
     ];
 };
+
+/** @return list<string> */
+$documentHeadingTexts = static function (AstNode $document): array {
+    return array_values(array_map(
+        static fn (AstNode $heading): string => (string) $heading->attr('text', ''),
+        array_filter(
+            $document->children(),
+            static fn (AstNode $block): bool => $block->type === 'heading'
+        )
+    ));
+};
+
+$muirSemanticHeadingTexts = [
+    'Muir Beach',
+    'A Biodiversity Hotspot',
+    'The First Stewards',
+    'Portuguese Dairymen',
+    'Bygone Days at the Beach',
+    'Restoring Ecological Integrity',
+    'Make a Difference',
+];
 
 return [
     'pdf corpus gate reads article and brochure samples without crashing' => static function (TestRunner $t): void {
@@ -188,10 +227,91 @@ return [
             gc_collect_cycles();
         }
     },
-    'pdf corpus gate preserves real invoice and borderless table structure' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $plainText): void {
+    'pdf corpus gate preserves real invoice and borderless table structure' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $plainText, $tableRows): void {
         $invoice = $readPdfSample($pdfSamplePaths()['quickbooks-invoice']);
         $invoiceText = $plainText(PandocConverter::write($invoice['document'], 'html'));
-        $t->true($invoice['tables'] >= 5, 'The invoice template should retain its editable table structure.');
+        $invoiceTables = array_values(array_filter(
+            $invoice['document']->children(),
+            static fn (AstNode $node): bool => $node->type === 'table'
+        ));
+        $invoiceRows = array_map($tableRows, $invoiceTables);
+        $t->same(7, $invoice['tables'], 'The two invoice templates should retain their seven editable table sections.');
+        $t->same(7, $invoice['meta']['pdfDetectedTables'] ?? null);
+        $t->same(7, $invoice['meta']['pdfGeometryTables'] ?? null);
+        $t->same(1, $invoice['meta']['pdfLogicalTableCount'] ?? null);
+        $t->same(1, $invoice['meta']['pdfLogicalTableFamilyCount'] ?? null);
+        $t->same(2, $invoice['meta']['pdfLogicalTableInstanceCount'] ?? null);
+        $t->same(7, $invoice['meta']['pdfLogicalTableFamilyPhysicalParts'] ?? null);
+        $t->same('geometry', $invoice['meta']['pdfTableReconstruction'] ?? null);
+        $t->same(0, $invoice['meta']['pdfDetectedCodeBlocks'] ?? null);
+        $t->same([
+            [
+                ['Enter company name', 'Phone (02) 9999-9999'],
+                ['Street address', 'Email name@company.com.au'],
+                ['City', 'Website companyname.com.au'],
+                ['State, postcode', 'ABN 123456789'],
+            ],
+            [
+                ['Bill to', 'Ship to', 'Details'],
+                ['Client name', 'Client name', 'Invoice# 12345'],
+                ['Street address', 'Street address', 'Invoice date: dd/mm/yyyy'],
+                ['City,', 'City,', 'Terms: Net 30'],
+                ['State, postcode', 'State, postcode', 'Due date: dd/mm/yyyy'],
+            ],
+            [
+                ['Enter your product or service description', '0', '0', '$0.00'],
+                ['Enter your product or service description', '0', '0', '$0.00'],
+            ],
+            [
+                ['Customer message', 'Subtotal', '$0.00'],
+                ['Hi,', 'GST component', '$0.00'],
+                ['Thank you for your purchase. Please pay this invoice using the following payment details.', 'Shipping', '$0.00'],
+            ],
+            [
+                ['Bill to', 'Ship to', 'Details'],
+                ['Client name', 'Client name', 'Invoice# 12345'],
+                ['Street address', 'Street address', 'Invoice date: dd/mm/yyyy'],
+                ['City,', 'City,', 'Terms: Net 30'],
+                ['State, postcode', 'State, postcode', 'Due date: dd/mm/yyyy'],
+            ],
+            [
+                ['Enter your product or service description', '0', '0', '$0.00'],
+                ['Enter your product or service description', '0', '0', '$0.00'],
+            ],
+            [
+                ['Hi,', 'Subtotal', '$0.00'],
+                ['Thank you for your purchase. Please pay this invoice using the following payment details.', 'Shipping', '$0.00'],
+            ],
+        ], $invoiceRows, 'QuickBooks table cells or section order changed.');
+        $families = $invoice['meta']['pdfLogicalTableFamilies'] ?? [];
+        $t->same(1, count($families));
+        $t->same([2, 3], $families[0]['pages'] ?? null);
+        $t->same([4, 3], array_map(
+            static fn (array $instance): int => (int) ($instance['physicalParts'] ?? 0),
+            $families[0]['instances'] ?? []
+        ));
+        $familyId = $families[0]['id'] ?? null;
+        $t->true(is_string($familyId) && preg_match('/^pdf-table-family-[a-f0-9]{20}$/', $familyId) === 1);
+        $t->same([$familyId], array_values(array_unique(array_map(
+            static fn (AstNode $table): mixed => $table->attr('pdfLogicalTableFamilyId'),
+            $invoiceTables
+        ), SORT_REGULAR)));
+        $t->same([1, 2, 3, 4, 1, 2, 3], array_map(
+            static fn (AstNode $table): int => (int) $table->attr('pdfLogicalTablePart'),
+            $invoiceTables
+        ));
+        $t->contains('data-pdf-logical-table-family-id="' . $familyId . '"', $invoice['blocks']);
+        $json = (new PandocJsonWriter())->toArray($invoice['document']);
+        $jsonTables = array_values(array_filter(
+            $json['blocks'] ?? [],
+            static fn (mixed $block): bool => is_array($block) && ($block['t'] ?? null) === 'Table'
+        ));
+        $t->same(7, count($jsonTables));
+        $jsonAttributes = json_encode($jsonTables[0]['c'][0][2] ?? [], JSON_UNESCAPED_SLASHES);
+        $t->true(is_string($jsonAttributes));
+        $t->contains('["data-pdf-logical-table-family-id","' . $familyId . '"]', $jsonAttributes);
+        $jsonRoundTripBlocks = PandocConverter::write((new PandocJsonReader())->readPacket($json), 'blocks');
+        $t->contains('data-pdf-logical-table-family-id="' . $familyId . '"', $jsonRoundTripBlocks);
         $t->contains('Invoice template', $invoiceText);
         $t->contains('Bill to', $invoiceText);
 
@@ -216,10 +336,10 @@ return [
         unset($table);
         gc_collect_cycles();
     },
-    'pdf corpus gate keeps text only retry prose oriented' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
+    'pdf corpus gate keeps text only retry prose oriented' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $documentHeadingTexts, $muirSemanticHeadingTexts): void {
         $cases = [
             'grand-canyon-map' => ['minParagraphs' => 40, 'minHeadings' => 25, 'minTables' => 0],
-            'muir-brochure' => ['minParagraphs' => 25, 'minHeadings' => 9, 'minTables' => 0],
+            'muir-brochure' => ['paragraphs' => 30, 'headingTexts' => $muirSemanticHeadingTexts, 'minTables' => 0],
             'tracemonkey-paper' => ['minParagraphs' => 100, 'minHeadings' => 3, 'minTables' => 1],
         ];
 
@@ -230,8 +350,29 @@ return [
             $t->same(0, $meta['pdfGeometryTables'], "{$kind} text-only retry should skip geometry table extraction.");
             $t->same('text', $meta['pdfTableReconstruction'], "{$kind} text-only retry should report text reconstruction.");
             $t->true($result['tables'] >= $expectation['minTables'], "{$kind} text-only retry should preserve text-detected tables.");
-            $t->true($result['paragraphs'] >= $expectation['minParagraphs'], "{$kind} text-only retry should keep prose split into readable paragraphs.");
-            $t->true($result['headings'] >= $expectation['minHeadings'], "{$kind} text-only retry should retain heading-like line structure.");
+            if (isset($expectation['paragraphs'])) {
+                $t->same(
+                    $expectation['paragraphs'],
+                    $result['paragraphs'],
+                    "{$kind} text-only retry should retain its deterministic prose boundaries without map glyph inflation."
+                );
+            } else {
+                $t->true($result['paragraphs'] >= $expectation['minParagraphs'], "{$kind} text-only retry should keep prose split into readable paragraphs.");
+            }
+            if (isset($expectation['headingTexts'])) {
+                $t->same(
+                    $expectation['headingTexts'],
+                    $documentHeadingTexts($result['document']),
+                    "{$kind} text-only retry should retain only its semantic document outline."
+                );
+                $t->same(
+                    count($expectation['headingTexts']),
+                    $result['headings'],
+                    "{$kind} text-only retry should not promote map labels to headings."
+                );
+            } else {
+                $t->true($result['headings'] >= $expectation['minHeadings'], "{$kind} text-only retry should retain heading-like line structure.");
+            }
             unset($result);
             gc_collect_cycles();
         }
@@ -258,7 +399,7 @@ return [
         }
         $t->true(!str_contains($blocks, '<p>aves Lives</p>'), 'CDC brochure must not retain a clipped decorative display fragment.');
     },
-    'pdf corpus gate keeps multi-column map panels and labels as prose' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText, $readPdfSample): void {
+    'pdf corpus gate keeps multi-column map panels and labels as prose' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText, $readPdfSample, $documentHeadingTexts): void {
         $document = (new PdfReader([
             'maxTextBytes' => 100000,
             'pdfRepairProseText' => true,
@@ -272,15 +413,93 @@ return [
         $t->same(0, $meta['pdfGeometryTables'], 'Narrative map panels must not count as geometry tables.');
         $t->same('text', $meta['pdfTableReconstruction'], 'The map should use source-reconciled prose after table rejection.');
         $t->true(!str_contains($blocks, '<!-- wp:table -->'));
+        $t->same([
+            'Pocket Map',
+            'North Rim Services Guide',
+            'Visitor Info Station and Park Store',
+            'Lost and Found',
+            'Grand Canyon Lodge',
+            'Dining Options',
+            'Gift Shop',
+            'Post Office',
+            'Religious Services',
+            'Canyon Trail Rides',
+            'Services Outside the Park',
+            'Kaibab Lodge',
+            'North Rim Country Store',
+            'Jacob Lake Inn',
+            'Kaibab Plateau Visitor Center',
+            'Free Park Ranger Programs',
+            'North Rim Campground',
+            'Service Station',
+            'General Store',
+            'Backcountry Information Center',
+            'Camping Outside the Park',
+            'DeMotte Campground',
+            'Jacob Lake Campground',
+            'Kaibab Camper Village',
+            'Dispersed Camping',
+            'Trip Planning',
+            'Hiking',
+            'Cape Royal Road',
+            'Grand Canyon National Park Arizona',
+            'Trip Planning Continued',
+            'Half Day',
+            'Hiking',
+            'Cape Royal Road',
+            'Scenic Drive',
+            'Point Imperial',
+            'Vista Encantada',
+            'Roosevelt Point',
+            'Cape Royal',
+            'National Park Service',
+            'Protect the Park, Protect Yourself',
+            'Information',
+            'Park Headquarters 928-638-7888',
+            'Website nps.gov/grca',
+            'Follow Us',
+            'Grand Canyon National Park',
+            'Emergencies call 911',
+            'North Rim Day Hikes',
+            'Bright Angel Point Trail',
+            'Transept Trail',
+            'Bridle Path',
+            'Widforss Trail',
+            'Uncle Jim Trail',
+            'Ken Patrick Trail',
+            'Arizona National Scenic Trail',
+            'North Kaibab Trail',
+            'Roosevelt Point Trail',
+            'Cape Final Trail',
+            'Cliff Spring Trail',
+            'Cape Royal Trail',
+        ], $documentHeadingTexts($document), 'Grand Canyon map fragments must not inflate the document outline.');
+        foreach (['T', 'Ar', 'OR', 'o Manzanita and Cottonwood Campground'] as $falseHeading) {
+            $t->true(
+                !str_contains($blocks, '<h2>' . $falseHeading . '</h2>'),
+                "Grand Canyon map fragment '{$falseHeading}' must not become a heading."
+            );
+        }
+        foreach ([
+            'NPS',
+            'EXPERIENCE YOUR AMERICA',
+            'To Manzanita and Cottonwood Campground',
+            'Arizona National',
+            'Scenic Trail',
+        ] as $layoutLabel) {
+            $t->true(
+                !str_contains($blocks, '<h2>' . $layoutLabel . '</h2>'),
+                "Grand Canyon layout label '{$layoutLabel}' must remain editable without entering the outline."
+            );
+        }
         $t->contains('OR Hike the North Kaibab Trail to Coconino Overlook. Hiking into the Canyon offers a different perspective.', $text);
         $t->contains('The Pocket Map is published by Grand Canyon National Park with support from your entrance fees.', $text);
-        $t->contains('Food service is available from mid-May to mid-October.', $text);
+        $t->contains('Food service is available from mid- May to mid-October.', $text);
         $t->contains('For backcountry camping options (permit required) check with the Backcountry Information Center.', $text);
         foreach ([
             'Hiking into 22 feet (6.7 m) prohibited on the roads',
             'Trail south from Point Imperial for a half mile for an easy hike with Parking',
             'S o c n',
-            'mid- May',
         ] as $artifact) {
             $t->true(!str_contains($text, $artifact), "Grand Canyon prose must not retain interleaved map-panel artifact '{$artifact}'.");
         }
@@ -291,7 +510,10 @@ return [
         $t->same(0, $muirMeta['pdfGeometryTables'], 'Map label fragments must not count as Muir geometry tables.');
         $t->same('text', $muirMeta['pdfTableReconstruction'], 'Muir should use source-reconciled prose after map-label rejection.');
         $t->true(!str_contains($muir['blocks'], '<!-- wp:table -->'));
-        $t->contains('<p>Horses and Hiking only</p>', $muir['blocks']);
+        $t->same(1, substr_count($muir['blocks'], '<!-- wp:verse -->'), 'A sustained spatial map-label region should be one editable line block.');
+        $t->contains('<pre class="wp-block-verse pdf-map-labels">', $muir['blocks']);
+        $t->contains("Horses and Hiking only\nHiking only", $muir['blocks']);
+        $t->true($muir['paragraphs'] <= 30, 'Map glyphs must not inflate the editable prose paragraph count.');
         foreach ([
             '<td>e</td><td>O</td><td>R</td><td>r</td>',
             '<td>Lodging</td><td>PIRATES</td>',
@@ -318,7 +540,14 @@ return [
         }
         $t->contains('actual dynamic types', $text);
         $t->contains('discovered alternative paths', $text);
-        foreach (['mixed-mode execution approach', 'type-unstable loops', 'register-carried value', 'non-negligible runtime cost'] as $compound) {
+        $t->contains(
+            'mixed- mode execution approach',
+            $text,
+            'TraceMonkey should retain the source-painted terminal hard hyphen when no exact occurrence disposition authorizes deleting it.'
+        );
+        $t->contains('register- carried value (6)', $text);
+        $t->contains('non- negligible runtime cost', $text);
+        foreach (['type-unstable loops'] as $compound) {
             $t->contains($compound, $text, "TraceMonkey should preserve semantic compound '{$compound}'.");
         }
     },
@@ -377,9 +606,13 @@ return [
         $t->contains('[4] SpiderMonkey (JavaScript-C) Engine- http://www.mozilla.org/js/spidermonkey/.', $text);
         $t->contains('http://lua-users.org/lists/lua-l/2008-02/msg00051.html', $text);
         $t->contains('[12] C. Garrett, J. Dean, D. Grove, and C. Chambers. Measurement and Application of Dynamic Receiver Class Distributions. 1994.', $text);
+        $t->contains(
+            '[18] T. Suganuma, T. Yasue, and T. Nakatani. A Region-Based Compila- tion Technique for Dynamic Compilers.',
+            $text,
+            'TraceMonkey must retain a bibliography occurrence when its line-break hyphen cannot be deleted with exact local evidence.'
+        );
         foreach ([
             '[7] V. Bala, E. Duesterwald, and S. Banerjia. Dynamo: A transparent ACM Press, 2000.',
-            '[18] T. Suganuma, T. Yasue, and T. Nakatani. A Region-Based Compila-',
         ] as $artifact) {
             $t->true(!str_contains($text, $artifact), "TraceMonkey must omit malformed reference fragment '{$artifact}'.");
         }
@@ -486,9 +719,9 @@ return [
         $t->contains('Later, the program might take the other branch at i2 and then exit, recording another branch trace incorporating the outer loop:', $blocks);
         $t->contains('In general, if loops are nested to depth k, and each loop has n paths (on geometric average), this naïve strategy yields O(n k)traces, which can easily fill the trace cache.', $blocks);
         $t->contains('We solve the nested loop problem by recording nested trace trees. Our system traces the inner loop exactly as the naïve version.', $blocks);
-        $t->contains('After compiling T 45, TraceMonkey returns to the interpreter and loops back to line 1. i=3. Now the loop header at line 1 has become hot, so TraceMonkey starts recording.', $blocks);
-        $t->contains('nested trace T 45. T16 loops back to its own header', $blocks);
-        $t->true(!str_contains($blocks, 'T 45.T16 loops back to its own header'), 'TraceMonkey must restore numeric sentence boundaries in reconstructed prose.');
+        $t->contains('After compiling T45, TraceMonkey returns to the interpreter and loops back to line 1. i=3. Now the loop header at line 1 has become hot, so TraceMonkey starts recording.', $blocks);
+        $t->contains('nested trace T45. T16 loops back to its own header', $blocks);
+        $t->true(!str_contains($blocks, 'T45.T16 loops back to its own header'), 'TraceMonkey must restore numeric sentence boundaries in reconstructed prose.');
         $t->contains('We call the resulting tracing VM TraceMonkey. TraceMonkey supports all the JavaScript features of SpiderMonkey', $blocks);
         $t->true(!str_contains($blocks, 'Trace- Monkey'), 'TraceMonkey must join geometry-confirmed repeated compounds across line-end hyphens.');
         $t->contains('each loop is entered with m different type maps (on geometric average)', $blocks);
@@ -502,14 +735,14 @@ return [
         $t->contains('As future work, this situation could be avoided by detecting and blacklisting loops for which the average trace call executes few bytecodes before returning to the interpreter.', $blocks);
         $t->contains('An important detail is that the call to the inner trace tree must act', $blocks);
         $t->contains('This is the LIR recorded for line 5 of the sample program in Figure 1.', $blocks);
-        $t->contains('This is the x 86 code compiled from the LIR snippet in Figure 3.', $blocks);
+        $t->contains('This is the x86 code compiled from the LIR snippet in Figure 3.', $blocks);
         $t->contains('Some operations on integers require guards.', $blocks);
         $t->contains('the interpreter’s standard call code.', $blocks);
         $t->true(!str_contains($blocks, 'operation in question. Representation specialization:'), 'TraceMonkey inline style boundaries must retain their paragraph break.');
         foreach ([
             'JavaScript, for example, is the de facto standard for client-side web programming and is used for the application logic of browser-based productivity applications',
             'In TraceMonkey, traces are recorded in trace-flavored SSA LIR (low-level intermediate representation).',
-            'objects’ representations are assigned an integer key called the object shape. Thus, the guard is a simple equality check on the object shape.',
+            'objects’ rep- resentations are assigned an integer key called the object shape. Thus, the guard is a simple equality check on the object shape.',
             'Clearly, a JavaScript VM that wants to be fast must find a way to operate on integers directly and avoid these conversions.',
             'See Figure 6 for details. All pointers contained in jsvals point to GC-controlled blocks aligned on 8-byte boundaries.',
         ] as $recovered) {
@@ -559,9 +792,9 @@ return [
         $t->contains('<h2>5.2 Register Allocation</h2>', $blocks);
         $t->contains('<h2>6.1 Calling Compiled Traces</h2>', $blocks);
         $t->contains('Then the heuristic selects v with minimum', $blocks);
-        $t->contains('register-carried value', $blocks);
-        $t->contains('stop-the-world mark-and-sweep collector.', $blocks);
-        $t->contains('non-negligible runtime cost', $blocks);
+        $t->contains('register- carried value', $blocks);
+        $t->contains('stop-the- world mark-and-sweep collector.', $blocks);
+        $t->contains('non- negligible runtime cost', $blocks);
         $t->contains('TraceMonkey implementation.', $blocks);
         $t->contains('The heuristic considers the set R of values v in registers immediately', $blocks);
         $t->contains('where each v is referred to.', $blocks);
@@ -587,13 +820,32 @@ return [
         $t->same(1, substr_count($blocks, '<!-- wp:table -->'));
         $t->same(2, substr_count($blocks, '<!-- wp:code -->'));
     },
-    'pdf corpus gate rejects damaged positioned prose streams' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
+    'pdf corpus gate rejects damaged positioned prose streams' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $documentHeadingTexts, $muirSemanticHeadingTexts): void {
         $muir = $readPdfSample($pdfSamplePaths()['muir-brochure'], ['pdfGeometryTables' => false]);
         $meta = $muir['meta'];
 
         $t->same('text-geometry', $meta['pdfTextRepairSource'], 'Muir brochure text-only retry should use geometry only on pages with coherent coordinates.');
-        $t->true($muir['paragraphs'] >= 25, 'Muir brochure text-only retry should keep readable prose blocks.');
-        $t->true($muir['headings'] >= 9, 'Muir brochure text-only retry should retain its actual heading structure without map labels.');
+        $t->same(30, $muir['paragraphs'], 'Muir brochure should retain its deterministic prose blocks without promoting map glyphs to paragraphs.');
+        $muirHeadingTexts = $documentHeadingTexts($muir['document']);
+        $t->same(
+            $muirSemanticHeadingTexts,
+            $muirHeadingTexts,
+            'Muir brochure text-only retry should retain its seven semantic headings without splitting visual wraps.'
+        );
+        $t->same(7, $muir['headings'], 'Muir map labels must not inflate the document outline.');
+        $t->same(
+            [],
+            array_values(array_intersect(['Horses and Hiking only', 'Hiking only'], $muirHeadingTexts)),
+            'Muir map legend labels must remain outside the document outline.'
+        );
+        $t->same(true, $meta['pdfSourceBindingComplete'] ?? null, 'Muir page-local map classification should preserve exact source binding.');
+        $t->same(null, $meta['pdfSourceBindingFailureReason'] ?? null);
+        $t->same(480, $meta['pdfSourceDisposition']['sourceOccurrenceCount'] ?? null);
+        $t->same(480, $meta['pdfSourceDisposition']['sourceEdgeCount'] ?? null);
+        $t->same(0, $meta['pdfSourceDisposition']['unresolvedOccurrenceCount'] ?? null);
+        $t->same(true, $meta['pdfSourceDisposition']['sourceEdgeMappingComplete'] ?? null);
+        $t->same(true, $meta['pdfSourceDisposition']['orderedSignificantCharactersPreserved'] ?? null);
+        $t->same(0, $meta['pdfSourceDisposition']['unclaimedEmittedSignificantCharacterCount'] ?? null);
         $t->contains('In collaboration with public agencies and nonprofit partners, the National Park Service implemented a multi-year', $muir['blocks']);
         $t->contains('<h2>Make a Difference</h2>', $muir['blocks']);
         $t->contains('Left, Top &amp; Bottom images: Traditional prayer', $muir['blocks']);
@@ -603,7 +855,17 @@ return [
         $t->true(!str_contains($muir['blocks'], 'at y a representative of the Coast Miwok'), 'Muir brochure must not repeat a clipped source fragment after a positioned repair line.');
         $t->true(!str_contains($muir['blocks'], 'www.nps.gov/goga Horses and Hiking only'), 'Muir map labels must not continue an unrelated resource list.');
         $t->true(!str_contains($muir['blocks'], '<h2>Hiking only</h2>'), 'Muir map legend labels must not be promoted to document headings.');
-        $t->contains('<p>Hiking only</p>', $muir['blocks']);
+        $t->same(1, substr_count($muir['blocks'], '<!-- wp:verse -->'));
+        $t->contains('<pre class="wp-block-verse pdf-map-labels">', $muir['blocks']);
+        $t->contains("Horses and Hiking only\nHiking only", $muir['blocks']);
+        preg_match_all('/<p\b[^>]*>(.*?)<\/p>/su', $muir['blocks'], $paragraphMatches);
+        foreach ($paragraphMatches[1] ?? [] as $paragraphHtml) {
+            $paragraphText = trim(html_entity_decode(strip_tags($paragraphHtml), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
+            $t->true(
+                mb_strlen($paragraphText, 'UTF-8') > 3,
+                'Muir map glyph fragments must not survive as one-to-three-character paragraphs: ' . $paragraphText
+            );
+        }
     },
     'pdf corpus gate repairs Muir wrapped hyphen word fragments' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
         $document = (new PdfReader([
@@ -620,11 +882,485 @@ return [
         $t->contains('redwood forest', $text);
     },
     'pdf corpus gate preserves brochure lists and form baseline extraction' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $plainText): void {
-        $cdc = $readPdfSample($pdfSamplePaths()['cdc-brochure']);
+        $cdc = $readPdfSample(
+            $pdfSamplePaths()['cdc-brochure'],
+            ['pdfCollectImagePlacements' => true]
+        );
         $cdcMeta = $cdc['meta'];
 
         $t->same(0, $cdcMeta['pdfDetectedTables'], 'CDC brochure should not become a false table.');
         $t->same(0, $cdcMeta['pdfDetectedCodeBlocks'], 'CDC brochure columns should not become false code listings.');
+        $t->same(true, $cdcMeta['pdfSourceBindingComplete'] ?? null, 'CDC brochure source ranges should bind exactly after visual column ordering.');
+        $t->same(0, $cdcMeta['pdfSourceDisposition']['unresolvedOccurrenceCount'] ?? null, 'Every CDC source occurrence should have an exact output edge or explicit visual disposition.');
+        $t->same(true, $cdcMeta['pdfSourceDisposition']['sourceEdgeMappingComplete'] ?? null);
+        $t->same(160, $cdcMeta['pdfSourceDisposition']['sourceOccurrenceCount'] ?? null);
+        $t->same(160, $cdcMeta['pdfSourceDisposition']['sourceEdgeCount'] ?? null);
+        $t->same(7, $cdcMeta['pdfSourceDisposition']['dispositionCounts']['artifact'] ?? null);
+        $clippedDisplayEdges = array_values(array_filter(
+            $cdcMeta['pdfSourceDisposition']['sourceEdges'] ?? [],
+            static fn (array $edge): bool =>
+                ($edge['sourceOccurrenceId'] ?? null) === 'line-309ef35696bcb5ea818b4cee'
+        ));
+        $t->same(1, count($clippedDisplayEdges));
+        $t->same('artifact', $clippedDisplayEdges[0]['disposition'] ?? null);
+        $t->same('disposition', $clippedDisplayEdges[0]['target'] ?? null);
+        $t->same('explicit-disposition', $clippedDisplayEdges[0]['mappingMode'] ?? null);
+        $t->same([], $clippedDisplayEdges[0]['destinationNodeIds'] ?? null);
+        $clippedArtifactMediaAnchorProofs = $cdcMeta['pdfClippedDisplayArtifactMediaAnchorProofs'] ?? [];
+        $t->same(
+            0,
+            $cdcMeta['pdfClippedDisplayArtifactMediaAnchorProofTruncatedCount'] ?? null,
+            'The CDC clipped-display media bridge proof inventory should be complete.'
+        );
+        $t->same(1, count($clippedArtifactMediaAnchorProofs), 'CDC should expose one clipped-display media bridge proof.');
+        $t->same(
+            'line-309ef35696bcb5ea818b4cee',
+            $clippedArtifactMediaAnchorProofs[0]['artifactSourceOccurrenceId'] ?? null
+        );
+        $t->same(
+            'line-6c1d07ed719933a6fba5984d',
+            $clippedArtifactMediaAnchorProofs[0]['counterpartSourceOccurrenceId'] ?? null
+        );
+        $t->same(
+            'pdf-source-node-c742667268f0e3978f53a94e19f835c5',
+            $clippedArtifactMediaAnchorProofs[0]['counterpartDestinationNodeId'] ?? null
+        );
+        $clippedArtifactPlacementFacts = [];
+        foreach ($cdcMeta['pdfImagePlacements'] ?? [] as $placement) {
+            foreach (['preceding', 'following'] as $side) {
+                if (($placement[$side . 'Text'] ?? null) !== 'aves Lives') {
+                    continue;
+                }
+                $clippedArtifactPlacementFacts[] = [
+                    'object' => $placement['object'] ?? null,
+                    'side' => $side,
+                    'sourceOccurrenceId' => $placement[$side . 'SourceOccurrenceId'] ?? null,
+                    'projectionDigest' => $placement[$side . 'SourceProjectionDigest'] ?? null,
+                ];
+            }
+        }
+        usort(
+            $clippedArtifactPlacementFacts,
+            static fn (array $left, array $right): int => ($left['object'] ?? 0) <=> ($right['object'] ?? 0)
+        );
+        $t->same(7, count($clippedArtifactPlacementFacts), 'Every CDC image beside the clipped display text should retain its exact source anchor.');
+        $t->same([
+            [
+                'object' => 213,
+                'side' => 'preceding',
+                'sourceOccurrenceId' => 'line-309ef35696bcb5ea818b4cee',
+                'projectionDigest' => 'ba6c9c7d996c73810f0b209fb8f4e20b9e9a152bf8db46f55172516153875309',
+            ],
+            [
+                'object' => 219,
+                'side' => 'preceding',
+                'sourceOccurrenceId' => 'line-309ef35696bcb5ea818b4cee',
+                'projectionDigest' => 'ba6c9c7d996c73810f0b209fb8f4e20b9e9a152bf8db46f55172516153875309',
+            ],
+            [
+                'object' => 220,
+                'side' => 'preceding',
+                'sourceOccurrenceId' => 'line-309ef35696bcb5ea818b4cee',
+                'projectionDigest' => 'ba6c9c7d996c73810f0b209fb8f4e20b9e9a152bf8db46f55172516153875309',
+            ],
+            [
+                'object' => 226,
+                'side' => 'preceding',
+                'sourceOccurrenceId' => 'line-309ef35696bcb5ea818b4cee',
+                'projectionDigest' => 'ba6c9c7d996c73810f0b209fb8f4e20b9e9a152bf8db46f55172516153875309',
+            ],
+            [
+                'object' => 243,
+                'side' => 'following',
+                'sourceOccurrenceId' => 'line-309ef35696bcb5ea818b4cee',
+                'projectionDigest' => 'ba6c9c7d996c73810f0b209fb8f4e20b9e9a152bf8db46f55172516153875309',
+            ],
+            [
+                'object' => 247,
+                'side' => 'following',
+                'sourceOccurrenceId' => 'line-309ef35696bcb5ea818b4cee',
+                'projectionDigest' => 'ba6c9c7d996c73810f0b209fb8f4e20b9e9a152bf8db46f55172516153875309',
+            ],
+            [
+                'object' => 248,
+                'side' => 'following',
+                'sourceOccurrenceId' => 'line-309ef35696bcb5ea818b4cee',
+                'projectionDigest' => 'ba6c9c7d996c73810f0b209fb8f4e20b9e9a152bf8db46f55172516153875309',
+            ],
+        ], $clippedArtifactPlacementFacts, 'CDC clipped-display image anchors should retain their exact painted side and source proof.');
+
+        $cdcBytes = file_get_contents($pdfSamplePaths()['cdc-brochure']) ?: '';
+        $t->true($cdcBytes !== '', 'The CDC media bridge regression requires the original PDF bytes.');
+        $mediaExtractor = new \PortLibs\Pandoc\PandocMediaExtractor();
+        $validatedBridgeContext = (function (AstNode $document, string $bytes): array {
+            return $this->validatedPdfClippedArtifactMediaAnchorContext($document, $bytes);
+        })->bindTo($mediaExtractor, \PortLibs\Pandoc\PandocMediaExtractor::class);
+        $validatedBridgeSide = (function (
+            array $placement,
+            int $page,
+            array $context
+        ): ?string {
+            return $this->validatedPdfClippedArtifactMediaAnchorSide(
+                $placement,
+                $page,
+                $context
+            );
+        })->bindTo($mediaExtractor, \PortLibs\Pandoc\PandocMediaExtractor::class);
+        $sourceEdgeDigest = (function (array $edges): string {
+            return $this->pdfSourceDispositionEdgeDigest($edges);
+        })->bindTo($mediaExtractor, \PortLibs\Pandoc\PandocMediaExtractor::class);
+        $runAnchoring = (function (
+            AstNode $document,
+            array $placements,
+            string $bytes
+        ): array {
+            $diagnostics = [];
+            $dispositions = [];
+            $placements = $this->pdfImageOccurrencesWithStableIdentity($placements);
+            $anchored = $this->anchoredPdfImagePlacements(
+                $document,
+                $placements,
+                $diagnostics,
+                $dispositions,
+                'important',
+                $bytes
+            );
+
+            return [
+                'anchored' => $anchored,
+                'diagnostics' => $diagnostics,
+                'dispositions' => array_values($dispositions),
+            ];
+        })->bindTo($mediaExtractor, \PortLibs\Pandoc\PandocMediaExtractor::class);
+        $documentWithMeta = static function (
+            AstNode $document,
+            array $meta,
+            ?array $children = null
+        ): AstNode {
+            $attrs = $document->attrs;
+            $attrs['meta'] = $meta;
+
+            return new AstNode(
+                $document->type,
+                $attrs,
+                $children ?? $document->children
+            );
+        };
+        $resignBridgeProof = static function (array $proof): array {
+            unset($proof['proofDigest']);
+            $encoded = json_encode(
+                $proof,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+            );
+            $proof['proofDigest'] = hash(
+                'sha256',
+                is_string($encoded) ? $encoded : serialize($proof)
+            );
+
+            return $proof;
+        };
+        $t->true($validatedBridgeContext instanceof \Closure);
+        $t->true($validatedBridgeSide instanceof \Closure);
+        $t->true($sourceEdgeDigest instanceof \Closure);
+        $t->true($runAnchoring instanceof \Closure);
+
+        $bridgeContext = $validatedBridgeContext($cdc['document'], $cdcBytes);
+        $t->same(1, count($bridgeContext), 'The complete CDC bridge graph should validate once for all placements.');
+        $artifactPlacement = null;
+        foreach ($cdcMeta['pdfImagePlacements'] ?? [] as $placement) {
+            if (($placement['object'] ?? null) === 213) {
+                $artifactPlacement = $placement;
+                break;
+            }
+        }
+        $t->true(is_array($artifactPlacement));
+        $artifactPlacement = is_array($artifactPlacement) ? $artifactPlacement : [];
+        $t->same(
+            'preceding',
+            $validatedBridgeSide($artifactPlacement, 1, $bridgeContext),
+            'The consumer should bind the bridge to the exact selected placement side.'
+        );
+
+        $forgedAnchorText = $artifactPlacement;
+        $forgedAnchorText['precedingText'] = 'completely forged text';
+        $t->same(
+            null,
+            $validatedBridgeSide($forgedAnchorText, 1, $bridgeContext),
+            'A carried occurrence ID and digest must not authorize different anchor text.'
+        );
+        $duplicatedAnchorSide = $artifactPlacement;
+        foreach (['Text', 'SourceOccurrenceId', 'SourceProjectionDigest'] as $suffix) {
+            $duplicatedAnchorSide['following' . $suffix] = $artifactPlacement['preceding' . $suffix];
+        }
+        $t->same(
+            null,
+            $validatedBridgeSide($duplicatedAnchorSide, 1, $bridgeContext),
+            'Conflicting preceding and following claims must not select a bridge side.'
+        );
+
+        $missingTruncationMeta = $cdcMeta;
+        unset($missingTruncationMeta['pdfClippedDisplayArtifactMediaAnchorProofTruncatedCount']);
+        $t->same(
+            [],
+            $validatedBridgeContext(
+                $documentWithMeta($cdc['document'], $missingTruncationMeta),
+                $cdcBytes
+            ),
+            'A bridge proof inventory without an explicit zero truncation count must fail closed.'
+        );
+        $duplicateProofMeta = $cdcMeta;
+        $duplicateProofMeta['pdfClippedDisplayArtifactMediaAnchorProofs'][] =
+            $duplicateProofMeta['pdfClippedDisplayArtifactMediaAnchorProofs'][0];
+        $t->same(
+            [],
+            $validatedBridgeContext($documentWithMeta($cdc['document'], $duplicateProofMeta), $cdcBytes),
+            'A duplicate bridge key must invalidate the complete proof inventory.'
+        );
+        $staleSourceMeta = $cdcMeta;
+        $staleProof = $staleSourceMeta['pdfClippedDisplayArtifactMediaAnchorProofs'][0];
+        $staleProof['sourceSha256'] = str_repeat('0', 64);
+        $staleSourceMeta['pdfClippedDisplayArtifactMediaAnchorProofs'][0] =
+            $resignBridgeProof($staleProof);
+        $t->same(
+            [],
+            $validatedBridgeContext($documentWithMeta($cdc['document'], $staleSourceMeta), $cdcBytes),
+            'A self-consistent proof for different PDF bytes must not be replayed.'
+        );
+        $duplicateEdgeMeta = $cdcMeta;
+        $duplicateEdgeMeta['pdfSourceDisposition']['sourceEdges'][] = $clippedDisplayEdges[0];
+        $duplicateEdgeCount = count($duplicateEdgeMeta['pdfSourceDisposition']['sourceEdges']);
+        $duplicateEdgeMeta['pdfSourceDisposition']['sourceEdgeCount'] = $duplicateEdgeCount;
+        $duplicateEdgeMeta['pdfSourceDisposition']['sourceOccurrenceCount'] = $duplicateEdgeCount;
+        $duplicateEdgeMeta['pdfSourceDisposition']['sourceEdgeDigest'] = $sourceEdgeDigest(
+            $duplicateEdgeMeta['pdfSourceDisposition']['sourceEdges']
+        );
+        $t->same(
+            [],
+            $validatedBridgeContext($documentWithMeta($cdc['document'], $duplicateEdgeMeta), $cdcBytes),
+            'A duplicate source occurrence must fail even when ledger counts and digest are recomputed.'
+        );
+
+        $proof = $clippedArtifactMediaAnchorProofs[0];
+        $counterpartNodeId = $proof['counterpartDestinationNodeId'];
+        $counterpartSourceId = $proof['counterpartSourceOccurrenceId'];
+        $counterpartIndex = null;
+        $patientGuideIndex = null;
+        foreach ($cdc['document']->children as $index => $block) {
+            if ($block->attr('sourceNodeId') === $counterpartNodeId) {
+                $counterpartIndex = $index;
+            }
+            if ($block->attr('text') === 'A Patient’s Guide') {
+                $patientGuideIndex = $index;
+            }
+        }
+        $t->true(is_int($counterpartIndex));
+        $t->true(is_int($patientGuideIndex));
+        $t->true(
+            is_int($counterpartIndex)
+                && is_int($patientGuideIndex)
+                && $counterpartIndex < $patientGuideIndex,
+            'The complete counterpart is remote from the page-region insertion boundary.'
+        );
+        $counterpartIndex = is_int($counterpartIndex) ? $counterpartIndex : 0;
+        $patientGuideIndex = is_int($patientGuideIndex) ? $patientGuideIndex : 0;
+
+        $forgedDestinationChildren = $cdc['document']->children;
+        $destination = $forgedDestinationChildren[$counterpartIndex];
+        $destinationAttrs = $destination->attrs;
+        $destinationAttrs['sourceLineIds'][] = 'forged-source-claim';
+        $forgedDestinationChildren[$counterpartIndex] = new AstNode(
+            $destination->type,
+            $destinationAttrs,
+            $destination->children
+        );
+        $t->same(
+            [],
+            $validatedBridgeContext(
+                $documentWithMeta($cdc['document'], $cdcMeta, $forgedDestinationChildren),
+                $cdcBytes
+            ),
+            'Destination sourceLineIds must be derived exactly from its signed sourceLineEdges.'
+        );
+
+        $duplicateClaimChildren = $cdc['document']->children;
+        $claimant = $duplicateClaimChildren[$patientGuideIndex];
+        $claimantAttrs = $claimant->attrs;
+        $claimantEdges = $claimant->attr('sourceLineEdges', []);
+        $claimantEdges[] = [
+            'sourceLineId' => $counterpartSourceId,
+            'startByte' => 0,
+            'endByte' => 1,
+        ];
+        $claimantSourceIds = $claimant->attr('sourceLineIds', []);
+        $claimantSourceIds[] = $counterpartSourceId;
+        $claimantIdentity = json_encode(
+            ['type' => $claimant->type, 'sourceLineEdges' => $claimantEdges],
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        );
+        $claimantAttrs['sourceNodeId'] = 'pdf-source-node-' . substr(hash(
+            'sha256',
+            is_string($claimantIdentity) ? $claimantIdentity : serialize($claimantEdges)
+        ), 0, 32);
+        $claimantAttrs['sourceLineIds'] = $claimantSourceIds;
+        $claimantAttrs['sourceLineEdges'] = $claimantEdges;
+        $duplicateClaimChildren[$patientGuideIndex] = new AstNode(
+            $claimant->type,
+            $claimantAttrs,
+            $claimant->children
+        );
+        $t->same(
+            [],
+            $validatedBridgeContext(
+                $documentWithMeta($cdc['document'], $cdcMeta, $duplicateClaimChildren),
+                $cdcBytes
+            ),
+            'A second top-level block claiming the complete counterpart must invalidate the bridge.'
+        );
+
+        $nestedDestinationChildren = $cdc['document']->children;
+        $nestedDestinationChildren[$counterpartIndex] = new AstNode(
+            'div',
+            [],
+            [$nestedDestinationChildren[$counterpartIndex]]
+        );
+        $t->same(
+            [],
+            $validatedBridgeContext(
+                $documentWithMeta($cdc['document'], $cdcMeta, $nestedDestinationChildren),
+                $cdcBytes
+            ),
+            'A counterpart destination available only below the top level must not authorize placement.'
+        );
+
+        $withoutRegionEvidence = $runAnchoring(
+            $cdc['document'],
+            [$artifactPlacement],
+            $cdcBytes
+        );
+        $t->same([], $withoutRegionEvidence['anchored']);
+        $t->same(
+            ['image-mode-no-semantic-region-anchor'],
+            array_column($withoutRegionEvidence['dispositions'], 'reason'),
+            'A valid text disposition bridge must not place an image without independent page-region evidence.'
+        );
+
+        $uniqueCounterpartChildren = array_values(array_filter(
+            $cdc['document']->children,
+            static fn (AstNode $block): bool =>
+                $block->attr('text') !== 'Remember: Hand hygiene saves lives.'
+        ));
+        $uniqueCounterpartDocument = $documentWithMeta(
+            $cdc['document'],
+            $cdcMeta,
+            $uniqueCounterpartChildren
+        );
+        $uniqueCounterpartAnchoring = $runAnchoring(
+            $uniqueCounterpartDocument,
+            $cdcMeta['pdfImagePlacements'],
+            $cdcBytes
+        );
+        $uniqueTargetPlacements = array_values(array_filter(
+            $uniqueCounterpartAnchoring['anchored'],
+            static fn (array $placement): bool =>
+                in_array($placement['object'] ?? null, [213, 219, 220, 226], true)
+        ));
+        $t->same([213, 219, 220, 226], array_column($uniqueTargetPlacements, 'object'));
+        $t->same(
+            array_fill(0, 4, 'clipped-artifact-counterpart-page-region-y-paint'),
+            array_column($uniqueTargetPlacements, 'anchorEvidence'),
+            'The sole counterpart substring must be suppressed as a semantic anchor and use region evidence.'
+        );
+        $t->same(
+            array_fill(0, 4, $patientGuideIndex),
+            array_column($uniqueTargetPlacements, 'anchorIndex'),
+            'The remote complete counterpart must not become the image insertion anchor.'
+        );
+
+        $mediaResult = $mediaExtractor->extract(
+            $cdc['document'],
+            $cdcBytes,
+            'pdf',
+            ['destination' => 'media', 'imageMode' => 'important']
+        );
+        $mediaMeta = $mediaResult['document']->attr('meta', []);
+        $targetDispositions = array_values(array_filter(
+            $mediaMeta['pdfMediaOccurrenceDispositions'] ?? [],
+            static fn (array $disposition): bool =>
+                in_array($disposition['object'] ?? null, [213, 219, 220, 226], true)
+        ));
+        $t->same([213, 219, 220, 226], array_column($targetDispositions, 'object'));
+        $t->same(array_fill(0, 4, 'resolved'), array_column($targetDispositions, 'disposition'));
+        $t->same(
+            array_fill(0, 4, $patientGuideIndex),
+            array_column($targetDispositions, 'anchorIndex')
+        );
+        $t->true(
+            !in_array($counterpartIndex, array_column($targetDispositions, 'anchorIndex'), true),
+            'Resolved media occurrences must not use the remote acknowledgement node as their anchor.'
+        );
+        $bridgeDiagnostics = array_values(array_filter(
+            $mediaResult['diagnostics'],
+            static fn (string $diagnostic): bool =>
+                str_starts_with($diagnostic, 'extract-media-pdf-image-clipped-artifact-anchor:')
+        ));
+        $t->same([
+            'extract-media-pdf-image-clipped-artifact-anchor:213:page-1',
+            'extract-media-pdf-image-clipped-artifact-anchor:219:page-1',
+            'extract-media-pdf-image-clipped-artifact-anchor:220:page-1',
+            'extract-media-pdf-image-clipped-artifact-anchor:226:page-1',
+        ], $bridgeDiagnostics);
+        $targetMediaSources = array_values(array_filter(
+            array_column($mediaResult['entries'], 'source'),
+            static fn (string $source): bool => in_array($source, [
+                'pdf/image-213.jpg',
+                'pdf/image-219.jp2',
+                'pdf/image-220.jpg',
+                'pdf/image-226.jpg',
+            ], true)
+        ));
+        $t->same([
+            'pdf/image-213.jpg',
+            'pdf/image-219.jp2',
+            'pdf/image-220.jpg',
+            'pdf/image-226.jpg',
+        ], $targetMediaSources);
+        $targetOutputObjects = [];
+        $counterpartOutputIndex = null;
+        $patientGuideOutputIndex = null;
+        foreach ($mediaResult['document']->children as $index => $block) {
+            if ($block->attr('sourceNodeId') === $counterpartNodeId) {
+                $counterpartOutputIndex = $index;
+            }
+            if ($block->attr('text') === 'A Patient’s Guide') {
+                $patientGuideOutputIndex = $index;
+            }
+            $attributes = $block->attr('attributes', []);
+            $object = is_array($attributes)
+                && is_string($attributes['data-pandoc-pdf-image-object'] ?? null)
+                    ? (int) $attributes['data-pandoc-pdf-image-object']
+                    : null;
+            if (is_int($object) && in_array($object, [213, 219, 220, 226], true)) {
+                $targetOutputObjects[$index] = $object;
+            }
+        }
+        $t->same([213, 219, 220, 226], array_values($targetOutputObjects));
+        $t->true(
+            is_int($counterpartOutputIndex)
+                && is_int($patientGuideOutputIndex)
+                && $counterpartOutputIndex < $patientGuideOutputIndex
+                && $targetOutputObjects !== []
+                && $patientGuideOutputIndex < min(array_keys($targetOutputObjects)),
+            'The extracted tiles should remain after the local guide boundary, not beside the remote counterpart.'
+        );
+        $pageTwoRangeProofs = array_values(array_filter(
+            $cdcMeta['pdfSourceOrderProofDiagnostics'] ?? [],
+            static fn (array $diagnostic): bool =>
+                ($diagnostic['method'] ?? null) === 'exact-positioned-source-subrange-order'
+                    && ($diagnostic['page'] ?? null) === 2
+                    && ($diagnostic['projectionMatches'] ?? false) === true
+        ));
+        $t->same(1, count($pageTwoRangeProofs), 'CDC page two should retain one exact positioned source-subrange order proof.');
+        $t->true(($pageTwoRangeProofs[0]['mappedSourceRangeCount'] ?? 0) > 111, 'Interleaved CDC source records should map through finer-than-occurrence ranges.');
         $t->true($cdc['lists'] >= 12, 'CDC brochure should preserve visible bullet lists.');
         $t->true($cdc['headings'] >= 6, 'CDC brochure should retain prominent heading-like text without splitting wrapped headings.');
         $t->true($cdc['paragraphs'] >= 24, 'CDC brochure should preserve its prose groups without emitting every visual line as a paragraph.');
@@ -647,6 +1383,34 @@ return [
         $t->contains('Hand hygiene is one of the most important ways to prevent the spread of infections, including the common cold, flu, and even hard-to-treat infections, such as methicillin-resistant Staphylococcus aureus, or MRSA.', $cdcText);
         $t->contains('Wet your hands with warm water.', $cdcText);
         $t->contains('Apply a nickel-or quarter-sized amount of soap to your hands.', $cdcText);
+        $cdcOrderedLists = array_values(array_filter(
+            $cdc['document']->children(),
+            static fn (AstNode $block): bool => $block->type === 'ordered_list'
+        ));
+        $t->same(3, count($cdcOrderedLists), 'CDC brochure should retain its three visible ordered-list runs.');
+        $t->same(
+            [1, 2, 1],
+            array_map(static fn (AstNode $list): int => (int) $list->attr('start', 1), $cdcOrderedLists),
+            'A split list beginning with visible marker 2 must not restart at 1.'
+        );
+        $t->contains('<!-- wp:list {"ordered":true,"start":2} -->', $cdc['blocks']);
+        $t->contains('<ol start="2"><li>Rub your hands together until soap forms a lather', $cdc['blocks']);
+        $cdcHeadingTexts = array_values(array_map(
+            static fn (AstNode $heading): string => (string) $heading->attr('text', ''),
+            array_filter(
+                $cdc['document']->children(),
+                static fn (AstNode $block): bool => $block->type === 'heading'
+            )
+        ));
+        $t->true(!in_array('they examine you. }', $cdcHeadingTexts, true));
+        $t->true(!str_contains($cdc['blocks'], '<h2>they examine you.'));
+        $t->contains(
+            '<p>Remember: Ask your doctors and nurses to clean their hands before they examine you.</p>',
+            $cdc['blocks']
+        );
+        $t->true(!str_contains($cdc['blocks'], 'they examine you. }</p>'));
+        $t->contains('Cleansing hands using an alcohol-based hand rub.', $cdcText);
+        $t->true(!str_contains($cdcText, 'alcoholbased'), 'A wrapped semantic compound must retain its document-proven separator.');
         $t->contains('You can make a difference in your own health:', $cdcText);
         foreach ([
             'To prevent hospital You should practice',
@@ -677,7 +1441,76 @@ return [
         $t->contains('Married Filing Jointly', $w4['blocks']);
         $t->contains('<td>$0 - 9,999</td>', $w4['blocks']);
         $t->contains('<td>33,990</td>', $w4['blocks']);
-        $t->true($w4['headings'] >= 2, 'IRS W-4 form should retain heading-like form labels.');
+        $w4HeadingTexts = array_values(array_map(
+            static fn (AstNode $heading): string => (string) $heading->attr('text', ''),
+            array_filter(
+                $w4['document']->children(),
+                static fn (AstNode $block): bool => $block->type === 'heading'
+            )
+        ));
+        $t->same([
+            'Form W-4',
+            'General Instructions',
+            'Future Developments',
+            'Purpose of Form',
+            'Specific Instructions',
+        ], $w4HeadingTexts, 'IRS form fields and running furniture must not inflate the document outline.');
+        $t->same(5, $w4['headings'], 'Only the five semantic W-4 document headings should remain.');
+        $w4ParagraphTexts = array_values(array_map(
+            static fn (AstNode $paragraph): string => (string) $paragraph->attr('text', ''),
+            array_filter(
+                $w4['document']->children(),
+                static fn (AstNode $block): bool => $block->type === 'paragraph'
+            )
+        ));
+        $t->same(
+            142,
+            count($w4ParagraphTexts),
+            'W-4 prose, editable labels, and 34 source-proven form rows should retain deterministic boundaries.'
+        );
+        $t->same(
+            34,
+            count(array_filter(
+                $w4ParagraphTexts,
+                static fn (string $text): bool => str_ends_with(trim($text), '$')
+            )),
+            'Each repeated standalone currency field should attach backward to exactly one form row.'
+        );
+        $t->same(
+            [],
+            array_values(array_filter(
+                $w4ParagraphTexts,
+                static fn (string $text): bool => preg_match('/^\p{Sc}$/u', trim($text)) === 1
+            )),
+            'A proved form currency field must not remain as a one-character paragraph.'
+        );
+        $t->same([
+            'Step 2:',
+            'Step 3:',
+            'Step 4:',
+            'Step 5:',
+            'Step 4.',
+        ], array_values(array_filter(
+            $w4ParagraphTexts,
+            static fn (string $text): bool => preg_match('/^Step (?:[2-5]:|4\.)$/u', trim($text)) === 1
+        )), 'Form-row repair must not absorb instructional Step boundaries.');
+        $t->same([], array_values(array_filter(
+            $w4ParagraphTexts,
+            static fn (string $text): bool => in_array(trim($text), ['4(c)', '1b', '3b', '6c', '10', '12', '14'], true)
+        )), 'A detached row identifier should attach backward only inside its exact dotted-row/currency triad.');
+        $t->same(
+            1,
+            count(array_filter(
+                $w4ParagraphTexts,
+                static fn (string $text): bool => str_starts_with(
+                    $text,
+                    'Privacy Act and Paperwork Reduction Act Notice.'
+                )
+            )),
+            'The Privacy Act notice should begin its own paragraph after the final form field.'
+        );
+        $t->same(true, $w4Meta['pdfSourceBindingComplete'] ?? null);
+        $t->same(true, $w4Meta['pdfSemanticTextComplete'] ?? null);
     },
     'pdf corpus gate keeps scanned book bounded but readable' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $plainText): void {
         $result = $readPdfSample($pdfSamplePaths()['archive-book']);
@@ -691,8 +1524,24 @@ return [
         $t->true($result['paragraphs'] >= 8, 'Archive book should keep sparse long OCR chunks grouped into reviewable paragraphs.');
         $t->contains('difficult to discover', $text);
         $t->contains('this file - a reminder', $text);
-        $t->contains('these files for personal', $text);
-        $t->contains('find additional materials', $text);
+        $t->contains('these files personal', $text);
+        $t->contains('additional materials through Google Book Search', $text);
+        $t->same(true, $meta['pdfTextVisibilityComplete'] ?? null);
+        $t->same(true, $meta['pdfTextVisibility']['complete'] ?? null);
+        $t->same([], $meta['pdfTextVisibility']['unresolvedReasons'] ?? null);
+        $t->same(0, $meta['pdfTextVisibility']['unresolvedRuns'] ?? null);
+        $t->same(0, $meta['pdfTextVisibility']['unresolvedOcclusionRiskRuns'] ?? null);
+        $t->same(0, $meta['pdfTextVisibility']['laterPaintRiskCount'] ?? null);
+        $t->same([], $meta['pdfTextVisibility']['laterPaintRisks'] ?? null);
+        $t->true(
+            (int) ($meta['pdfTextVisibility']['suppressedOutsidePageRuns'] ?? 0) > 0,
+            'Archive book text painted wholly beyond the MediaBox must stay out of the visible source ledger.'
+        );
+        $t->same(true, $meta['pdfSourceBindingComplete'] ?? null);
+        $t->same(true, $meta['pdfSemanticTextComplete'] ?? null);
+        $t->same(range(2, 47), $meta['pdfPagesNeedingImageRepresentation'] ?? null);
+        $t->same(false, $meta['pdfPageRepresentationComplete'] ?? null);
+        $t->same(true, $meta['pdfNeedsOcr'] ?? null);
         $t->true(!str_contains($text, 'dif cult'), 'Archive book fi ligatures should not be lost as spaces.');
         $t->true(!str_contains($text, ' le - a reminder'), 'Archive book fi ligatures should not leave bare word fragments.');
         $t->true(!str_contains($result['blocks'], 'journey from the Google is proud'), 'Archive book source regions must not be fused across a missing OCR span.');

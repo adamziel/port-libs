@@ -1,0 +1,591 @@
+{
+    "extractor": "macOS PDFKit",
+    "pageCount": 2,
+    "pages": [
+        {
+            "height": 792,
+            "lines": [
+                {
+                    "height": 12.289,
+                    "text": "Module One - Introduction to Product",
+                    "width": 194.787,
+                    "x": 77.25,
+                    "y": 686.805
+                },
+                {
+                    "height": 12.289,
+                    "text": "Development and Quality Assurance",
+                    "width": 191.203,
+                    "x": 77.25,
+                    "y": 674.156
+                },
+                {
+                    "height": 12.289,
+                    "text": "This module introduces the learner to the",
+                    "width": 199.807,
+                    "x": 77.25,
+                    "y": 648.858
+                },
+                {
+                    "height": 12.289,
+                    "text": "importance and principles of product",
+                    "width": 177.198,
+                    "x": 77.25,
+                    "y": 636.209
+                },
+                {
+                    "height": 12.289,
+                    "text": "development and quality assurance, explores",
+                    "width": 220.594,
+                    "x": 77.25,
+                    "y": 623.56
+                },
+                {
+                    "height": 12.289,
+                    "text": "what kinds of products might be developed",
+                    "width": 208.373,
+                    "x": 77.25,
+                    "y": 610.911
+                },
+                {
+                    "height": 12.289,
+                    "text": "and tested, considers potential challenges",
+                    "width": 204.717,
+                    "x": 77.25,
+                    "y": 598.262
+                },
+                {
+                    "height": 12.289,
+                    "text": "and provides guidance on ensuring",
+                    "width": 171.119,
+                    "x": 77.25,
+                    "y": 585.613
+                },
+                {
+                    "height": 12.289,
+                    "text": "standards and efficiency throughout the",
+                    "width": 192.298,
+                    "x": 77.25,
+                    "y": 572.964
+                },
+                {
+                    "height": 12.289,
+                    "text": "development process. It then introduces the",
+                    "width": 213.257,
+                    "x": 77.25,
+                    "y": 560.316
+                },
+                {
+                    "height": 12.289,
+                    "text": "four steps of successful development.",
+                    "width": 183.912,
+                    "x": 77.25,
+                    "y": 547.667
+                },
+                {
+                    "height": 12.289,
+                    "text": "● What are product types?",
+                    "width": 137.759,
+                    "x": 95.25,
+                    "y": 522.369
+                },
+                {
+                    "height": 12.289,
+                    "text": "● What challenges may arise in",
+                    "width": 161.579,
+                    "x": 95.25,
+                    "y": 509.72
+                },
+                {
+                    "height": 12.289,
+                    "text": "development?",
+                    "width": 69.06,
+                    "x": 113.25,
+                    "y": 497.071
+                },
+                {
+                    "height": 12.289,
+                    "text": "● What is product development and",
+                    "width": 181.76,
+                    "x": 95.25,
+                    "y": 484.422
+                },
+                {
+                    "height": 12.289,
+                    "text": "quality assurance, and who is",
+                    "width": 144.207,
+                    "x": 113.25,
+                    "y": 471.773
+                },
+                {
+                    "height": 12.289,
+                    "text": "involved?",
+                    "width": 46.447,
+                    "x": 113.25,
+                    "y": 459.124
+                },
+                {
+                    "height": 12.289,
+                    "text": "● The importance and benefits of",
+                    "width": 169.542,
+                    "x": 95.25,
+                    "y": 446.475
+                },
+                {
+                    "height": 12.289,
+                    "text": "product development and quality",
+                    "width": 158.886,
+                    "x": 113.25,
+                    "y": 433.826
+                },
+                {
+                    "height": 12.289,
+                    "text": "assurance",
+                    "width": 50.72,
+                    "x": 113.25,
+                    "y": 421.177
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Which products should be developed",
+                    "width": 198.27,
+                    "x": 95.25,
+                    "y": 408.528
+                },
+                {
+                    "height": 12.289,
+                    "text": "and tested?",
+                    "width": 57.456,
+                    "x": 113.25,
+                    "y": 395.88
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Ensuring standards and efficiency in",
+                    "width": 194.394,
+                    "x": 95.25,
+                    "y": 383.231
+                },
+                {
+                    "height": 12.289,
+                    "text": "development",
+                    "width": 62.944,
+                    "x": 113.25,
+                    "y": 370.582
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Timescales and conduct of",
+                    "width": 148.346,
+                    "x": 95.25,
+                    "y": 357.933
+                },
+                {
+                    "height": 12.289,
+                    "text": "development",
+                    "width": 62.944,
+                    "x": 113.25,
+                    "y": 345.284
+                },
+                {
+                    "height": 12.289,
+                    "text": "Module Three: Step 2: Design and",
+                    "width": 177.12,
+                    "x": 309.75,
+                    "y": 686.805
+                },
+                {
+                    "height": 12.289,
+                    "text": "Prototyping",
+                    "width": 61.675,
+                    "x": 309.75,
+                    "y": 674.156
+                },
+                {
+                    "height": 12.289,
+                    "text": "This module looks at the role of the design",
+                    "width": 206.532,
+                    "x": 309.75,
+                    "y": 648.858
+                },
+                {
+                    "height": 12.289,
+                    "text": "team in detail and outlines an approach for",
+                    "width": 207.77,
+                    "x": 309.75,
+                    "y": 636.209
+                },
+                {
+                    "height": 12.289,
+                    "text": "creating and testing prototypes based on the",
+                    "width": 216.944,
+                    "x": 309.75,
+                    "y": 623.56
+                },
+                {
+                    "height": 12.289,
+                    "text": "concept developed in the previous step. It",
+                    "width": 202.88,
+                    "x": 309.75,
+                    "y": 610.911
+                },
+                {
+                    "height": 12.289,
+                    "text": "looks at potential root challenges that may",
+                    "width": 205.313,
+                    "x": 309.75,
+                    "y": 598.262
+                },
+                {
+                    "height": 12.289,
+                    "text": "arise during the design phase, as well as",
+                    "width": 198.593,
+                    "x": 309.75,
+                    "y": 585.613
+                },
+                {
+                    "height": 12.289,
+                    "text": "considering underlying considerations.",
+                    "width": 186.982,
+                    "x": 309.75,
+                    "y": 572.964
+                },
+                {
+                    "height": 12.289,
+                    "text": "● The role of the design team",
+                    "width": 151.824,
+                    "x": 327.75,
+                    "y": 547.667
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Determining the immediate and",
+                    "width": 170.752,
+                    "x": 327.75,
+                    "y": 535.018
+                },
+                {
+                    "height": 12.289,
+                    "text": "underlying challenges of design",
+                    "width": 154.002,
+                    "x": 345.75,
+                    "y": 522.369
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Underlying considerations: usability",
+                    "width": 190.304,
+                    "x": 327.75,
+                    "y": 509.72
+                },
+                {
+                    "height": 12.289,
+                    "text": "and user experience",
+                    "width": 99.61,
+                    "x": 345.75,
+                    "y": 497.071
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Underlying considerations: materials",
+                    "width": 195.183,
+                    "x": 327.75,
+                    "y": 484.422
+                },
+                {
+                    "height": 12.289,
+                    "text": "and manufacturing processes",
+                    "width": 144.207,
+                    "x": 345.75,
+                    "y": 471.773
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Underlying considerations: compliance",
+                    "width": 206.192,
+                    "x": 327.75,
+                    "y": 459.124
+                },
+                {
+                    "height": 12.289,
+                    "text": "and standards",
+                    "width": 69.671,
+                    "x": 345.75,
+                    "y": 446.475
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Determining root challenges:",
+                    "width": 157.922,
+                    "x": 327.75,
+                    "y": 433.826
+                },
+                {
+                    "height": 12.289,
+                    "text": "organizational factors",
+                    "width": 104.489,
+                    "x": 345.75,
+                    "y": 421.177
+                },
+                {
+                    "height": 12.289,
+                    "text": "● The product development lifecycle",
+                    "width": 184.809,
+                    "x": 327.75,
+                    "y": 408.528
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Collaboration, responsibilities, and",
+                    "width": 185.426,
+                    "x": 327.75,
+                    "y": 395.88
+                },
+                {
+                    "height": 12.289,
+                    "text": "training",
+                    "width": 36.056,
+                    "x": 345.75,
+                    "y": 383.231
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Design thinking and innovation",
+                    "width": 167.725,
+                    "x": 327.75,
+                    "y": 370.582
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Management of changes, feedback,",
+                    "width": 192.772,
+                    "x": 327.75,
+                    "y": 357.933
+                },
+                {
+                    "height": 12.289,
+                    "text": "and iterations",
+                    "width": 66,
+                    "x": 345.75,
+                    "y": 345.284
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Determining root challenges: market",
+                    "width": 194.57,
+                    "x": 327.75,
+                    "y": 332.635
+                },
+                {
+                    "height": 12.289,
+                    "text": "factors",
+                    "width": 32.991,
+                    "x": 345.75,
+                    "y": 319.986
+                },
+                {
+                    "height": 12.289,
+                    "text": "Module Two: Initial Planning and Step 1:",
+                    "width": 209.868,
+                    "x": 77.25,
+                    "y": 296.087
+                },
+                {
+                    "height": 12.289,
+                    "text": "Concept Development",
+                    "width": 116.049,
+                    "x": 77.25,
+                    "y": 283.438
+                },
+                {
+                    "height": 12.289,
+                    "text": "This module considers immediate actions",
+                    "width": 201.615,
+                    "x": 77.25,
+                    "y": 270.789
+                },
+                {
+                    "height": 12.289,
+                    "text": "following a product idea, including market",
+                    "width": 201.64,
+                    "x": 77.25,
+                    "y": 258.14
+                },
+                {
+                    "height": 12.289,
+                    "text": "research, defining requirements, and initial",
+                    "width": 207.136,
+                    "x": 77.25,
+                    "y": 245.491
+                },
+                {
+                    "height": 12.289,
+                    "text": "collaboration with stakeholders. It then looks",
+                    "width": 215.693,
+                    "x": 77.25,
+                    "y": 232.842
+                },
+                {
+                    "height": 12.289,
+                    "text": "at who should lead the development and",
+                    "width": 197.397,
+                    "x": 77.25,
+                    "y": 220.193
+                },
+                {
+                    "height": 12.289,
+                    "text": "what relevant information might need to be",
+                    "width": 207.756,
+                    "x": 77.25,
+                    "y": 207.545
+                },
+                {
+                    "height": 12.289,
+                    "text": "gathered as part of the process.",
+                    "width": 155.208,
+                    "x": 77.25,
+                    "y": 194.896
+                },
+                {
+                    "height": 12.289,
+                    "text": "Market research and defining requirements",
+                    "width": 209.575,
+                    "x": 77.25,
+                    "y": 169.598
+                },
+                {
+                    "height": 12.289,
+                    "text": "Collaboration and initial planning",
+                    "width": 158.892,
+                    "x": 77.25,
+                    "y": 156.949
+                },
+                {
+                    "height": 12.289,
+                    "text": "Engaging stakeholders and recording",
+                    "width": 182.111,
+                    "x": 77.25,
+                    "y": 144.3
+                },
+                {
+                    "height": 12.289,
+                    "text": "information",
+                    "width": 54.38,
+                    "x": 77.25,
+                    "y": 131.651
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Who should lead the development?",
+                    "width": 190.332,
+                    "x": 95.25,
+                    "y": 119.002
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Step 1: Concept development",
+                    "width": 162.827,
+                    "x": 95.25,
+                    "y": 106.353
+                },
+                {
+                    "height": 12.289,
+                    "text": "● What is the product idea, target",
+                    "width": 170.755,
+                    "x": 95.25,
+                    "y": 93.704
+                },
+                {
+                    "height": 12.289,
+                    "text": "market, and objective?",
+                    "width": 110.597,
+                    "x": 113.25,
+                    "y": 81.055
+                }
+            ],
+            "number": 1,
+            "rotation": 0,
+            "text": "Module One - Introduction to Product\nDevelopment and Quality Assurance\nThis module introduces the learner to the\nimportance and principles of product\ndevelopment and quality assurance, explores\nwhat kinds of products might be developed\nand tested, considers potential challenges\nand provides guidance on ensuring\nstandards and efficiency throughout the\ndevelopment process. It then introduces the\nfour steps of successful development.\n● What are product types?\n● What challenges may arise in\ndevelopment?\n● What is product development and\nquality assurance, and who is\ninvolved?\n● The importance and benefits of\nproduct development and quality\nassurance\n● Which products should be developed\nand tested?\n● Ensuring standards and efficiency in\ndevelopment\n● Timescales and conduct of\ndevelopment\nModule Three: Step 2: Design and\nPrototyping\nThis module looks at the role of the design\nteam in detail and outlines an approach for\ncreating and testing prototypes based on the\nconcept developed in the previous step. It\nlooks at potential root challenges that may\narise during the design phase, as well as\nconsidering underlying considerations.\n● The role of the design team\n● Determining the immediate and\nunderlying challenges of design\n● Underlying considerations: usability\nand user experience\n● Underlying considerations: materials\nand manufacturing processes\n● Underlying considerations: compliance\nand standards\n● Determining root challenges:\norganizational factors\n● The product development lifecycle\n● Collaboration, responsibilities, and\ntraining\n● Design thinking and innovation\n● Management of changes, feedback,\nand iterations\n● Determining root challenges: market\nfactors\nModule Two: Initial Planning and Step 1:\nConcept Development\nThis module considers immediate actions\nfollowing a product idea, including market\nresearch, defining requirements, and initial\ncollaboration with stakeholders. It then looks\nat who should lead the development and\nwhat relevant information might need to be\ngathered as part of the process.\nMarket research and defining requirements\nCollaboration and initial planning\nEngaging stakeholders and recording\ninformation\n● Who should lead the development?\n● Step 1: Concept development\n● What is the product idea, target\nmarket, and objective?",
+            "width": 612
+        },
+        {
+            "height": 792,
+            "lines": [
+                {
+                    "height": 12.289,
+                    "text": "● How will the product meet market",
+                    "width": 180.502,
+                    "x": 95.25,
+                    "y": 701.351
+                },
+                {
+                    "height": 12.289,
+                    "text": "needs?",
+                    "width": 36.067,
+                    "x": 113.25,
+                    "y": 688.702
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Design considerations",
+                    "width": 126.155,
+                    "x": 95.25,
+                    "y": 676.053
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Case study",
+                    "width": 72.992,
+                    "x": 95.25,
+                    "y": 663.404
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Prototyping methodologies",
+                    "width": 148.16,
+                    "x": 95.25,
+                    "y": 650.755
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Intellectual property considerations",
+                    "width": 187.868,
+                    "x": 95.25,
+                    "y": 638.106
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Concept validation",
+                    "width": 108.443,
+                    "x": 95.25,
+                    "y": 625.458
+                },
+                {
+                    "height": 12.289,
+                    "text": "● T eam collaboration and leadership",
+                    "width": 185.436,
+                    "x": 95.25,
+                    "y": 612.809
+                },
+                {
+                    "height": 12.289,
+                    "text": "● Budgeting and resource planning",
+                    "width": 179.345,
+                    "x": 95.25,
+                    "y": 600.16
+                },
+                {
+                    "height": 12.289,
+                    "text": "● T echnology and tools selection",
+                    "width": 167.718,
+                    "x": 95.25,
+                    "y": 587.511
+                }
+            ],
+            "number": 2,
+            "rotation": 0,
+            "text": "● How will the product meet market\nneeds?\n● Design considerations\n● Case study\n● Prototyping methodologies\n● Intellectual property considerations\n● Concept validation\n● T eam collaboration and leadership\n● Budgeting and resource planning\n● T echnology and tools selection",
+            "width": 612
+        }
+    ]
+}

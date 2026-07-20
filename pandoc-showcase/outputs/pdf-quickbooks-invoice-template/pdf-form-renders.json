@@ -1,0 +1,23 @@
+{
+    "version": 1,
+    "samplePath": "samples/pdf-quickbooks-invoice-template-quickbooks-invoice-template.pdf",
+    "requests": [
+        {
+            "id": "form-881980cf3ee9d17c80704a80d312",
+            "path": "samples/pdf-quickbooks-invoice-template-quickbooks-invoice-template.pdf",
+            "page": 1,
+            "bbox": {
+                "x1": 254.49997285608953,
+                "y1": 118.29998646372786,
+                "x2": 357.45486978024996,
+                "y2": 139.8905687868724
+            },
+            "formId": "pdf-form-p1-n1-o21",
+            "object": 21,
+            "paintOrder": 1,
+            "precedingText": "Start a free 30-day QuickBooks Online trial today at www.quickbooks.intuit.com/au/",
+            "followingText": "All information and forms are provided \u201cas is\u201d without any warranty of any kind, express, implied or otherwise, including as to their legal effect and",
+            "label": "PDF figure on page 1"
+        }
+    ]
+}
