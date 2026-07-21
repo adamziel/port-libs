@@ -239,8 +239,11 @@ export function createPlaygroundPersistence({
   devicePath = 'port-libs/playground-import-site-v1',
 } = {}) {
   const key = String(storageKey);
-  const path = String(devicePath).replace(/[^A-Za-z0-9_./-]/g, '-');
-  let persisted = readPersistenceRecord(storage, key, path);
+  const basePath = String(devicePath).replace(/[^A-Za-z0-9_./-]/g, '-');
+  const stored = readPersistenceRecord(storage, key, basePath);
+  let path = stored?.devicePath || basePath;
+  let generation = stored?.generation || 0;
+  let persisted = stored?.state === 'persisted';
 
   const descriptor = (initialSyncDirection) => ({
     device: { type: 'opfs', path },
@@ -267,7 +270,12 @@ export function createPlaygroundPersistence({
       onProgress('Saving this Playground in browser storage so the import can survive a reload…');
       await client.mountOpfs(descriptor('memfs-to-opfs'));
       try {
-        storage?.setItem(key, JSON.stringify({ version: 1, devicePath: path }));
+        storage?.setItem(key, JSON.stringify({
+          version: 2,
+          state: 'persisted',
+          devicePath: path,
+          generation,
+        }));
         persisted = true;
       } catch {
         // The mount remains useful for this runtime, but without the pointer
@@ -276,6 +284,27 @@ export function createPlaygroundPersistence({
       }
       return true;
     },
+    quarantineInvalidSnapshot() {
+      if (!persisted) return null;
+      const abandonedDevicePath = path;
+      generation += 1;
+      path = `${basePath}-recovery-${generation}`;
+      persisted = false;
+      try {
+        // Remember the unused recovery target before retrying. If the page is
+        // reloaded during the fresh boot, it must not mount the known-bad tree
+        // or overwrite it while synchronizing the replacement site.
+        storage?.setItem(key, JSON.stringify({
+          version: 2,
+          state: 'fresh',
+          devicePath: path,
+          generation,
+        }));
+      } catch {
+        try { storage?.removeItem(key); } catch { /* Storage is optional. */ }
+      }
+      return { abandonedDevicePath, devicePath: path, generation };
+    },
     forget() {
       persisted = false;
       try { storage?.removeItem(key); } catch { /* Ignore unavailable storage. */ }
@@ -283,17 +312,82 @@ export function createPlaygroundPersistence({
   };
 }
 
+/**
+ * A persisted WordPress tree can become unusable when an OPFS sync or browser
+ * shutdown leaves its SQLite database incomplete. Retry that deterministic
+ * restore failure once with a fresh OPFS generation. Other startup failures
+ * retain the saved pointer and surface unchanged.
+ */
+export async function startPlaygroundWithSnapshotRecovery({
+  persistence,
+  options,
+  start,
+  onRecovery = () => {},
+} = {}) {
+  if (!persistence
+    || typeof persistence.isPersisted !== 'function'
+    || typeof persistence.startOptions !== 'function'
+    || typeof persistence.quarantineInvalidSnapshot !== 'function'
+    || typeof start !== 'function'
+  ) {
+    throw new TypeError('Playground snapshot recovery requires persistence and start callbacks.');
+  }
+
+  let recovered = false;
+  for (;;) {
+    const restoringSnapshot = persistence.isPersisted();
+    try {
+      return await start(persistence.startOptions(options));
+    } catch (error) {
+      if (recovered || !restoringSnapshot || !isInvalidPlaygroundSqliteSnapshot(error)) {
+        throw error;
+      }
+      const recovery = persistence.quarantineInvalidSnapshot();
+      if (!recovery) throw error;
+      recovered = true;
+      onRecovery(recovery, error);
+    }
+  }
+}
+
 export function terminalImportStatus(status) {
   return ['complete', 'failed', 'cancelled'].includes(String(status || ''));
 }
 
-function readPersistenceRecord(storage, key, devicePath) {
+function readPersistenceRecord(storage, key, basePath) {
   try {
     const parsed = JSON.parse(storage?.getItem(key) || 'null');
-    return parsed?.version === 1 && parsed?.devicePath === devicePath;
+    if (parsed?.version === 1 && parsed?.devicePath === basePath) {
+      return {
+        state: 'persisted',
+        devicePath: basePath,
+        generation: 0,
+      };
+    }
+    const generation = Number(parsed?.generation);
+    if (parsed?.version !== 2
+      || !['fresh', 'persisted'].includes(parsed?.state)
+      || !Number.isSafeInteger(generation)
+      || generation < 0
+      || generation > 1_000_000
+    ) {
+      return null;
+    }
+    const expectedPath = generation === 0 ? basePath : `${basePath}-recovery-${generation}`;
+    if (parsed.devicePath !== expectedPath) return null;
+    return {
+      state: parsed.state,
+      devicePath: expectedPath,
+      generation,
+    };
   } catch {
-    return false;
+    return null;
   }
+}
+
+function isInvalidPlaygroundSqliteSnapshot(error) {
+  const messages = [error?.message, error?.cause?.message, String(error || '')];
+  return messages.some((message) => String(message || '').includes('Error connecting to the SQLite database.'));
 }
 
 function boundedInteger(value, minimum, maximum, fallback) {

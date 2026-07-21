@@ -6,6 +6,7 @@ import {
   createImportJobSession,
   createPlaygroundPersistence,
   recoverImportMutation,
+  startPlaygroundWithSnapshotRecovery,
 } from '../pandoc-showcase/import-job-session.mjs';
 
 class MemoryStorage {
@@ -162,6 +163,19 @@ await assert.rejects(
 );
 
 const persistenceStorage = new MemoryStorage();
+const legacyPersistenceStorage = new MemoryStorage();
+legacyPersistenceStorage.setItem('legacy-playground', JSON.stringify({
+  version: 1,
+  devicePath: 'fixture/legacy-import-site',
+}));
+const legacyPersistence = createPlaygroundPersistence({
+  storage: legacyPersistenceStorage,
+  storageKey: 'legacy-playground',
+  devicePath: 'fixture/legacy-import-site',
+});
+assert.equal(legacyPersistence.isPersisted(), true, 'Existing version 1 browser snapshots must remain restorable.');
+assert.equal(legacyPersistence.startOptions({}).mounts[0].device.path, 'fixture/legacy-import-site');
+
 const persistence = createPlaygroundPersistence({
   storage: persistenceStorage,
   storageKey: 'playground',
@@ -178,5 +192,96 @@ const restored = persistence.startOptions(baseOptions);
 assert.equal(restored.shouldInstallWordPress, false);
 assert.equal(restored.mounts[0].initialSyncDirection, 'opfs-to-memfs');
 assert.equal(restored.mounts[0].mountpoint, '/wordpress');
+assert.equal(restored.mounts[0].device.path, 'fixture/import-site');
+
+const startAttempts = [];
+let recoveryNotice = null;
+const recoveredClient = await startPlaygroundWithSnapshotRecovery({
+  persistence,
+  options: baseOptions,
+  async start(options) {
+    startAttempts.push(options);
+    if (startAttempts.length === 1) {
+      throw new Error('Error connecting to the SQLite database.');
+    }
+    return { site: 'fresh' };
+  },
+  onRecovery(recovery, error) {
+    recoveryNotice = { recovery, error };
+  },
+});
+assert.deepEqual(recoveredClient, { site: 'fresh' });
+assert.equal(startAttempts.length, 2, 'An invalid persisted SQLite site should retry exactly once.');
+assert.equal(startAttempts[0].mounts[0].device.path, 'fixture/import-site');
+assert.strictEqual(startAttempts[1], baseOptions, 'The retry must boot a fresh site without mounting the invalid snapshot.');
+assert.equal(recoveryNotice.error.message, 'Error connecting to the SQLite database.');
+assert.deepEqual(recoveryNotice.recovery, {
+  abandonedDevicePath: 'fixture/import-site',
+  devicePath: 'fixture/import-site-recovery-1',
+  generation: 1,
+});
+assert.deepEqual(JSON.parse(persistenceStorage.getItem('playground')), {
+  version: 2,
+  state: 'fresh',
+  devicePath: 'fixture/import-site-recovery-1',
+  generation: 1,
+}, 'The old OPFS path must be retained while the retry targets a fresh generation.');
+
+const interruptedRecoveryPersistence = createPlaygroundPersistence({
+  storage: persistenceStorage,
+  storageKey: 'playground',
+  devicePath: 'fixture/import-site',
+});
+assert.strictEqual(interruptedRecoveryPersistence.startOptions(baseOptions), baseOptions, 'Reloading during recovery must still boot fresh.');
+mounted = null;
+await interruptedRecoveryPersistence.persist({
+  async mountOpfs(descriptor) { mounted = descriptor; },
+});
+assert.equal(mounted.device.path, 'fixture/import-site-recovery-1');
+const recoveredPersistence = createPlaygroundPersistence({
+  storage: persistenceStorage,
+  storageKey: 'playground',
+  devicePath: 'fixture/import-site',
+});
+const recoveredRestore = recoveredPersistence.startOptions(baseOptions);
+assert.equal(recoveredRestore.mounts[0].device.path, 'fixture/import-site-recovery-1');
+assert.equal(recoveredRestore.mounts[0].initialSyncDirection, 'opfs-to-memfs');
+
+let transientAttempts = 0;
+await assert.rejects(
+  startPlaygroundWithSnapshotRecovery({
+    persistence: recoveredPersistence,
+    options: baseOptions,
+    async start() {
+      transientAttempts += 1;
+      throw new Error('The Playground CDN is unavailable.');
+    },
+  }),
+  /CDN is unavailable/,
+  'A transient boot failure must not abandon a persisted site.',
+);
+assert.equal(transientAttempts, 1);
+assert.equal(recoveredPersistence.isPersisted(), true);
+assert.equal(recoveredPersistence.startOptions(baseOptions).mounts[0].device.path, 'fixture/import-site-recovery-1');
+
+const freshPersistence = createPlaygroundPersistence({
+  storage: new MemoryStorage(),
+  storageKey: 'fresh-playground',
+  devicePath: 'fixture/fresh-site',
+});
+let freshFailureAttempts = 0;
+await assert.rejects(
+  startPlaygroundWithSnapshotRecovery({
+    persistence: freshPersistence,
+    options: baseOptions,
+    async start() {
+      freshFailureAttempts += 1;
+      throw new Error('Error connecting to the SQLite database.');
+    },
+  }),
+  /SQLite database/,
+  'A fresh-site database failure must surface instead of retrying forever.',
+);
+assert.equal(freshFailureAttempts, 1);
 
 console.log('Import job session checks passed.');

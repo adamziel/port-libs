@@ -149,7 +149,8 @@ assert(js.includes('PDF_STATIC_PREVIEW_RENDERER_SCHEMA,')
 'Published PDF previews must reject plans produced by a different renderer schema.');
 assert(showcaseBuilder.includes('renderPdfPageRasterRequests,')
   && showcaseBuilder.includes('renderPdfPageRasterRequestsIncrementally,'), 'Expected the generated showcase client to import batch and incremental whole-page renderers alongside the Form APIs.');
-assert(js.includes("from './import-job-session.mjs';"), 'Expected examples.php to share the durable Playground import session helper.');
+assert(js.includes('startPlaygroundWithSnapshotRecovery,')
+  && js.includes("from './import-job-session.mjs?v=playground-snapshot-recovery-20260721';"), 'Expected examples.php to load the cache-busted Playground snapshot recovery helper.');
 assert(js.includes("const playgroundPluginBuild = 'verified-pdf-prerender-20260720';"), 'Expected the own-file importer to use the current Playground plugin build.');
 assert(js.includes('const playgroundPdfFormTotalPixelLimit = 48_000_000;'), 'Expected own-file PDF figure rendering to have a total pixel budget.');
 assert(js.includes('const playgroundPdfFormTotalImageByteLimit = 24_000_000;'), 'Expected own-file PDF figure rendering to match the server media budget.');
@@ -232,7 +233,10 @@ assert(showcaseBuilder.includes('for await (const renderedItem of renderer(rende
 assert(js.includes('const sourceKey = String(request?.sourceKey || path);'), 'Expected source grouping to use the server digest instead of a truncated display path.');
 assert(js.includes("storageKey: 'port-libs.playground-active-import.v1'"), 'Expected GitHub Pages to persist its active WordPress job pointer.');
 assert(js.includes('async function resumeSavedOwnFileImport()'), 'Expected Try your own file to resume a saved import after interruption.');
-assert(js.includes('ownFilePlaygroundPersistence.startOptions(startOptions)'), 'Expected the embedded WordPress filesystem to restore from browser storage.');
+assert(js.includes('state.playgroundClient = await startPlaygroundWithSnapshotRecovery({')
+  && js.includes('persistence: ownFilePlaygroundPersistence,')
+  && js.includes('options: startOptions,'), 'Expected the embedded WordPress filesystem to restore with bounded SQLite snapshot recovery.');
+assert(js.includes('The saved Playground database could not be reopened. Starting a fresh private WordPress site; the previous browser snapshot is preserved.'), 'Expected invalid saved SQLite sites to explain the non-destructive fresh-site recovery.');
 assert(!js.includes('ownFilePlaygroundPersistence.forget()'), 'A transient Playground boot failure must not discard or overwrite durable OPFS checkpoints.');
 assert(js.includes('recoverImportMutation({'), 'Expected an uncertain /advance response to be reconciled with durable status before replay.');
 assert(js.includes("['failed', 'retryable_failure'].includes(String(data.status || ''))"), 'Expected durable error snapshots to reach the own-file state machine instead of being mistaken for transport failures.');

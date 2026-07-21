@@ -6,9 +6,10 @@ import {
   createImportJobSession,
   createPlaygroundPersistence,
   recoverImportMutation,
-} from './import-job-session.mjs';
+  startPlaygroundWithSnapshotRecovery,
+} from './import-job-session.mjs?v=playground-snapshot-recovery-20260721';
 
-const pluginBuild = 'verified-pdf-import-20260716';
+const pluginBuild = 'sqlite-snapshot-recovery-20260721';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 // Keep browser-produced PDF rasters within the exact decoded-byte limit that
@@ -745,7 +746,16 @@ async function startPlayground() {
         ],
       },
     };
-    playgroundClient = await startPlaygroundWeb(playgroundPersistence.startOptions(startOptions));
+    playgroundClient = await startPlaygroundWithSnapshotRecovery({
+      persistence: playgroundPersistence,
+      options: startOptions,
+      start: startPlaygroundWeb,
+      onRecovery() {
+        const message = 'The saved Playground database could not be reopened. Starting a fresh private WordPress site; the previous browser snapshot is preserved.';
+        setProgressStatus(message);
+        log(message);
+      },
+    });
     await playgroundClient.isReady();
     try {
       await playgroundPersistence.persist(playgroundClient, (message) => {
