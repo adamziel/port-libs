@@ -5823,6 +5823,9 @@ select:disabled { cursor: not-allowed; opacity: .58; }
 .try-own-file {
   grid-area: own;
 }
+.try-own-file[hidden] {
+  display: none;
+}
 .download-source:hover { border-color: var(--accent); background: #e6eefb; }
 .try-own-file:hover:not(:disabled) { border-color: var(--accent); background: #e6eefb; }
 .download-source[aria-disabled="true"] { cursor: wait; opacity: .58; pointer-events: none; }
