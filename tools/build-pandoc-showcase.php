@@ -5983,7 +5983,8 @@ import {
   createImportJobSession,
   createPlaygroundPersistence,
   recoverImportMutation,
-} from './import-job-session.mjs';
+  startPlaygroundWithSnapshotRecovery,
+} from './import-job-session.mjs?v=playground-snapshot-recovery-20260721';
 
 const catalogUrl = 'examples-index.json';
 const viewLabels = {
@@ -6739,9 +6740,16 @@ async function startOwnFilePlayground() {
         ],
       },
     };
-    state.playgroundClient = await state.startPlaygroundWeb(
-      ownFilePlaygroundPersistence.startOptions(startOptions),
-    );
+    state.playgroundClient = await startPlaygroundWithSnapshotRecovery({
+      persistence: ownFilePlaygroundPersistence,
+      options: startOptions,
+      start: state.startPlaygroundWeb,
+      onRecovery() {
+        const message = 'The saved Playground database could not be reopened. Starting a fresh private WordPress site; the previous browser snapshot is preserved.';
+        setOwnFileBusy(true, message);
+        setStatus(message, { visible: true });
+      },
+    });
     await state.playgroundClient.isReady();
     try {
       await ownFilePlaygroundPersistence.persist(state.playgroundClient, (message) => {
