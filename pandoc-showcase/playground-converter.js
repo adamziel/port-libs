@@ -6,10 +6,11 @@ import {
   createImportJobSession,
   createPlaygroundPersistence,
   recoverImportMutation,
+  resetPlaygroundIframeForRetry,
   startPlaygroundWithSnapshotRecovery,
-} from './import-job-session.mjs?v=playground-snapshot-recovery-20260721';
+} from './import-job-session.mjs?v=playground-retry-teardown-20260721';
 
-const pluginBuild = 'sqlite-snapshot-recovery-20260721';
+const pluginBuild = 'playground-retry-teardown-20260721';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 // Keep browser-produced PDF rasters within the exact decoded-byte limit that
@@ -755,6 +756,7 @@ async function startPlayground() {
         setProgressStatus(message);
         log(message);
       },
+      beforeRetry: () => resetPlaygroundIframeForRetry(iframe),
     });
     await playgroundClient.isReady();
     try {

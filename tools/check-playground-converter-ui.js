@@ -161,12 +161,14 @@ assert(js.includes('pdfRasterImages'), 'Expected browser-decoded PDF rasters to 
 assert(js.includes('renderPdfFormRequestsIncrementally,')
   && js.includes('renderPdfPageRasterRequestsIncrementally,')
   && js.includes("from './pdfjs-form-rasterizer.mjs';"), 'Expected incremental PDF.js renderers for both Form figures and whole-page images in the Playground importer.');
-assert(js.includes('startPlaygroundWithSnapshotRecovery,')
-  && js.includes("from './import-job-session.mjs?v=playground-snapshot-recovery-20260721';"), 'Expected GitHub Pages imports to load the cache-busted Playground snapshot recovery helper.');
+assert(js.includes('resetPlaygroundIframeForRetry,')
+  && js.includes('startPlaygroundWithSnapshotRecovery,')
+  && js.includes("from './import-job-session.mjs?v=playground-retry-teardown-20260721';"), 'Expected GitHub Pages imports to load the cache-busted Playground retry teardown helper.');
 assert(!js.includes('playgroundPersistence.forget()'), 'A transient Playground boot failure must retain the saved OPFS WordPress tree for retry.');
 assert(js.includes('playgroundClient = await startPlaygroundWithSnapshotRecovery({')
   && js.includes('persistence: playgroundPersistence,')
-  && js.includes('options: startOptions,'), 'Expected the standalone importer to recover once from an invalid persisted SQLite site.');
+  && js.includes('options: startOptions,')
+  && js.includes('beforeRetry: () => resetPlaygroundIframeForRetry(iframe),'), 'Expected the standalone importer to tear down the failed iframe before recovering once from an invalid persisted SQLite site.');
 assert(js.includes('The saved Playground database could not be reopened. Starting a fresh private WordPress site; the previous browser snapshot is preserved.'), 'Expected standalone invalid-site recovery to be explicit and non-destructive.');
 assert(!js.includes('collectPdfJsFacts'), 'Playground must not eagerly parse PDF.js text facts before a consumer exists.');
 assert(!js.includes('pdfBrowserFacts'), 'Unused browser facts must not enlarge Playground import payloads.');

@@ -149,8 +149,9 @@ assert(js.includes('PDF_STATIC_PREVIEW_RENDERER_SCHEMA,')
 'Published PDF previews must reject plans produced by a different renderer schema.');
 assert(showcaseBuilder.includes('renderPdfPageRasterRequests,')
   && showcaseBuilder.includes('renderPdfPageRasterRequestsIncrementally,'), 'Expected the generated showcase client to import batch and incremental whole-page renderers alongside the Form APIs.');
-assert(js.includes('startPlaygroundWithSnapshotRecovery,')
-  && js.includes("from './import-job-session.mjs?v=playground-snapshot-recovery-20260721';"), 'Expected examples.php to load the cache-busted Playground snapshot recovery helper.');
+assert(js.includes('resetPlaygroundIframeForRetry,')
+  && js.includes('startPlaygroundWithSnapshotRecovery,')
+  && js.includes("from './import-job-session.mjs?v=playground-retry-teardown-20260721';"), 'Expected examples.php to load the cache-busted Playground retry teardown helper.');
 assert(js.includes("const playgroundPluginBuild = 'verified-pdf-prerender-20260720';"), 'Expected the own-file importer to use the current Playground plugin build.');
 assert(js.includes('const playgroundPdfFormTotalPixelLimit = 48_000_000;'), 'Expected own-file PDF figure rendering to have a total pixel budget.');
 assert(js.includes('const playgroundPdfFormTotalImageByteLimit = 24_000_000;'), 'Expected own-file PDF figure rendering to match the server media budget.');
@@ -182,10 +183,11 @@ assert(importE2e.includes("['activeLoadingTasks', 'activeDocuments', 'activePage
 assert(!importE2e.includes('Chrome did not release enough post-import memory'), 'Post-completion OS memory samples must remain telemetry rather than assuming that Chrome immediately decommits freed allocator arenas.');
 assert(importE2e.includes('maxElapsedMs: 5 * 60 * 1000')
   && importE2e.includes('importDeadlineMs'), 'Expected dense release imports to have a default five-minute elapsed ceiling, not only an optional after-the-fact check.');
-assert(importE2e.includes("['console errors', observations.consoleErrors]")
-  && importE2e.includes("['network failures', observations.networkFailures]")
-  && importE2e.includes("['browser log errors', observations.browserLogErrors]")
-  && importE2e.includes('assertNoUnexpectedObservations(observations);'), 'Expected unexpected console, network, and browser-log observations to fail the release run.');
+assert(importE2e.includes("['console errors', unexpected(observations.consoleErrors)]")
+  && importE2e.includes("['network failures', unexpected(observations.networkFailures)]")
+  && importE2e.includes("['browser log errors', unexpected(observations.browserLogErrors)]")
+  && importE2e.includes('/Error connecting to the SQLite database\\./')
+  && importE2e.includes('assertNoUnexpectedObservations(observations, options);'), 'Expected unexpected console, network, and browser-log observations to fail the release run while allowing only the seeded SQLite recovery error.');
 assert(importE2e.includes('postCompletionMemorySamples')
   && importE2e.includes('postCompletionSettleElapsedMs'), 'Expected release evidence to retain timestamped samples from the five-second post-completion settle window.');
 assert(js.includes("const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';"), 'Expected Try your own file to use the Playground client.');
@@ -235,8 +237,15 @@ assert(js.includes("storageKey: 'port-libs.playground-active-import.v1'"), 'Expe
 assert(js.includes('async function resumeSavedOwnFileImport()'), 'Expected Try your own file to resume a saved import after interruption.');
 assert(js.includes('state.playgroundClient = await startPlaygroundWithSnapshotRecovery({')
   && js.includes('persistence: ownFilePlaygroundPersistence,')
-  && js.includes('options: startOptions,'), 'Expected the embedded WordPress filesystem to restore with bounded SQLite snapshot recovery.');
+  && js.includes('options: startOptions,')
+  && js.includes('beforeRetry: () => resetPlaygroundIframeForRetry(frame),'), 'Expected the embedded WordPress filesystem to tear down the failed iframe before bounded SQLite snapshot recovery.');
 assert(js.includes('The saved Playground database could not be reopened. Starting a fresh private WordPress site; the previous browser snapshot is preserved.'), 'Expected invalid saved SQLite sites to explain the non-destructive fresh-site recovery.');
+assert(importE2e.includes("argument === '--seed-invalid-playground-snapshot'")
+  && importE2e.includes("Page.addScriptToEvaluateOnNewDocument")
+  && importE2e.includes("port-libs.playground-import-site.v1")
+  && importE2e.includes("previous browser snapshot is preserved"), 'Expected release E2E to seed and verify the invalid persisted-site recovery path.');
+assert(playgroundWorkflow.includes('run_with_fresh_chrome sqlite-recovery')
+  && playgroundWorkflow.includes('--seed-invalid-playground-snapshot'), 'Expected the converter workflow to exercise invalid SQLite snapshot recovery in a fresh Chrome process.');
 assert(!js.includes('ownFilePlaygroundPersistence.forget()'), 'A transient Playground boot failure must not discard or overwrite durable OPFS checkpoints.');
 assert(js.includes('recoverImportMutation({'), 'Expected an uncertain /advance response to be reconciled with durable status before replay.');
 assert(js.includes("['failed', 'retryable_failure'].includes(String(data.status || ''))"), 'Expected durable error snapshots to reach the own-file state machine instead of being mistaken for transport failures.');

@@ -323,6 +323,7 @@ export async function startPlaygroundWithSnapshotRecovery({
   options,
   start,
   onRecovery = () => {},
+  beforeRetry = () => {},
 } = {}) {
   if (!persistence
     || typeof persistence.isPersisted !== 'function'
@@ -345,9 +346,57 @@ export async function startPlaygroundWithSnapshotRecovery({
       const recovery = persistence.quarantineInvalidSnapshot();
       if (!recovery) throw error;
       recovered = true;
-      onRecovery(recovery, error);
+      await onRecovery(recovery, error);
+      await beforeRetry(recovery, error);
     }
   }
+}
+
+/**
+ * Navigating away from the failed remote document gives its Playground worker
+ * and message channels a deterministic teardown point before startPlaygroundWeb
+ * attaches a new boot to the same iframe.
+ */
+export async function resetPlaygroundIframeForRetry(iframe, { timeoutMs = 2_000 } = {}) {
+  if (!iframe
+    || typeof iframe.addEventListener !== 'function'
+    || typeof iframe.removeEventListener !== 'function'
+  ) {
+    throw new TypeError('Playground retry teardown requires an iframe-like event target.');
+  }
+
+  const boundedTimeoutMs = Number.isFinite(Number(timeoutMs))
+    ? Math.max(0, Number(timeoutMs))
+    : 2_000;
+  await new Promise((resolve, reject) => {
+    let timer = null;
+    let settled = false;
+    const cleanup = () => {
+      iframe.removeEventListener('load', finish);
+      if (timer !== null) clearTimeout(timer);
+    };
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve();
+    };
+
+    iframe.addEventListener('load', finish, { once: true });
+    timer = setTimeout(finish, boundedTimeoutMs);
+    try {
+      iframe.removeAttribute?.('srcdoc');
+      iframe.src = 'about:blank';
+    } catch (error) {
+      settled = true;
+      cleanup();
+      reject(error);
+    }
+  });
+
+  // Let destruction callbacks queued by the old remote document run before
+  // the new Playground client installs its listeners and worker.
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 export function terminalImportStatus(status) {

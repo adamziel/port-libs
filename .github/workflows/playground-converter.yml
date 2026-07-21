@@ -412,6 +412,12 @@ jobs:
           run_with_fresh_chrome showcase-pdf-forms node tools/e2e-showcase-pdf-forms.mjs \
             --url http://127.0.0.1:4174/examples.html \
             --all-audited
+          run_with_fresh_chrome sqlite-recovery node tools/e2e-playground-import.mjs \
+            --file "$PWD/pandoc-showcase/samples/rtf-simple-simple.rtf" \
+            --seed-invalid-playground-snapshot \
+            --timeout-ms 120000 \
+            --max-elapsed-ms 120000 \
+            --max-browser-memory-mb 1536
           run_with_fresh_chrome muir node tools/e2e-playground-import.mjs \
             --file "$PWD/pandoc-showcase/samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf" \
             --pdf-output-mode pages \
