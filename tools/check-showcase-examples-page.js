@@ -134,6 +134,7 @@ assert(css.includes('box-shadow: 0 1px 0 var(--paper)'), 'Expected the selected 
 assert(/#example-picker\s*\{[\s\S]*?height: 48px;/.test(css), 'Expected the picker to have a fixed 48px control height.');
 assert(/\.download-source,\s*\.try-own-file\s*\{[\s\S]*?height: 48px;[\s\S]*?border: 1px solid #aeb9c7;[\s\S]*?background: #fff;[\s\S]*?color: var\(--ink\);/.test(css), 'Expected Download original and Try your own file to be neutral controls matching the picker height.');
 assert(css.includes('.try-own-file {\n  grid-area: own;'), 'Expected Try your own file beside Download original on desktop.');
+assert(css.includes('.try-own-file[hidden] {\n  display: none;\n}'), 'Hidden own-file controls must not overlap the visible Try your own file button.');
 assert(css.includes('.download-source,\n  .try-own-file { min-width: 0; width: 100%;'), 'Expected Try your own file to remain usable in the narrow mobile toolbar.');
 assert(css.includes('.viewer-status[data-tone="error"]'), 'Expected own-file errors to be visibly styled.');
 assert(js.includes("const catalogUrl = 'examples-index.json';"), 'Expected the compact example catalogue.');
