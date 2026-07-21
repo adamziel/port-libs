@@ -89,7 +89,7 @@ export function aggregateBrowserMemory({
     try {
       totals = parseSmapsRollup(readSmaps(row.pid));
     } catch (error) {
-      if (error?.code === 'ENOENT' && row.pid !== rootPid) {
+      if (['ENOENT', 'ESRCH'].includes(error?.code) && row.pid !== rootPid) {
         exitedProcessCount += 1;
         continue;
       }
