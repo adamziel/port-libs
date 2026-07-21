@@ -91,6 +91,31 @@ return [
         $t->same(5, $streamed['sourceTokenCount']);
     },
 
+    'pdf fidelity ledger reconciles adjacency records across packed chunk boundaries' => static function (
+        TestRunner $t
+    ): void {
+        $sourceTokens = [];
+        for ($index = 0; $index <= 1300; $index++) {
+            $sourceTokens[] = sprintf('token%04d', $index);
+        }
+        $emittedTokens = $sourceTokens;
+        [$emittedTokens[1023], $emittedTokens[1024]] = [
+            $emittedTokens[1024],
+            $emittedTokens[1023],
+        ];
+
+        $ledger = PdfTextFidelityLedger::fromText(
+            implode(' ', $sourceTokens),
+            implode(' ', $emittedTokens)
+        );
+
+        $t->same(1300, $ledger['sourceTokenAdjacencyCount']);
+        $t->same(3, $ledger['unresolvedTokenAdjacencyCount']);
+        $t->same(1297 / 1300, $ledger['tokenAdjacencyCoverage']);
+        $t->same(true, $ledger['sourceAccounted']);
+        $t->same(false, $ledger['exactProjection']);
+    },
+
     'pdf source ledger requires an exact canonical page set for a cross-page occurrence permutation' => static function (TestRunner $t): void {
         $geometry = static fn (int $page, float $x1): array => [
             'page' => $page,

@@ -29,6 +29,11 @@ $invokeBoundaryRepairs = static function (
         ->invokeArgs($reader, [&$lines, $runs]);
 };
 
+$exactSourceRanges = static function (PdfReader $reader, array $run): array {
+    return (new ReflectionMethod($reader, 'pdfPositionedExactSourceRanges'))
+        ->invoke($reader, $run);
+};
+
 $run = static function (
     string $text,
     float $x1,
@@ -193,9 +198,48 @@ $choiceMatrixFacts = static function (
 };
 
 return [
+    'chart cipher rows do not load boundary repair without ActualText evidence' => static function (
+        TestRunner $t
+    ) use ($readerWithSource, $invokeBoundaryRepairs, $run, $exactRun, $exactItem): void {
+        $repairClass = 'PortLibs\\Pandoc\\PdfFacingFolioChoiceMatrixRepair';
+        $t->same(false, class_exists($repairClass, false));
+
+        $reader = $readerWithSource();
+        $lines = [
+            $exactItem(0, 'Cipher label', [
+                'x1' => 100.0,
+                'y1' => 200.0,
+                'x2' => 400.0,
+                'y2' => 210.0,
+            ]),
+            $exactItem(1, '#"', [
+                'x1' => 500.0,
+                'y1' => 200.0,
+                'x2' => 540.0,
+                'y2' => 210.0,
+            ]),
+        ];
+        $symbol = $exactRun(
+            $run('#"', 500.0, 200.0, 540.0, 210.0, 'SYM', 'Symbolic', 'Type0'),
+            1,
+            0,
+            2
+        );
+        $symbol['fontSymbolic'] = true;
+        $runs = [
+            $exactRun($run('Cipher label', 100.0, 200.0, 400.0, 210.0), 0, 0, 11),
+            $symbol,
+        ];
+
+        $invokeBoundaryRepairs($reader, $lines, $runs);
+
+        $t->same(false, class_exists($repairClass, false));
+        $t->same(false, isset($lines[0]['sourcePdfChoiceMatrixBoundaryRepair']));
+    },
+
     'line-local matching signs exact ranges despite an unrelated stream mismatch' => static function (
         TestRunner $t
-    ) use ($readerWithSource, $invokeOccurrenceGeometry, $run): void {
+    ) use ($readerWithSource, $invokeOccurrenceGeometry, $exactSourceRanges, $run): void {
         $reader = $readerWithSource();
         $lines = [
             ['id' => 'alpha', 'page' => 1, 'stream' => 1, 'text' => 'Alpha'],
@@ -211,13 +255,17 @@ return [
 
         $t->same('exact-page-stream-character-offset', $lines[0]['sourceGeometryMethod'] ?? null);
         $t->same('exact-line-local-page-stream-character-offset', $lines[0]['sourcePdfLineLocalExactProof']['method'] ?? null);
-        $t->same(0, $runs[0]['sourcePdfExactSourceIndex'] ?? null);
+        $t->same([[
+            'sourceIndex' => 0,
+            'sourceStart' => 0,
+            'sourceEnd' => 5,
+        ]], $exactSourceRanges($reader, $runs[0]));
         $t->same(false, isset($lines[1]['sourceGeometryMethod']));
     },
 
     'line-local matching refuses ambiguous repeated occurrence counts' => static function (
         TestRunner $t
-    ) use ($readerWithSource, $invokeOccurrenceGeometry, $run): void {
+    ) use ($readerWithSource, $invokeOccurrenceGeometry, $exactSourceRanges, $run): void {
         $reader = $readerWithSource();
         $lines = [
             ['id' => 'alpha-a', 'page' => 1, 'stream' => 1, 'text' => 'Alpha'],
@@ -229,7 +277,7 @@ return [
 
         $t->same(false, isset($lines[0]['sourceGeometryMethod']));
         $t->same(false, isset($lines[1]['sourceGeometryMethod']));
-        $t->same(false, isset($runs[0]['sourcePdfExactSourceIndex']));
+        $t->same([], $exactSourceRanges($reader, $runs[0]));
     },
 
     'facing folios project only consecutive numbers at opposite page edges' => static function (

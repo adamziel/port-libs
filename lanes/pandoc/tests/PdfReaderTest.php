@@ -3154,6 +3154,106 @@ $exactSideTableContinuationFixture = static function (float $continuationY = 568
 };
 
 return [
+    'keeps exact form row tail repair unloaded for ordinary non form data' => static function (TestRunner $t): void {
+        $helperClass = 'PortLibs\\Pandoc\\PdfExactFormRowTailRepair';
+        $t->same(false, class_exists($helperClass, false));
+
+        $reader = new PdfReader();
+        $decorate = (function (array $layouts, array $sourceItems): array {
+            return $this->pdfSourceLayoutsWithExactFormTailOccurrenceProofs(
+                $layouts,
+                $sourceItems
+            );
+        })->bindTo($reader, PdfReader::class);
+        $reorder = (function (array $lines, array $layouts, array $sourceItems): array {
+            return $this->pdfRepairSourceInProvenFormRowBundleOrder(
+                $lines,
+                $layouts,
+                $sourceItems
+            );
+        })->bindTo($reader, PdfReader::class);
+        $coalesce = (function (array $records): array {
+            return $this->coalesceProvenPdfFormTailRecords($records);
+        })->bindTo($reader, PdfReader::class);
+
+        $lines = [
+            'An ordinary paragraph remains in source order.',
+            'Another ordinary paragraph remains separate.',
+        ];
+        $layouts = [
+            ['text' => $lines[0], 'page' => 1, 'sourceStream' => 1],
+            ['text' => $lines[1], 'page' => 1, 'sourceStream' => 1],
+        ];
+        $sourceItems = [
+            ['text' => $lines[0], 'page' => 1, 'stream' => 1],
+            ['text' => $lines[1], 'page' => 1, 'stream' => 1],
+        ];
+        $records = [
+            ['text' => $lines[0], 'layout' => $layouts[0]],
+            ['text' => $lines[1], 'layout' => $layouts[1]],
+        ];
+
+        $t->same($layouts, $decorate($layouts, $sourceItems));
+        $t->same([
+            'lines' => $lines,
+            'layouts' => $layouts,
+            'geometryPageNumbers' => [],
+        ], $reorder($lines, $layouts, $sourceItems));
+        $t->same($records, $coalesce($records));
+        $t->same(false, class_exists($helperClass, false));
+    },
+    'keeps nested caution repair unloaded without a substantive exact window' => static function (TestRunner $t): void {
+        $helperClass = 'PortLibs\\Pandoc\\PdfNestedCautionCalloutRepair';
+        $t->same(false, class_exists($helperClass, false));
+
+        $reader = new PdfReader();
+        $detect = (function (array $items): array {
+            $this->sourceSha256 = str_repeat('0', 64);
+
+            return $this->sourcePdfExactNestedCautionCalloutProofs($items);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $layouts, array $sourceItems): array {
+            return $this->pdfRepairSourceInProvenNestedCautionCalloutOrder(
+                array_column($layouts, 'text'),
+                $layouts,
+                $sourceItems
+            );
+        })->bindTo($reader, PdfReader::class);
+        $sourceItem = static function (int $index, string $text): array {
+            return [
+                'id' => 'ordinary-exact-source-' . $index,
+                'page' => 1,
+                'stream' => 1,
+                'text' => $text,
+                'sourceGeometry' => [
+                    'page' => 1,
+                    'stream' => 1,
+                    'x1' => 72.0,
+                    'y1' => 720.0 - ($index * 14.0),
+                    'x2' => 180.0,
+                    'y2' => 732.0 - ($index * 14.0),
+                    'orientation' => 'horizontal',
+                ],
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            ];
+        };
+        $sourceItems = [];
+        foreach (['◆', '?', 'NOTICE', 'Short row', 'Also short.'] as $index => $text) {
+            $sourceItems[] = $sourceItem($index, $text);
+        }
+        $layouts = array_map(
+            static fn (array $item): array => ['text' => $item['text']],
+            $sourceItems
+        );
+
+        $t->same([], $detect($sourceItems));
+        $t->same([
+            'lines' => array_column($layouts, 'text'),
+            'layouts' => $layouts,
+            'geometryPageNumbers' => [],
+        ], $repair($layouts, $sourceItems));
+        $t->same(false, class_exists($helperClass, false));
+    },
     'imports large pdfs in bounded text only mode when requested' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent('BT /F1 12 Tf 72 720 Td (Fast mode text) Tj ET');
 
