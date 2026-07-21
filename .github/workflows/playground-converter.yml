@@ -245,7 +245,7 @@ jobs:
 
       - name: Run converter tests
         run: |
-          php tools/run-tests.php \
+          php tools/run-tests.php --isolate \
             lanes/markerpdf/tests/BrowserPdfFactsProviderTest.php \
             lanes/markerpdf/tests/PdfDecodeParmsTest.php \
             lanes/markerpdf/tests/PdfDocumentFactsMergerTest.php \
@@ -261,6 +261,10 @@ jobs:
             lanes/markerpdf/tests/PdfResourceLimitDiagnosticsTest.php \
             lanes/markerpdf/tests/PdfVisualOccurrenceInventoryTest.php \
             lanes/pandoc/tests/BibtexCslProcessorTest.php \
+            lanes/pandoc/tests/APdfMisorderedDiacriticBoundaryRepairLazyTest.php \
+            lanes/pandoc/tests/AWordPressAdvancedTableRendererLazyTest.php \
+            lanes/pandoc/tests/AWordPressExtendedNodeRendererLazyTest.php \
+            lanes/pandoc/tests/AWordPressInlineRendererLazyTest.php \
             lanes/pandoc/tests/EpubReaderTest.php \
             lanes/pandoc/tests/EpubXmlEncodingAndProcessingInstructionRecoveryTest.php \
             lanes/pandoc/tests/JiraReaderHardeningTest.php \
@@ -271,6 +275,9 @@ jobs:
             lanes/pandoc/tests/PdfFrontMatterSemanticProcessorTest.php \
             lanes/pandoc/tests/PdfInlineMarkerSemanticProcessorTest.php \
             lanes/pandoc/tests/PandocImportMemoryBudgetTest.php \
+            lanes/pandoc/tests/PdfAnchorImagePlacementLazyTest.php \
+            lanes/pandoc/tests/PdfArtifactMediaAnchorProofBuilderLazyTest.php \
+            lanes/pandoc/tests/PdfGrandCanyonContentTokenBudgetTest.php \
             lanes/pandoc/tests/PdfImportCompletenessTest.php \
             lanes/pandoc/tests/PdfKoreanListTargetDeferralTest.php \
             lanes/pandoc/tests/PdfReaderDocumentFactsTest.php \
@@ -278,6 +285,7 @@ jobs:
             lanes/pandoc/tests/PdfRegionAwareLayoutTest.php \
             lanes/pandoc/tests/PdfReaderTest.php \
             lanes/pandoc/tests/PdfSemanticRecordPipelineTest.php \
+            lanes/pandoc/tests/PdfSourceBindingValidatorTest.php \
             lanes/pandoc/tests/PdfTablePictureBoundaryRepairTest.php \
             lanes/pandoc/tests/PdfTextFidelityLedgerTest.php \
             lanes/pandoc/tests/PdfSourceDispositionLedgerTest.php \

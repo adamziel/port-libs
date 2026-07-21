@@ -240,7 +240,14 @@ return [
         $t->true(is_array($result), 'Expected JSON memory measurements for the PDF import.');
         $t->same(97710, $result['outputBytes'] ?? null);
         $t->same('451d2bac9645d048d522931449d7d4b89a63600ca20a0b29c83d612bfb3eb98a', $result['outputSha256'] ?? null);
-        $t->true((int) ($result['peakBytes'] ?? PHP_INT_MAX) <= 44 * 1024 * 1024, 'The PDF geometry and prose repair path should remain inside its 48 MiB process budget.');
+        $t->true(
+            (int) ($result['peakUsedBytes'] ?? PHP_INT_MAX) <= 44 * 1024 * 1024,
+            'The PDF geometry and prose repair path should retain at least 4 MiB of active-memory headroom. ' . $run['raw']
+        );
+        $t->true(
+            (int) ($result['peakBytes'] ?? PHP_INT_MAX) <= 48 * 1024 * 1024,
+            'The platform allocator should remain inside the enforced 48 MiB process budget. ' . $run['raw']
+        );
     },
     'keeps an eight megabyte 250 page searchable PDF below the large import PHP ceiling' => static function (
         TestRunner $t

@@ -1,8 +1,8 @@
 {
     "schemaVersion": 1,
     "archive": "port-libs-playground-converter.zip",
-    "archiveBytes": 8308601,
-    "archiveSha256": "80288add87b75d7340e5fd4277d0ef6e306fdcbb3644431775a548bcf66cf30b",
+    "archiveBytes": 8308657,
+    "archiveSha256": "32ce23e3e3ebc91a344cd75ac4a90974f815120b5a4a3c8a5badbb8a315bbf8b",
     "entries": {
         "port-libs-playground-converter/assets/admin-importer.css": {
             "bytes": 1336,
@@ -2341,8 +2341,8 @@
             "sha256": "38610f4dbee02fd71976331464ad37de9c11f4507a46a379b004783ba50c9134"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfReader.php": {
-            "bytes": 1445587,
-            "sha256": "71883b45140a55de65107a33e800bc726c8f1cd9eacd3e557d8ff4ce23c8aa16"
+            "bytes": 1446001,
+            "sha256": "8a046ef4167170db6fb9c7dfe89a8b8d5871c94e9cd86e7e248b4466d48e3fda"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfSemanticChunkReconciler.php": {
             "bytes": 34063,

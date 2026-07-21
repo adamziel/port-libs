@@ -973,6 +973,20 @@ final class PdfReader
             $formOrderedRepairSource['geometryPageNumbers']
         )));
         unset($formOrderedRepairSource);
+        if (is_resource($deferredSourceTextLineItemsFile)) {
+            // The original spill predates the occurrence-local evidence added
+            // above. Refresh it record by record before the main repair drops
+            // the live array; otherwise restoring the original snapshot loses
+            // clipped-display, form, and continuation proofs from the final
+            // source ledger.
+            $enrichedSourceTextLineItemsFile = $this->deferPdfRecordArray(
+                $limitedTextLineItems,
+                'enriched source text facts'
+            );
+            fclose($deferredSourceTextLineItemsFile);
+            $deferredSourceTextLineItemsFile = $enrichedSourceTextLineItemsFile;
+            unset($enrichedSourceTextLineItemsFile);
+        }
         $repairSourceLayouts = $candidateProofSourceLayouts;
         $sourceFactsSpilledDuringMainRepair = $proseRepairPathSelected
             && is_resource($deferredSourceTextLineItemsFile);
@@ -24124,6 +24138,12 @@ final class PdfReader
         array $items
     ): bool {
         foreach ($items as $continuationIndex => $continuation) {
+            if (($continuation['sourceCrossColumnContinuation'] ?? false) === true) {
+                // This marker is produced only after the full pairwise proof.
+                // A later page rebuild must honor it even when the compact
+                // source-proof fields have already been consumed.
+                return true;
+            }
             if (($continuation['sourcePdfFrontMatter'] ?? false) === true
                 || ($continuation['sourcePdfFallbackOrderProjection'] ?? false) === true
                 || ($continuation['sourceStructuredGeometry'] ?? false) !== true

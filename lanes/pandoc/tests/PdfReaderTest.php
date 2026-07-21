@@ -7824,11 +7824,13 @@ return [
             array $candidateLayouts,
             array $finalOutputPageProofs
         ): array {
+            $presentationLayouts = [];
+
             return $this->explicitPdfSourceDispositions(
                 $items,
                 $blocks,
                 [],
-                [],
+                $presentationLayouts,
                 $finalOutputPageProofs,
                 null,
                 $candidateLayouts
@@ -8825,12 +8827,13 @@ return [
             array $dispositions
         ): array {
             $this->sourceOrderProofDiagnostics = [];
+            $geometryOrderLayouts = [];
             $result = $this->pdfDispositionsWithExactGeometryPageOrderProofs(
                 $items,
                 $blocks,
                 $dispositions,
                 [1],
-                []
+                $geometryOrderLayouts
             );
 
             return [$result, $this->sourceOrderProofDiagnostics];
@@ -9039,10 +9042,11 @@ return [
             array $selectedGeometryPages = [1]
         ): array {
             $this->sourceOrderProofDiagnostics = [];
+            $dispositions = [];
             $result = $this->pdfDispositionsWithExactGeometryPageOrderProofs(
                 $items,
                 $blocks,
-                [],
+                $dispositions,
                 $selectedGeometryPages,
                 $layouts,
                 $pageProofs
@@ -9269,10 +9273,11 @@ return [
             array $pageProofs
         ): array {
             $this->sourceOrderProofDiagnostics = [];
+            $dispositions = [];
             $result = $this->pdfDispositionsWithExactGeometryPageOrderProofs(
                 $items,
                 $blocks,
-                [],
+                $dispositions,
                 [1],
                 $layouts,
                 $pageProofs
