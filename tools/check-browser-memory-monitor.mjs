@@ -75,6 +75,20 @@ const childExited = aggregateBrowserMemory({
 assert.equal(childExited.processCount, 1);
 assert.equal(childExited.exitedProcessCount, 1);
 
+const processVanishedDuringRead = new Error("ESRCH: no such process, open '/proc/101/smaps_rollup'");
+processVanishedDuringRead.code = 'ESRCH';
+const childVanishedDuringRead = aggregateBrowserMemory({
+  rows,
+  rootPid: 100,
+  platform: 'linux',
+  readSmaps: (pid) => {
+    if (pid === 101) throw processVanishedDuringRead;
+    return smaps({ rss: 800, pss: 400 });
+  },
+});
+assert.equal(childVanishedDuringRead.processCount, 1);
+assert.equal(childVanishedDuringRead.exitedProcessCount, 1, 'ESRCH must be treated as the same child-exit race as ENOENT.');
+
 assert.throws(() => aggregateBrowserMemory({
   rows,
   rootPid: 100,
