@@ -197,8 +197,8 @@ return [
         $t->same(0, $run['exitCode'], $run['raw']);
         $t->true(is_array($result), 'Expected JSON memory measurements for the HTML import.');
         $t->same(false, $result['streamOutput'] ?? null);
-        $t->same(95096, $result['outputBytes'] ?? null);
-        $t->same('2966b3be9c2b8e5d449e70a22b4ffcc32ddf8bd4775d914d821442ccafec89dd', $result['outputSha256'] ?? null);
+        $t->same(95026, $result['outputBytes'] ?? null);
+        $t->same('000ae88b4d39fbb8dd2b148a95ce7576d433b6471995a825cbbd615e87e8e05f', $result['outputSha256'] ?? null);
         $t->true((int) ($result['peakBytes'] ?? PHP_INT_MAX) <= 12 * 1024 * 1024, 'The compact HTML reader should stay well below its 16 MiB process budget.');
     },
     'streams a full EPUB to WordPress blocks within the low-memory budget' => static function (TestRunner $t) use ($measure, $root): void {

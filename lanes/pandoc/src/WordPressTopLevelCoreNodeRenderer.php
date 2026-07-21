@@ -32,7 +32,7 @@ final class WordPressTopLevelCoreNodeRenderer
 
         return match ($node->type) {
             'paragraph' => $this->renderParagraph($node),
-            'plain' => '<!-- wp:paragraph -->' . "\n" . '<p>' . $this->call('renderInlines', $node) . '</p>' . "\n" . '<!-- /wp:paragraph -->',
+            'plain' => $this->renderPlain($node),
             'bullet_list' => $this->call('renderList', $node, false),
             'ordered_list' => $this->call('renderList', $node, true),
             'definition_list' => $this->call('renderDefinitionList', $node),
@@ -61,10 +61,60 @@ final class WordPressTopLevelCoreNodeRenderer
             ? $this->call('renderBlockHtmlAttrs', $node)
             : $this->call('renderBlockHtmlAttrsWithClasses', $node, ['has-text-align-' . $alignment]);
         $htmlAttrs .= $this->call('blockColorHtmlAttr', $node);
+        $html = '<p' . $htmlAttrs . '>' . $this->call('renderInlines', $node) . '</p>';
+
+        if ($this->containsActiveRawHtmlInline($node)) {
+            return '<!-- wp:html -->' . "\n" . $html . "\n" . '<!-- /wp:html -->';
+        }
 
         return $this->call('blockComment', 'paragraph', $commentAttrs)
-            . "\n" . '<p' . $htmlAttrs . '>' . $this->call('renderInlines', $node) . '</p>'
+            . "\n" . $html
             . "\n" . '<!-- /wp:paragraph -->';
+    }
+
+    private function renderPlain(AstNode $node): string
+    {
+        $html = '<p>' . $this->call('renderInlines', $node) . '</p>';
+        if ($this->containsActiveRawHtmlInline($node)) {
+            return '<!-- wp:html -->' . "\n" . $html . "\n" . '<!-- /wp:html -->';
+        }
+
+        return '<!-- wp:paragraph -->' . "\n" . $html . "\n" . '<!-- /wp:paragraph -->';
+    }
+
+    private function containsActiveRawHtmlInline(AstNode $node): bool
+    {
+        if ($node->type === 'raw_html_inline') {
+            return $this->isActiveRawHtml((string) $node->attr('html', ''));
+        }
+
+        if (
+            $node->type === 'raw_inline'
+            && MarkdownFormatProfile::rawFamily((string) $node->attr('format', 'raw')) === 'html'
+        ) {
+            return $this->isActiveRawHtml((string) $node->attr('text', ''));
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->containsActiveRawHtmlInline($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isActiveRawHtml(string $html): bool
+    {
+        return preg_match(
+            '/<\s*\/?\s*(?:script|style|iframe|object|svg|math|form|input|textarea|select|button|canvas|video|audio)\b/iu',
+            $html
+        ) === 1
+            || preg_match('/\son[a-z][a-z0-9_:-]*\s*=/iu', $html) === 1
+            || preg_match(
+                '/\b(?:href|src|xlink:href|formaction)\s*=\s*(?:"\s*javascript:|\'\s*javascript:|javascript:)/iu',
+                $html
+            ) === 1;
     }
 
     /** @return array<string, mixed>|null */

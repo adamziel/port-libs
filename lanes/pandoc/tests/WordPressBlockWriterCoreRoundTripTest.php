@@ -109,6 +109,82 @@ function pandoc_wordpress_block_names(array $blocks): array
 
 /**
  * @param list<array<string, mixed>> $blocks
+ * @return list<string>
+ */
+function pandoc_wordpress_code_listings(array $blocks): array
+{
+    $listings = [];
+    foreach ($blocks as $block) {
+        if (($block['blockName'] ?? null) === 'core/code') {
+            $html = (string) ($block['innerHTML'] ?? '');
+            if (preg_match('/<code(?:\s[^>]*)?>(.*?)<\/code>/su', $html, $match) === 1) {
+                $listings[] = str_replace(
+                    ["\r\n", "\r"],
+                    "\n",
+                    html_entity_decode($match[1], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+                );
+            }
+        }
+
+        $innerBlocks = $block['innerBlocks'] ?? [];
+        if (is_array($innerBlocks) && $innerBlocks !== []) {
+            array_push($listings, ...pandoc_wordpress_code_listings($innerBlocks));
+        }
+    }
+
+    return $listings;
+}
+
+/** @return list<string> */
+function pandoc_trace_monkey_expected_code_listings(): array
+{
+    return [
+        "1 for (var i = 2; i < 100; ++i) {\n"
+            . "2 if (!primes[i])\n"
+            . "3     continue;\n"
+            . "4 for (var k = i + i; i < 100; k += i)\n"
+            . "5     primes[k] = false;\n"
+            . '6 }',
+        "v0 := ld state[748]      // load primes from the trace activation record\n"
+            . "      st sp[0], v0       // store primes to interpreter stack\n"
+            . "v1 := ld state[764]      // load k from the trace activation record\n"
+            . "v2 := i2f(v1)           // convert k from int to double\n"
+            . "      st sp[8], v1       // store k to interpreter stack\n"
+            . "      st sp[16], 0       // store false to interpreter stack\n"
+            . "v3 := ld v0[4]          // load class word for primes\n"
+            . "v4 := and v3, -4        // mask out object class tag for primes\n"
+            . "v5 := eq v4, Array       // test whether primes is an array\n"
+            . "      xf v5             // side exit if v5 is false\n"
+            . "v6 := js_Array_set(v0, v2, false)   // call function to set array element\n"
+            . "v7 := eq v6, 0          // test return value from call\n"
+            . '      xt v7             // side exit if js_Array_set returns false.',
+        "mov edx, ebx(748)       // load primes from the trace activation record\n"
+            . "mov edi(0), edx        // (*) store primes to interpreter stack\n"
+            . "mov esi, ebx(764)       // load k from the trace activation record\n"
+            . "mov edi(8), esi        // (*) store k to interpreter stack\n"
+            . "mov edi(16), 0         // (*) store false to interpreter stack\n"
+            . "mov eax, edx(4)        // (*) load object class word for primes\n"
+            . "and eax, -4            // (*) mask out object class tag for primes\n"
+            . "cmp eax, Array         // (*) test whether primes is an array\n"
+            . "jne side_exit_1        // (*) side exit if primes is not an array\n"
+            . "sub esp, 8             // bump stack for call alignment convention\n"
+            . "push false             // push last argument for call\n"
+            . "push esi               // push first argument for call\n"
+            . "call js_Array_set       // call function to set array element\n"
+            . "add esp, 8             // clean up extra stack space\n"
+            . "mov ecx, ebx           // (*) created by register allocator\n"
+            . "test eax, eax          // (*) test return value of js_Array_set\n"
+            . "je side_exit_2         // (*) side exit if call failed\n"
+            . "...\n"
+            . "side_exit_1:\n"
+            . "mov ecx, ebp(-4)        // restore ecx\n"
+            . "mov esp, ebp           // restore esp\n"
+            . 'jmp epilog             // jump to ret statement',
+    ];
+}
+
+/**
+ * @param list<array<string, mixed>> $blocks
  */
 function pandoc_assert_no_non_whitespace_classic_blocks(TestRunner $t, array $blocks): void
 {
@@ -274,6 +350,76 @@ return [
                 'core/code',
                 'core/html',
             ]);
+        },
+
+    'preserves every TraceMonkey code listing through WordPress core parsing and serialization' =>
+        static function (TestRunner $t): void {
+            $root = dirname(__DIR__, 3);
+            $path = $root . '/pandoc-showcase/outputs/pdf-tracemonkey/wordpress-blocks.html';
+            $blocks = file_get_contents($path);
+            $t->true(is_string($blocks) && $blocks !== '', 'Expected readable TraceMonkey WordPress block output');
+            if (!is_string($blocks) || $blocks === '') {
+                return;
+            }
+
+            pandoc_require_wordpress_core_block_parser();
+            $expected = pandoc_trace_monkey_expected_code_listings();
+            $parsed = parse_blocks($blocks);
+            $t->same(
+                $expected,
+                pandoc_wordpress_code_listings($parsed),
+                'WordPress parsing must preserve all TraceMonkey rows, newlines, indentation, and aligned comments.'
+            );
+
+            $serialized = serialize_blocks($parsed);
+            $reparsed = parse_blocks($serialized);
+            $t->same(
+                $expected,
+                pandoc_wordpress_code_listings($reparsed),
+                'WordPress serialization must not flatten or truncate the three TraceMonkey listings.'
+            );
+            $t->same($serialized, serialize_blocks($reparsed), 'TraceMonkey WordPress serialization should be stable');
+        },
+
+    'isolates active raw inline markup from ordinary wordpress paragraph and svg media blocks' =>
+        static function (TestRunner $t) use ($text): void {
+            $rawBlock = '<script data-source="block">globalThis.blockImport = true;</script>';
+            $rawInline = '<svg data-source="inline" onload="globalThis.inlineImport = true"><script>globalThis.svgImport = true;</script></svg>';
+            $document = new AstNode('document', [], [
+                new AstNode('raw_html', ['html' => $rawBlock]),
+                new AstNode('paragraph', [], [
+                    $text('Before active inline markup. '),
+                    new AstNode('raw_html_inline', ['html' => $rawInline]),
+                    $text(' After active inline markup.'),
+                ]),
+                new AstNode('paragraph', [], [
+                    new AstNode('image', [
+                        'url' => 'media/chart.svg',
+                        'alt' => 'Imported chart',
+                        'attributes' => ['data-pandoc-media-type' => 'image/svg+xml'],
+                    ]),
+                ]),
+                new AstNode('paragraph', [], [
+                    $text('Ordinary inline markup '),
+                    new AstNode('raw_html_inline', ['html' => '<span data-source="inline-note">stays inline</span>']),
+                    $text('.'),
+                ]),
+            ]);
+
+            $blocks = (new WordPressBlockWriter())->write($document);
+            pandoc_require_wordpress_core_block_parser();
+            $parsed = parse_blocks($blocks);
+            pandoc_assert_no_non_whitespace_classic_blocks($t, $parsed);
+            $t->same(
+                ['core/html', 'core/html', 'core/image', 'core/paragraph'],
+                pandoc_wordpress_block_names($parsed),
+                'Active raw markup must remain visibly isolated without relabeling ordinary inline markup or SVG media.'
+            );
+
+            $serialized = serialize_blocks($parsed);
+            $t->contains($rawBlock, $serialized);
+            $t->contains($rawInline, $serialized);
+            $t->contains('data-pandoc-media-type="image/svg+xml"', $serialized);
         },
 
     'round trips every successful showcase wordpress import through WordPress core' =>
