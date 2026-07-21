@@ -154,7 +154,8 @@ assert(formula?.success?.requiredText?.includes('a2 + 8 = 12'), 'Formula review 
 assert(theatre?.success?.minDialogueParagraphs >= 3, 'Theatre review must require editable dialogue paragraphs.');
 assert(mineruSource?.notes?.includes('classified unsupported_no_text')
   && mineruSource?.notes?.includes('OCR outside scope')
-  && mineruSource?.notes?.includes('all eight pages receive browser raster requests'), 'MinerU notes must describe the exact no-text boundary and eight-page browser handoff.');
+  && mineruSource?.notes?.includes('all eight pages retain publication raster request identities')
+  && mineruSource?.notes?.includes('build-produced assets'), 'MinerU notes must describe the exact no-text boundary and eight-page publication prerender contract.');
 assert(theatre?.success?.maxCodeBlocks === 0, 'Theatre review must reject code blocks.');
 assert(theatre?.success?.maxLineOrientedBlocks === 0, 'Theatre review must reject preformatted verse blocks.');
 if (theatre) {

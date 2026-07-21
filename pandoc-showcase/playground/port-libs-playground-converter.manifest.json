@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "archive": "port-libs-playground-converter.zip",
-    "archiveBytes": 8255591,
-    "archiveSha256": "ab2c74ad93a4e7a1e73f3c5737eaab25b2b3042a44163142eaa867248165ae8c",
+    "archiveBytes": 8295970,
+    "archiveSha256": "49d87d1cd49b1bc9401cdaedc7770a8c39e4daf5048d5fcd08ad87d382c475d7",
     "entries": {
         "port-libs-playground-converter/assets/admin-importer.css": {
             "bytes": 1336,
             "sha256": "dfc2168890ebeedf285ea2a9fcf23eaada455668da3020da75bac72118d4455a"
         },
         "port-libs-playground-converter/assets/admin-importer.js": {
-            "bytes": 37257,
-            "sha256": "b991a7f9ab1e827c68d1a4e0fbed03275ab6272399e46a5dad53547127813998"
+            "bytes": 47388,
+            "sha256": "c26c15c8b85de80f0def925c7ae46a2226b0901f14af76e3176fa3d5988519b0"
         },
         "port-libs-playground-converter/assets/pdf-jbig2-rasterizer.js": {
             "bytes": 16482,
@@ -25,8 +25,8 @@
             "sha256": "d1082fb821dffaf54abd092931cc25d6349d2107836d5317c5ffee76dd2b3ef3"
         },
         "port-libs-playground-converter/assets/pdfjs-form-rasterizer.js": {
-            "bytes": 15589,
-            "sha256": "c68b8fd4553ad415bfc94b5d9655304c26ce52451d5ce9916193aeb44f7798ac"
+            "bytes": 39927,
+            "sha256": "eab2f21d3db08667abecee33ddbac11fada52a0c9becd67ec1b23367ee60cdec"
         },
         "port-libs-playground-converter/assets/vendor/pdfjs-jbig2/LICENSE_JBIG2": {
             "bytes": 12862,
@@ -752,10 +752,6 @@
             "bytes": 179,
             "sha256": "543923bead225732aba30976690ee89095a19628277b5863efecc2c728d5d7bf"
         },
-        "port-libs-playground-converter/assets/vendor/pdfjs/image_decoders/pdf.image_decoders.js": {
-            "bytes": 166667,
-            "sha256": "0911d27b869f67040f132dfc32fcfe12d285ee21c459b91da1e3bffd619964a2"
-        },
         "port-libs-playground-converter/assets/vendor/pdfjs/image_decoders/pdf.image_decoders.min.js": {
             "bytes": 61539,
             "sha256": "712c5d7bbce13e14dc054da7bf144f4c002c2112b316762a5b38e1ba23423c6f"
@@ -1053,8 +1049,8 @@
             "sha256": "cfb0aff78463e3f271d8418c03253ec8af5bdb000a61a717f1d3f11e6f7e4ea7"
         },
         "port-libs-playground-converter/lanes/markerpdf/src/PdfDocumentFactsMerger.php": {
-            "bytes": 4748,
-            "sha256": "3416a47f5034ec868753115dc50ba3ce12d60352660f61f47aafa01449cb3a0d"
+            "bytes": 14868,
+            "sha256": "f936418166e55240fdc7d57ff6aff3e9fa800bde5d59aa2397e144e19b0d66d2"
         },
         "port-libs-playground-converter/lanes/markerpdf/src/PdfDocumentLayoutProfile.php": {
             "bytes": 13879,
@@ -1129,8 +1125,8 @@
             "sha256": "81b00348822d7c657d5278b0f01cf2c5142f719db2a976c1aa4973af02fc102c"
         },
         "port-libs-playground-converter/lanes/markerpdf/src/PdfTextExtractor.php": {
-            "bytes": 530764,
-            "sha256": "c38142e5a235b7fffbcf74660b84b55d4f79e40c7cb312b3da8451f9a3d65a9e"
+            "bytes": 771972,
+            "sha256": "289f6357c1a0a6dc63470a0d4713ceca36c67a265dce36dd871c9a80ceedebe5"
         },
         "port-libs-playground-converter/lanes/markerpdf/src/PdfXrefFreeObjectMap.php": {
             "bytes": 46407,
@@ -2048,6 +2044,10 @@
             "bytes": 98375,
             "sha256": "fd8f2cc365b78dbf776da09e033a19f29142080f2b48974c33f0abed8fa1720f"
         },
+        "port-libs-playground-converter/lanes/pandoc/src/DelimitedTextUpstreamReaderEvidence.php": {
+            "bytes": 238870,
+            "sha256": "299d5ee81e6db7f753b1833c461f6bba7d9e04ae2693c27c817dddd193f71bff"
+        },
         "port-libs-playground-converter/lanes/pandoc/src/DocBookReader.php": {
             "bytes": 65468,
             "sha256": "133590b0001483463e4de72f053effd2292909b3252d2f42d483f2b24e79ea96"
@@ -2063,10 +2063,6 @@
         "port-libs-playground-converter/lanes/pandoc/src/DocxReader.php": {
             "bytes": 194522,
             "sha256": "680ad7dfbd2e7968cbb462b52423fe48ba17f979ee070ca915bcea26649d23ab"
-        },
-        "port-libs-playground-converter/lanes/pandoc/src/DocxWriter.php": {
-            "bytes": 120840,
-            "sha256": "57334e324ae79ef4893abab476cfd25663b341ba5467fb29c94f3f12d5ddd2b6"
         },
         "port-libs-playground-converter/lanes/pandoc/src/DokuWikiReader.php": {
             "bytes": 10932,
@@ -2099,10 +2095,6 @@
         "port-libs-playground-converter/lanes/pandoc/src/EpubReader.php": {
             "bytes": 104369,
             "sha256": "77058b18236b5c0dcf7b7fe4f87216fde05884c1dc7446b57725184de6268ad0"
-        },
-        "port-libs-playground-converter/lanes/pandoc/src/EpubWriter.php": {
-            "bytes": 44150,
-            "sha256": "584de7dc281e876564c4b31c64c1ebccb0188e5b2f63bb27f5ccc7df1040bf5d"
         },
         "port-libs-playground-converter/lanes/pandoc/src/EpubZipArchive.php": {
             "bytes": 6546,
@@ -2281,8 +2273,8 @@
             "sha256": "0e6325ddc3d45bada31325056549584b7d087d4550a5476719fa850fd4e6d2fd"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PandocConverter.php": {
-            "bytes": 17317,
-            "sha256": "22f529870521eb030218d49143a4fe62c73c993ebdefffcfe9128f275eed8101"
+            "bytes": 20070,
+            "sha256": "54c395240666c641aee145968796ab873fb709834f97a7ffcb87c0cc11b745bd"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PandocFormatRegistry.php": {
             "bytes": 49455,
@@ -2309,8 +2301,8 @@
             "sha256": "db13979bc214591a30fb4240ac1e8b94c752206d1c8ef2f72db23f692d81a595"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PandocMediaExtractor.php": {
-            "bytes": 31568,
-            "sha256": "33d2a1717fd6f0bab395e6c73cac327248c290124bcf6506383515d74cdd065a"
+            "bytes": 134203,
+            "sha256": "5891a16be2f6e806d826ede49122635c77b9116040c42639bd193d8f94d41ec2"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PandocTemplate.php": {
             "bytes": 14876,
@@ -2320,45 +2312,49 @@
             "bytes": 645,
             "sha256": "2c41fa14820240876a9fa401c6bbe4202bbf9250df17ece2327b6278a1260126"
         },
-        "port-libs-playground-converter/lanes/pandoc/src/PdfEngineHandoff.php": {
-            "bytes": 1118525,
-            "sha256": "09f00642b44f22a1e7a59a9c21a525b608aa93523bd79d389faf2154c58a57a1"
-        },
         "port-libs-playground-converter/lanes/pandoc/src/PdfFormulaSemanticProcessor.php": {
-            "bytes": 6318,
-            "sha256": "14c6a0bc0591f5532ebb8821ae1c2bb006b9539f233e7a854f0cf41c351305ba"
+            "bytes": 19029,
+            "sha256": "28de419025d99d79825551d51ed505abb2fc44d69c5970f8427ce0a00e70880f"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfFrontMatterSemanticProcessor.php": {
-            "bytes": 7551,
-            "sha256": "e3920ad83649d5141b08710e31fc224cc6576d5e33ea7ae3d68adb322922b080"
+            "bytes": 9571,
+            "sha256": "5b3e3be49cd2bd653cbbedb33f3af76a3b03171cc7f0a56f0cafa91a02ade13d"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfInlineMarkerSemanticProcessor.php": {
-            "bytes": 3790,
-            "sha256": "b2c7e50b03df3d65d6af9808b32eaa95ad48c1d5ec43328b1fb570870286f073"
+            "bytes": 18218,
+            "sha256": "144411c86bc7d6fb7db11557c27c34e9e2a07fe3f0dae3072dbefee2a7e9d4a3"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfLanguageDirectionDecorator.php": {
+            "bytes": 2918,
+            "sha256": "2355811578cda5895d2cc4c64ab800b1077bb06f42f553dd13a873bc28170ca2"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfLaterPaintVisibilityReconciler.php": {
+            "bytes": 32388,
+            "sha256": "6f2556f5eca19b7f7bc40680edc3f4e89a67ecf4318b8e7a10e9ffcd76c71453"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfReader.php": {
-            "bytes": 615377,
-            "sha256": "4f6c317160521a7445463a5504c758f7aafa6561434201a819fa60be43eb0a5c"
+            "bytes": 1492795,
+            "sha256": "5196b7ddc6b0032c6994e581881a19b52809df0bed406e7e234abf9d3efbbcea"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfSemanticChunkReconciler.php": {
-            "bytes": 14066,
-            "sha256": "d720aa05e5acd1139215bd6d9badc9bb572f34c22b0b1ac01c8f4f5d8a81c8f6"
+            "bytes": 34063,
+            "sha256": "c2fce48c9123360aaf22574603557904636872a180af13bda3c34466d8230735"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfSemanticRecordPipeline.php": {
-            "bytes": 2520,
-            "sha256": "04f1c71dfc207501e0e54ff044a60880306ce43abb4a4f0897ad2e865fe4110f"
+            "bytes": 3901,
+            "sha256": "a56edd920ebde9143dc4e4d7d2230f2f66509d6336fe3a0377bfc08b5b1c8a92"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfSemanticRecordProcessor.php": {
             "bytes": 180,
             "sha256": "4add671020b9489b047b757f795f03d3aae019b02099ee55995af45a037e7f90"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfSourceDispositionLedger.php": {
-            "bytes": 11441,
-            "sha256": "8bbfd736e57acc0a9e5c73b77c4e74ce56f957184dabf22f1481c608b95d12d0"
+            "bytes": 137896,
+            "sha256": "6586c30a23cdf001f02be6566ca695818bc5d9cb569997558289086b20dd556d"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfTextFidelityLedger.php": {
-            "bytes": 8173,
-            "sha256": "78454c3a69a11577405170b2b284ec09d6461a42a157510521e044a2d476a589"
+            "bytes": 10085,
+            "sha256": "920b51717390af6ed14651b30f3e47f43ca59581a4b7ec721d0d9b5a89b29222"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PlainWriter.php": {
             "bytes": 25367,
@@ -2367,10 +2363,6 @@
         "port-libs-playground-converter/lanes/pandoc/src/PptxReader.php": {
             "bytes": 167761,
             "sha256": "34c3474ed3fbb3df7af06ec96b1f85a02480fa284cee788174c00f27c6c3794d"
-        },
-        "port-libs-playground-converter/lanes/pandoc/src/PptxWriter.php": {
-            "bytes": 101725,
-            "sha256": "ae7d7f41b03d54b6d14a1e495ebe273183e3a1b0aef30f42caa2bdfdabbe0b13"
         },
         "port-libs-playground-converter/lanes/pandoc/src/RichPackageUnsupportedFormatRegistry.php": {
             "bytes": 21387,
@@ -2433,8 +2425,8 @@
             "sha256": "e9fa40eeb472db2c8fa1982802c2957ff18b82aaf24a21749491b2b9d4eea847"
         },
         "port-libs-playground-converter/lanes/pandoc/src/WordPressBlockWriter.php": {
-            "bytes": 138264,
-            "sha256": "b6be63eae17518a65e48e274a6b010a66333810f57c7d1adc780a197b44db401"
+            "bytes": 138750,
+            "sha256": "ee2112d38388e80903725e1c346f2d175987a972b2c4c3ebe8ea4a41e50760a8"
         },
         "port-libs-playground-converter/lanes/pandoc/src/XlsxReader.php": {
             "bytes": 152992,
@@ -2473,8 +2465,8 @@
             "sha256": "838d57ba51cb73c4e3322a3e0757ba79111373a42b138ca3b1b53d7750c923f2"
         },
         "port-libs-playground-converter/port-libs-playground-converter.php": {
-            "bytes": 314224,
-            "sha256": "1ef5e015f99adb279f9e1afadccf1f855f17a0b8abb60985f556093aa46f1887"
+            "bytes": 357035,
+            "sha256": "7d8bccfbbb4cf6c57180851f7520cb8c72412e7a4efdcfe7bcd79f7d226235c9"
         }
     }
 }

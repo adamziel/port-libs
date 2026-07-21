@@ -11,6 +11,7 @@ final class PandocMediaExtractor
     private const MAX_PDF_IMAGE_BYTES = 33554432;
     private const MAX_PDF_RASTER_IMAGE_BYTES = 16777216;
     private const MAX_PDF_RASTER_IMAGE_PIXELS = 48000000;
+    private const MAX_PDF_UNIFORM_RASTER_DECODE_BYTES = 8388608;
     private const MAX_PDF_PAGE_RASTER_IMAGES = 96;
     private const MAX_PDF_PAGE_RASTER_TOTAL_BYTES = 67108864;
     private const MAX_PDF_PAGE_RASTER_DIMENSION = 8192;
@@ -3906,6 +3907,26 @@ final class PandocMediaExtractor
                 }
             }
 
+            if ($imageMode === 'important'
+                && $raster !== null
+                && $this->pdfUniformSupplementalPngRaster(
+                    $imageBytes,
+                    $mimeType,
+                    $width,
+                    $height
+                )) {
+                $diagnostics[] = 'extract-media-pdf-image-uniform-raster-filler:' . $objectNumber;
+                foreach ($objectPlacements as $placement) {
+                    $this->setPdfImageOccurrenceDisposition(
+                        $occurrenceDispositions,
+                        $placement,
+                        'intentional_omission',
+                        'image-mode-uniform-raster-filler'
+                    );
+                }
+                continue;
+            }
+
             $hasPageImagePlacement = array_filter(
                 $objectPlacements,
                 static fn (array $placement): bool => in_array(
@@ -4055,6 +4076,14 @@ final class PandocMediaExtractor
         unset($group);
         $sort($pageOnly);
 
+        $captionAssociations = $this->placedPdfImageCaptionAssociations(
+            $document,
+            $before,
+            $after
+        );
+        $captionsByPlacementId = $captionAssociations['byPlacementId'];
+        $claimedCaptionIndexes = $captionAssociations['claimedIndexes'];
+
         $children = [];
         if ($pageOnly !== []) {
             foreach ($pageOnly as $placement) {
@@ -4083,7 +4112,11 @@ final class PandocMediaExtractor
         }
         foreach ($document->children as $index => $block) {
             foreach ($before[$index] ?? [] as $placement) {
-                $children[] = $this->placedPdfImageBlock($placement);
+                $placementId = (string) ($placement['id'] ?? '');
+                $children[] = $this->placedPdfImageBlock(
+                    $placement,
+                    $captionsByPlacementId[$placementId] ?? null
+                );
                 $this->setPdfImageOccurrenceDisposition(
                     $occurrenceDispositions,
                     $placement,
@@ -4093,9 +4126,15 @@ final class PandocMediaExtractor
                         : 'placed-media-attachment'
                 );
             }
-            $children[] = $block;
+            if (!isset($claimedCaptionIndexes[$index])) {
+                $children[] = $block;
+            }
             foreach ($after[$index] ?? [] as $placement) {
-                $children[] = $this->placedPdfImageBlock($placement);
+                $placementId = (string) ($placement['id'] ?? '');
+                $children[] = $this->placedPdfImageBlock(
+                    $placement,
+                    $captionsByPlacementId[$placementId] ?? null
+                );
                 $this->setPdfImageOccurrenceDisposition(
                     $occurrenceDispositions,
                     $placement,
@@ -4111,9 +4150,133 @@ final class PandocMediaExtractor
     }
 
     /**
+     * Promote only an exact, source-bound `Figure N:` paragraph immediately
+     * following one placed image. The occurrence id and projection digest
+     * prove that the candidate belongs to the image's source page; requiring
+     * a one-to-one claim prevents a repeated caption from being consumed by
+     * more than one painting.
+     *
+     * @param array<int,list<array<string,mixed>>> $before
+     * @param array<int,list<array<string,mixed>>> $after
+     * @return array{
+     *     byPlacementId:array<string,AstNode>,
+     *     claimedIndexes:array<int,true>
+     * }
+     */
+    private function placedPdfImageCaptionAssociations(
+        AstNode $document,
+        array $before,
+        array $after
+    ): array
+    {
+        $candidatesByIndex = [];
+        foreach ($before as $index => $placements) {
+            foreach ($placements as $placement) {
+                $candidate = $this->validatedPlacedPdfImageCaption(
+                    $document,
+                    (int) $index,
+                    $placement
+                );
+                if ($candidate === null) {
+                    continue;
+                }
+                $candidatesByIndex[(int) $index][] = $candidate;
+            }
+        }
+        foreach ($after as $index => $placements) {
+            $captionIndex = (int) $index + 1;
+            foreach ($placements as $placement) {
+                $candidate = $this->validatedPlacedPdfImageCaption(
+                    $document,
+                    $captionIndex,
+                    $placement
+                );
+                if ($candidate === null) {
+                    continue;
+                }
+                $candidatesByIndex[$captionIndex][] = $candidate;
+            }
+        }
+
+        $byPlacementId = [];
+        $claimedIndexes = [];
+        foreach ($candidatesByIndex as $index => $candidates) {
+            if (count($candidates) !== 1) {
+                continue;
+            }
+            $candidate = $candidates[0];
+            $placementId = $candidate['placementId'];
+            if (isset($byPlacementId[$placementId])) {
+                continue;
+            }
+            $byPlacementId[$placementId] = $candidate['caption'];
+            $claimedIndexes[(int) $index] = true;
+        }
+
+        return [
+            'byPlacementId' => $byPlacementId,
+            'claimedIndexes' => $claimedIndexes,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $placement
+     * @return array{placementId:string,caption:AstNode}|null
+     */
+    private function validatedPlacedPdfImageCaption(
+        AstNode $document,
+        int $captionIndex,
+        array $placement
+    ): ?array
+    {
+        if (($placement['webPreviewUnavailable'] ?? false) === true
+            || !isset($document->children[$captionIndex])) {
+            return null;
+        }
+        $caption = $document->children[$captionIndex];
+        if ($caption->type !== 'paragraph') {
+            return null;
+        }
+
+        $captionText = $this->pdfImageAnchorBlockText($caption);
+        if ($captionText === ''
+            || preg_match('/\AFigure[ \t]+[0-9]+:[ \t]*\S/uD', $captionText) !== 1) {
+            return null;
+        }
+        $placementId = $placement['id'] ?? null;
+        $followingText = $placement['followingText'] ?? null;
+        $sourceId = $placement['followingSourceOccurrenceId'] ?? null;
+        $projectionDigest = $placement['followingSourceProjectionDigest'] ?? null;
+        if (!is_string($placementId)
+            || $placementId === ''
+            || !is_string($followingText)
+            || !hash_equals($captionText, $followingText)
+            || !is_string($sourceId)
+            || $sourceId === ''
+            || !is_string($projectionDigest)
+            || preg_match('/^[a-f0-9]{64}$/D', $projectionDigest) !== 1) {
+            return null;
+        }
+
+        $projection = $this->pdfImageSourceOccurrenceComparableText($followingText);
+        if ($projection === ''
+            || !hash_equals($projectionDigest, hash('sha256', $projection))) {
+            return null;
+        }
+        $sourceLineIds = $this->validatedPdfTopLevelSourceLineIds($caption);
+        if ($sourceLineIds === false
+            || count($sourceLineIds) !== 1
+            || $sourceLineIds[0] !== $sourceId) {
+            return null;
+        }
+
+        return ['placementId' => $placementId, 'caption' => $caption];
+    }
+
+    /**
      * @param array<string, mixed> $placement
      */
-    private function placedPdfImageBlock(array $placement): AstNode
+    private function placedPdfImageBlock(array $placement, ?AstNode $caption = null): AstNode
     {
         $pageOnly = in_array(
             ($placement['anchorPosition'] ?? null),
@@ -4186,8 +4349,17 @@ final class PandocMediaExtractor
             'title' => 'PDF image ' . (string) $placement['object'],
             'attributes' => $attributes,
         ];
+        $captionText = $caption instanceof AstNode
+            ? $this->pdfImageAnchorBlockText($caption)
+            : '';
         if ($pageOnly) {
             $imageAttrs['alt'] = $imageLabel;
+        } elseif ($captionText !== '') {
+            $imageAttrs['alt'] = $captionText;
+            $imageAttrs['attributes'] = array_replace(
+                $attributes,
+                ['data-pandoc-alt-source' => 'figure-caption']
+            );
         }
         $displaySize = $this->pdfImageDisplaySize($placement['bbox'] ?? null);
         if ($displaySize !== null) {
@@ -4199,18 +4371,32 @@ final class PandocMediaExtractor
             $imageAttrs['height'] = $displaySize['height'];
         }
 
-        return new AstNode('paragraph', [
+        $blockAttrs = [
             'classes' => array_values(array_filter([
                 'pandoc-pdf-image-block',
                 'pandoc-pdf-image-placed',
                 $pageOnly ? 'pandoc-pdf-page-image' : null,
             ])),
             'attributes' => $attributes,
-        ], [
-            new AstNode('image', $imageAttrs, [
-                new AstNode('text', ['text' => $imageLabel]),
+        ];
+        $image = new AstNode('image', $imageAttrs, [
+            new AstNode('text', [
+                'text' => $captionText !== '' ? $captionText : $imageLabel,
             ]),
         ]);
+        if (!$caption instanceof AstNode || $captionText === '') {
+            return new AstNode('paragraph', $blockAttrs, [$image]);
+        }
+
+        return new AstNode('figure', array_replace($blockAttrs, [
+            'caption' => $captionText,
+            'captionInlines' => $caption->children,
+            // Keep the exact source-bound paragraph in the standard caption
+            // payload even though it is no longer a standalone document
+            // block. Its source node, line ids, edges, and inline bindings
+            // therefore remain available to downstream provenance tooling.
+            'captionBlocks' => [$caption],
+        ]), [$image]);
     }
 
     /**
@@ -4239,6 +4425,192 @@ final class PandocMediaExtractor
     private function pdfPointDimension(float $value): string
     {
         return rtrim(rtrim(sprintf('%.4F', $value), '0'), '.') . 'pt';
+    }
+
+    /**
+     * A decoder-supplied PNG which contains exactly one pixel value is a
+     * flat paint tile, not a useful standalone document image. Validate the
+     * complete bounded PNG and reverse every scanline filter before making
+     * that determination; byte size or dimensions alone never authorize an
+     * omission, and unsupported PNG variants fail closed.
+     */
+    private function pdfUniformSupplementalPngRaster(
+        string $bytes,
+        string $mimeType,
+        ?int $expectedWidth,
+        ?int $expectedHeight
+    ): bool {
+        if ($mimeType !== 'image/png'
+            || $expectedWidth === null
+            || $expectedHeight === null
+            || $expectedWidth < 1
+            || $expectedHeight < 1
+            || !str_starts_with($bytes, "\x89PNG\r\n\x1a\n")) {
+            return false;
+        }
+
+        $offset = 8;
+        $length = strlen($bytes);
+        $width = 0;
+        $height = 0;
+        $bytesPerPixel = 0;
+        $indexed = false;
+        $paletteEntries = null;
+        $compressed = '';
+        $seenHeader = false;
+        $seenImageData = false;
+        $seenEnd = false;
+        while ($offset + 12 <= $length) {
+            $chunkLengthValue = unpack('Nlength', substr($bytes, $offset, 4));
+            $chunkLength = is_array($chunkLengthValue)
+                ? (int) ($chunkLengthValue['length'] ?? -1)
+                : -1;
+            $offset += 4;
+            if ($chunkLength < 0 || $offset + 8 + $chunkLength > $length) {
+                return false;
+            }
+            $type = substr($bytes, $offset, 4);
+            $offset += 4;
+            $data = substr($bytes, $offset, $chunkLength);
+            $offset += $chunkLength;
+            $crc = substr($bytes, $offset, 4);
+            $offset += 4;
+            if (!hash_equals($crc, hash('crc32b', $type . $data, true))) {
+                return false;
+            }
+
+            if ($type === 'IHDR') {
+                if ($seenHeader || $chunkLength !== 13 || $seenImageData) {
+                    return false;
+                }
+                $header = unpack(
+                    'Nwidth/Nheight/CbitDepth/CcolorType/Ccompression/Cfilter/Cinterlace',
+                    $data
+                );
+                $width = is_array($header) ? (int) ($header['width'] ?? 0) : 0;
+                $height = is_array($header) ? (int) ($header['height'] ?? 0) : 0;
+                $bitDepth = is_array($header) ? (int) ($header['bitDepth'] ?? 0) : 0;
+                $colorType = is_array($header) ? (int) ($header['colorType'] ?? -1) : -1;
+                if ($width !== $expectedWidth
+                    || $height !== $expectedHeight
+                    || $bitDepth !== 8
+                    || ($header['compression'] ?? null) !== 0
+                    || ($header['filter'] ?? null) !== 0
+                    || ($header['interlace'] ?? null) !== 0
+                    || !isset([0 => 1, 2 => 3, 3 => 1, 4 => 2, 6 => 4][$colorType])) {
+                    return false;
+                }
+                $bytesPerPixel = [0 => 1, 2 => 3, 3 => 1, 4 => 2, 6 => 4][$colorType];
+                $indexed = $colorType === 3;
+                $seenHeader = true;
+                continue;
+            }
+            if (!$seenHeader) {
+                return false;
+            }
+            if ($type === 'PLTE') {
+                if ($seenImageData || $chunkLength < 3 || $chunkLength % 3 !== 0) {
+                    return false;
+                }
+                $paletteEntries = intdiv($chunkLength, 3);
+                continue;
+            }
+            if ($type === 'IDAT') {
+                if ($seenEnd
+                    || strlen($compressed) + $chunkLength > self::MAX_PDF_RASTER_IMAGE_BYTES) {
+                    return false;
+                }
+                $compressed .= $data;
+                $seenImageData = true;
+                continue;
+            }
+            if ($type === 'IEND') {
+                if ($chunkLength !== 0 || !$seenImageData || $offset !== $length) {
+                    return false;
+                }
+                $seenEnd = true;
+                break;
+            }
+        }
+        if (!$seenHeader
+            || !$seenImageData
+            || !$seenEnd
+            || $bytesPerPixel < 1
+            || ($indexed && $paletteEntries === null)) {
+            return false;
+        }
+
+        $rowLength = $width * $bytesPerPixel;
+        $decodedLength = ($rowLength + 1) * $height;
+        if ($rowLength < 1
+            || $decodedLength < 1
+            || $decodedLength > self::MAX_PDF_UNIFORM_RASTER_DECODE_BYTES) {
+            return false;
+        }
+        $decoded = @zlib_decode($compressed, $decodedLength);
+        if (!is_string($decoded) || strlen($decoded) !== $decodedLength) {
+            return false;
+        }
+
+        $decodedOffset = 0;
+        $previous = str_repeat("\0", $rowLength);
+        $uniformPixel = null;
+        for ($rowIndex = 0; $rowIndex < $height; $rowIndex++) {
+            $filter = ord($decoded[$decodedOffset++]);
+            if ($filter < 0 || $filter > 4) {
+                return false;
+            }
+            $row = '';
+            for ($column = 0; $column < $rowLength; $column++) {
+                $raw = ord($decoded[$decodedOffset++]);
+                $left = $column >= $bytesPerPixel
+                    ? ord($row[$column - $bytesPerPixel])
+                    : 0;
+                $up = ord($previous[$column]);
+                $upperLeft = $column >= $bytesPerPixel
+                    ? ord($previous[$column - $bytesPerPixel])
+                    : 0;
+                $predictor = match ($filter) {
+                    0 => 0,
+                    1 => $left,
+                    2 => $up,
+                    3 => intdiv($left + $up, 2),
+                    4 => $this->pdfPngPaethPredictor($left, $up, $upperLeft),
+                };
+                $row .= chr(($raw + $predictor) & 0xff);
+            }
+            for ($pixelOffset = 0; $pixelOffset < $rowLength; $pixelOffset += $bytesPerPixel) {
+                $pixel = substr($row, $pixelOffset, $bytesPerPixel);
+                if ($indexed
+                    && $paletteEntries !== null
+                    && ord($pixel) >= $paletteEntries) {
+                    return false;
+                }
+                if ($uniformPixel === null) {
+                    $uniformPixel = $pixel;
+                    continue;
+                }
+                if (!hash_equals($uniformPixel, $pixel)) {
+                    return false;
+                }
+            }
+            $previous = $row;
+        }
+
+        return is_string($uniformPixel) && $uniformPixel !== '';
+    }
+
+    private function pdfPngPaethPredictor(int $left, int $up, int $upperLeft): int
+    {
+        $estimate = $left + $up - $upperLeft;
+        $leftDistance = abs($estimate - $left);
+        $upDistance = abs($estimate - $up);
+        $upperLeftDistance = abs($estimate - $upperLeft);
+        if ($leftDistance <= $upDistance && $leftDistance <= $upperLeftDistance) {
+            return $left;
+        }
+
+        return $upDistance <= $upperLeftDistance ? $up : $upperLeft;
     }
 
     private function pdfIntegerEntry(string $objectBody, string $name): ?int

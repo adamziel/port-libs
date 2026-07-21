@@ -31,6 +31,11 @@ jobs:
           php-version: '8.3'
           extensions: zip
 
+      - name: Set up Node for showcase verification
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Build and verify the exact production plugin archive
         run: |
           set -euo pipefail
@@ -46,6 +51,21 @@ jobs:
             port-libs-playground-converter/port-libs-playground-converter.php \
             > "$RUNNER_TEMP/port-libs-playground-converter.php"
           php -l "$RUNNER_TEMP/port-libs-playground-converter.php"
+
+      - name: Verify the showcase before Pages assembly
+        run: |
+          set -euo pipefail
+          node --check pandoc-showcase/examples.js
+          node --check pandoc-showcase/pdf-layout-review.js
+          node --check pandoc-showcase/pdfjs-form-rasterizer.mjs
+          node --check tools/check-pdf-form-rasterizer.mjs
+          node --check tools/prerender-showcase-pdf-assets.mjs
+          node --check tools/check-showcase-examples-page.js
+          node --check tools/check-pdf-layout-reviewer.mjs
+          node --check tools/e2e-showcase-pdf-forms.mjs
+          node tools/check-pdf-form-rasterizer.mjs
+          node tools/check-showcase-examples-page.js
+          node tools/check-pdf-layout-reviewer.mjs
 
       - name: Assemble the allowlisted Pages site
         run: |
@@ -166,3 +186,78 @@ jobs:
           curl --fail --location --retry 8 --retry-all-errors \
             "$base/vendor/pdfjs/pdf.min.mjs" --output "$RUNNER_TEMP/pdf.min.mjs"
           test -s "$RUNNER_TEMP/pdf.min.mjs"
+
+      - name: Verify all deployed PDF previews in fresh Chrome
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          base="${PAGE_URL%/}/pandoc-showcase"
+          chrome_binary="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          test -n "$chrome_binary"
+          chrome_profile="$(mktemp -d "$RUNNER_TEMP/port-libs-pages-chrome.XXXXXX")"
+          chrome_log="$RUNNER_TEMP/port-libs-pages-chrome.log"
+          chrome_pid=''
+
+          cleanup_chrome() {
+            local cleanup_status=0
+            if [ -n "$chrome_pid" ]; then
+              kill "$chrome_pid" 2>/dev/null || true
+              wait "$chrome_pid" 2>/dev/null || true
+            fi
+            for attempt in $(seq 1 50); do
+              if ! pgrep -f -- "--user-data-dir=$chrome_profile" >/dev/null; then
+                break
+              fi
+              sleep 0.1
+            done
+            if pgrep -f -- "--user-data-dir=$chrome_profile" >/dev/null; then
+              pkill -TERM -f -- "--user-data-dir=$chrome_profile" 2>/dev/null || true
+              sleep 0.2
+              pkill -KILL -f -- "--user-data-dir=$chrome_profile" 2>/dev/null || true
+            fi
+            if pgrep -f -- "--user-data-dir=$chrome_profile" >/dev/null; then
+              echo "Chrome processes from $chrome_profile survived forced cleanup" >&2
+              cleanup_status=1
+            fi
+            rm -rf "$chrome_profile"
+            chrome_pid=''
+            return "$cleanup_status"
+          }
+
+          cleanup() {
+            cleanup_chrome || true
+          }
+          trap cleanup EXIT
+
+          "$chrome_binary" \
+            --headless=new \
+            --no-sandbox \
+            --disable-dev-shm-usage \
+            --remote-debugging-address=127.0.0.1 \
+            --remote-debugging-port=9222 \
+            --user-data-dir="$chrome_profile" \
+            about:blank >"$chrome_log" 2>&1 &
+          chrome_pid=$!
+          for attempt in $(seq 1 50); do
+            if curl --silent --fail http://127.0.0.1:9222/json/version >/dev/null; then
+              break
+            fi
+            sleep 0.2
+          done
+          if ! curl --silent --fail http://127.0.0.1:9222/json/version >/dev/null; then
+            cat "$chrome_log" >&2
+            exit 1
+          fi
+
+          verification_status=0
+          node tools/e2e-showcase-pdf-forms.mjs \
+            --url "$base/examples.html" \
+            --all-audited || verification_status=$?
+          cleanup_status=0
+          cleanup_chrome || cleanup_status=$?
+          trap - EXIT
+          if [ "$verification_status" -ne 0 ]; then
+            exit "$verification_status"
+          fi
+          exit "$cleanup_status"

@@ -2,15 +2,19 @@
 
 const fs = require('fs');
 const path = require('path');
+const { createHash } = require('crypto');
 
 const root = path.resolve(__dirname, '..');
 const site = path.join(root, 'pandoc-showcase');
 const html = fs.readFileSync(path.join(site, 'examples.html'), 'utf8');
 const css = fs.readFileSync(path.join(site, 'examples.css'), 'utf8');
 const js = fs.readFileSync(path.join(site, 'examples.js'), 'utf8');
+const pdfFormRasterizer = fs.readFileSync(path.join(site, 'pdfjs-form-rasterizer.mjs'), 'utf8');
 const fullShowcase = fs.readFileSync(path.join(site, 'index.html'), 'utf8');
 const importE2e = fs.readFileSync(path.join(root, 'tools/e2e-playground-import.mjs'), 'utf8');
 const showcaseBuilder = fs.readFileSync(path.join(root, 'tools/build-pandoc-showcase.php'), 'utf8');
+const prerenderPublisher = fs.readFileSync(path.join(root, 'tools/prerender-showcase-pdf-assets.mjs'), 'utf8');
+const playgroundWorkflow = fs.readFileSync(path.join(root, '.github/workflows/playground-converter.yml'), 'utf8');
 const indexPath = path.join(site, 'examples-index.json');
 const manifestPath = path.join(site, 'manifest.json');
 const indexBytes = fs.statSync(indexPath).size;
@@ -27,6 +31,23 @@ function assert(condition, message) {
   }
 }
 
+const pdfPreviewRendererSchemaMatch = pdfFormRasterizer.match(
+  /export const PDF_STATIC_PREVIEW_RENDERER_SCHEMA = (['"])([^'"]+)\1;/,
+);
+const pdfPreviewRendererSchema = pdfPreviewRendererSchemaMatch?.[2] || '';
+assert(pdfPreviewRendererSchema !== '',
+  '[PDF prerender schema] The production rasterizer must export an explicit static-preview renderer schema.');
+assert(prerenderPublisher.includes('const PDF_PRERENDER_BATCH_SIZE = 4;')
+  && prerenderPublisher.includes('renderUnits.slice(batchStart, batchStart + PDF_PRERENDER_BATCH_SIZE)'),
+  '[PDF prerender resources] Chrome publication must render in bounded four-asset target batches.');
+assert(prerenderPublisher.includes("browser.call('Target.closeTarget', { targetId: activeTargetId })")
+  && prerenderPublisher.includes('await activePage?.close().catch(() => {})')
+  && prerenderPublisher.includes('cleanupUncommittedPlanAssets(plan)'),
+  '[PDF prerender resources] Every batch target and every failed plan must release task-owned resources.');
+assert(prerenderPublisher.includes('for (const plan of stale)')
+  && prerenderPublisher.includes('finalizePlan(options.site, plan);'),
+  '[PDF prerender resources] Each stale plan must finalize before the next plan can double disk usage.');
+
 function executableNamedFunction(source, name) {
   const start = source.indexOf(`function ${name}(`);
   if (start < 0) throw new Error(`Could not find ${name} for its executable regression.`);
@@ -41,6 +62,23 @@ function executableNamedFunction(source, name) {
     }
   }
   throw new Error(`Could not read the complete ${name} function.`);
+}
+
+function namedFunctionSource(source, name) {
+  const functionStart = source.indexOf(`function ${name}(`);
+  if (functionStart < 0) throw new Error(`Could not find ${name} for its source regression.`);
+  const start = source.slice(Math.max(0, functionStart - 6), functionStart) === 'async '
+    ? functionStart - 6
+    : functionStart;
+  const openingBrace = source.indexOf('{', functionStart);
+  let depth = 0;
+  for (let index = openingBrace; index < source.length; index += 1) {
+    if (source[index] === '{') depth += 1;
+    if (source[index] !== '}') continue;
+    depth -= 1;
+    if (depth === 0) return source.slice(start, index + 1);
+  }
+  throw new Error(`Could not read the complete ${name} function source.`);
 }
 
 function siteFile(relativePath) {
@@ -105,10 +143,13 @@ assert(js.includes("const exampleUrlParameter = 'example';"), 'Expected a stable
 assert(js.includes('new URL(window.location.href)'), 'Expected example links to preserve other URL state safely.');
 assert(js.includes('window.history.replaceState'), 'Expected picker navigation to keep the current URL shareable.');
 assert(js.includes('renderPdfFormRequestsIncrementally,') && js.includes("from './pdfjs-form-rasterizer.mjs';"), 'Expected own-file PDF figures to use the incremental shared PDF.js renderer.');
+assert(js.includes('PDF_STATIC_PREVIEW_RENDERER_SCHEMA,')
+  && js.includes('manifest?.prerenderRendererSchema !== PDF_STATIC_PREVIEW_RENDERER_SCHEMA'),
+'Published PDF previews must reject plans produced by a different renderer schema.');
 assert(showcaseBuilder.includes('renderPdfPageRasterRequests,')
   && showcaseBuilder.includes('renderPdfPageRasterRequestsIncrementally,'), 'Expected the generated showcase client to import batch and incremental whole-page renderers alongside the Form APIs.');
 assert(js.includes("from './import-job-session.mjs';"), 'Expected examples.php to share the durable Playground import session helper.');
-assert(js.includes("const playgroundPluginBuild = 'verified-pdf-import-20260716';"), 'Expected the own-file importer to use the current Playground plugin build.');
+assert(js.includes("const playgroundPluginBuild = 'verified-pdf-prerender-20260720';"), 'Expected the own-file importer to use the current Playground plugin build.');
 assert(js.includes('const playgroundPdfFormTotalPixelLimit = 48_000_000;'), 'Expected own-file PDF figure rendering to have a total pixel budget.');
 assert(js.includes('const playgroundPdfFormTotalImageByteLimit = 24_000_000;'), 'Expected own-file PDF figure rendering to match the server media budget.');
 assert(showcaseBuilder.includes('const playgroundPdfPageTotalPixelLimit = 128_000_000;')
@@ -178,7 +219,7 @@ for (const durableCancellationSnippet of [
 ]) {
   assert(showcaseBuilder.includes(durableCancellationSnippet), 'The canonical showcase builder must retain: ' + durableCancellationSnippet);
 }
-assert(js.includes('`/imports/${jobId}/rendered-media`'), 'Expected browser-rendered PDF figures to be returned to WordPress one at a time.');
+assert(js.includes('`/imports/${jobId}/rendered-media`'), 'Expected user-selected own-file PDF figures to be returned to WordPress one at a time.');
 assert(js.includes('async function advanceOwnFileImport'), 'Expected an explicit bounded import advance flow.');
 assert(js.includes('startOwnFileImportStatusPolling'), 'Expected in-flight advances to poll persisted WordPress progress.');
 assert(js.includes('const ownFileAdvanceRecoveryAttempts = 3;'), 'Expected bounded recovery after a Playground PHP worker ends unexpectedly.');
@@ -186,7 +227,7 @@ assert(js.includes('The completed page checkpoints remain saved in this Playgrou
 assert(js.includes('The import completed and the WordPress page was saved, but Playground could not display it'), 'A failed result navigation must not be reported as a lost conversion.');
 assert(js.includes('`/imports/${jobId}`') && js.includes("'GET'"), 'Expected the own-file importer to read persisted import status while WordPress works.');
 assert(js.includes('ownFileImportLatestNewEvent') && js.includes('reportedEventKeys'), 'Expected status events to be deduplicated by event identity rather than array position.');
-assert(showcaseBuilder.includes('for await (const renderedItem of renderer(renderOptions))'), 'Expected generated PDF figures/page images to be rendered and acknowledged incrementally.');
+assert(showcaseBuilder.includes('for await (const renderedItem of renderer(renderOptions))'), 'Expected user-selected own-file PDF figures/page images to be rendered and acknowledged incrementally.');
 assert(js.includes('const sourceKey = String(request?.sourceKey || path);'), 'Expected source grouping to use the server digest instead of a truncated display path.');
 assert(js.includes("storageKey: 'port-libs.playground-active-import.v1'"), 'Expected GitHub Pages to persist its active WordPress job pointer.');
 assert(js.includes('async function resumeSavedOwnFileImport()'), 'Expected Try your own file to resume a saved import after interruption.');
@@ -194,31 +235,12 @@ assert(js.includes('ownFilePlaygroundPersistence.startOptions(startOptions)'), '
 assert(!js.includes('ownFilePlaygroundPersistence.forget()'), 'A transient Playground boot failure must not discard or overwrite durable OPFS checkpoints.');
 assert(js.includes('recoverImportMutation({'), 'Expected an uncertain /advance response to be reconciled with durable status before replay.');
 assert(js.includes("['failed', 'retryable_failure'].includes(String(data.status || ''))"), 'Expected durable error snapshots to reach the own-file state machine instead of being mistaken for transport failures.');
-assert(js.includes('staticPdfPreviewCache: new Map()')
-  && js.includes('example.pdfFormRenders')
-  && js.includes("image.dataset.pandocPdfFormRendered = 'true';")
-  && js.includes('frame.srcdoc = preview.html;')
-  && js.includes('staticPdfPreviewMaxRequests = 8')
-  && js.includes('abortStaticPdfPreview()'), 'Expected static PDF previews to inject browser-rendered Form figures without retaining an unbounded mobile gallery.');
-assert(showcaseBuilder.includes('for (const group of pdfRenderRequestGroups(plan.renderable))')
-  && showcaseBuilder.includes('? await renderPdfPageRasterRequests(renderOptions)')
-  && showcaseBuilder.includes(': await renderPdfFormRequests(renderOptions);')
-  && showcaseBuilder.includes('let remainingPixels = staticPdfPreviewMaxTotalPixels;')
-  && showcaseBuilder.includes('let remainingImageBytes = staticPdfPreviewMaxImageBytes;')
-  && showcaseBuilder.includes('staticPdfResultsInManifestOrder('), 'Expected generated static previews to dispatch source-and-method groups with shared caps and restore manifest order before injection.');
-assert(showcaseBuilder.includes('const staticPdfPreviewMaxPixels = 2_100_000;')
-  && showcaseBuilder.includes('const staticPdfPreviewMaxTotalPixels = 8_400_000;'), 'Expected static preview caps to admit the 1191×1684 VDL page while keeping substantially larger catalogue pages as placeholders.');
-const restoreStaticPdfOrder = executableNamedFunction(showcaseBuilder, 'staticPdfResultsInManifestOrder');
-const reorderedStaticPdfResults = restoreStaticPdfOrder(
-  [{ id: 'first' }, { id: 'second' }, { id: 'third' }],
-  [{ requestId: 'second' }, { requestId: 'first' }, { requestId: 'third' }],
-);
-assert(reorderedStaticPdfResults.map((item) => item.requestId).join(',') === 'first,second,third', 'Expected mixed static PDF render groups to be restored to manifest order before anchor placement and injection.');
-assert(showcaseBuilder.includes('PDF visual/page-image manifest')
-  && showcaseBuilder.includes('PDF figures/page images'), 'Expected generated preview labels to cover both Form figures and whole-page images.');
-assert(js.includes('function normalizedPdfTextAnchor(value)')
-  && js.includes("replace(/(?:-|\\u00ad)$/u, '')")
-  && js.includes('figure.dataset.pdfFormObject = String(request.object);'), 'Expected static PDF chart placement to normalize terminal line-break hyphens and expose Form object diagnostics.');
+assert(js.includes('example.pdfFormRenders'), 'Expected the compact catalogue to expose published PDF visual metadata.');
+assert(!js.includes('staticPdfPreviewMaxRequests = 8')
+  && !js.includes('This static preview renders at most ')
+  && !js.includes("figure.classList.add('pandoc-pdf-form-placeholder')")
+  && !js.includes('could not be rendered in this browser'),
+'Published PDF visuals must not retain the visitor-side request cap or any runtime placeholder/warning path.');
 assert(js.includes('`/imports/${jobId}/render-source/${requestId}`'), 'Expected ZIP-expanded PDF sources to be available to the browser renderer.');
 assert(js.includes('await playgroundClient.goTo(playgroundPath(data.pageUrl));'), 'Expected each own file conversion to open its newly created WordPress page.');
 assert(js.includes("frame.removeAttribute('sandbox');"), 'Expected Playground to use the preview iframe without the static-preview sandbox.');
@@ -419,12 +441,23 @@ if (mineruRecord) {
     assert(view.sourceIntegrity?.pdfDocumentComplete === true, `MinerU ${viewName} must retain complete document coverage.`);
     assert(view.sourceIntegrity?.pdfSemanticTextComplete === true, `MinerU ${viewName} must retain complete semantic source disposition.`);
     assert(view.sourceIntegrity?.pdfPageCount === 8, `MinerU ${viewName} must retain its eight detected pages.`);
-    assert(view.sourceIntegrity?.pdfPagesNeedingImageRepresentation?.join(',') === '1,2,3,4,5,6,7,8', `MinerU ${viewName} must request representation for all eight pages.`);
+    assert(view.sourceIntegrity?.pdfPagesNeedingImageRepresentation?.join(',') === '1,2,3,4,5,6,7,8',
+      `MinerU ${viewName} converter integrity must retain all eight pages needing a non-editable visual representation.`);
     assert(Array.isArray(view.sourceIntegrity?.pdfRepresentedPageNumbers)
-      && view.sourceIntegrity.pdfRepresentedPageNumbers.length === 0, `MinerU ${viewName} must retain zero represented pages.`);
-    assert(view.sourceIntegrity?.pdfPageRepresentationComplete === false, `MinerU ${viewName} must retain incomplete page representation.`);
+      && view.sourceIntegrity.pdfRepresentedPageNumbers.length === 0,
+    `MinerU ${viewName} converter output must not misreport publication-only assets as editable representations.`);
+    assert(view.sourceIntegrity?.pdfPageRepresentationComplete === false,
+      `MinerU ${viewName} converter integrity must remain distinct from the publication prerender coverage.`);
   }
-  assert(mineruRecord.pdfFormRenders?.ok === true && mineruRecord.pdfFormRenders?.count === 8, 'MinerU must expose eight browser page raster requests.');
+  assert(mineruRecord.pdfFormRenders?.ok === true && mineruRecord.pdfFormRenders?.count === 8,
+    'MinerU must retain eight publication raster request identities backed by static assets.');
+  const mineruPreviewPath = index.examples.find((example) => example.id === 'pdf-layout-mineru-small-ocr')
+    ?.views?.wpBlocks?.path;
+  if (mineruPreviewPath && fs.existsSync(siteFile(mineruPreviewPath))) {
+    const mineruPreview = fs.readFileSync(siteFile(mineruPreviewPath), 'utf8');
+    assert(!/no static original-page representation was produced|browser-assisted path can render/i.test(mineruPreview),
+      'MinerU status copy must acknowledge the eight publication-prerendered pages instead of promising a visitor-side renderer.');
+  }
 }
 
 assert(automaticPhpExamples >= 80, 'Expected a broad set of small PHP examples for automatic mobile browsing.');
@@ -445,8 +478,8 @@ if (traceMonkey && traceMonkeyRecord) {
     assert(sourceIntegrity.pdfPageRepresentationComplete === true,
       `TraceMonkey ${viewName} must retain complete page representation without whole-page rasters.`);
   }
-  assert(renderPlan && renderPlan.ok === true, 'TraceMonkey must expose its browser PDF figure render plan to the compact catalogue.');
-  assert(recordPlan && recordPlan.ok === true, 'TraceMonkey must retain its browser PDF figure render plan in the full manifest.');
+  assert(renderPlan && renderPlan.ok === true, 'TraceMonkey must expose its published PDF figure plan to the compact catalogue.');
+  assert(recordPlan && recordPlan.ok === true, 'TraceMonkey must retain its published PDF figure plan in the full manifest.');
   if (renderPlan && recordPlan) {
     assert(renderPlan.path === recordPlan.path, 'TraceMonkey compact/full render-plan paths diverged.');
     assert(renderPlan.count === 8 && recordPlan.count === 8, 'TraceMonkey must retain all eight vector/Form chart placements.');
@@ -476,5 +509,291 @@ if (traceMonkey && traceMonkeyRecord) {
         .startsWith(captionsByObject.get(request.object) || '')),
       'Every TraceMonkey chart request must preserve its own following figure caption as a placement anchor.');
     }
+  }
+}
+
+// Red-first publication contract: GitHub Pages must never ask a visitor's
+// browser to open a source PDF and manufacture these images. Keep the request
+// inventory as provenance, but publish deterministic image assets plus an
+// exact request-to-asset/placement map alongside it.
+const pdfPrerenderRequestCounts = new Map([
+  ['pdf-layout-unstructured-ocr-overlay', 1],
+  ['pdf-layout-docling-right-to-left', 1],
+  ['pdf-layout-docling-aircraft-handbook', 9],
+  ['pdf-layout-docling-table-picture-boundary', 2],
+  ['pdf-layout-mineru-small-ocr', 8],
+  ['pdf-layout-vdl-theatre-script', 1],
+  ['pdf-tracemonkey', 8],
+  ['pdf-grand-canyon-north-rim-map', 16],
+  ['pdf-archive-motograph-book', 46],
+  ['pdf-muir-beach-brochure', 6],
+  ['pdf-quickbooks-invoice-template', 1],
+]);
+const indexedPdfRenderPlans = index.examples.filter((example) => example.pdfFormRenders?.ok === true);
+assert(indexedPdfRenderPlans.length === pdfPrerenderRequestCounts.size,
+  `[PDF prerender inventory] Expected exactly ${pdfPrerenderRequestCounts.size} PDF visual plans, not ${indexedPdfRenderPlans.length}.`);
+assert(indexedPdfRenderPlans.reduce((total, example) => total + Number(example.pdfFormRenders?.count || 0), 0) === 99,
+  '[PDF prerender inventory] The eleven audited plans must retain all 99 visual request identities as provenance.');
+
+function pdfAssetSha256(file) {
+  return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+}
+
+function pdfPrerenderSourceDigest(payload, sourceSha256) {
+  return createHash('sha256').update(JSON.stringify({
+    version: 1,
+    rendererSchema: pdfPreviewRendererSchema,
+    samplePath: payload.samplePath,
+    sourceSha256,
+    requests: payload.requests,
+  })).digest('hex');
+}
+
+function requestAnchorText(request, direction) {
+  const value = direction === 'before'
+    ? (request?.followingText || request?.anchorAfter)
+    : (request?.precedingText || request?.anchorBefore);
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function requestBBox(request) {
+  const bbox = request?.bbox;
+  return bbox && [bbox.x1, bbox.y1, bbox.x2, bbox.y2].every(Number.isFinite) ? bbox : null;
+}
+
+function bboxContains(outer, inner, tolerance = 0.01) {
+  return outer && inner
+    && outer.x1 <= inner.x1 + tolerance
+    && outer.y1 <= inner.y1 + tolerance
+    && outer.x2 + tolerance >= inner.x2
+    && outer.y2 + tolerance >= inner.y2;
+}
+
+const pdfPrerenderPlans = new Map();
+for (const [exampleId, expectedRequestCount] of pdfPrerenderRequestCounts) {
+  const example = index.examples.find((candidate) => candidate.id === exampleId);
+  const record = recordsById.get(exampleId);
+  assert(example?.pdfFormRenders?.ok === true, `[PDF prerender: ${exampleId}] Compact catalogue plan is missing.`);
+  assert(record?.pdfFormRenders?.ok === true, `[PDF prerender: ${exampleId}] Full manifest plan is missing.`);
+  if (!example?.pdfFormRenders?.path) continue;
+
+  const planPath = siteFile(example.pdfFormRenders.path);
+  assert(fs.existsSync(planPath), `[PDF prerender: ${exampleId}] Render-plan JSON is missing.`);
+  if (!fs.existsSync(planPath)) continue;
+  const planBytes = fs.statSync(planPath).size;
+  const payload = JSON.parse(fs.readFileSync(planPath, 'utf8'));
+  const requests = Array.isArray(payload.requests) ? payload.requests : [];
+  const assets = Array.isArray(payload.prerenderedAssets) ? payload.prerenderedAssets : [];
+  const coverage = Array.isArray(payload.prerenderedRequestCoverage)
+    ? payload.prerenderedRequestCoverage
+    : [];
+  pdfPrerenderPlans.set(exampleId, { example, record, payload, requests, assets, coverage });
+
+  assert(requests.length === expectedRequestCount,
+    `[PDF prerender: ${exampleId}] Expected ${expectedRequestCount} request identities, found ${requests.length}.`);
+  assert(example.pdfFormRenders.count === expectedRequestCount
+    && record.pdfFormRenders.count === expectedRequestCount,
+  `[PDF prerender: ${exampleId}] Compact/full manifest request counts must both be ${expectedRequestCount}.`);
+  assert(example.pdfFormRenders.path === record.pdfFormRenders.path,
+    `[PDF prerender: ${exampleId}] Compact/full manifests must reference the same render plan.`);
+  assert(example.pdfFormRenders.bytes === planBytes
+    && record.pdfFormRenders.bytes === planBytes,
+  `[PDF prerender: ${exampleId}] Compact/full manifest byte counts must match the ${planBytes}-byte render plan.`);
+  const samplePath = String(payload.samplePath || '');
+  const sampleFile = samplePath ? siteFile(samplePath) : '';
+  assert(Boolean(sampleFile) && fs.existsSync(sampleFile),
+    `[PDF prerender: ${exampleId}] Source sample is missing: ${samplePath || '(missing path)'}.`);
+  if (sampleFile && fs.existsSync(sampleFile)) {
+    const sourceSha256 = pdfAssetSha256(sampleFile);
+    const expectedDigest = pdfPrerenderSourceDigest(payload, sourceSha256);
+    assert(payload.prerenderVersion === 1
+      && payload.prerenderRendererSchema === pdfPreviewRendererSchema,
+    `[PDF prerender: ${exampleId}] Plan renderer schema is stale or missing.`);
+    assert(payload.prerenderedSourceDigest === expectedDigest,
+      `[PDF prerender: ${exampleId}] Plan is stale for its source PDF, requests, or renderer schema.`);
+    assert(requests.every((request) => !request?.sourceSha256 || request.sourceSha256 === sourceSha256),
+      `[PDF prerender: ${exampleId}] A render request carries a stale source SHA-256.`);
+  }
+  assert(assets.length > 0,
+    `[PDF prerender: ${exampleId}] Missing prerenderedAssets; Pages publication must render deterministic files before deployment.`);
+  assert(coverage.length === requests.length,
+    `[PDF prerender: ${exampleId}] Expected exact asset coverage for all ${requests.length} requests, found ${coverage.length}.`);
+
+  const requestIds = new Set(requests.map((request) => String(request?.id || '')));
+  const coverageCounts = new Map();
+  for (const item of coverage) {
+    const requestId = String(item?.requestId || '');
+    coverageCounts.set(requestId, (coverageCounts.get(requestId) || 0) + 1);
+  }
+  assert(requestIds.size === requests.length && !requestIds.has(''),
+    `[PDF prerender: ${exampleId}] Render request IDs must be non-empty and unique.`);
+  assert(requests.every((request) => coverageCounts.get(String(request.id)) === 1)
+    && coverage.every((item) => requestIds.has(String(item?.requestId || ''))),
+  `[PDF prerender: ${exampleId}] Every request must map to exactly one published asset, with no unknown coverage rows.`);
+
+  const assetsByPath = new Map();
+  for (const asset of assets) {
+    const relativePath = String(asset?.path || '');
+    const assetFile = relativePath ? siteFile(relativePath) : '';
+    assert(relativePath.startsWith(`outputs/${exampleId}/`)
+      && !/^(?:[a-z]+:|\/\/|\/|data:)/i.test(relativePath),
+    `[PDF prerender: ${exampleId}] Asset paths must be deterministic same-origin files below the example output directory: ${relativePath || '(missing path)'}.`);
+    assert(!assetsByPath.has(relativePath),
+      `[PDF prerender: ${exampleId}] Prerender asset metadata contains duplicate path ${relativePath || '(missing path)'}.`);
+    assetsByPath.set(relativePath, asset);
+    assert(/^image\/(?:png|jpeg|webp|avif)$/.test(String(asset?.mimeType || '')),
+      `[PDF prerender: ${exampleId}] ${relativePath || 'Asset'} must declare a browser image MIME type.`);
+    assert(Number.isInteger(asset?.byteLength) && asset.byteLength > 0
+      && Number.isInteger(asset?.width) && asset.width > 0
+      && Number.isInteger(asset?.height) && asset.height > 0
+      && /^[a-f0-9]{64}$/.test(String(asset?.sha256 || '')),
+    `[PDF prerender: ${exampleId}] ${relativePath || 'Asset'} needs byteLength, dimensions, and SHA-256 publication metadata.`);
+    assert(Boolean(assetFile) && fs.existsSync(assetFile),
+      `[PDF prerender: ${exampleId}] Published prerender file is missing: ${relativePath || '(missing path)'}.`);
+    if (assetFile && fs.existsSync(assetFile)) {
+      assert(fs.statSync(assetFile).size === asset.byteLength,
+        `[PDF prerender: ${exampleId}] ${relativePath} byteLength metadata is stale.`);
+      assert(pdfAssetSha256(assetFile) === asset.sha256,
+        `[PDF prerender: ${exampleId}] ${relativePath} SHA-256 metadata is stale.`);
+    }
+  }
+
+  const requestById = new Map(requests.map((request) => [String(request.id), request]));
+  for (const item of coverage) {
+    const request = requestById.get(String(item?.requestId || ''));
+    const assetPath = String(item?.assetPath || '');
+    const placement = String(item?.placement || '');
+    assert(assetsByPath.has(assetPath),
+      `[PDF prerender: ${exampleId}] ${item?.requestId || 'Unknown request'} references unpublished asset ${assetPath || '(missing path)'}.`);
+    assert(['before-anchor', 'after-anchor', 'page-gallery', 'existing-page-image'].includes(placement),
+      `[PDF prerender: ${exampleId}] ${item?.requestId || 'Unknown request'} needs an explicit anchor, page-gallery, or existing-page-image placement.`);
+    if (placement === 'before-anchor') {
+      assert(requestAnchorText(request, 'before').length >= 3,
+        `[PDF prerender: ${exampleId}] ${item.requestId} declares before-anchor without a usable following-text anchor.`);
+    } else if (placement === 'after-anchor') {
+      assert(requestAnchorText(request, 'after').length >= 3,
+        `[PDF prerender: ${exampleId}] ${item.requestId} declares after-anchor without a usable preceding-text anchor.`);
+    } else {
+      assert(Number.isInteger(request?.page) && request.page > 0,
+        `[PDF prerender: ${exampleId}] ${item?.requestId || 'Unknown request'} page placement must retain its source page.`);
+    }
+  }
+}
+
+assert(playgroundWorkflow.includes('git status --porcelain=v1 --untracked-files=all --'),
+  '[PDF prerender CI] Generated-output cleanliness must include untracked files.');
+for (const requiredGeneratedPath of [
+  'pandoc-showcase/manifest.json',
+  ':(glob)pandoc-showcase/outputs/*/pdf-form-renders.json',
+  ':(glob)pandoc-showcase/outputs/*/pdf-preview-*.png',
+]) {
+  assert(playgroundWorkflow.includes(requiredGeneratedPath),
+    `[PDF prerender CI] Generated-output cleanliness is missing ${requiredGeneratedPath}.`);
+}
+
+const staticPdfPreviewBuilderSource = showcaseBuilder.includes('function buildStaticPdfFormPreview(')
+  ? namedFunctionSource(showcaseBuilder, 'buildStaticPdfFormPreview')
+  : '';
+assert(!staticPdfPreviewBuilderSource
+  || (!staticPdfPreviewBuilderSource.includes('fetchStaticPdfSource(')
+    && !staticPdfPreviewBuilderSource.includes('renderPdfFormRequests(')
+    && !staticPdfPreviewBuilderSource.includes('renderPdfPageRasterRequests(')),
+'[PDF prerender runtime] Static showcase previews must consume published image assets without fetching source PDFs or invoking PDF.js in a visitor browser.');
+
+const aircraftPlan = pdfPrerenderPlans.get('pdf-layout-docling-aircraft-handbook');
+if (aircraftPlan) {
+  const coverageByRequest = new Map(aircraftPlan.coverage.map((item) => [String(item.requestId), item]));
+  for (const request of aircraftPlan.requests) {
+    const hasTextAnchor = requestAnchorText(request, 'before').length >= 3
+      || requestAnchorText(request, 'after').length >= 3;
+    if (!hasTextAnchor) {
+      assert(coverageByRequest.get(String(request.id))?.placement === 'page-gallery',
+        `[Aircraft prerender] Unanchored request ${request.id} must have explicit page-gallery placement instead of drifting to the document tail.`);
+    }
+  }
+}
+
+const motographPlan = pdfPrerenderPlans.get('pdf-archive-motograph-book');
+if (motographPlan) {
+  const expectedGalleryPages = Array.from({ length: 46 }, (_, index) => index + 2);
+  const coverageByRequest = new Map(motographPlan.coverage.map((item) => [String(item.requestId), item]));
+  assert(motographPlan.requests.map((request) => request.page).join(',') === expectedGalleryPages.join(','),
+    '[Motograph prerender] The 46 requests intentionally cover physical pages 2 through 47; page 1 already has an extracted image.');
+  const galleryCoverage = motographPlan.requests.map((request) => coverageByRequest.get(String(request.id)));
+  assert(galleryCoverage.every((item) => item?.placement === 'page-gallery'),
+    '[Motograph prerender] All 46 unanchored page images must use explicit page-gallery placement.');
+  assert(new Set(galleryCoverage.map((item) => item?.assetPath).filter(Boolean)).size === 46,
+    '[Motograph prerender] Each missing physical page needs its own published asset; optimize the gallery with lazy loading, not by collapsing pages.');
+}
+
+// Grand Canyon pages 1 and 2 each have a covering composite. Contained Form
+// requests remain useful provenance, but they must reuse the covering asset
+// rather than publishing redundant crops or falling through to placeholders.
+const grandCanyonPlan = pdfPrerenderPlans.get('pdf-grand-canyon-north-rim-map');
+if (grandCanyonPlan) {
+  const coverageByRequest = new Map(grandCanyonPlan.coverage.map((item) => [String(item.requestId), item]));
+  const wholePageRequests = grandCanyonPlan.requests.filter((request) => request.method === 'pdfjs-whole-page-raster');
+  assert(wholePageRequests.map((request) => request.page).join(',') === '1,2',
+    '[Grand Canyon prerender] Physical pages 1 and 2 must retain explicit whole-page publication requests.');
+  const coveringAssets = [];
+  for (const page of [1, 2]) {
+    const pageRequests = grandCanyonPlan.requests.filter((request) => request.page === page && requestBBox(request));
+    const coveringRequest = pageRequests.find((candidate) => pageRequests.every((request) => (
+      bboxContains(requestBBox(candidate), requestBBox(request), 15)
+    )));
+    assert(Boolean(coveringRequest), `[Grand Canyon prerender] Page ${page} needs one covering composite request.`);
+    if (!coveringRequest) continue;
+    const coveringAsset = coverageByRequest.get(String(coveringRequest.id))?.assetPath;
+    assert(Boolean(coveringAsset), `[Grand Canyon prerender] Page ${page} covering composite has no published asset.`);
+    if (coveringAsset) coveringAssets.push(coveringAsset);
+    const wholePageRequest = wholePageRequests.find((request) => request.page === page);
+    const wholePageAsset = coverageByRequest.get(String(wholePageRequest?.id || ''))?.assetPath;
+    assert(Boolean(wholePageAsset) && wholePageAsset === coveringAsset,
+      `[Grand Canyon prerender] Page ${page} whole-page request must reuse its published covering composite.`);
+    for (const request of pageRequests) {
+      if (request === coveringRequest || !bboxContains(requestBBox(coveringRequest), requestBBox(request), 15)) continue;
+      const containedAsset = coverageByRequest.get(String(request.id))?.assetPath;
+      assert(Boolean(containedAsset) && containedAsset === coveringAsset,
+        `[Grand Canyon prerender] Contained page-${page} request ${request.id} must reuse the covering composite instead of publishing a redundant crop.`);
+    }
+  }
+  assert(new Set(coveringAssets).size === 2,
+    '[Grand Canyon prerender] Pages 1 and 2 must publish two distinct covering composite assets.');
+}
+
+const tablePicturePlan = pdfPrerenderPlans.get('pdf-layout-docling-table-picture-boundary');
+if (tablePicturePlan) {
+  const coverageByRequest = new Map(tablePicturePlan.coverage.map((item) => [String(item.requestId), item]));
+  const [firstRequest, secondRequest] = tablePicturePlan.requests;
+  assert(firstRequest && secondRequest && JSON.stringify(firstRequest.bbox) === JSON.stringify(secondRequest.bbox),
+    '[Table-picture prerender] Regression fixture must retain its two duplicate full-page request identities.');
+  const firstAsset = coverageByRequest.get(String(firstRequest?.id))?.assetPath;
+  const secondAsset = coverageByRequest.get(String(secondRequest?.id))?.assetPath;
+  assert(Boolean(firstAsset) && firstAsset === secondAsset,
+  '[Table-picture prerender] Duplicate full-page requests must be deduplicated to one published asset.');
+}
+
+// The OCR-overlay conversion already contains the physical page image. Its
+// whole-page request must bind to that existing file and must not inject a
+// second page representation into either final view.
+const ocrOverlayPlan = pdfPrerenderPlans.get('pdf-layout-unstructured-ocr-overlay');
+if (ocrOverlayPlan) {
+  const request = ocrOverlayPlan.requests[0];
+  const coverage = ocrOverlayPlan.coverage.find((item) => item.requestId === request?.id);
+  assert(request?.method === 'pdfjs-whole-page-raster',
+    '[OCR-overlay prerender] Fixture must retain its whole-page request provenance.');
+  assert(coverage?.placement === 'existing-page-image',
+    '[OCR-overlay prerender] Whole-page request must reuse the existing extracted page image instead of scheduling another raster.');
+  for (const viewName of ['phpHtml', 'wpBlocks']) {
+    const view = ocrOverlayPlan.record?.[viewName];
+    if (!view?.ok || !fs.existsSync(siteFile(view.path))) continue;
+    const output = fs.readFileSync(siteFile(view.path), 'utf8');
+    const pageOneImages = (output.match(/<img\b[^>]*data-pandoc-pdf-page=["']1["'][^>]*>/gi) || [])
+      .filter((tag) => /data-pandoc-pdf-image-placement=["']page["']/i.test(tag));
+    const scheduledDuplicate = coverage?.placement === 'existing-page-image' ? 0 : 1;
+    assert(pageOneImages.length + scheduledDuplicate === 1,
+      `[OCR-overlay prerender] ${viewName} must finish with exactly one page-1 representation, not an extracted image plus a scheduled duplicate.`);
+    assert(!coverage?.assetPath || output.includes(path.basename(coverage.assetPath)),
+      `[OCR-overlay prerender] ${viewName} coverage must point to its already-published page image.`);
   }
 }

@@ -6,6 +6,11 @@ const DEFAULT_MAX_PAGE_RASTER_IMAGE_BYTES = 16 * 1024 * 1024;
 const DEFAULT_MAX_PAGE_RASTER_TOTAL_IMAGE_BYTES = 64 * 1024 * 1024;
 const PDF_PAGE_RASTER_METHOD = 'pdfjs-whole-page-raster';
 const PDF_PAGE_RASTER_TARGET_SCALE = 2;
+// Bump this schema whenever a renderer change can alter published preview
+// pixels or their placement contract. The static publisher includes it in
+// both asset identities and plan freshness digests, so a new renderer cannot
+// silently reuse an older Pages image.
+export const PDF_STATIC_PREVIEW_RENDERER_SCHEMA = 'port-libs-pdfjs-static-preview-v1';
 // PDF.js retains its own copy of the source and can allocate substantial
 // parser/graphics state on top. Keep the browser-assisted *figure*
 // enhancement below the server-side handoff limit; the PHP text import can
@@ -1058,11 +1063,26 @@ function normalizeBBox(bbox) {
 }
 
 function cropScale(bbox, maxPixels) {
-  const area = Math.max(1, (bbox.x2 - bbox.x1) * (bbox.y2 - bbox.y1));
-  const scaleForBudget = Math.sqrt(Math.max(1, maxPixels - 4 * DEFAULT_PADDING) / area);
+  const cropWidth = Math.max(1, bbox.x2 - bbox.x1);
+  const cropHeight = Math.max(1, bbox.y2 - bbox.y1);
+  const area = cropWidth * cropHeight;
+  // The canvas extends by DEFAULT_PADDING on both sides of each axis. Its
+  // floor/ceil bounds can consume almost two additional pixels per axis when
+  // the transformed crop starts and ends at fractional coordinates. Solve
+  // (width * scale + reserve) * (height * scale + reserve) <= maxPixels so
+  // padding and rounding are part of the budget rather than added afterward.
+  const axisReserve = 2 * DEFAULT_PADDING + 2;
+  const linearCoefficient = axisReserve * (cropWidth + cropHeight);
+  const constantCoefficient = axisReserve * axisReserve - Math.max(1, maxPixels);
+  const discriminant = linearCoefficient * linearCoefficient
+    - 4 * area * constantCoefficient;
+  const scaleForBudget = (
+    -linearCoefficient + Math.sqrt(Math.max(0, discriminant))
+  ) / (2 * area);
+  const unpaddedDimensionLimit = Math.max(1, DEFAULT_MAX_DIMENSION - axisReserve);
   const scaleForDimension = Math.min(
-    DEFAULT_MAX_DIMENSION / Math.max(1, bbox.x2 - bbox.x1),
-    DEFAULT_MAX_DIMENSION / Math.max(1, bbox.y2 - bbox.y1),
+    unpaddedDimensionLimit / cropWidth,
+    unpaddedDimensionLimit / cropHeight,
   );
 
   return Math.max(0.1, Math.min(2, scaleForBudget, scaleForDimension));

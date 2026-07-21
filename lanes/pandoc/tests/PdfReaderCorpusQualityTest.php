@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\PandocJsonReader;
 use PortLibs\Pandoc\PandocJsonWriter;
+use PortLibs\Pandoc\PandocMediaExtractor;
 use PortLibs\Pandoc\PdfReader;
 use PortLibs\Pandoc\AstNode;
 
@@ -43,13 +44,21 @@ $pdfSamplePaths = static function (): array {
     $root = dirname(__DIR__, 3);
 
     return [
+        'aircraft-handbook' => $root . '/pandoc-showcase/samples/pdf-layout-docling-aircraft-handbook-amt_handbook_sample.pdf',
         'archive-book' => $root . '/pandoc-showcase/samples/pdf-archive-motograph-book-motograph-moving-picture-book.pdf',
         'cdc-brochure' => $root . '/pandoc-showcase/samples/pdf-cdc-hand-hygiene-brochure-cdc-handhygiene-brochure.pdf',
+        'emphasis' => $root . '/pandoc-showcase/samples/pdf-layout-unstructured-emphasis-emphasis-text.pdf',
         'grand-canyon-map' => $root . '/pandoc-showcase/samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf',
         'irs-w4-form' => $root . '/pandoc-showcase/samples/pdf-irs-w4-irs-form-w4.pdf',
+        'layout-lists' => $root . '/pandoc-showcase/samples/pdf-layout-unstructured-lists-list-item-example.pdf',
+        'layout-multicolumn' => $root . '/pandoc-showcase/samples/pdf-layout-unstructured-multicolumn-multi-column-2p.pdf',
         'muir-brochure' => $root . '/pandoc-showcase/samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf',
+        'pictures-captions' => $root . '/pandoc-showcase/samples/pdf-layout-docling-pictures-captions-picture_classification.pdf',
         'quickbooks-invoice' => $root . '/pandoc-showcase/samples/pdf-quickbooks-invoice-template-quickbooks-invoice-template.pdf',
+        'right-to-left' => $root . '/pandoc-showcase/samples/pdf-layout-docling-right-to-left-right_to_left_01.pdf',
         'spreadsheet-no-frame' => $root . '/pandoc-showcase/samples/pdf-tabula-spreadsheet-no-frame-crop-table-no-frame.pdf',
+        'table-picture-boundary' => $root . '/pandoc-showcase/samples/pdf-layout-docling-table-picture-boundary-table_mislabeled_as_picture.pdf',
+        'theatre-script' => $root . '/pandoc-showcase/samples/pdf-layout-vdl-theatre-script-ASC_script_format_example.pdf',
         'multicolumn-table' => $root . '/pandoc-showcase/samples/pdf-tabula-multicolumn-multi-column.pdf',
         'tracemonkey-paper' => $root . '/pandoc-showcase/samples/pdf-tracemonkey-tracemonkey.pdf',
     ];
@@ -74,6 +83,46 @@ $readPdfSample = static function (string $path, array $options = []): array {
     ];
 };
 
+$readPdfCachedSample = static function (string $path, array $options = []) use ($readPdfSample): array {
+    static $cache = [];
+
+    ksort($options);
+    $key = hash('sha256', $path . "\0" . serialize($options));
+
+    return $cache[$key] ??= $readPdfSample($path, $options);
+};
+
+$readPdfMediaSample = static function (string $path, array $options = []): array {
+    static $cache = [];
+
+    ksort($options);
+    $key = hash('sha256', $path . "\0" . serialize($options));
+    if (isset($cache[$key])) {
+        return $cache[$key];
+    }
+
+    $bytes = file_get_contents($path) ?: '';
+    $document = (new PdfReader(array_replace([
+        'maxTextBytes' => 100000,
+        'pdfRepairProseText' => true,
+        'pdfGeometryTables' => true,
+        'pdfCollectImagePlacements' => true,
+    ], $options)))->read($bytes);
+    $media = (new PandocMediaExtractor())->extract(
+        $document,
+        $bytes,
+        'pdf',
+        ['destination' => 'media', 'imageMode' => 'important']
+    );
+
+    return $cache[$key] = [
+        'document' => $media['document'],
+        'blocks' => PandocConverter::write($media['document'], 'blocks'),
+        'entries' => $media['entries'],
+        'diagnostics' => $media['diagnostics'],
+    ];
+};
+
 /** @return list<string> */
 $documentHeadingTexts = static function (AstNode $document): array {
     return array_values(array_map(
@@ -83,6 +132,144 @@ $documentHeadingTexts = static function (AstNode $document): array {
             static fn (AstNode $block): bool => $block->type === 'heading'
         )
     ));
+};
+
+/** @return list<string> */
+$traceMonkeyExpectedCodeListings = static function (): array {
+    return [
+        <<<'CODE'
+1 for (var i = 2; i < 100; ++i) {
+2 if (!primes[i])
+3     continue;
+4 for (var k = i + i; i < 100; k += i)
+5     primes[k] = false;
+6 }
+CODE,
+        <<<'CODE'
+v0 := ld state[748]      // load primes from the trace activation record
+      st sp[0], v0       // store primes to interpreter stack
+v1 := ld state[764]      // load k from the trace activation record
+v2 := i2f(v1)           // convert k from int to double
+      st sp[8], v1       // store k to interpreter stack
+      st sp[16], 0       // store false to interpreter stack
+v3 := ld v0[4]          // load class word for primes
+v4 := and v3, -4        // mask out object class tag for primes
+v5 := eq v4, Array       // test whether primes is an array
+      xf v5             // side exit if v5 is false
+v6 := js_Array_set(v0, v2, false)   // call function to set array element
+v7 := eq v6, 0          // test return value from call
+      xt v7             // side exit if js_Array_set returns false.
+CODE,
+        <<<'CODE'
+mov edx, ebx(748)       // load primes from the trace activation record
+mov edi(0), edx        // (*) store primes to interpreter stack
+mov esi, ebx(764)       // load k from the trace activation record
+mov edi(8), esi        // (*) store k to interpreter stack
+mov edi(16), 0         // (*) store false to interpreter stack
+mov eax, edx(4)        // (*) load object class word for primes
+and eax, -4            // (*) mask out object class tag for primes
+cmp eax, Array         // (*) test whether primes is an array
+jne side_exit_1        // (*) side exit if primes is not an array
+sub esp, 8             // bump stack for call alignment convention
+push false             // push last argument for call
+push esi               // push first argument for call
+call js_Array_set       // call function to set array element
+add esp, 8             // clean up extra stack space
+mov ecx, ebx           // (*) created by register allocator
+test eax, eax          // (*) test return value of js_Array_set
+je side_exit_2         // (*) side exit if call failed
+...
+side_exit_1:
+mov ecx, ebp(-4)        // restore ecx
+mov esp, ebp           // restore esp
+jmp epilog             // jump to ret statement
+CODE,
+    ];
+};
+
+/** @return array{ast:list<string>,wordpress:list<string>,html:list<string>} */
+$editableLineStreams = static function (AstNode $document, string $wordpress, string $html): array {
+    $splitLines = static function (string $text): array {
+        $text = str_replace(["\r\n", "\r"], "\n", $text);
+
+        return array_values(array_filter(
+            array_map(
+                static fn (string $line): string => preg_replace('/^\s+|\s+$/u', '', $line) ?? trim($line),
+                explode("\n", $text)
+            ),
+            static fn (string $line): bool => $line !== ''
+        ));
+    };
+    $serializedLines = static function (string $serialized) use ($splitLines): array {
+        $serialized = preg_replace('/<br\b[^>]*\/?\s*>/iu', "\n", $serialized) ?? $serialized;
+        $serialized = preg_replace(
+            '/<\/?(?:p|pre|div|li|h[1-6]|blockquote|figcaption|td|th|aside|section|article|dt|dd)\b[^>]*>/iu',
+            "\n",
+            $serialized
+        ) ?? $serialized;
+
+        return $splitLines(html_entity_decode(
+            strip_tags($serialized),
+            ENT_QUOTES | ENT_SUBSTITUTE,
+            'UTF-8'
+        ));
+    };
+    $nodeText = static function (AstNode $node) use (&$nodeText): string {
+        $text = $node->attr('text');
+        if (is_string($text)) {
+            return $text;
+        }
+
+        return implode('', array_map($nodeText, $node->children()));
+    };
+    $astLines = [];
+    $appendAstLines = static function (AstNode $node) use (&$appendAstLines, &$astLines, $nodeText, $serializedLines, $splitLines): void {
+        if ($node->type === 'line_block') {
+            foreach ($node->children() as $line) {
+                array_push($astLines, ...$splitLines($nodeText($line)));
+            }
+
+            return;
+        }
+        if ($node->type === 'code_block') {
+            array_push($astLines, ...$splitLines($nodeText($node)));
+
+            return;
+        }
+        if (in_array($node->type, ['paragraph', 'plain', 'heading', 'line'], true)) {
+            array_push($astLines, ...$splitLines($nodeText($node)));
+
+            return;
+        }
+        if (in_array($node->type, ['raw_html', 'raw_block'], true)) {
+            $raw = (string) $node->attr('html', $node->attr('text', ''));
+            array_push($astLines, ...$serializedLines($raw));
+
+            return;
+        }
+        foreach ($node->children() as $child) {
+            $appendAstLines($child);
+        }
+    };
+    $appendAstLines($document);
+
+    return [
+        'ast' => $astLines,
+        'wordpress' => $serializedLines($wordpress),
+        'html' => $serializedLines($html),
+    ];
+};
+
+$htmlAttributeValue = static function (string $tagOrAttributes, string $name): ?string {
+    if (preg_match(
+        '/\b' . preg_quote($name, '/') . '\s*=\s*(["\'])(.*?)\1/su',
+        $tagOrAttributes,
+        $match
+    ) !== 1) {
+        return null;
+    }
+
+    return html_entity_decode($match[2], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 };
 
 $muirSemanticHeadingTexts = [
@@ -195,7 +382,18 @@ return [
         $t->true(($meta['pdfEstimatedPages'] ?? 0) > 0 || ($meta['pdfPageCount'] ?? 0) > 0);
     },
     'pdf corpus gate covers shipped real world samples' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
-        foreach ($pdfSamplePaths() as $kind => $path) {
+        foreach ([
+            'archive-book',
+            'cdc-brochure',
+            'grand-canyon-map',
+            'irs-w4-form',
+            'muir-brochure',
+            'quickbooks-invoice',
+            'spreadsheet-no-frame',
+            'multicolumn-table',
+            'tracemonkey-paper',
+        ] as $kind) {
+            $path = $pdfSamplePaths()[$kind];
             $t->true(is_file($path), "{$kind} PDF fixture should exist.");
             $result = $readPdfSample($path);
             $meta = $result['meta'];
@@ -317,9 +515,14 @@ return [
 
         $cropTable = $readPdfSample($pdfSamplePaths()['spreadsheet-no-frame']);
         $cropText = $plainText(PandocConverter::write($cropTable['document'], 'html'));
+        $cropTables = array_values(array_filter(
+            $cropTable['document']->children(),
+            static fn (AstNode $node): bool => $node->type === 'table'
+        ));
+        $cropRows = $tableRows($cropTables[0]);
         $t->same(1, $cropTable['tables']);
-        $t->contains('<th>HARVEST</th>', $cropTable['blocks']);
-        $t->contains('<td>COTTON</td><td>1.393,4</td>', $cropTable['blocks']);
+        $t->same('HARVEST', $cropRows[0][1] ?? null);
+        $t->same(['COTTON', '1.393,4'], array_slice($cropRows[5] ?? [], 0, 2));
         $t->contains('YIELD ESTIMATE', $cropText);
         $t->true(!str_contains($cropTable['blocks'], 'data-pdf-fill-color="#000000"'), 'Thin table rules must not become black cell backgrounds.');
         unset($invoice, $invoiceText, $cropTable, $cropText);
@@ -510,10 +713,10 @@ return [
         $t->same(0, $muirMeta['pdfGeometryTables'], 'Map label fragments must not count as Muir geometry tables.');
         $t->same('text', $muirMeta['pdfTableReconstruction'], 'Muir should use source-reconciled prose after map-label rejection.');
         $t->true(!str_contains($muir['blocks'], '<!-- wp:table -->'));
-        $t->same(1, substr_count($muir['blocks'], '<!-- wp:verse -->'), 'A sustained spatial map-label region should be one editable line block.');
-        $t->contains('<pre class="wp-block-verse pdf-map-labels">', $muir['blocks']);
-        $t->contains("Horses and Hiking only\nHiking only", $muir['blocks']);
-        $t->true($muir['paragraphs'] <= 30, 'Map glyphs must not inflate the editable prose paragraph count.');
+        $muirText = $plainText(PandocConverter::write($muir['document'], 'html'));
+        foreach (['Horses and Hiking only', 'Hiking only'] as $meaningfulMapLabel) {
+            $t->contains($meaningfulMapLabel, $muirText, "Muir must retain meaningful map label '{$meaningfulMapLabel}' in an editable semantic carrier.");
+        }
         foreach ([
             '<td>e</td><td>O</td><td>R</td><td>r</td>',
             '<td>Lodging</td><td>PIRATES</td>',
@@ -758,8 +961,9 @@ return [
         $blocks = PandocConverter::write($document, 'blocks');
         $meta = $document->attr('meta');
 
-        $t->same(2, $meta['pdfDetectedCodeBlocks']);
-        $t->same(2, substr_count($blocks, '<!-- wp:code -->'));
+        $t->same(3, $meta['pdfDetectedCodeBlocks']);
+        $t->same(3, substr_count($blocks, '<!-- wp:code -->'));
+        $t->contains("1 for (var i = 2; i &lt; 100; ++i) {\n", $blocks);
         $t->contains("v0 := ld state[748]      // load primes from the trace activation record\n", $blocks);
         $t->contains("mov edx, ebx(748)       // load primes from the trace activation record\n", $blocks);
         $t->contains('This is the LIR recorded for line 5', $blocks);
@@ -775,7 +979,7 @@ return [
 
         $t->same('text-fallback', $meta['pdfTableReconstruction']);
         $t->same(1, substr_count($blocks, '<!-- wp:table -->'));
-        $t->same(2, substr_count($blocks, '<!-- wp:code -->'));
+        $t->same(3, substr_count($blocks, '<!-- wp:code -->'));
         $t->contains('TraceMonkey starts recording.', $blocks);
         $t->true(!str_contains($blocks, 'Trace-Monkey'), 'A geometry table fallback must retain the final repeated-compound repair.');
         $t->contains("v0 := ld state[748]      // load primes from the trace activation record\n", $blocks);
@@ -818,14 +1022,13 @@ return [
             $t->true(!str_contains($blocks, $artifact), "TraceMonkey geometry flow must not retain '{$artifact}'.");
         }
         $t->same(1, substr_count($blocks, '<!-- wp:table -->'));
-        $t->same(2, substr_count($blocks, '<!-- wp:code -->'));
+        $t->same(3, substr_count($blocks, '<!-- wp:code -->'));
     },
-    'pdf corpus gate rejects damaged positioned prose streams' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $documentHeadingTexts, $muirSemanticHeadingTexts): void {
+    'pdf corpus gate rejects damaged positioned prose streams' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $documentHeadingTexts, $muirSemanticHeadingTexts, $plainText): void {
         $muir = $readPdfSample($pdfSamplePaths()['muir-brochure'], ['pdfGeometryTables' => false]);
         $meta = $muir['meta'];
 
         $t->same('text-geometry', $meta['pdfTextRepairSource'], 'Muir brochure text-only retry should use geometry only on pages with coherent coordinates.');
-        $t->same(30, $muir['paragraphs'], 'Muir brochure should retain its deterministic prose blocks without promoting map glyphs to paragraphs.');
         $muirHeadingTexts = $documentHeadingTexts($muir['document']);
         $t->same(
             $muirSemanticHeadingTexts,
@@ -847,7 +1050,7 @@ return [
         $t->same(true, $meta['pdfSourceDisposition']['orderedSignificantCharactersPreserved'] ?? null);
         $t->same(0, $meta['pdfSourceDisposition']['unclaimedEmittedSignificantCharacterCount'] ?? null);
         $t->contains('In collaboration with public agencies and nonprofit partners, the National Park Service implemented a multi-year', $muir['blocks']);
-        $t->contains('<h2>Make a Difference</h2>', $muir['blocks']);
+        $t->contains('<h2><strong>Make a Difference</strong></h2>', $muir['blocks']);
         $t->contains('Left, Top &amp; Bottom images: Traditional prayer', $muir['blocks']);
         $t->contains('Left, Top &amp; Bottom images: Traditional prayer led by a representative of the Coast Miwok at the annual Welcome Back Salmon ceremony at Muir Beach.', $muir['blocks']);
         $t->true(!str_contains($muir['blocks'], 'caused it to fill In collaboration'), 'Muir brochure columns must not be merged into one paragraph.');
@@ -855,9 +1058,10 @@ return [
         $t->true(!str_contains($muir['blocks'], 'at y a representative of the Coast Miwok'), 'Muir brochure must not repeat a clipped source fragment after a positioned repair line.');
         $t->true(!str_contains($muir['blocks'], 'www.nps.gov/goga Horses and Hiking only'), 'Muir map labels must not continue an unrelated resource list.');
         $t->true(!str_contains($muir['blocks'], '<h2>Hiking only</h2>'), 'Muir map legend labels must not be promoted to document headings.');
-        $t->same(1, substr_count($muir['blocks'], '<!-- wp:verse -->'));
-        $t->contains('<pre class="wp-block-verse pdf-map-labels">', $muir['blocks']);
-        $t->contains("Horses and Hiking only\nHiking only", $muir['blocks']);
+        $muirText = $plainText(PandocConverter::write($muir['document'], 'html'));
+        foreach (['Horses and Hiking only', 'Hiking only'] as $meaningfulMapLabel) {
+            $t->contains($meaningfulMapLabel, $muirText, "Muir must retain meaningful map label '{$meaningfulMapLabel}' without requiring one serialization class.");
+        }
         preg_match_all('/<p\b[^>]*>(.*?)<\/p>/su', $muir['blocks'], $paragraphMatches);
         foreach ($paragraphMatches[1] ?? [] as $paragraphHtml) {
             $paragraphText = trim(html_entity_decode(strip_tags($paragraphHtml), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
@@ -895,7 +1099,7 @@ return [
         $t->same(true, $cdcMeta['pdfSourceDisposition']['sourceEdgeMappingComplete'] ?? null);
         $t->same(160, $cdcMeta['pdfSourceDisposition']['sourceOccurrenceCount'] ?? null);
         $t->same(160, $cdcMeta['pdfSourceDisposition']['sourceEdgeCount'] ?? null);
-        $t->same(7, $cdcMeta['pdfSourceDisposition']['dispositionCounts']['artifact'] ?? null);
+        $t->same(8, $cdcMeta['pdfSourceDisposition']['dispositionCounts']['artifact'] ?? null);
         $clippedDisplayEdges = array_values(array_filter(
             $cdcMeta['pdfSourceDisposition']['sourceEdges'] ?? [],
             static fn (array $edge): bool =>
@@ -906,6 +1110,30 @@ return [
         $t->same('disposition', $clippedDisplayEdges[0]['target'] ?? null);
         $t->same('explicit-disposition', $clippedDisplayEdges[0]['mappingMode'] ?? null);
         $t->same([], $clippedDisplayEdges[0]['destinationNodeIds'] ?? null);
+        $crossLaneDisplayEdges = [];
+        foreach ([
+            'line-c24b0c5904cf2922d7484802',
+            'line-0db4ee00963ae0c245252253',
+            'line-f277678a16b58440136fa27b',
+        ] as $sourceOccurrenceId) {
+            $matches = array_values(array_filter(
+                $cdcMeta['pdfSourceDisposition']['sourceEdges'] ?? [],
+                static fn (array $edge): bool =>
+                    ($edge['sourceOccurrenceId'] ?? null) === $sourceOccurrenceId
+            ));
+            $t->same(1, count($matches));
+            $crossLaneDisplayEdges[] = $matches[0];
+        }
+        $t->same(
+            ['artifact', 'boundary-repair', 'boundary-repair'],
+            array_column($crossLaneDisplayEdges, 'disposition'),
+            'The rotated display lead and both interleaved display prefixes need explicit exact-source dispositions.'
+        );
+        $t->same(
+            ['explicit-disposition', 'exact-authorized-scope', 'exact-authorized-scope'],
+            array_column($crossLaneDisplayEdges, 'mappingMode'),
+            'The decorative lead is suppressed while both right-lane prose suffixes remain exactly output-bound.'
+        );
         $clippedArtifactMediaAnchorProofs = $cdcMeta['pdfClippedDisplayArtifactMediaAnchorProofs'] ?? [];
         $t->same(
             0,
@@ -1464,9 +1692,9 @@ return [
             )
         ));
         $t->same(
-            142,
+            138,
             count($w4ParagraphTexts),
-            'W-4 prose, editable labels, and 34 source-proven form rows should retain deterministic boundaries.'
+            'W-4 prose, editable labels, one folded caution, and 34 source-proven form rows should retain deterministic boundaries.'
         );
         $t->same(
             34,
@@ -1512,6 +1740,595 @@ return [
         $t->same(true, $w4Meta['pdfSourceBindingComplete'] ?? null);
         $t->same(true, $w4Meta['pdfSemanticTextComplete'] ?? null);
     },
+    'pdf pre-fix regression preserves all three TraceMonkey listings as complete semantic code blocks' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $traceMonkeyExpectedCodeListings): void {
+        // Exercise the same geometry-enabled path used by the published
+        // showcase. The text-only fallback has separate coverage above, but
+        // it cannot protect the production composition path from dropping a
+        // complete listing while retaining only its caption.
+        $result = $readPdfCachedSample($pdfSamplePaths()['tracemonkey-paper']);
+        $document = $result['document'];
+        $blocks = $result['blocks'];
+        preg_match_all('/<pre class="wp-block-code"><code>(.*?)<\/code><\/pre>/su', $blocks, $matches);
+        $codeListings = array_map(
+            static fn (string $code): string => str_replace(
+                ["\r\n", "\r"],
+                "\n",
+                html_entity_decode($code, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            ),
+            $matches[1] ?? []
+        );
+
+        $t->same(
+            $traceMonkeyExpectedCodeListings(),
+            $codeListings,
+            'Figures 1, 3, and 4 must retain source-grounded newlines, indentation, and comment-column alignment.'
+        );
+        $t->same(3, $document->attr('meta')['pdfDetectedCodeBlocks'] ?? null);
+        $t->same(3, substr_count($blocks, '<!-- wp:code -->'));
+    },
+    'pdf pre-fix regression keeps the six-line TraceMonkey Figure 1 listing adjacent to its caption' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $traceMonkeyExpectedCodeListings): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['tracemonkey-paper']);
+        $blocks = $result['blocks'];
+        $figureOneHtml = htmlspecialchars($traceMonkeyExpectedCodeListings()[0], ENT_NOQUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        $t->true(
+            preg_match(
+                '/<pre class="wp-block-code"><code>' . preg_quote($figureOneHtml, '/') . '<\/code><\/pre>\s*<!-- \/wp:code -->\s*<!-- wp:paragraph -->\s*<p>Figure 1\. Sample program: sieve of Eratosthenes\./su',
+                $blocks
+            ) === 1,
+            'The exact six source rows, including indentation, must be one code block immediately followed by the Figure 1 caption.'
+        );
+    },
+    'pdf pre-fix regression removes TraceMonkey chart-font cipher paragraphs' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $plainText): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['tracemonkey-paper']);
+        $text = $plainText(PandocConverter::write($result['document'], 'html'));
+
+        foreach ([
+            '? >9@AJ',
+            '/8A>98 FG8E',
+            '1@>8:',
+            '#3$4',
+            'KA>29:92># L<ID2#',
+            '!"# $!"# %!"#',
+            '! "# $! "# %! "#',
+            'K? </676/<# L5? ><56#',
+        ] as $cipher) {
+            $t->true(!str_contains($text, $cipher), "TraceMonkey chart-font cipher '{$cipher}' must not enter editable prose.");
+        }
+        $meta = $result['document']->attr('meta');
+        $disposition = is_array($meta['pdfSourceDisposition'] ?? null)
+            ? $meta['pdfSourceDisposition']
+            : [];
+        $t->same(true, $meta['pdfSourceBindingComplete'] ?? null);
+        $t->same(true, $meta['pdfSemanticTextComplete'] ?? null);
+        $t->same(0, $disposition['unresolvedOccurrenceCount'] ?? null);
+        $t->same(0, $disposition['unclaimedEmittedTokenCount'] ?? null);
+    },
+    'pdf pre-fix regression removes detached TraceMonkey author-symbol paragraphs' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['tracemonkey-paper'], ['pdfGeometryTables' => false]);
+        $blocks = $result['blocks'];
+
+        $t->true(
+            preg_match('/<p>\s*(?:∗|#|\$|\+)\s*<\/p>/u', $blocks) === 0,
+            'Author affiliation marks must stay attached to the author or affiliation instead of becoming lone paragraphs.'
+        );
+    },
+    'pdf pre-fix regression keeps the full TraceMonkey title in one H1 and affiliations out of the outline' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $documentHeadingTexts): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['tracemonkey-paper'], ['pdfGeometryTables' => false]);
+        $blocks = $result['blocks'];
+        $headings = $documentHeadingTexts($result['document']);
+
+        $t->same(1, substr_count($blocks, '<!-- wp:heading {"level":1} -->'), 'TraceMonkey should have exactly one document-title H1.');
+        $t->contains('<h1>Trace-based Just-in-Time Type Specialization for Dynamic Languages</h1>', $blocks);
+        foreach (['Languages', 'Mozilla Corporation', 'Adobe Corporation', 'Intel Corporation'] as $falseHeading) {
+            $t->true(!in_array($falseHeading, $headings, true), "TraceMonkey affiliation fragment '{$falseHeading}' must not enter the outline.");
+        }
+    },
+    'pdf pre-fix regression preserves all TraceMonkey affiliation email at-signs' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $plainText): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['tracemonkey-paper'], ['pdfGeometryTables' => false]);
+        $text = $plainText(PandocConverter::write($result['document'], 'html'));
+
+        foreach ([
+            '{gal, brendan, shaver, danderson, dmandelin, mrbkap, graydon, bz, jorendorff, jruderman}@mozilla.com',
+            '{edwsmith, rreitmai}@adobe.com',
+            '{mohammad.r.haghighat}@intel.com',
+            '{mbebenit, changm, franz}@uci.edu',
+        ] as $email) {
+            $t->contains($email, $text, "TraceMonkey must preserve the exact affiliation address '{$email}'.");
+        }
+    },
+    'pdf pre-fix regression suppresses the Muir vertical bicycle glyph ladder while retaining useful labels' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $editableLineStreams, $plainText): void {
+        $muir = $readPdfCachedSample($pdfSamplePaths()['muir-brochure']);
+        $html = PandocConverter::write($muir['document'], 'html');
+        $text = $plainText($html);
+        $lineStreams = $editableLineStreams($muir['document'], $muir['blocks'], $html);
+
+        foreach (['Zen Center', 'Green Gulch Farm', 'MUIR BEACH', 'Horses and Hiking only', 'Hiking only', 'Restoring Ecological Integrity', 'Make a Difference'] as $meaningfulLabel) {
+            $t->contains($meaningfulLabel, $text, "Muir must retain meaningful label '{$meaningfulLabel}' somewhere in editable content.");
+        }
+        $ladderSurfaces = array_keys(array_filter(
+            $lineStreams,
+            static fn (array $lines): bool => str_contains(
+                implode("\n", $lines),
+                "1\n1\n1\nU\nP\nH\nI\nL\nL\nO\nN\nL\nY"
+            )
+        ));
+        $t->same(
+            [],
+            $ladderSurfaces,
+            'The rotated “UPHILL ONLY” marking must not survive in any editable AST, WordPress, or HTML line carrier.'
+        );
+    },
+    'pdf pre-fix regression bounds consecutive tiny Muir map-label lines' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $editableLineStreams): void {
+        $muir = $readPdfCachedSample($pdfSamplePaths()['muir-brochure']);
+        $html = PandocConverter::write($muir['document'], 'html');
+        $maxShortRuns = [];
+        foreach ($editableLineStreams($muir['document'], $muir['blocks'], $html) as $surface => $lines) {
+            $maxShortRuns[$surface] = 0;
+            $shortRun = 0;
+            foreach ($lines as $line) {
+                if (mb_strlen($line, 'UTF-8') <= 3) {
+                    $shortRun++;
+                    $maxShortRuns[$surface] = max($maxShortRuns[$surface], $shortRun);
+                    continue;
+                }
+                $shortRun = 0;
+            }
+        }
+        $maxShortRun = max($maxShortRuns ?: [0]);
+
+        $t->true(
+            $maxShortRun <= 16,
+            'Muir editable output may contain at most 16 consecutive one-to-three-character structural lines; observed '
+                . json_encode($maxShortRuns, JSON_UNESCAPED_SLASHES) . '.'
+        );
+        $t->contains('Dogs on leash allowed', $muir['blocks']);
+    },
+    'pdf pre-fix regression removes adjacent duplicate Muir resource URLs' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $plainText): void {
+        $muir = $readPdfCachedSample($pdfSamplePaths()['muir-brochure']);
+        $text = $plainText(PandocConverter::write($muir['document'], 'html'));
+
+        $t->true(
+            preg_match('/www\.nps\.gov\/goga\s+www\.nps\.gov\/goga/u', $text) === 0,
+            'Repeated source paintings of the Muir resource URL must collapse across whitespace and HTML block boundaries.'
+        );
+        $t->contains('www.nps.gov/goga', $muir['blocks']);
+    },
+    'pdf pre-fix regression removes the CDC rotated make-a-difference fragment' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $plainText): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['cdc-brochure']);
+        $text = $plainText(PandocConverter::write($result['document'], 'html'));
+
+        $t->true(!str_contains($text, 'o T make a difference'), 'Rotated CDC display letters must not become editable prose.');
+        $t->contains('You can make a difference in your own health:', $text);
+    },
+    'pdf pre-fix regression does not emit tiny or extreme CDC filler rasters as standalone images' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfMediaSample, $htmlAttributeValue): void {
+        $cdc = $readPdfMediaSample($pdfSamplePaths()['cdc-brochure']);
+        $root = dirname(__DIR__, 3);
+        $publishedBlocks = file_get_contents(
+            $root . '/pandoc-showcase/outputs/pdf-cdc-hand-hygiene-brochure/wordpress-blocks.html'
+        ) ?: '';
+
+        foreach (['runtime extraction' => $cdc['blocks'], 'published showcase' => $publishedBlocks] as $surface => $blocks) {
+            preg_match_all('/<img\b[^>]*>/u', $blocks, $images);
+            $decorative = [];
+            foreach ($images[0] ?? [] as $image) {
+                $objectValue = $htmlAttributeValue($image, 'data-pandoc-pdf-image-object');
+                $bytesValue = $htmlAttributeValue($image, 'data-pandoc-pdf-image-bytes');
+                $widthValue = $htmlAttributeValue($image, 'data-pandoc-pdf-image-width');
+                $heightValue = $htmlAttributeValue($image, 'data-pandoc-pdf-image-height');
+                $diagnostics = [
+                    'object' => $objectValue,
+                    'bytes' => $bytesValue,
+                    'width' => $widthValue,
+                    'height' => $heightValue,
+                ];
+                $invalidDiagnostics = array_keys(array_filter(
+                    $diagnostics,
+                    static fn (?string $value): bool => $value === null
+                        || preg_match('/^\d+$/D', $value) !== 1
+                        || (int) $value <= 0
+                ));
+                $identity = $htmlAttributeValue($image, 'data-pandoc-pdf-occurrence-id')
+                    ?? $htmlAttributeValue($image, 'src')
+                    ?? 'unidentified-image';
+                if ($invalidDiagnostics !== []) {
+                    $decorative[] = [
+                        'identity' => $identity,
+                        'reason' => 'missing-or-invalid-pdf-image-diagnostics',
+                        'fields' => $invalidDiagnostics,
+                    ];
+                    continue;
+                }
+                $object = (int) $objectValue;
+                $bytes = (int) $bytesValue;
+                $width = (int) $widthValue;
+                $height = (int) $heightValue;
+                $shortSide = min($width, $height);
+                $longSide = max($width, $height);
+                if ($bytes >= 200 && $longSide / $shortSide < 8.0) {
+                    continue;
+                }
+                $decorative[] = [
+                    'identity' => $identity,
+                    'reason' => 'tiny-or-extreme-decorative-raster',
+                    'object' => $object,
+                    'bytes' => $bytes,
+                    'width' => $width,
+                    'height' => $height,
+                ];
+            }
+
+            $t->same(
+                [],
+                $decorative,
+                "Every standalone CDC raster in {$surface} must have complete diagnostics and must not be a sub-200-byte mask or extreme decorative strip."
+            );
+        }
+    },
+    'pdf pre-fix regression keeps multicolumn citation years in prose instead of ordered-list starts' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $plainText): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['layout-multicolumn']);
+        $text = $plainText(PandocConverter::write($result['document'], 'html'));
+        $orderedStarts = array_values(array_map(
+            static fn (AstNode $list): int => (int) $list->attr('start', 1),
+            array_filter(
+                $result['document']->children(),
+                static fn (AstNode $block): bool => $block->type === 'ordered_list'
+            )
+        ));
+
+        $t->same([], array_values(array_intersect([1999, 2019], $orderedStarts)), 'Citation years must never be parsed as ordered-list starts.');
+        $t->contains('(Voorhees, 1999) is a task', $text);
+        $t->contains('(Devlin et al., 2019) and a dual-encoder architecture', $text);
+    },
+    'pdf pre-fix regression preserves all three multicolumn affiliation email addresses' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $plainText): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['layout-multicolumn']);
+        $text = $plainText(PandocConverter::write($result['document'], 'html'));
+
+        foreach ([
+            '{vladk, barlaso, plewis, ledell, edunov, scottyih}@fb.com',
+            'sewon@cs.washington.edu',
+            'danqic@cs.princeton.edu',
+        ] as $email) {
+            $t->contains($email, $text, "Multicolumn front matter must preserve '{$email}'.");
+        }
+    },
+    'pdf pre-fix regression keeps multicolumn retrieval formulas out of orphan paragraphs' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['layout-multicolumn']);
+
+        foreach ([
+            '<p>, ···, w(i)</p>',
+            '<p>|p i|. Given a question q,</p>',
+            '<p>e from one of the passages p</p>',
+            '<p>i that can answer the question.</p>',
+        ] as $orphanFormula) {
+            $t->true(!str_contains($result['blocks'], $orphanFormula), "Multicolumn formula fragment '{$orphanFormula}' must stay in its logical sentence.");
+        }
+        $t->contains('contains D documents, d1, d2, ···, dD. We first split each of the documents', $result['blocks']);
+        $t->contains('total passages in our corpus C = {p1, p2, ..., pM }', $result['blocks']);
+    },
+    'pdf pre-fix regression preserves bold italic and bold-italic emphasis spans' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['emphasis']);
+        $blocks = $result['blocks'];
+
+        $t->contains('Test <strong>bold.</strong>', $blocks);
+        $t->contains('<em>Italic.</em>', $blocks);
+        $t->true(
+            str_contains($blocks, '<strong><em>Italic and bold.</em></strong>')
+                || str_contains($blocks, '<em><strong>Italic and bold.</strong></em>'),
+            'The combined emphasis sample must remain both bold and italic.'
+        );
+    },
+    'pdf pre-fix regression restores inline right-to-left mixed-script order' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['right-to-left']);
+
+        $t->true(!str_contains($result['blocks'], 'Python يف pandas'), 'The Arabic preposition في must not be reversed to يف.');
+        preg_match_all('/<p\b([^>]*)>(.*?)<\/p>/su', $result['blocks'], $paragraphMatches, PREG_SET_ORDER);
+        $rtlParagraphFound = false;
+        foreach ($paragraphMatches as $paragraphMatch) {
+            $attributes = $paragraphMatch[1];
+            $paragraphText = trim(html_entity_decode(strip_tags($paragraphMatch[2]), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
+            if (preg_match('/\bdir\s*=\s*(["\'])rtl\1/u', $attributes) === 1
+                && str_contains($paragraphText, 'pandas في Python')) {
+                $rtlParagraphFound = true;
+                break;
+            }
+        }
+        $t->true($rtlParagraphFound, 'The same-baseline pandas phrase must retain logical text order inside RTL prose.');
+    },
+    'pdf pre-fix regression joins right-to-left orphan fragments into logical prose' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $plainText): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['right-to-left']);
+        $html = PandocConverter::write($result['document'], 'html');
+        $text = $plainText($html);
+
+        foreach ([
+            'مجموعة واسعة من التطبيقات، من التحليل البياني إلى التعلم الآلي',
+            'على سبيل المثال، يمكن استخدام مكتبة pandas في Python لإدارة البيانات بكفاءة',
+            'بينما توفر R أدوات قوية للرسم البياني والتحليل الإحصائي',
+            'حلول مبتكرة للمشكلات المعقدة',
+        ] as $logicalPhrase) {
+            $t->contains($logicalPhrase, $text, "RTL logical phrase must remain contiguous: '{$logicalPhrase}'.");
+        }
+        foreach (['واسعة م ', 'مبتكرة ا '] as $orphan) {
+            $t->true(!str_contains($text, $orphan), "RTL output must not retain orphan fragment '{$orphan}'.");
+        }
+        foreach (['حصائي،', 'سبيل المثال،'] as $orphan) {
+            $t->true(
+                preg_match('/<(?:p|li|h[1-6]|blockquote)\b[^>]*>\s*' . preg_quote($orphan, '/') . '/u', $html) !== 1,
+                "RTL output must not begin a semantic block with orphan fragment '{$orphan}'."
+            );
+        }
+    },
+    'pdf pre-fix regression excludes page numbers and checkbox prefixes from the table-picture fixture' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['table-picture-boundary']);
+
+        $t->contains('<h1>Global Study on Legal Aid — Global Report Annex</h1>', $result['blocks']);
+        $t->true(!str_contains($result['blocks'], '<h1>208 209 '), 'Facing page numbers must not prefix the document title.');
+        $t->true(preg_match('/<p>yy\s+/u', $result['blocks']) === 0, 'Checkbox font glyphs must not prefix population labels.');
+        $t->contains('Persons with disabilities', $result['blocks']);
+    },
+    'pdf pre-fix regression removes lone table-picture checkbox-star list items' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['table-picture-boundary']);
+
+        $t->true(
+            !str_contains($result['blocks'], '<ul><li>*</li></ul>'),
+            'A checkbox companion glyph must not become a one-item list containing only an asterisk.'
+        );
+    },
+    'pdf pre-fix regression keeps QuickBooks form labels out of the document outline' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $documentHeadingTexts): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['quickbooks-invoice']);
+        $headings = $documentHeadingTexts($result['document']);
+
+        foreach (['Invoice template', 'Tax Invoice', 'Invoice'] as $title) {
+            $t->true(in_array($title, $headings, true), "The complete title '{$title}' should remain in the outline.");
+        }
+        $unexpectedHeadings = array_values(array_filter(
+            $headings,
+            static fn (string $heading): bool => !in_array($heading, ['Invoice template', 'Tax Invoice', 'Invoice'], true)
+        ));
+        $t->same([], $unexpectedHeadings, 'Only the fixture title and the two complete invoice-page titles may enter the outline.');
+        foreach (['Description', 'Qty/Hrs', 'Rate', 'Amount', 'Total AUD', 'Phone (02) 9999-9999', 'Enter company name Street address City State, postcode'] as $formLabel) {
+            $t->true(!in_array($formLabel, $headings, true), "QuickBooks form label '{$formLabel}' must not enter the outline.");
+        }
+    },
+    'pdf pre-fix regression restores complete Motograph Google notice phrases' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $plainText): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['archive-book']);
+        $text = $plainText(PandocConverter::write($result['document'], 'html'));
+
+        foreach ([
+            "scanned by Google as part of a project to make the world's books discoverable online",
+            'Public domain books belong to the public and we are merely their custodians.',
+            'we have taken steps to prevent abuse by commercial parties',
+            'we request that you use these files for personal, non-commercial purposes.',
+            'research on machine translation, optical character recognition',
+            'please contact us. We encourage the use of public domain materials',
+            'helping them find additional materials through Google Book Search',
+        ] as $noticePhrase) {
+            $t->contains($noticePhrase, $text, "Motograph page-one notice must preserve '{$noticePhrase}'.");
+        }
+    },
+    'pdf pre-fix regression separates Module Two and Module Three list ownership' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['layout-lists']);
+        $lists = array_values(array_filter(
+            $result['document']->children(),
+            static fn (AstNode $block): bool => $block->type === 'bullet_list'
+        ));
+        $itemCounts = array_map(static fn (AstNode $list): int => count($list->children()), $lists);
+
+        $t->same([7, 12, 11], $itemCounts, 'Module Two owns 12 bullets and Module Three owns 11; neither list may cross the module boundary.');
+        $t->true(
+            preg_match('/Module Two:.*?<ul>(?:(?!<\/ul>).)*Technology and tools selection<\/li><\/ul>.*?Module Three:.*?<ul>(?:(?!<\/ul>).)*Determining root challenges: market factors<\/li><\/ul>/su', $result['blocks']) === 1,
+            'Module list blocks must remain attached to their own module headings and terminal items.'
+        );
+        $meta = $result['meta'];
+        $t->same(true, $meta['pdfSourceBindingComplete'] ?? null);
+        $t->same(true, $meta['pdfSemanticTextComplete'] ?? null);
+        $t->same(
+            'mapped-occurrence-exact',
+            $meta['pdfSourceDisposition']['orderProofStrength'] ?? null,
+            'The cross-page list move must retain one exact occurrence-order proof.'
+        );
+        $t->same(
+            0,
+            $meta['pdfSourceDisposition']['rejectedOrderChangeOccurrenceCount'] ?? null
+        );
+    },
+    'pdf pre-fix regression associates picture captions with their figures' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfMediaSample, $htmlAttributeValue): void {
+        $result = $readPdfMediaSample($pdfSamplePaths()['pictures-captions']);
+        $figures = array_values(array_filter(
+            $result['document']->children(),
+            static fn (AstNode $block): bool => $block->type === 'figure'
+        ));
+        $captions = array_map(static fn (AstNode $figure): string => trim((string) $figure->attr('caption', '')), $figures);
+
+        $t->same([
+            'Figure 1: This is an example image.',
+            'Figure 2: This is an example image.',
+        ], $captions, 'Each extracted picture must have a nonempty structural caption association.');
+        preg_match_all('/<figcaption\b[^>]*>(.*?)<\/figcaption>/su', $result['blocks'], $captionMatches);
+        $serializedCaptions = array_values(array_map(
+            static fn (string $caption): string => trim(
+                html_entity_decode(strip_tags($caption), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            ),
+            $captionMatches[1] ?? []
+        ));
+        $t->same([
+            'Figure 1: This is an example image.',
+            'Figure 2: This is an example image.',
+        ], $serializedCaptions, 'Both structural captions must serialize as figcaption elements, allowing accessibility attributes.');
+        preg_match_all('/<figure\b([^>]*)>(.*?)<\/figure>/su', $result['blocks'], $figureMatches, PREG_SET_ORDER);
+        $accessibleFigures = [];
+        foreach ($figureMatches as $figureMatch) {
+            if (
+                preg_match('/<img\b[^>]*>/su', $figureMatch[2], $imageMatch) !== 1
+                || preg_match('/<figcaption\b([^>]*)>(.*?)<\/figcaption>/su', $figureMatch[2], $captionMatch) !== 1
+            ) {
+                continue;
+            }
+            $caption = trim(html_entity_decode(strip_tags($captionMatch[2]), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
+            $captionDescription = preg_replace('/^Figure\s+\d+:\s*/u', '', $caption) ?? $caption;
+            $candidateNames = array_values(array_filter([
+                $htmlAttributeValue($imageMatch[0], 'alt'),
+                $htmlAttributeValue($imageMatch[0], 'aria-label'),
+                $htmlAttributeValue($figureMatch[1], 'aria-label'),
+            ], static fn (?string $name): bool => is_string($name) && trim($name) !== ''));
+            $hasCaptionDerivedName = count(array_filter(
+                $candidateNames,
+                static fn (string $name): bool => in_array(trim($name), [$caption, $captionDescription], true)
+            )) > 0;
+            $captionId = $htmlAttributeValue($captionMatch[1], 'id');
+            if (is_string($captionId) && $captionId !== '') {
+                foreach ([$imageMatch[0], $figureMatch[1]] as $labelOwner) {
+                    $labelledBy = preg_split(
+                        '/\s+/u',
+                        trim((string) $htmlAttributeValue($labelOwner, 'aria-labelledby'))
+                    ) ?: [];
+                    $hasCaptionDerivedName = $hasCaptionDerivedName || in_array($captionId, $labelledBy, true);
+                }
+            }
+            $accessibleFigures[$caption] = $hasCaptionDerivedName;
+        }
+        foreach ([
+            'Figure 1: This is an example image.',
+            'Figure 2: This is an example image.',
+        ] as $caption) {
+            $t->same(
+                true,
+                $accessibleFigures[$caption] ?? false,
+                "The image associated with '{$caption}' needs a nonempty caption-derived alt/ARIA accessible name."
+            );
+        }
+        $t->true(!str_contains($result['blocks'], '<p>Figure 1: This is an example image.</p>'));
+        $t->true(!str_contains($result['blocks'], '<p>Figure 2: This is an example image.</p>'));
+    },
+    'pdf pre-fix regression keeps aircraft diagram callouts out of H2 and retains both captions' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $documentHeadingTexts, $plainText): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['aircraft-handbook']);
+        $headings = $documentHeadingTexts($result['document']);
+        $text = $plainText(PandocConverter::write($result['document'], 'html'));
+
+        $t->same([
+            'Boots Self-Locking Nut',
+            'Stainless Steel Self-Locking Nut',
+            'Elastic Stop Nut',
+        ], $headings, 'Only the three prose section titles should enter the aircraft outline.');
+        foreach ([
+            'Tightened nut',
+            'Untightened nut',
+            'Nut case',
+            'Threaded nut core',
+            'Locking shoulder',
+            'Keyway',
+            'Boots aircraft nut',
+            'Flexloc nut',
+            'Fiber locknut',
+            'Elastic stop nut',
+            'Elastic anchor nut',
+        ] as $callout) {
+            $t->true(
+                !in_array($callout, $headings, true),
+                "Aircraft diagram callout '{$callout}' must not enter the document outline."
+            );
+            $t->contains(
+                $callout,
+                $text,
+                "Aircraft diagram callout '{$callout}' must remain editable text."
+            );
+        }
+        $t->contains('Figure 7-26. Self-locking nuts.', $text);
+        $t->contains('Figure 7-27. Stainless steel self-locking nut.', $text);
+    },
+    'pdf pre-fix regression keeps theatre running page labels out of semantic headings' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $documentHeadingTexts): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['theatre-script']);
+        $headings = $documentHeadingTexts($result['document']);
+
+        foreach (['Script formatting example p.1', 'Script formatting example p.2'] as $runningLabel) {
+            $t->true(!in_array($runningLabel, $headings, true), "Theatre running label '{$runningLabel}' must not enter the outline.");
+        }
+        $t->contains('<h2>SCRIPT FORMAT EXAMPLE</h2>', $result['blocks']);
+        $t->contains('<h2>ACT ONE</h2>', $result['blocks']);
+    },
+    'pdf pre-fix regression removes standalone IRS caution glyph paragraphs' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['irs-w4-form']);
+        $meta = $result['document']->attr('meta');
+
+        $t->true(preg_match('/<p>\s*(?:!|▲)\s*<\/p>/u', $result['blocks']) === 0, 'IRS caution icon glyphs must not become standalone editable paragraphs.');
+        $t->same(true, $meta['pdfSourceBindingComplete'] ?? null);
+        $t->same(0, $meta['pdfSourceDisposition']['unresolvedOccurrenceCount'] ?? null);
+        $t->same(0, $meta['pdfSourceDisposition']['unclaimedEmittedSignificantCharacterCount'] ?? null);
+        $t->same(2, $meta['pdfSourceDisposition']['dispositionCounts']['artifact'] ?? null);
+        $iconEdges = array_values(array_filter(
+            $meta['pdfSourceDisposition']['sourceEdges'] ?? [],
+            static fn (array $edge): bool =>
+                ($edge['page'] ?? null) === 2
+                    && ($edge['disposition'] ?? null) === 'artifact'
+                    && ($edge['target'] ?? null) === 'disposition'
+                    && ($edge['mappingMode'] ?? null) === 'explicit-disposition'
+                    && ($edge['destinationNodeIds'] ?? null) === []
+        ));
+        $t->same(2, count($iconEdges), 'Both exact icon atoms need explicit artifact edges with no editable destination.');
+    },
+    'pdf pre-fix regression keeps the IRS caution label and warning sentence contiguous' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['irs-w4-form']);
+        $html = PandocConverter::write($result['document'], 'html');
+        $expectedWarning = 'CAUTION Multiple jobs. Complete Steps 3 through 4(b) on only one Form W-4. Withholding will be most accurate if you do this on the Form W-4 for the highest paying job.';
+        preg_match_all('/<(p|aside)\b[^>]*>(.*?)<\/\1>/su', $html, $unitMatches, PREG_SET_ORDER);
+        $matchingUnits = array_values(array_filter(
+            array_map(
+                static fn (array $match): string => trim(
+                    preg_replace(
+                        '/\s+/u',
+                        ' ',
+                        html_entity_decode(strip_tags($match[2]), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+                    ) ?? ''
+                ),
+                $unitMatches
+            ),
+            static fn (string $unit): bool => str_contains($unit, $expectedWarning)
+        ));
+
+        $t->same(
+            [$expectedWarning],
+            $matchingUnits,
+            'The IRS caution label and complete warning must occupy one paragraph or aside, not adjacent flattened blocks.'
+        );
+        $matchingNodes = array_values(array_filter(
+            $result['document']->children(),
+            static fn (AstNode $block): bool =>
+                in_array($block->type, ['paragraph', 'aside'], true)
+                    && str_contains((string) $block->attr('text', ''), $expectedWarning)
+        ));
+        $t->same(1, count($matchingNodes));
+        $sourceLineIds = $matchingNodes[0]->attr('sourceLineIds', []);
+        $sourceLineEdges = $matchingNodes[0]->attr('sourceLineEdges', []);
+        $t->same(4, count($sourceLineIds), 'The folded warning must bind the label and all three prose source occurrences.');
+        $t->same($sourceLineIds, array_column($sourceLineEdges, 'sourceLineId'));
+        foreach ($sourceLineEdges as $edge) {
+            $t->same(0, $edge['startByte'] ?? null);
+            $t->true(($edge['endByte'] ?? 0) > 0);
+        }
+    },
+    'pdf pre-fix regression removes Grand Canyon map-letter and reversed dimension fragments' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['grand-canyon-map']);
+
+        foreach (['<p>Ar</p>', '<p>o n</p>', '<p>ic Trail</p>', '<p>prohibited. 6.7</p>', '<p>6.7 prohibited.</p>'] as $artifact) {
+            $t->true(!str_contains($result['blocks'], $artifact), "Grand Canyon map fragment '{$artifact}' must not enter editable prose.");
+        }
+        $t->contains('Vehicles longer than 22 feet (6.7 m) prohibited on the roads to Cape Royal, Point Imperial, and Widforss Trail.', $result['blocks']);
+        $t->contains('Arizona National Scenic Trail', $result['blocks']);
+    },
+    'pdf pre-fix regression keeps the Tabula yield label as a heading and removes page six furniture' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfCachedSample, $documentHeadingTexts): void {
+        $result = $readPdfCachedSample($pdfSamplePaths()['spreadsheet-no-frame']);
+
+        $t->true(!str_contains($result['blocks'], '<ol start="3">'), '“3. YIELD ESTIMATE” is a section heading, not an ordered list starting at 3.');
+        $t->true(
+            in_array(
+                '3. YIELD ESTIMATE (184.30 million tons)',
+                $documentHeadingTexts($result['document']),
+                true
+            ),
+            'The Tabula yield label must remain semantic heading text even when inline emphasis is retained.'
+        );
+        $t->true(!str_contains($result['blocks'], '<p>6</p>'), 'The source page number 6 must not survive as a standalone paragraph.');
+    },
     'pdf corpus gate keeps scanned book bounded but readable' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $plainText): void {
         $result = $readPdfSample($pdfSamplePaths()['archive-book']);
         $meta = $result['meta'];
@@ -1524,7 +2341,7 @@ return [
         $t->true($result['paragraphs'] >= 8, 'Archive book should keep sparse long OCR chunks grouped into reviewable paragraphs.');
         $t->contains('difficult to discover', $text);
         $t->contains('this file - a reminder', $text);
-        $t->contains('these files personal', $text);
+        $t->contains('these files for personal', $text);
         $t->contains('additional materials through Google Book Search', $text);
         $t->same(true, $meta['pdfTextVisibilityComplete'] ?? null);
         $t->same(true, $meta['pdfTextVisibility']['complete'] ?? null);

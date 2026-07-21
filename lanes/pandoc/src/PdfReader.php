@@ -15,6 +15,7 @@ final class PdfReader
     private const PDF_CODE_BLOCK_PREFIX = "\x1EPDF-CODE\x1F";
     private const PDF_MAP_LABEL_PREFIX = "\x1EPDF-MAP-LABEL\x1F";
     private const PDF_NUMBERED_HEADING_PREFIX = "\x1EPDF-NUMBERED-HEADING\x1F";
+    private const PDF_NUMBERED_SUBHEADING_PREFIX = "\x1EPDF-NUMBERED-SUBHEADING\x1F";
     private const PDF_DISPLAY_HEADING_PREFIX = "\x1EPDF-DISPLAY-HEADING\x1F";
     private const PDF_LAYOUT_LABEL_PREFIX = "\x1EPDF-LAYOUT-LABEL\x1F";
     private const PDF_FRONT_MATTER_PREFIX = "\x1EPDF-FRONT-MATTER\x1F";
@@ -68,8 +69,30 @@ final class PdfReader
     private array $sourceOrderProofDiagnostics = [];
     /** @var array<string,array<string,mixed>> */
     private array $removedPageNumberFurnitureProofsBySourceId = [];
+    /** @var array<string,array<string,mixed>> */
+    private array $deferredSinglePageNumberFurnitureProofsBySourceId = [];
+    /** @var array<string,array<string,mixed>> */
+    private array $sourcePdfOverprintedDuplicateArtifactProofsBySourceId = [];
+    /** @var array<string,array<string,mixed>|false> */
+    private array $sourcePdfChartCipherArtifactProofsBySourceId = [];
+    /** @var array<string,array<string,mixed>> */
+    private array $sourcePdfMapGlyphLadderArtifactProofsBySourceId = [];
+    /** @var array<string,true> */
+    private array $sourcePdfChartCipherArtifactProjectionDigests = [];
+    /** @var array<string,array<string,mixed>|false> */
+    private array $sourceOccurrenceIdentityByWholeProofDigest = [];
     /** @var array<int, true> */
     private array $layoutLabelSourceIndexes = [];
+    /** @var list<array<string,mixed>> */
+    private array $pdfInlineFontStyleProofCandidates = [];
+    /** @var list<array<string,mixed>> */
+    private array $pdfCrossPageListContinuationOrderProofCandidates = [];
+    /** @var list<array<string,mixed>> */
+    private array $pdfSemanticEmailDelimiterRepairProofCandidates = [];
+    /** @var list<array<string,mixed>> */
+    private array $positionedPdfTableBandHomologyTemplates = [];
+    /** @var list<array<string,mixed>> */
+    private array $positionedPdfDisplayTokenRepairProofs = [];
     private string $sourceSha256 = '';
 
     /**
@@ -108,7 +131,18 @@ final class PdfReader
         $this->semanticPipelineTrace = [];
         $this->sourceOrderProofDiagnostics = [];
         $this->removedPageNumberFurnitureProofsBySourceId = [];
+        $this->deferredSinglePageNumberFurnitureProofsBySourceId = [];
+        $this->sourcePdfOverprintedDuplicateArtifactProofsBySourceId = [];
+        $this->sourcePdfChartCipherArtifactProofsBySourceId = [];
+        $this->sourcePdfMapGlyphLadderArtifactProofsBySourceId = [];
+        $this->sourcePdfChartCipherArtifactProjectionDigests = [];
+        $this->sourceOccurrenceIdentityByWholeProofDigest = [];
         $this->layoutLabelSourceIndexes = [];
+        $this->pdfInlineFontStyleProofCandidates = [];
+        $this->pdfCrossPageListContinuationOrderProofCandidates = [];
+        $this->pdfSemanticEmailDelimiterRepairProofCandidates = [];
+        $this->positionedPdfTableBandHomologyTemplates = [];
+        $this->positionedPdfDisplayTokenRepairProofs = [];
 
         if (!class_exists(PdfTextExtractor::class)) {
             throw new \RuntimeException('PDF reading needs PortLibs\\MarkerPDF\\PdfTextExtractor.');
@@ -229,10 +263,47 @@ final class PdfReader
             $limitedTextLineItems,
             $limitedPositionedRuns
         );
+        $this->markSourcePdfOverprintedDuplicateArtifacts($limitedTextLineItems);
+        $this->markSourcePdfChartCipherArtifacts($limitedTextLineItems);
+        $this->markSourcePdfFacingFolioAndChoiceMatrixRepairs(
+            $limitedTextLineItems,
+            $limitedPositionedRuns
+        );
+        $this->markSourcePdfCrossLaneDuplicateDisplayArtifacts(
+            $limitedTextLineItems,
+            $limitedPositionedRuns
+        );
         $this->markSourcePdfInlineStandaloneMarkerOccurrences($limitedTextLineItems);
         $this->markSourcePdfLayoutLabelOccurrences(
             $limitedTextLineItems
         );
+        $nestedCalloutIconSourceIndexes = [];
+        foreach ($this->sourcePdfExactNestedCautionCalloutProofs(
+            $limitedTextLineItems
+        ) as $proof) {
+            foreach ($proof['iconAtoms'] as $atom) {
+                $nestedCalloutIconSourceIndexes[(int) $atom['sourceGlobalIndex']] = true;
+            }
+        }
+        if ($nestedCalloutIconSourceIndexes !== []) {
+            $limitedPositionedRuns = array_values(array_filter(
+                $limitedPositionedRuns,
+                function (array $run) use ($nestedCalloutIconSourceIndexes): bool {
+                    $ranges = $this->pdfPositionedExactSourceRanges($run);
+                    if ($ranges === []) {
+                        return true;
+                    }
+                    foreach ($ranges as $range) {
+                        if (!isset($nestedCalloutIconSourceIndexes[(int) $range['sourceIndex']])) {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                }
+            ));
+        }
+        unset($nestedCalloutIconSourceIndexes);
         $duplicateTerminalPeriodEvidence =
             $this->pdfDuplicateStandaloneTerminalPeriodEvidence($limitedTextLineItems);
         if ($duplicateTerminalPeriodEvidence !== []) {
@@ -550,6 +621,10 @@ final class PdfReader
                 $fallbackLayouts,
                 $limitedTextLineItems
             );
+            $fallbackLayouts = $this->pdfSourceLayoutsWithResolvedInlineFontStyleProofs(
+                $fallbackLayouts,
+                $limitedTextLineItems
+            );
             $fallbackFormOrder = $this->pdfRepairSourceInProvenFormRowBundleOrder(
                 $fallbackLines,
                 $fallbackLayouts,
@@ -558,16 +633,29 @@ final class PdfReader
             $fallbackLines = $fallbackFormOrder['lines'];
             $fallbackLayouts = $fallbackFormOrder['layouts'];
             unset($fallbackFormOrder);
+            $textFallbackPageProjections = null;
+            $textFallbackLineSpans = [];
             $textFallbackLines = $proseRepairEnabled
                 ? $this->repairProseTextLines(
                     $fallbackLines,
                     $this->looksLikeProseRepairCandidate($fallbackLines),
-                    $fallbackLayouts
+                    $fallbackLayouts,
+                    $textFallbackPageProjections,
+                    $textFallbackLineSpans
                 )
                 : $limitedLines;
-            $textTableBlocks = $this->blocksFromLines($textFallbackLines);
+            $textTableBlocks = $this->blocksFromLines(
+                $textFallbackLines,
+                true,
+                $textFallbackLineSpans
+            );
             if ($this->countNodesOfType($textTableBlocks, 'table') === 0 || $this->blocksHaveSuspiciousPdfTableText($textTableBlocks)) {
-                $textTableBlocks = $this->blocksFromCurrencyRecordLines($limitedLines);
+                $textTableBlocks = $this->blocksFromCurrencyRecordLines(
+                    $this->sourcePdfPresentationLinesWithoutProvenChartCipherArtifacts(
+                        $limitedLines,
+                        $limitedTextLineItems
+                    )
+                );
             }
             if ($this->countNodesOfType($textTableBlocks, 'table') > 0 && !$this->blocksHaveSuspiciousPdfTableText($textTableBlocks)) {
                 $geometryTableBlocks = $textTableBlocks;
@@ -684,6 +772,20 @@ final class PdfReader
             $repairSourceLayouts,
             $limitedTextLineItems
         );
+        $nestedCalloutOrder = $this->pdfRepairSourceInProvenNestedCautionCalloutOrder(
+            array_map(
+                static fn (array $layout): string => (string) ($layout['text'] ?? ''),
+                $candidateProofSourceLayouts
+            ),
+            $candidateProofSourceLayouts,
+            $limitedTextLineItems
+        );
+        $candidateProofSourceLayouts = $nestedCalloutOrder['layouts'];
+        $geometryOrderPages = array_values(array_unique(array_merge(
+            $geometryOrderPages,
+            $nestedCalloutOrder['geometryPageNumbers']
+        )));
+        unset($nestedCalloutOrder);
         $candidateProofSourceLayouts = $this->pdfSourceLayoutsWithWholeExactOccurrenceProofs(
             $candidateProofSourceLayouts,
             $limitedTextLineItems
@@ -695,6 +797,24 @@ final class PdfReader
         $candidateProofSourceLayouts = $this->pdfSourceLayoutsWithClippedDisplayArtifactEvidence(
             $candidateProofSourceLayouts,
             $limitedTextLineItems
+        );
+        $candidateProofSourceLayouts = $this->pdfSourceLayoutsWithCrossLaneDisplayArtifactProjections(
+            $candidateProofSourceLayouts,
+            $limitedTextLineItems
+        );
+        $candidateProofSourceLayouts =
+            $this->pdfSourceLayoutsWithFacingFolioAndChoiceMatrixProjections(
+                $candidateProofSourceLayouts,
+                $limitedTextLineItems
+            );
+        $candidateProofSourceLayouts =
+            $this->pdfSourceLayoutsWithResolvedInlineFontStyleProofs(
+                $candidateProofSourceLayouts,
+                $limitedTextLineItems
+            );
+        $repairSourceLines = array_map(
+            static fn (array $layout): string => (string) ($layout['text'] ?? ''),
+            $candidateProofSourceLayouts
         );
         $formOrderedRepairSource = $this->pdfRepairSourceInProvenFormRowBundleOrder(
             $repairSourceLines,
@@ -710,12 +830,14 @@ final class PdfReader
         unset($formOrderedRepairSource);
         $repairSourceLayouts = $candidateProofSourceLayouts;
         $repairedOutputPageProjections = null;
+        $repairedLineSpans = [];
         $repairedLines = $proseRepairPathSelected
             ? $this->repairProseTextLines(
                 $repairSourceLines,
                 $this->looksLikeProseRepairCandidate($repairSourceLines),
                 $repairSourceLayouts,
-                $repairedOutputPageProjections
+                $repairedOutputPageProjections,
+                $repairedLineSpans
             )
             : $limitedLines;
         if ($repairSource !== 'positioned' && $positionedCodeBlocks !== []) {
@@ -723,6 +845,7 @@ final class PdfReader
             // Remaining code blocks are inserted after the provenance-aware
             // repair pass and cannot yet be assigned to an exact page span.
             $repairedOutputPageProjections = null;
+            $repairedLineSpans = [];
         }
         // Source ordering, code matching, and semantic repair have released
         // their large private indexes. Return those allocator caches before
@@ -814,7 +937,11 @@ final class PdfReader
                 // protects code listings and resolves source/geometry joins.
                 // Prefer that final stream whenever it preserves the same
                 // table coverage.
-                $repairedBlocks = $this->blocksFromLines($repairedLines);
+                $repairedBlocks = $this->blocksFromLines(
+                    $repairedLines,
+                    true,
+                    $repairedLineSpans
+                );
                 if ($this->countNodesOfType($repairedBlocks, 'table')
                     >= $this->countNodesOfType($geometryTableBlocks, 'table')) {
                     $blocks = $repairedBlocks;
@@ -841,7 +968,11 @@ final class PdfReader
                     $composedOutputPageProjections
                 );
             } else {
-                $blocks = $this->blocksFromLines($repairedLines);
+                $blocks = $this->blocksFromLines(
+                    $repairedLines,
+                    true,
+                    $repairedLineSpans
+                );
                 $composedOutputPageProjections = $repairedOutputPageProjections;
             }
         }
@@ -881,6 +1012,52 @@ final class PdfReader
                     ? 'tagged-mapping-fallback'
                     : ($pdfTaggedRegionArbitrationComplete ? 'hybrid' : 'hybrid-with-fallback')));
         unset($taggedRegionArbitration);
+        $crossLaneDisplayRemoval = $this->pdfBlocksWithoutProvenCrossLaneDuplicateDisplays(
+            $blocks,
+            $limitedTextLineItems,
+            is_array($composedOutputPageProjections)
+                ? $composedOutputPageProjections
+                : []
+        );
+        $blocks = $crossLaneDisplayRemoval['blocks'];
+        if ($crossLaneDisplayRemoval['removedCount'] > 0) {
+            if (!is_array($composedOutputPageProjections)
+                || !$crossLaneDisplayRemoval['pageProjectionProofPreserved']) {
+                $composedOutputPageProjections = null;
+            } else {
+                foreach ($crossLaneDisplayRemoval['pageProjectionReplacements'] as $page => $projection) {
+                    if (!array_key_exists($page, $composedOutputPageProjections)) {
+                        $composedOutputPageProjections = null;
+                        break;
+                    }
+                    $composedOutputPageProjections[$page] = $projection;
+                }
+            }
+        }
+        unset($crossLaneDisplayRemoval);
+        $mirroredMapPairRemoval = $this->pdfBlocksWithoutProvenMirroredDuplicateMapPairs(
+            $blocks,
+            $limitedTextLineItems
+        );
+        $blocks = $mirroredMapPairRemoval['blocks'];
+        if ($mirroredMapPairRemoval['removedCount'] > 0) {
+            $composedOutputPageProjections = null;
+        }
+        unset($mirroredMapPairRemoval);
+        $singlePageFolioRemoval = $this->pdfBlocksWithoutProvenSinglePageNumberParagraphs(
+            $blocks
+        );
+        $blocks = $singlePageFolioRemoval['blocks'];
+        if ($singlePageFolioRemoval['removedCount'] > 0) {
+            $composedOutputPageProjections = null;
+        }
+        unset($singlePageFolioRemoval);
+        foreach ($this->deferredSinglePageNumberFurnitureProofsBySourceId as $sourceId => $proof) {
+            if (!isset($this->removedPageNumberFurnitureProofsBySourceId[$sourceId])) {
+                $this->removedPageNumberFurnitureProofsBySourceId[$sourceId] = $proof;
+            }
+        }
+        $this->deferredSinglePageNumberFurnitureProofsBySourceId = [];
         $pageAnchorResult = $this->blocksWithInternalPdfPageAnchors(
             $blocks,
             $linkAnnotations,
@@ -899,6 +1076,15 @@ final class PdfReader
                 || isset($pageAnchors[(string) ($annotation['uri'] ?? '')])
         ));
         $blocks = $appliedLinkAnnotations === [] ? $blocks : $this->applyLinkAnnotationsToBlocks($blocks, $appliedLinkAnnotations);
+        $this->pdfInlineFontStyleProofCandidates =
+            $this->pdfInlineFontStyleProofCandidatesWithSourceIdentity(
+                $this->pdfInlineFontStyleProofCandidates,
+                $limitedTextLineItems
+            );
+        $blocks = $this->blocksWithPdfInlineFontStyles(
+            $blocks,
+            $this->pdfInlineFontStyleProofCandidates
+        );
         $blocks = (new PdfLanguageDirectionDecorator())->decorate($blocks);
         $pdfPageAnchors = array_keys($pageAnchors);
         $hasGeometryTableBlocks = $geometryTableBlocks !== [];
@@ -3869,6 +4055,42 @@ final class PdfReader
         }
 
         $candidatesByKey = [];
+        $runEvidencePart = static function (
+            array $run,
+            int $runIndex,
+            int $start,
+            int $end
+        ): string {
+            $evidence = [
+                'runIndex' => $runIndex,
+                'start' => $start,
+                'end' => $end,
+                'textDigest' => hash('sha256', (string) ($run['text'] ?? '')),
+                'x1' => (float) ($run['x1'] ?? 0.0),
+                'y1' => (float) ($run['y1'] ?? 0.0),
+                'x2' => (float) ($run['x2'] ?? 0.0),
+                'y2' => (float) ($run['y2'] ?? 0.0),
+                'fontResource' => is_string($run['fontResource'] ?? null)
+                    ? $run['fontResource']
+                    : null,
+                'baseFont' => is_string($run['baseFont'] ?? null)
+                    ? $run['baseFont']
+                    : null,
+                'fontSubtype' => is_string($run['fontSubtype'] ?? null)
+                    ? $run['fontSubtype']
+                    : null,
+                'textOrigin' => is_string($run['textOrigin'] ?? null)
+                    ? $run['textOrigin']
+                    : null,
+            ];
+
+            return json_encode(
+                $evidence,
+                JSON_UNESCAPED_SLASHES
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: serialize($evidence);
+        };
         $current = null;
         $flush = function () use (&$current, &$candidatesByKey): void {
             if (!is_array($current) || ($current['comparable'] ?? '') === '') {
@@ -3879,12 +4101,23 @@ final class PdfReader
             $matchKey = (int) $current['page'] . "\0"
                 . (int) $current['stream'] . "\0"
                 . hash('sha256', (string) $current['comparable']);
-            unset($current['comparable'], $current['baseline'], $current['fontSize']);
+            $current['projection'] = $current['comparable'];
+            $current['projectionDigest'] = hash('sha256', $current['comparable']);
+            $current['runEvidenceDigest'] = hash(
+                'sha256',
+                implode("\0", $current['runEvidenceParts'] ?? [])
+            );
+            unset(
+                $current['comparable'],
+                $current['baseline'],
+                $current['fontSize'],
+                $current['runEvidenceParts']
+            );
             $candidatesByKey[$matchKey][] = $current;
             $current = null;
         };
 
-        foreach ($positionedRuns as $run) {
+        foreach ($positionedRuns as $runIndex => $run) {
             if (!is_array($run)
                 || !is_string($run['text'] ?? null)
                 || trim($run['text']) === ''
@@ -3913,6 +4146,7 @@ final class PdfReader
 
             $runComparable = $this->pdfSourceOccurrenceComparableText((string) $run['text']);
             if (!is_array($current)) {
+                $runEnd = strlen($runComparable);
                 $current = [
                     'page' => $page,
                     'stream' => $stream,
@@ -3924,6 +4158,10 @@ final class PdfReader
                     'comparable' => $runComparable,
                     'baseline' => $baseline,
                     'fontSize' => $fontSize,
+                    'spans' => [$runIndex, 0, $runEnd],
+                    'runEvidenceParts' => [
+                        $runEvidencePart($run, $runIndex, 0, $runEnd),
+                    ],
                 ];
                 continue;
             }
@@ -3936,7 +4174,18 @@ final class PdfReader
             if (($current['orientation'] ?? '') !== $orientation) {
                 $current['orientation'] = '';
             }
+            $runStart = strlen((string) $current['comparable']);
             $current['comparable'] .= $runComparable;
+            $runEnd = strlen((string) $current['comparable']);
+            $current['spans'][] = $runIndex;
+            $current['spans'][] = $runStart;
+            $current['spans'][] = $runEnd;
+            $current['runEvidenceParts'][] = $runEvidencePart(
+                $run,
+                $runIndex,
+                $runStart,
+                $runEnd
+            );
             $current['baseline'] = $baseline;
             $current['fontSize'] = max((float) $current['fontSize'], $fontSize);
         }
@@ -3946,7 +4195,8 @@ final class PdfReader
             return;
         }
 
-        foreach ($lineItems as &$item) {
+        $sourceIndexesByMatchKey = [];
+        foreach ($lineItems as $sourceIndex => $item) {
             if (is_array($item['sourceGeometry'] ?? null)) {
                 continue;
             }
@@ -3958,26 +4208,1132 @@ final class PdfReader
             $matchKey = max(1, (int) ($item['page'] ?? 1)) . "\0"
                 . max(1, (int) ($item['stream'] ?? 1)) . "\0"
                 . hash('sha256', $comparable);
-            $candidateKey = isset($candidatesByKey[$matchKey])
-                ? array_key_first($candidatesByKey[$matchKey])
-                : null;
-            $candidate = $candidateKey === null
-                ? null
-                : ($candidatesByKey[$matchKey][$candidateKey] ?? null);
-            if (!is_array($candidate)) {
+            $sourceIndexesByMatchKey[$matchKey][] = $sourceIndex;
+        }
+
+        foreach ($sourceIndexesByMatchKey as $matchKey => $sourceIndexes) {
+            $candidates = $candidatesByKey[$matchKey] ?? null;
+            // Repeated spellings are safe only when the complete local
+            // occurrence multiplicity agrees. A missing or extra painted row
+            // leaves every peer unsigned instead of shifting later ranges.
+            if (!is_array($candidates) || count($candidates) !== count($sourceIndexes)) {
                 continue;
             }
-            // Consume the candidate in occurrence order. This avoids a
-            // second full hash keyed by every distinct source-line spelling
-            // and releases each temporary geometry record as soon as the
-            // durable line item owns it.
-            unset($candidatesByKey[$matchKey][$candidateKey]);
-            if ($candidatesByKey[$matchKey] === []) {
-                unset($candidatesByKey[$matchKey]);
+            foreach ($sourceIndexes as $occurrence => $sourceIndex) {
+                $candidate = $candidates[$occurrence] ?? null;
+                if (!is_array($candidate) || !isset($lineItems[$sourceIndex])) {
+                    continue;
+                }
+                $item = &$lineItems[$sourceIndex];
+                $projection = $this->pdfSourceOccurrenceComparableText(
+                    (string) ($item['text'] ?? '')
+                );
+                $candidateProjection = is_string($candidate['projection'] ?? null)
+                    ? $candidate['projection']
+                    : '';
+                $spans = is_array($candidate['spans'] ?? null)
+                    ? $candidate['spans']
+                    : [];
+                $bounds = [
+                    'page' => (int) ($candidate['page'] ?? 0),
+                    'stream' => (int) ($candidate['stream'] ?? 0),
+                    'x1' => (float) ($candidate['x1'] ?? 0.0),
+                    'y1' => (float) ($candidate['y1'] ?? 0.0),
+                    'x2' => (float) ($candidate['x2'] ?? 0.0),
+                    'y2' => (float) ($candidate['y2'] ?? 0.0),
+                    'orientation' => (string) ($candidate['orientation'] ?? ''),
+                ];
+                $item['sourceGeometry'] = $bounds;
+                if ($projection === ''
+                    || !hash_equals($projection, $candidateProjection)
+                    || !$this->pdfSourceBoundsAreValid($bounds)
+                    || $bounds['orientation'] !== 'horizontal'
+                    || count($spans) < 3
+                    || count($spans) % 3 !== 0) {
+                    unset($item);
+                    continue;
+                }
+                $expectedStart = 0;
+                $ranges = [];
+                for ($spanOffset = 0; $spanOffset < count($spans); $spanOffset += 3) {
+                    $runIndex = $spans[$spanOffset] ?? null;
+                    $sourceStart = $spans[$spanOffset + 1] ?? null;
+                    $sourceEnd = $spans[$spanOffset + 2] ?? null;
+                    if (!is_int($runIndex)
+                        || !is_int($sourceStart)
+                        || !is_int($sourceEnd)
+                        || $sourceStart !== $expectedStart
+                        || $sourceEnd <= $sourceStart
+                        || !isset($positionedRuns[$runIndex])) {
+                        $ranges = [];
+                        break;
+                    }
+                    $ranges[] = [$runIndex, $sourceStart, $sourceEnd];
+                    $expectedStart = $sourceEnd;
+                }
+                $sourceId = is_string($item['id'] ?? null) ? $item['id'] : '';
+                $globalSourceIndex = is_int($item['sourcePdfGlobalSourceIndex'] ?? null)
+                    ? $item['sourcePdfGlobalSourceIndex']
+                    : $sourceIndex;
+                if ($ranges === []
+                    || $expectedStart !== strlen($projection)
+                    || $this->sourceSha256 === ''
+                    || $sourceId === '') {
+                    unset($item);
+                    continue;
+                }
+                foreach ($ranges as [$runIndex, $sourceStart, $sourceEnd]) {
+                    $exactRange = [
+                        'sourceIndex' => $globalSourceIndex,
+                        'sourceStart' => $sourceStart,
+                        'sourceEnd' => $sourceEnd,
+                    ];
+                    $existing = $this->pdfPositionedExactSourceRanges(
+                        $positionedRuns[$runIndex]
+                    );
+                    if ($existing === []) {
+                        $positionedRuns[$runIndex]['sourcePdfExactSourceIndex'] =
+                            $globalSourceIndex;
+                        $positionedRuns[$runIndex]['sourcePdfExactSourceStart'] =
+                            $sourceStart;
+                        $positionedRuns[$runIndex]['sourcePdfExactSourceEnd'] =
+                            $sourceEnd;
+                    } else {
+                        $positionedRuns[$runIndex]['sourcePdfExactSourceRanges'] = [
+                            ...$existing,
+                            $exactRange,
+                        ];
+                        unset(
+                            $positionedRuns[$runIndex]['sourcePdfExactSourceIndex'],
+                            $positionedRuns[$runIndex]['sourcePdfExactSourceStart'],
+                            $positionedRuns[$runIndex]['sourcePdfExactSourceEnd']
+                        );
+                    }
+                }
+                $identity = [
+                    'version' => 1,
+                    'method' => 'exact-line-local-page-stream-character-offset',
+                    'sourceSha256' => $this->sourceSha256,
+                    'sourceOccurrenceId' => $sourceId,
+                    'globalSourceIndex' => $globalSourceIndex,
+                    'page' => $bounds['page'],
+                    'stream' => $bounds['stream'],
+                    'projectionDigest' => hash('sha256', $projection),
+                    'projectionLength' => strlen($projection),
+                    'sourceRange' => [0, strlen($projection)],
+                    'runCount' => count($ranges),
+                    'runEvidenceDigest' => (string) ($candidate['runEvidenceDigest'] ?? ''),
+                    'sourceBounds' => $this->pdfSourceEvidenceBounds($bounds),
+                ];
+                $encoded = json_encode(
+                    $identity,
+                    JSON_UNESCAPED_SLASHES
+                        | JSON_UNESCAPED_UNICODE
+                        | JSON_PRESERVE_ZERO_FRACTION
+                );
+                $item['sourceGeometryMethod'] = 'exact-page-stream-character-offset';
+                $item['sourcePdfLineLocalExactProof'] = $identity + [
+                    'proofDigest' => hash(
+                        'sha256',
+                        is_string($encoded) ? $encoded : serialize($identity)
+                    ),
+                ];
+                unset($item);
             }
-            $item['sourceGeometry'] = $candidate;
+        }
+    }
+
+    /**
+     * Repair two producer-level table/picture boundary conventions only after
+     * exact source ranges and painted font provenance agree. Neither rule is
+     * keyed to fixture text: the first recognizes consecutive facing folios
+     * painted at opposite spread edges, and the second recognizes a recurring
+     * ActualText/symbol prefix paired with aligned choice columns.
+     *
+     * @param list<array<string,mixed>> $lineItems
+     * @param list<array<string,mixed>> $positionedRuns
+     */
+    private function markSourcePdfFacingFolioAndChoiceMatrixRepairs(
+        array &$lineItems,
+        array $positionedRuns
+    ): void {
+        if ($lineItems === [] || $positionedRuns === [] || $this->sourceSha256 === '') {
+            return;
+        }
+
+        $runsBySourceIndex = [];
+        $pageBounds = [];
+        foreach ($positionedRuns as $runIndex => $run) {
+            if (!is_array($run) || !$this->pdfLayoutHasGeometry($run)) {
+                continue;
+            }
+            $page = max(1, (int) ($run['page'] ?? 1));
+            if ($this->pdfSourceProfileOrientation($run) === 'horizontal') {
+                if (!isset($pageBounds[$page])) {
+                    $pageBounds[$page] = [
+                        'x1' => (float) $run['x1'],
+                        'y1' => (float) $run['y1'],
+                        'x2' => (float) $run['x2'],
+                        'y2' => (float) $run['y2'],
+                    ];
+                } else {
+                    $pageBounds[$page]['x1'] = min($pageBounds[$page]['x1'], (float) $run['x1']);
+                    $pageBounds[$page]['y1'] = min($pageBounds[$page]['y1'], (float) $run['y1']);
+                    $pageBounds[$page]['x2'] = max($pageBounds[$page]['x2'], (float) $run['x2']);
+                    $pageBounds[$page]['y2'] = max($pageBounds[$page]['y2'], (float) $run['y2']);
+                }
+            }
+            foreach ($this->pdfPositionedExactSourceRanges($run) as $range) {
+                $runsBySourceIndex[$range['sourceIndex']][] = [
+                    'runIndex' => $runIndex,
+                    'sourceStart' => $range['sourceStart'],
+                    'sourceEnd' => $range['sourceEnd'],
+                    'run' => $run,
+                ];
+            }
+        }
+        foreach ($runsBySourceIndex as &$entries) {
+            usort(
+                $entries,
+                static fn (array $left, array $right): int =>
+                    ($left['sourceStart'] <=> $right['sourceStart'])
+                        ?: ($left['sourceEnd'] <=> $right['sourceEnd'])
+                        ?: ($left['runIndex'] <=> $right['runIndex'])
+            );
+        }
+        unset($entries);
+
+        foreach ($lineItems as $sourceIndex => &$item) {
+            $globalSourceIndex = is_int($item['sourcePdfGlobalSourceIndex'] ?? null)
+                ? $item['sourcePdfGlobalSourceIndex']
+                : $sourceIndex;
+            $proof = $this->sourcePdfFacingFolioBoundaryProof(
+                $item,
+                $globalSourceIndex,
+                $runsBySourceIndex[$globalSourceIndex] ?? [],
+                $pageBounds[(int) ($item['page'] ?? 0)] ?? null
+            );
+            if ($proof !== null) {
+                $item['sourcePdfFacingFolioBoundaryRepair'] = $proof;
+            }
         }
         unset($item);
+
+        $choiceRows = [];
+        for ($sourceIndex = 0, $count = count($lineItems) - 1; $sourceIndex < $count; $sourceIndex++) {
+            $label = $lineItems[$sourceIndex];
+            $marker = $lineItems[$sourceIndex + 1];
+            $labelGlobalIndex = is_int($label['sourcePdfGlobalSourceIndex'] ?? null)
+                ? $label['sourcePdfGlobalSourceIndex']
+                : $sourceIndex;
+            $markerGlobalIndex = is_int($marker['sourcePdfGlobalSourceIndex'] ?? null)
+                ? $marker['sourcePdfGlobalSourceIndex']
+                : $sourceIndex + 1;
+            $row = $this->sourcePdfChoiceMatrixRowCandidate(
+                $label,
+                $marker,
+                $sourceIndex,
+                $sourceIndex + 1,
+                $labelGlobalIndex,
+                $markerGlobalIndex,
+                $runsBySourceIndex[$labelGlobalIndex] ?? [],
+                $runsBySourceIndex[$markerGlobalIndex] ?? []
+            );
+            if ($row === null) {
+                continue;
+            }
+            $key = $row['page'] . "\0" . $row['stream'] . "\0"
+                . $row['prefixSymbolFontKey'] . "\0" . $row['markerFontKey'];
+            $choiceRows[$key][] = $row;
+        }
+
+        foreach ($choiceRows as $rows) {
+            $groupProof = $this->sourcePdfChoiceMatrixGroupProof(
+                $rows,
+                $positionedRuns,
+                $pageBounds[(int) ($rows[0]['page'] ?? 0)] ?? null
+            );
+            if ($groupProof === null) {
+                continue;
+            }
+            foreach ($rows as $row) {
+                $labelIndex = $row['labelSourceIndex'];
+                $markerIndex = $row['markerSourceIndex'];
+                if (!isset($lineItems[$labelIndex], $lineItems[$markerIndex])) {
+                    continue;
+                }
+                $lineItems[$labelIndex]['sourcePdfChoiceMatrixBoundaryRepair'] =
+                    $this->sourcePdfBoundaryProjectionReceipt(
+                        $lineItems[$labelIndex],
+                        $row['labelGlobalIndex'],
+                        'choice-matrix-label',
+                        $row['labelProjection'],
+                        $groupProof
+                    );
+                $lineItems[$markerIndex]['sourcePdfChoiceMatrixBoundaryRepair'] =
+                    $this->sourcePdfBoundaryProjectionReceipt(
+                        $lineItems[$markerIndex],
+                        $row['markerGlobalIndex'],
+                        'choice-matrix-marker-row',
+                        '',
+                        $groupProof
+                    );
+            }
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $item
+     * @param list<array{runIndex:int,sourceStart:int,sourceEnd:int,run:array<string,mixed>}> $entries
+     * @param array{x1:float,y1:float,x2:float,y2:float}|null $pageBounds
+     * @return array<string,mixed>|null
+     */
+    private function sourcePdfFacingFolioBoundaryProof(
+        array $item,
+        int $globalSourceIndex,
+        array $entries,
+        ?array $pageBounds
+    ): ?array {
+        $sourceId = is_string($item['id'] ?? null) ? $item['id'] : '';
+        $sourceText = is_string($item['text'] ?? null) ? $item['text'] : '';
+        $page = (int) ($item['page'] ?? 0);
+        $stream = (int) ($item['stream'] ?? 0);
+        if ($sourceId === ''
+            || $page < 1
+            || $stream < 1
+            || !$this->sourcePdfSourceItemHasExactGeometry($item)
+            || $pageBounds === null
+            || preg_match('/\A\s*(\d{1,4})\s+(\d{1,4})(?!\d)(.+)\z/us', $sourceText, $match) !== 1) {
+            return null;
+        }
+        $leftFolio = $match[1];
+        $rightFolio = $match[2];
+        $titleProjection = trim($match[3]);
+        $titleComparable = $this->pdfSourceOccurrenceComparableText($titleProjection);
+        $sourceComparable = $this->pdfSourceOccurrenceComparableText($sourceText);
+        $prefixEnd = strlen($leftFolio) + strlen($rightFolio);
+        if ($titleProjection === ''
+            || strlen($titleComparable) < 12
+            || preg_match_all('/\p{L}+/u', $titleProjection, $words) < 3
+            || !hash_equals($leftFolio . $rightFolio . $titleComparable, $sourceComparable)
+            || abs((int) $rightFolio - (int) $leftFolio) !== 1) {
+            return null;
+        }
+        $leftEntries = $this->sourcePdfExactRunEntriesCoverRange(
+            $entries,
+            0,
+            strlen($leftFolio)
+        );
+        $rightEntries = $this->sourcePdfExactRunEntriesCoverRange(
+            $entries,
+            strlen($leftFolio),
+            $prefixEnd
+        );
+        $titleEntries = $this->sourcePdfExactRunEntriesCoverRange(
+            $entries,
+            $prefixEnd,
+            strlen($sourceComparable)
+        );
+        if (count($leftEntries) !== 1
+            || count($rightEntries) !== 1
+            || $titleEntries === []) {
+            return null;
+        }
+        $leftRun = $leftEntries[0]['run'];
+        $rightRun = $rightEntries[0]['run'];
+        if (!hash_equals(
+            $leftFolio,
+            $this->pdfSourceOccurrenceComparableText((string) ($leftRun['text'] ?? ''))
+        ) || !hash_equals(
+            $rightFolio,
+            $this->pdfSourceOccurrenceComparableText((string) ($rightRun['text'] ?? ''))
+        )) {
+            return null;
+        }
+
+        $width = (float) $pageBounds['x2'] - (float) $pageBounds['x1'];
+        $height = (float) $pageBounds['y2'] - (float) $pageBounds['y1'];
+        $leftCenterX = ((float) $leftRun['x1'] + (float) $leftRun['x2']) / 2.0;
+        $rightCenterX = ((float) $rightRun['x1'] + (float) $rightRun['x2']) / 2.0;
+        $leftCenterY = ((float) $leftRun['y1'] + (float) $leftRun['y2']) / 2.0;
+        $rightCenterY = ((float) $rightRun['y1'] + (float) $rightRun['y2']) / 2.0;
+        $runHeight = max(
+            1.0,
+            (float) $leftRun['y2'] - (float) $leftRun['y1'],
+            (float) $rightRun['y2'] - (float) $rightRun['y1']
+        );
+        $fontKey = static fn (array $run): string => implode("\0", [
+            (string) ($run['fontResource'] ?? ''),
+            (string) ($run['baseFont'] ?? ''),
+            (string) ($run['fontSubtype'] ?? ''),
+        ]);
+        $sameBottomEdge = max($leftCenterY, $rightCenterY)
+            <= (float) $pageBounds['y1'] + ($height * 0.10);
+        $sameTopEdge = min($leftCenterY, $rightCenterY)
+            >= (float) $pageBounds['y2'] - ($height * 0.10);
+        if ($width <= 0.0
+            || $height <= 0.0
+            || $leftCenterX > (float) $pageBounds['x1'] + ($width * 0.10)
+            || $rightCenterX < (float) $pageBounds['x2'] - ($width * 0.10)
+            || $rightCenterX - $leftCenterX < $width * 0.75
+            || abs($leftCenterY - $rightCenterY) > max(0.75, $runHeight * 0.12)
+            || (!$sameBottomEdge && !$sameTopEdge)
+            || $fontKey($leftRun) === "\0\0"
+            || !hash_equals($fontKey($leftRun), $fontKey($rightRun))) {
+            return null;
+        }
+        $titleBounds = $this->sourcePdfRunEntryBounds($titleEntries);
+        if ($titleBounds === null
+            || (float) $titleBounds['x1'] <= (float) $leftRun['x2']
+            || (float) $titleBounds['x2'] >= (float) $rightRun['x1']) {
+            return null;
+        }
+
+        $identity = [
+            'version' => 1,
+            'method' => 'exact-line-local-facing-folio-title-projection',
+            'sourceSha256' => $this->sourceSha256,
+            'sourceOccurrenceId' => $sourceId,
+            'globalSourceIndex' => $globalSourceIndex,
+            'page' => $page,
+            'stream' => $stream,
+            'sourceProjectionDigest' => hash('sha256', $sourceComparable),
+            'textProjection' => $titleProjection,
+            'textProjectionDigest' => hash('sha256', $titleComparable),
+            'leftFolioRange' => [0, strlen($leftFolio)],
+            'rightFolioRange' => [strlen($leftFolio), $prefixEnd],
+            'titleRange' => [$prefixEnd, strlen($sourceComparable)],
+            'folioRelation' => 'consecutive-facing-values',
+            'edge' => $sameBottomEdge ? 'bottom' : 'top',
+            'pageBounds' => $pageBounds,
+            'leftRun' => $this->sourcePdfBoundaryRunEvidence($leftEntries[0]),
+            'rightRun' => $this->sourcePdfBoundaryRunEvidence($rightEntries[0]),
+            'titleRunDigest' => $this->sourcePdfBoundaryRunEntriesDigest($titleEntries),
+            'sourceBounds' => $this->pdfSourceEvidenceBounds($item['sourceGeometry']),
+        ];
+        $encoded = json_encode(
+            $identity,
+            JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+                | JSON_PRESERVE_ZERO_FRACTION
+        );
+
+        return $identity + [
+            'proofDigest' => hash(
+                'sha256',
+                is_string($encoded) ? $encoded : serialize($identity)
+            ),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $label
+     * @param array<string,mixed> $marker
+     * @param list<array{runIndex:int,sourceStart:int,sourceEnd:int,run:array<string,mixed>}> $labelEntries
+     * @param list<array{runIndex:int,sourceStart:int,sourceEnd:int,run:array<string,mixed>}> $markerEntries
+     * @return array<string,mixed>|null
+     */
+    private function sourcePdfChoiceMatrixRowCandidate(
+        array $label,
+        array $marker,
+        int $labelSourceIndex,
+        int $markerSourceIndex,
+        int $labelGlobalIndex,
+        int $markerGlobalIndex,
+        array $labelEntries,
+        array $markerEntries
+    ): ?array {
+        $labelId = is_string($label['id'] ?? null) ? $label['id'] : '';
+        $markerId = is_string($marker['id'] ?? null) ? $marker['id'] : '';
+        $page = (int) ($label['page'] ?? 0);
+        $stream = (int) ($label['stream'] ?? 0);
+        $labelComparable = $this->pdfSourceOccurrenceComparableText(
+            (string) ($label['text'] ?? '')
+        );
+        $markerComparable = $this->pdfSourceOccurrenceComparableText(
+            (string) ($marker['text'] ?? '')
+        );
+        if ($labelId === ''
+            || $markerId === ''
+            || $page < 1
+            || $stream < 1
+            || (int) ($marker['page'] ?? 0) !== $page
+            || (int) ($marker['stream'] ?? 0) !== $stream
+            || !$this->sourcePdfSourceItemHasExactGeometry($label)
+            || !$this->sourcePdfSourceItemHasExactGeometry($marker)
+            || strlen($labelComparable) < 4) {
+            return null;
+        }
+        $orderedLabelEntries = $this->sourcePdfExactRunEntriesCoverRange(
+            $labelEntries,
+            0,
+            strlen($labelComparable)
+        );
+        if (count($orderedLabelEntries) < 3) {
+            return null;
+        }
+        $first = $orderedLabelEntries[0];
+        $second = $orderedLabelEntries[1];
+        $firstText = $this->pdfSourceOccurrenceComparableText(
+            (string) ($first['run']['text'] ?? '')
+        );
+        $secondText = $this->pdfSourceOccurrenceComparableText(
+            (string) ($second['run']['text'] ?? '')
+        );
+        if ($first['sourceStart'] !== 0
+            || $first['sourceEnd'] !== $second['sourceStart']
+            || $firstText === ''
+            || !hash_equals($firstText, $secondText)
+            || preg_match('/\A\X\z/u', $firstText) !== 1
+            || preg_match('/\A\X\z/u', $secondText) !== 1
+            || ($first['run']['textOrigin'] ?? null) !== 'actual-text-replacement'
+            || ($first['run']['actualTextPaintedWhitespaceOnly'] ?? null) !== true
+            || ($second['run']['fontSymbolic'] ?? null) !== true) {
+            return null;
+        }
+        $labelStart = $second['sourceEnd'];
+        $labelProjection = $this->sourcePdfTextWithoutLeadingMarkers(
+            (string) ($label['text'] ?? ''),
+            [$firstText, $secondText]
+        );
+        $labelProjectionComparable = $this->pdfSourceOccurrenceComparableText($labelProjection);
+        if ($labelProjection === ''
+            || preg_match('/\p{L}/u', $labelProjection) !== 1
+            || !hash_equals(substr($labelComparable, $labelStart), $labelProjectionComparable)) {
+            return null;
+        }
+        $labelTextEntries = $this->sourcePdfExactRunEntriesCoverRange(
+            $orderedLabelEntries,
+            $labelStart,
+            strlen($labelComparable)
+        );
+        $labelTextRun = null;
+        foreach ($labelTextEntries as $entry) {
+            if (preg_match('/\p{L}/u', (string) ($entry['run']['text'] ?? '')) === 1
+                && ($entry['run']['fontSymbolic'] ?? false) !== true) {
+                $labelTextRun = $entry['run'];
+                break;
+            }
+        }
+        if ($labelTextRun === null) {
+            return null;
+        }
+
+        preg_match_all('/\X/u', $markerComparable, $markerGraphemes);
+        if (count($markerGraphemes[0] ?? []) !== 2) {
+            return null;
+        }
+        foreach ($markerGraphemes[0] as $grapheme) {
+            if (preg_match('/[\p{L}\p{N}\s]/u', $grapheme) === 1) {
+                return null;
+            }
+        }
+        $firstMarkerEnd = strlen($markerGraphemes[0][0]);
+        $orderedMarkerEntries = $this->sourcePdfExactRunEntriesCoverRange(
+            $markerEntries,
+            0,
+            strlen($markerComparable)
+        );
+        if (count($orderedMarkerEntries) !== 2
+            || $orderedMarkerEntries[0]['sourceStart'] !== 0
+            || $orderedMarkerEntries[0]['sourceEnd'] !== $firstMarkerEnd
+            || $orderedMarkerEntries[1]['sourceStart'] !== $firstMarkerEnd
+            || $orderedMarkerEntries[1]['sourceEnd'] !== strlen($markerComparable)) {
+            return null;
+        }
+        $markerRunA = $orderedMarkerEntries[0]['run'];
+        $markerRunB = $orderedMarkerEntries[1]['run'];
+        $markerFontKey = $this->sourcePdfPositionedFontKey($markerRunA);
+        $labelFontKey = $this->sourcePdfPositionedFontKey($labelTextRun);
+        $prefixSymbolFontKey = $this->sourcePdfPositionedFontKey($second['run']);
+        if ($markerFontKey === ''
+            || $labelFontKey === ''
+            || $prefixSymbolFontKey === ''
+            || !hash_equals($markerFontKey, $this->sourcePdfPositionedFontKey($markerRunB))
+            || hash_equals($markerFontKey, $labelFontKey)) {
+            return null;
+        }
+        $labelBaseline = $this->sourcePdfRunBaseline($labelTextRun);
+        $markerBaselineA = $this->sourcePdfRunBaseline($markerRunA);
+        $markerBaselineB = $this->sourcePdfRunBaseline($markerRunB);
+        $rowHeight = max(
+            1.0,
+            (float) $label['sourceGeometry']['y2'] - (float) $label['sourceGeometry']['y1'],
+            (float) $marker['sourceGeometry']['y2'] - (float) $marker['sourceGeometry']['y1']
+        );
+        $slotA = $this->sourcePdfRunCenterX($markerRunA);
+        $slotB = $this->sourcePdfRunCenterX($markerRunB);
+        if ($slotB - $slotA < $rowHeight * 2.0
+            || abs($markerBaselineA - $markerBaselineB) > max(0.75, $rowHeight * 0.12)
+            || abs($labelBaseline - $markerBaselineA) > max(1.0, $rowHeight * 0.22)
+            || $slotA <= (float) $label['sourceGeometry']['x2'] + $rowHeight) {
+            return null;
+        }
+
+        return [
+            'page' => $page,
+            'stream' => $stream,
+            'labelSourceIndex' => $labelSourceIndex,
+            'markerSourceIndex' => $markerSourceIndex,
+            'labelGlobalIndex' => $labelGlobalIndex,
+            'markerGlobalIndex' => $markerGlobalIndex,
+            'labelId' => $labelId,
+            'markerId' => $markerId,
+            'labelProjection' => $labelProjection,
+            'labelProjectionDigest' => hash('sha256', $labelProjectionComparable),
+            'labelSourceDigest' => hash('sha256', $labelComparable),
+            'markerSourceDigest' => hash('sha256', $markerComparable),
+            'labelBaseline' => $labelBaseline,
+            'markerBaseline' => ($markerBaselineA + $markerBaselineB) / 2.0,
+            'rowHeight' => $rowHeight,
+            'prefixCenter' => $this->sourcePdfRunCenterX($second['run']),
+            'labelStartX' => (float) ($labelTextRun['x1'] ?? 0.0),
+            'slotCenters' => [$slotA, $slotB],
+            'prefixSymbolFontKey' => $prefixSymbolFontKey,
+            'markerFontKey' => $markerFontKey,
+            'prefixRunEvidence' => [
+                $this->sourcePdfBoundaryRunEvidence($first),
+                $this->sourcePdfBoundaryRunEvidence($second),
+            ],
+            'markerRunEvidence' => [
+                $this->sourcePdfBoundaryRunEvidence($orderedMarkerEntries[0]),
+                $this->sourcePdfBoundaryRunEvidence($orderedMarkerEntries[1]),
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<array<string,mixed>> $positionedRuns
+     * @param array{x1:float,y1:float,x2:float,y2:float}|null $pageBounds
+     * @return array<string,mixed>|null
+     */
+    private function sourcePdfChoiceMatrixGroupProof(
+        array $rows,
+        array $positionedRuns,
+        ?array $pageBounds
+    ): ?array {
+        if (count($rows) < 3 || $pageBounds === null) {
+            return null;
+        }
+        usort(
+            $rows,
+            static fn (array $left, array $right): int =>
+                (float) $right['labelBaseline'] <=> (float) $left['labelBaseline']
+        );
+        $steps = [];
+        for ($index = 1; $index < count($rows); $index++) {
+            $step = (float) $rows[$index - 1]['labelBaseline']
+                - (float) $rows[$index]['labelBaseline'];
+            if ($step <= 0.0) {
+                return null;
+            }
+            $steps[] = $step;
+        }
+        $sortedSteps = $steps;
+        sort($sortedSteps, SORT_NUMERIC);
+        $cadence = $sortedSteps[intdiv(count($sortedSteps), 2)] ?? 0.0;
+        $rowHeight = array_sum(array_column($rows, 'rowHeight')) / count($rows);
+        $cadenceTolerance = max(1.0, $rowHeight * 0.28, $cadence * 0.15);
+        foreach ($steps as $step) {
+            if (abs($step - $cadence) > $cadenceTolerance) {
+                return null;
+            }
+        }
+        $prefixCenters = array_column($rows, 'prefixCenter');
+        $labelStarts = array_column($rows, 'labelStartX');
+        $slotA = array_map(static fn (array $row): float => $row['slotCenters'][0], $rows);
+        $slotB = array_map(static fn (array $row): float => $row['slotCenters'][1], $rows);
+        $columnTolerance = max(2.0, $rowHeight * 0.45);
+        foreach ([$prefixCenters, $labelStarts, $slotA, $slotB] as $values) {
+            if (max($values) - min($values) > $columnTolerance) {
+                return null;
+            }
+        }
+        foreach ($rows as $row) {
+            if (abs((float) $row['labelBaseline'] - (float) $row['markerBaseline'])
+                > max(1.0, $rowHeight * 0.22)) {
+                return null;
+            }
+        }
+
+        $slotCenters = [array_sum($slotA) / count($slotA), array_sum($slotB) / count($slotB)];
+        $topBaseline = max(array_column($rows, 'labelBaseline'));
+        $pageHeight = max(1.0, (float) $pageBounds['y2'] - (float) $pageBounds['y1']);
+        $headerEvidence = [];
+        foreach ($slotCenters as $slotCenter) {
+            $best = null;
+            foreach ($positionedRuns as $runIndex => $run) {
+                if (!is_array($run)
+                    || (int) ($run['page'] ?? 0) !== (int) $rows[0]['page']
+                    || (int) ($run['stream'] ?? 0) !== (int) $rows[0]['stream']
+                    || !$this->pdfLayoutHasGeometry($run)
+                    || preg_match('/\p{L}/u', (string) ($run['text'] ?? '')) !== 1
+                    || hash_equals(
+                        (string) $rows[0]['markerFontKey'],
+                        $this->sourcePdfPositionedFontKey($run)
+                    )) {
+                    continue;
+                }
+                $baseline = $this->sourcePdfRunBaseline($run);
+                $deltaY = $baseline - $topBaseline;
+                $deltaX = abs($this->sourcePdfRunCenterX($run) - $slotCenter);
+                if ($deltaY < $rowHeight * 0.4
+                    || $deltaY > $pageHeight * 0.25
+                    || $deltaX > max(18.0, $rowHeight * 3.0)) {
+                    continue;
+                }
+                $score = $deltaX + ($deltaY * 0.05);
+                if ($best === null || $score < $best['score']) {
+                    $best = [
+                        'score' => $score,
+                        'runIndex' => $runIndex,
+                        'textDigest' => hash('sha256', (string) $run['text']),
+                        'centerX' => $this->sourcePdfRunCenterX($run),
+                        'baseline' => $baseline,
+                        'fontKeyDigest' => hash(
+                            'sha256',
+                            $this->sourcePdfPositionedFontKey($run)
+                        ),
+                    ];
+                }
+            }
+            if ($best === null) {
+                return null;
+            }
+            unset($best['score']);
+            $headerEvidence[] = $best;
+        }
+
+        $rowEvidence = array_map(
+            static fn (array $row): array => [
+                'labelId' => $row['labelId'],
+                'markerId' => $row['markerId'],
+                'labelGlobalIndex' => $row['labelGlobalIndex'],
+                'markerGlobalIndex' => $row['markerGlobalIndex'],
+                'labelSourceDigest' => $row['labelSourceDigest'],
+                'labelProjectionDigest' => $row['labelProjectionDigest'],
+                'markerSourceDigest' => $row['markerSourceDigest'],
+                'labelBaseline' => $row['labelBaseline'],
+                'markerBaseline' => $row['markerBaseline'],
+                'prefixRunEvidence' => $row['prefixRunEvidence'],
+                'markerRunEvidence' => $row['markerRunEvidence'],
+            ],
+            $rows
+        );
+        $identity = [
+            'version' => 1,
+            'method' => 'exact-recurring-actualtext-symbol-choice-matrix',
+            'sourceSha256' => $this->sourceSha256,
+            'page' => (int) $rows[0]['page'],
+            'stream' => (int) $rows[0]['stream'],
+            'rowCount' => count($rows),
+            'slotCount' => 2,
+            'verticalCadence' => $cadence,
+            'prefixColumn' => array_sum($prefixCenters) / count($prefixCenters),
+            'labelColumn' => array_sum($labelStarts) / count($labelStarts),
+            'slotCenters' => $slotCenters,
+            'prefixSymbolFontDigest' => hash('sha256', (string) $rows[0]['prefixSymbolFontKey']),
+            'markerFontDigest' => hash('sha256', (string) $rows[0]['markerFontKey']),
+            'headerEvidence' => $headerEvidence,
+            'rows' => $rowEvidence,
+        ];
+        $encoded = json_encode(
+            $identity,
+            JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+                | JSON_PRESERVE_ZERO_FRACTION
+        );
+
+        return $identity + [
+            'proofDigest' => hash(
+                'sha256',
+                is_string($encoded) ? $encoded : serialize($identity)
+            ),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $item
+     * @param array<string,mixed> $groupProof
+     * @return array<string,mixed>
+     */
+    private function sourcePdfBoundaryProjectionReceipt(
+        array $item,
+        int $globalSourceIndex,
+        string $role,
+        string $textProjection,
+        array $groupProof
+    ): array {
+        $sourceComparable = $this->pdfSourceOccurrenceComparableText(
+            (string) ($item['text'] ?? '')
+        );
+        $projectionComparable = $this->pdfSourceOccurrenceComparableText($textProjection);
+        $identity = [
+            'version' => 1,
+            'method' => 'exact-choice-matrix-source-projection',
+            'sourceSha256' => $this->sourceSha256,
+            'sourceOccurrenceId' => (string) ($item['id'] ?? ''),
+            'globalSourceIndex' => $globalSourceIndex,
+            'page' => (int) ($item['page'] ?? 0),
+            'stream' => (int) ($item['stream'] ?? 0),
+            'role' => $role,
+            'sourceProjectionDigest' => hash('sha256', $sourceComparable),
+            'textProjection' => $textProjection,
+            'textProjectionDigest' => hash('sha256', $projectionComparable),
+            'groupProofDigest' => (string) ($groupProof['proofDigest'] ?? ''),
+            'groupEvidence' => $groupProof,
+        ];
+        $encoded = json_encode(
+            $identity,
+            JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+                | JSON_PRESERVE_ZERO_FRACTION
+        );
+
+        return $identity + [
+            'proofDigest' => hash(
+                'sha256',
+                is_string($encoded) ? $encoded : serialize($identity)
+            ),
+        ];
+    }
+
+    /**
+     * @param list<array{runIndex:int,sourceStart:int,sourceEnd:int,run:array<string,mixed>}> $entries
+     * @return list<array{runIndex:int,sourceStart:int,sourceEnd:int,run:array<string,mixed>}>
+     */
+    private function sourcePdfExactRunEntriesCoverRange(
+        array $entries,
+        int $start,
+        int $end
+    ): array {
+        if ($start < 0 || $end <= $start) {
+            return [];
+        }
+        $covered = [];
+        $cursor = $start;
+        foreach ($entries as $entry) {
+            $entryStart = (int) ($entry['sourceStart'] ?? -1);
+            $entryEnd = (int) ($entry['sourceEnd'] ?? -1);
+            if ($entryEnd <= $start || $entryStart >= $end) {
+                continue;
+            }
+            if ($entryStart !== $cursor || $entryEnd > $end) {
+                return [];
+            }
+            $covered[] = $entry;
+            $cursor = $entryEnd;
+        }
+
+        return $cursor === $end ? $covered : [];
+    }
+
+    /**
+     * @param list<array{runIndex:int,sourceStart:int,sourceEnd:int,run:array<string,mixed>}> $entries
+     * @return array{x1:float,y1:float,x2:float,y2:float}|null
+     */
+    private function sourcePdfRunEntryBounds(array $entries): ?array
+    {
+        $bounds = null;
+        foreach ($entries as $entry) {
+            $run = $entry['run'] ?? null;
+            if (!is_array($run) || !$this->pdfLayoutHasGeometry($run)) {
+                return null;
+            }
+            if ($bounds === null) {
+                $bounds = [
+                    'x1' => (float) $run['x1'],
+                    'y1' => (float) $run['y1'],
+                    'x2' => (float) $run['x2'],
+                    'y2' => (float) $run['y2'],
+                ];
+                continue;
+            }
+            $bounds['x1'] = min($bounds['x1'], (float) $run['x1']);
+            $bounds['y1'] = min($bounds['y1'], (float) $run['y1']);
+            $bounds['x2'] = max($bounds['x2'], (float) $run['x2']);
+            $bounds['y2'] = max($bounds['y2'], (float) $run['y2']);
+        }
+
+        return $bounds;
+    }
+
+    /** @param array{runIndex:int,sourceStart:int,sourceEnd:int,run:array<string,mixed>} $entry */
+    private function sourcePdfBoundaryRunEvidence(array $entry): array
+    {
+        $run = $entry['run'];
+
+        return [
+            'runIndex' => $entry['runIndex'],
+            'sourceStart' => $entry['sourceStart'],
+            'sourceEnd' => $entry['sourceEnd'],
+            'textDigest' => hash(
+                'sha256',
+                $this->pdfSourceOccurrenceComparableText((string) ($run['text'] ?? ''))
+            ),
+            'bounds' => [
+                'x1' => (float) ($run['x1'] ?? 0.0),
+                'y1' => (float) ($run['y1'] ?? 0.0),
+                'x2' => (float) ($run['x2'] ?? 0.0),
+                'y2' => (float) ($run['y2'] ?? 0.0),
+            ],
+            'fontResource' => is_string($run['fontResource'] ?? null)
+                ? $run['fontResource']
+                : null,
+            'baseFont' => is_string($run['baseFont'] ?? null)
+                ? $run['baseFont']
+                : null,
+            'fontSubtype' => is_string($run['fontSubtype'] ?? null)
+                ? $run['fontSubtype']
+                : null,
+            'fontSymbolic' => is_bool($run['fontSymbolic'] ?? null)
+                ? $run['fontSymbolic']
+                : null,
+            'textOrigin' => is_string($run['textOrigin'] ?? null)
+                ? $run['textOrigin']
+                : null,
+            'actualTextPaintedWhitespaceOnly' =>
+                ($run['actualTextPaintedWhitespaceOnly'] ?? null) === true,
+        ];
+    }
+
+    /**
+     * @param list<array{runIndex:int,sourceStart:int,sourceEnd:int,run:array<string,mixed>}> $entries
+     */
+    private function sourcePdfBoundaryRunEntriesDigest(array $entries): string
+    {
+        $evidence = array_map(
+            fn (array $entry): array => $this->sourcePdfBoundaryRunEvidence($entry),
+            $entries
+        );
+
+        return hash('sha256', json_encode(
+            $evidence,
+            JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+                | JSON_PRESERVE_ZERO_FRACTION
+        ) ?: serialize($evidence));
+    }
+
+    /** @param array<string,mixed> $run */
+    private function sourcePdfPositionedFontKey(array $run): string
+    {
+        $resource = is_string($run['fontResource'] ?? null) ? $run['fontResource'] : '';
+        $baseFont = is_string($run['baseFont'] ?? null) ? $run['baseFont'] : '';
+        $subtype = is_string($run['fontSubtype'] ?? null) ? $run['fontSubtype'] : '';
+
+        return $resource === '' || $baseFont === ''
+            ? ''
+            : implode("\0", [$resource, $baseFont, $subtype]);
+    }
+
+    /** @param array<string,mixed> $run */
+    private function sourcePdfRunBaseline(array $run): float
+    {
+        return is_numeric($run['textY1'] ?? null)
+            ? (float) $run['textY1']
+            : (((float) ($run['y1'] ?? 0.0) + (float) ($run['y2'] ?? 0.0)) / 2.0);
+    }
+
+    /** @param array<string,mixed> $run */
+    private function sourcePdfRunCenterX(array $run): float
+    {
+        $x1 = is_numeric($run['textX1'] ?? null) ? (float) $run['textX1'] : (float) ($run['x1'] ?? 0.0);
+        $x2 = is_numeric($run['textX2'] ?? null) ? (float) $run['textX2'] : (float) ($run['x2'] ?? 0.0);
+
+        return ($x1 + $x2) / 2.0;
+    }
+
+    /** @param list<string> $markers */
+    private function sourcePdfTextWithoutLeadingMarkers(string $text, array $markers): string
+    {
+        $remaining = $text;
+        foreach ($markers as $marker) {
+            if ($marker === ''
+                || preg_match(
+                    '/\A[\s\p{Cc}\p{Cf}]*' . preg_quote($marker, '/') . '/u',
+                    $remaining,
+                    $match
+                ) !== 1) {
+                return '';
+            }
+            $remaining = substr($remaining, strlen($match[0]));
+        }
+
+        return trim($remaining);
+    }
+
+    /**
+     * Project only source-derived layouts whose immutable occurrence and
+     * signed repair receipt still match. Positioned-only lookalikes, stale
+     * receipts, and ambiguous composites retain their literal text.
+     *
+     * @param list<array<string,mixed>> $layouts
+     * @param list<array<string,mixed>> $sourceItems
+     * @return list<array<string,mixed>>
+     */
+    private function pdfSourceLayoutsWithFacingFolioAndChoiceMatrixProjections(
+        array $layouts,
+        array $sourceItems
+    ): array {
+        $sourcesById = [];
+        $sourcesByGlobalIndex = [];
+        foreach ($sourceItems as $sourceIndex => $sourceItem) {
+            $id = is_string($sourceItem['id'] ?? null) ? $sourceItem['id'] : '';
+            $globalIndex = is_int($sourceItem['sourcePdfGlobalSourceIndex'] ?? null)
+                ? $sourceItem['sourcePdfGlobalSourceIndex']
+                : $sourceIndex;
+            if ($id !== '') {
+                $sourcesById[$id][] = [$sourceIndex, $sourceItem];
+            }
+            $sourcesByGlobalIndex[$globalIndex][] = [$sourceIndex, $sourceItem];
+        }
+
+        foreach ($layouts as &$layout) {
+            $candidates = [];
+            $layoutId = is_string($layout['id'] ?? null) ? $layout['id'] : '';
+            if ($layoutId !== '') {
+                $candidates = $sourcesById[$layoutId] ?? [];
+            } elseif (is_int($layout['sourcePdfGlobalSourceIndex'] ?? null)) {
+                $candidates = $sourcesByGlobalIndex[$layout['sourcePdfGlobalSourceIndex']] ?? [];
+            }
+            if (count($candidates) !== 1) {
+                continue;
+            }
+            [$sourceIndex, $sourceItem] = $candidates[0];
+            $sourceComparable = $this->pdfSourceOccurrenceComparableText(
+                (string) ($sourceItem['text'] ?? '')
+            );
+            $layoutComparable = $this->pdfSourceOccurrenceComparableText(
+                (string) ($layout['text'] ?? '')
+            );
+            if ($sourceComparable === '' || !hash_equals($sourceComparable, $layoutComparable)) {
+                continue;
+            }
+            $proof = is_array($sourceItem['sourcePdfFacingFolioBoundaryRepair'] ?? null)
+                ? $sourceItem['sourcePdfFacingFolioBoundaryRepair']
+                : (is_array($sourceItem['sourcePdfChoiceMatrixBoundaryRepair'] ?? null)
+                    ? $sourceItem['sourcePdfChoiceMatrixBoundaryRepair']
+                    : null);
+            if ($proof === null
+                || !$this->sourcePdfBoundaryProjectionProofMatchesItem(
+                    $proof,
+                    $sourceItem,
+                    $sourceIndex
+                )) {
+                continue;
+            }
+            $layout['text'] = (string) $proof['textProjection'];
+            $layout['sourcePdfBoundaryProjectionReceipt'] = $proof;
+        }
+        unset($layout);
+
+        return $layouts;
+    }
+
+    /**
+     * @param array<string,mixed> $proof
+     * @param array<string,mixed> $item
+     */
+    private function sourcePdfBoundaryProjectionProofMatchesItem(
+        array $proof,
+        array $item,
+        int $sourceIndex
+    ): bool {
+        $method = $proof['method'] ?? null;
+        $sourceId = is_string($item['id'] ?? null) ? $item['id'] : '';
+        $globalIndex = is_int($item['sourcePdfGlobalSourceIndex'] ?? null)
+            ? $item['sourcePdfGlobalSourceIndex']
+            : $sourceIndex;
+        $textProjection = $proof['textProjection'] ?? null;
+        if (!in_array($method, [
+            'exact-line-local-facing-folio-title-projection',
+            'exact-choice-matrix-source-projection',
+        ], true)
+            || $sourceId === ''
+            || !is_string($textProjection)
+            || ($proof['sourceSha256'] ?? null) !== $this->sourceSha256
+            || ($proof['sourceOccurrenceId'] ?? null) !== $sourceId
+            || ($proof['globalSourceIndex'] ?? null) !== $globalIndex
+            || ($proof['page'] ?? null) !== (int) ($item['page'] ?? 0)
+            || ($proof['stream'] ?? null) !== (int) ($item['stream'] ?? 0)
+            || ($proof['sourceProjectionDigest'] ?? null) !== hash(
+                'sha256',
+                $this->pdfSourceOccurrenceComparableText((string) ($item['text'] ?? ''))
+            )
+            || ($proof['textProjectionDigest'] ?? null) !== hash(
+                'sha256',
+                $this->pdfSourceOccurrenceComparableText($textProjection)
+            )
+            || !$this->sourcePdfSignedProofDigestMatches($proof)) {
+            return false;
+        }
+
+        if ($method === 'exact-line-local-facing-folio-title-projection') {
+            return $textProjection !== ''
+                && ($proof['folioRelation'] ?? null) === 'consecutive-facing-values'
+                && in_array($proof['edge'] ?? null, ['top', 'bottom'], true)
+                && is_array($proof['leftRun'] ?? null)
+                && is_array($proof['rightRun'] ?? null);
+        }
+
+        $role = $proof['role'] ?? null;
+        $groupProof = is_array($proof['groupEvidence'] ?? null)
+            ? $proof['groupEvidence']
+            : null;
+        if (!in_array($role, ['choice-matrix-label', 'choice-matrix-marker-row'], true)
+            || ($role === 'choice-matrix-label' && $textProjection === '')
+            || ($role === 'choice-matrix-marker-row' && $textProjection !== '')
+            || $groupProof === null
+            || ($groupProof['method'] ?? null)
+                !== 'exact-recurring-actualtext-symbol-choice-matrix'
+            || ($groupProof['sourceSha256'] ?? null) !== $this->sourceSha256
+            || (int) ($groupProof['rowCount'] ?? 0) < 3
+            || (int) ($groupProof['slotCount'] ?? 0) < 2
+            || ($proof['groupProofDigest'] ?? null) !== ($groupProof['proofDigest'] ?? null)
+            || !$this->sourcePdfSignedProofDigestMatches($groupProof)) {
+            return false;
+        }
+
+        foreach ($groupProof['rows'] ?? [] as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            if ($role === 'choice-matrix-label'
+                && ($row['labelId'] ?? null) === $sourceId
+                && ($row['labelGlobalIndex'] ?? null) === $globalIndex) {
+                return true;
+            }
+            if ($role === 'choice-matrix-marker-row'
+                && ($row['markerId'] ?? null) === $sourceId
+                && ($row['markerGlobalIndex'] ?? null) === $globalIndex) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param array<string,mixed> $proof */
+    private function sourcePdfSignedProofDigestMatches(array $proof): bool
+    {
+        $declared = $proof['proofDigest'] ?? null;
+        if (!is_string($declared) || preg_match('/\A[0-9a-f]{64}\z/D', $declared) !== 1) {
+            return false;
+        }
+        unset($proof['proofDigest']);
+        $encoded = json_encode(
+            $proof,
+            JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+                | JSON_PRESERVE_ZERO_FRACTION
+        );
+
+        return hash_equals(
+            $declared,
+            hash('sha256', is_string($encoded) ? $encoded : serialize($proof))
+        );
     }
 
     /**
@@ -3992,6 +5348,12 @@ final class PdfReader
      * irrelevant: identity uses normalized text, page-edge slot, and relative
      * height, and requires occurrences on at least two pages.
      *
+     * A consecutive exact source run can likewise be diagram furniture when
+     * its uniformly sized boxes repeatedly reverse vertical direction across
+     * a broad region and a complete exact caption sits immediately below it.
+     * That source-bound role keeps every callout editable without promoting
+     * its accidental title shape into the document outline.
+     *
      * @param list<array<string, mixed>> $lineItems
      */
     private function markSourcePdfLayoutLabelOccurrences(array &$lineItems): void
@@ -3999,6 +5361,39 @@ final class PdfReader
         $this->layoutLabelSourceIndexes = [];
         if ($lineItems === []) {
             return;
+        }
+
+        foreach ($this->sourcePdfSourceOrderRunningHeaderProofs($lineItems) as $index => $proof) {
+            $this->layoutLabelSourceIndexes[$index] = true;
+            $lineItems[$index]['sourcePdfSourceOrderRunningHeaderProof'] = $proof;
+        }
+        foreach ($this->sourcePdfExactSpatialLabelClusterProofs($lineItems) as $index => $proof) {
+            $this->layoutLabelSourceIndexes[$index] = true;
+            $lineItems[$index]['sourcePdfSpatialLabelClusterProof'] = $proof;
+        }
+        foreach ($this->sourcePdfExactNestedCautionCalloutProofs($lineItems) as $proof) {
+            foreach ($proof['iconAtoms'] as $atom) {
+                $index = (int) $atom['sourceIndex'];
+                if (!isset($lineItems[$index])) {
+                    continue;
+                }
+                $lineItems[$index]['sourcePdfNestedCautionCalloutRole'] = $atom['role'];
+                $lineItems[$index]['sourcePdfNestedCautionCalloutProof'] = $proof;
+            }
+            $labelIndex = (int) $proof['label']['sourceIndex'];
+            if (isset($lineItems[$labelIndex])) {
+                $this->layoutLabelSourceIndexes[$labelIndex] = true;
+                $lineItems[$labelIndex]['sourcePdfNestedCautionCalloutRole'] = 'label';
+                $lineItems[$labelIndex]['sourcePdfNestedCautionCalloutProof'] = $proof;
+            }
+            foreach ($proof['proseRows'] as $row) {
+                $index = (int) $row['sourceIndex'];
+                if (!isset($lineItems[$index])) {
+                    continue;
+                }
+                $lineItems[$index]['sourcePdfNestedCautionCalloutRole'] = 'prose-row';
+                $lineItems[$index]['sourcePdfNestedCautionCalloutProof'] = $proof;
+            }
         }
 
         $recordsByPage = [];
@@ -4021,6 +5416,12 @@ final class PdfReader
             ];
         }
         if ($recordsByPage === []) {
+            foreach ($this->layoutLabelSourceIndexes as $index => $_) {
+                if (isset($lineItems[$index])) {
+                    $lineItems[$index]['sourcePdfLayoutLabel'] = true;
+                }
+            }
+
             return;
         }
 
@@ -4163,6 +5564,835 @@ final class PdfReader
                 $lineItems[$index]['sourcePdfLayoutLabel'] = true;
             }
         }
+    }
+
+    /**
+     * Recover a running-header role when source order supplies evidence that
+     * occurrence geometry cannot. A candidate must be the first significant
+     * source occurrence on consecutive physical pages,
+     * carry the same short tagged ordinal shape with ordinals increasing in
+     * lockstep with the pages, and be followed immediately by the same exact
+     * significant companion in the same page/stream. The proof is bound to
+     * the source hash and every participating occurrence; spelling alone can
+     * never authorize the role.
+     *
+     * @param list<array<string,mixed>> $lineItems
+     * @return array<int,array<string,mixed>>
+     */
+    private function sourcePdfSourceOrderRunningHeaderProofs(array $lineItems): array
+    {
+        if (preg_match('/^[a-f0-9]{64}$/D', $this->sourceSha256) !== 1) {
+            return [];
+        }
+
+        $significantIndexes = [];
+        $significantPositionByIndex = [];
+        $firstSignificantIndexByPage = [];
+        foreach ($lineItems as $index => $item) {
+            $text = is_string($item['text'] ?? null) ? $item['text'] : '';
+            if ($this->pdfSourceOccurrenceComparableText($text) === '') {
+                continue;
+            }
+            $index = (int) $index;
+            $page = max(1, (int) ($item['page'] ?? 1));
+            $significantPositionByIndex[$index] = count($significantIndexes);
+            $significantIndexes[] = $index;
+            if (!isset($firstSignificantIndexByPage[$page])) {
+                $firstSignificantIndexByPage[$page] = $index;
+            }
+        }
+
+        $groups = [];
+        foreach ($firstSignificantIndexByPage as $page => $index) {
+            $item = $lineItems[$index] ?? null;
+            if (!is_array($item)) {
+                continue;
+            }
+            $ordinalLabel = $this->sourcePdfSourceOrderRunningHeaderOrdinalLabel(
+                (string) ($item['text'] ?? '')
+            );
+            if ($ordinalLabel === null) {
+                continue;
+            }
+
+            $significantPosition = $significantPositionByIndex[$index] ?? null;
+            $companionIndex = is_int($significantPosition)
+                ? ($significantIndexes[$significantPosition + 1] ?? null)
+                : null;
+            $companion = is_int($companionIndex)
+                ? ($lineItems[$companionIndex] ?? null)
+                : null;
+            $stream = max(1, (int) ($item['stream'] ?? 1));
+            if (!is_array($companion)
+                || max(1, (int) ($companion['page'] ?? 1)) !== $page
+                || max(1, (int) ($companion['stream'] ?? 1)) !== $stream) {
+                continue;
+            }
+
+            $companionText = (string) ($companion['text'] ?? '');
+            $companionProjection = $this->pdfSourceOccurrenceComparableText($companionText);
+            if ($this->length($this->pdfComparableLineText($companionText)) < 8) {
+                continue;
+            }
+
+            $groupKey = $ordinalLabel['stemFingerprint'] . "\0"
+                . $ordinalLabel['tagFingerprint'] . "\0"
+                . $ordinalLabel['delimiter'] . "\0"
+                . hash('sha256', $companionProjection);
+            $groups[$groupKey][] = [
+                'sourceIndex' => $index,
+                'sourceGlobalIndex' => is_int($item['sourcePdfGlobalSourceIndex'] ?? null)
+                    ? $item['sourcePdfGlobalSourceIndex']
+                    : $index,
+                'sourceOccurrenceId' => is_string($item['id'] ?? null)
+                    ? $item['id']
+                    : '',
+                'page' => $page,
+                'stream' => $stream,
+                'ordinal' => $ordinalLabel['ordinal'],
+                'projectionDigest' => hash(
+                    'sha256',
+                    $this->pdfSourceOccurrenceComparableText((string) ($item['text'] ?? ''))
+                ),
+                'companionSourceIndex' => $companionIndex,
+                'companionGlobalSourceIndex' => is_int(
+                    $companion['sourcePdfGlobalSourceIndex'] ?? null
+                ) ? $companion['sourcePdfGlobalSourceIndex'] : $companionIndex,
+                'companionOccurrenceId' => is_string($companion['id'] ?? null)
+                    ? $companion['id']
+                    : '',
+                'companionProjectionDigest' => hash('sha256', $companionProjection),
+                'stemDigest' => hash('sha256', $ordinalLabel['stemFingerprint']),
+                'ordinalTagDigest' => hash(
+                    'sha256',
+                    $ordinalLabel['tagFingerprint'] . "\0" . $ordinalLabel['delimiter']
+                ),
+            ];
+        }
+
+        $proofs = [];
+        foreach ($groups as $members) {
+            if (count($members) < 2) {
+                continue;
+            }
+            usort(
+                $members,
+                static fn (array $left, array $right): int =>
+                    [$left['page'], $left['sourceIndex']]
+                    <=> [$right['page'], $right['sourceIndex']]
+            );
+
+            $sequenceIsExact = true;
+            for ($memberIndex = 1, $count = count($members); $memberIndex < $count; $memberIndex++) {
+                $previous = $members[$memberIndex - 1];
+                $current = $members[$memberIndex];
+                if ($current['page'] !== $previous['page'] + 1
+                    || $current['ordinal'] !== $previous['ordinal'] + 1
+                    || $current['sourceGlobalIndex'] <= $previous['sourceGlobalIndex']) {
+                    $sequenceIsExact = false;
+                    break;
+                }
+            }
+            if (!$sequenceIsExact) {
+                continue;
+            }
+
+            $identity = [
+                'version' => 1,
+                'method' => 'recurring-first-source-slot-terminal-ordinal-with-companion',
+                'sourceSha256' => $this->sourceSha256,
+                'stemDigest' => $members[0]['stemDigest'],
+                'ordinalTagDigest' => $members[0]['ordinalTagDigest'],
+                'companionProjectionDigest' => $members[0]['companionProjectionDigest'],
+                'peers' => array_map(
+                    static fn (array $member): array => [
+                        'sourceIndex' => $member['sourceIndex'],
+                        'sourceGlobalIndex' => $member['sourceGlobalIndex'],
+                        'sourceOccurrenceId' => $member['sourceOccurrenceId'],
+                        'page' => $member['page'],
+                        'stream' => $member['stream'],
+                        'ordinal' => $member['ordinal'],
+                        'projectionDigest' => $member['projectionDigest'],
+                        'companionSourceIndex' => $member['companionSourceIndex'],
+                        'companionGlobalSourceIndex' => $member['companionGlobalSourceIndex'],
+                        'companionOccurrenceId' => $member['companionOccurrenceId'],
+                        'companionProjectionDigest' => $member['companionProjectionDigest'],
+                    ],
+                    $members
+                ),
+            ];
+            $encoded = json_encode(
+                $identity,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+            );
+            $proof = $identity + [
+                'proofDigest' => hash(
+                    'sha256',
+                    is_string($encoded) ? $encoded : serialize($identity)
+                ),
+            ];
+            foreach ($members as $member) {
+                $proofs[$member['sourceIndex']] = $proof;
+            }
+        }
+
+        return $proofs;
+    }
+
+    /**
+     * @return array{stemFingerprint:string,tagFingerprint:string,delimiter:string,ordinal:int}|null
+     */
+    private function sourcePdfSourceOrderRunningHeaderOrdinalLabel(string $text): ?array
+    {
+        $text = trim($this->normalizePdfTextEncoding($text));
+        if (preg_match(
+            '/^(.+?\p{L})\h+(\p{L}{1,3})\h*([.:#])\h*([0-9]{1,4})$/u',
+            $text,
+            $matches
+        ) !== 1) {
+            return null;
+        }
+
+        $stem = trim($matches[1]);
+        $stemFingerprint = $this->pdfComparableLineText($stem);
+        $wordCount = count($this->pdfLineWordTokens($stem));
+        $ordinal = (int) $matches[4];
+        if ($wordCount < 3
+            || $wordCount > 12
+            || $this->length($stemFingerprint) < 16
+            || $ordinal < 1) {
+            return null;
+        }
+
+        return [
+            'stemFingerprint' => $stemFingerprint,
+            'tagFingerprint' => $this->pdfComparableLineText($matches[2]),
+            'delimiter' => $matches[3],
+            'ordinal' => $ordinal,
+        ];
+    }
+
+    /**
+     * A diagram can expose its overlay labels as a consecutive source run even
+     * though their exact rectangles jump around the illustrated region. When
+     * that entire compact run has one line-height rhythm and is followed by a
+     * complete caption below it, the source order is positive evidence for an
+     * editable layout-label role and negative evidence for document outline
+     * membership. The proof is occurrence- and geometry-bound; label spelling
+     * and title casing never participate in the decision.
+     *
+     * @param list<array<string,mixed>> $lineItems
+     * @return array<int,array<string,mixed>>
+     */
+    private function sourcePdfExactSpatialLabelClusterProofs(array $lineItems): array
+    {
+        if (preg_match('/^[a-f0-9]{64}$/D', $this->sourceSha256) !== 1
+            || count($lineItems) < 10) {
+            return [];
+        }
+
+        $proofs = [];
+        $run = [];
+        $flush = function () use (&$proofs, &$run, $lineItems): void {
+            if ($run === []) {
+                return;
+            }
+            $proof = $this->sourcePdfExactSpatialLabelClusterProof($run, $lineItems);
+            if ($proof !== null) {
+                foreach ($run as $member) {
+                    $proofs[$member['sourceIndex']] = $proof;
+                }
+            }
+            $run = [];
+        };
+
+        foreach ($lineItems as $sourceIndex => $item) {
+            $candidate = $this->sourcePdfExactSpatialLabelCandidate(
+                $item,
+                (int) $sourceIndex
+            );
+            if ($candidate === null) {
+                $flush();
+                continue;
+            }
+            $previous = $run === [] ? null : $run[array_key_last($run)];
+            if (is_array($previous)
+                && ($candidate['page'] !== $previous['page']
+                    || $candidate['stream'] !== $previous['stream']
+                    || $candidate['sourceIndex'] !== $previous['sourceIndex'] + 1
+                    || $candidate['sourceGlobalIndex'] !== $previous['sourceGlobalIndex'] + 1)) {
+                $flush();
+            }
+            $run[] = $candidate;
+        }
+        $flush();
+
+        return $proofs;
+    }
+
+    /**
+     * @param array<string,mixed> $item
+     * @return array{
+     *   sourceIndex:int,
+     *   sourceGlobalIndex:int,
+     *   sourceOccurrenceId:string,
+     *   page:int,
+     *   stream:int,
+     *   projectionDigest:string,
+     *   geometryDigest:string,
+     *   bounds:array{x1:float,y1:float,x2:float,y2:float},
+     *   height:float
+     * }|null
+     */
+    private function sourcePdfExactSpatialLabelCandidate(array $item, int $sourceIndex): ?array
+    {
+        $text = trim((string) ($item['text'] ?? ''));
+        $sourceOccurrenceId = is_string($item['id'] ?? null) ? $item['id'] : '';
+        $declaredGlobalIndex = $item['sourcePdfGlobalSourceIndex'] ?? null;
+        $sourceGlobalIndex = $declaredGlobalIndex === null
+            ? $sourceIndex
+            : (is_int($declaredGlobalIndex) ? $declaredGlobalIndex : null);
+        $page = (int) ($item['page'] ?? 0);
+        $stream = (int) ($item['stream'] ?? 0);
+        $geometry = is_array($item['sourceGeometry'] ?? null)
+            ? $item['sourceGeometry']
+            : null;
+        $projection = $this->pdfSourceOccurrenceComparableText($text);
+        if ($sourceOccurrenceId === ''
+            || $sourceGlobalIndex === null
+            || $sourceGlobalIndex < 0
+            || $page < 1
+            || $stream < 1
+            || $geometry === null
+            || !$this->sourcePdfSourceItemHasExactGeometry($item)
+            || (int) ($geometry['page'] ?? 0) !== $page
+            || (int) ($geometry['stream'] ?? 0) !== $stream
+            || $projection === ''
+            || $this->length($projection) < 2
+            || !$this->lineLooksLikePdfDiagramLabel($text)
+            || $this->lineHasPdfListBlockEvidence($text)
+            || $this->lineLooksLikeUrlOnly($text)
+            || $this->lineLooksLikeCompletePdfCaption($text)
+            || $this->pdfLineStartsWithSemanticPrefix($text)) {
+            return null;
+        }
+
+        $bounds = $this->pdfSourceEvidenceBounds($geometry);
+        $bounds = [
+            'x1' => min($bounds['x1'], $bounds['x2']),
+            'y1' => min($bounds['y1'], $bounds['y2']),
+            'x2' => max($bounds['x1'], $bounds['x2']),
+            'y2' => max($bounds['y1'], $bounds['y2']),
+        ];
+        $height = $bounds['y2'] - $bounds['y1'];
+        if ($height <= 0.0 || $bounds['x2'] <= $bounds['x1']) {
+            return null;
+        }
+
+        return [
+            'sourceIndex' => $sourceIndex,
+            'sourceGlobalIndex' => $sourceGlobalIndex,
+            'sourceOccurrenceId' => $sourceOccurrenceId,
+            'page' => $page,
+            'stream' => $stream,
+            'projectionDigest' => hash('sha256', $projection),
+            'geometryDigest' => $this->sourcePdfExactGeometryProofDigest($geometry),
+            'bounds' => $bounds,
+            'height' => $height,
+        ];
+    }
+
+    /**
+     * @param list<array{
+     *   sourceIndex:int,
+     *   sourceGlobalIndex:int,
+     *   sourceOccurrenceId:string,
+     *   page:int,
+     *   stream:int,
+     *   projectionDigest:string,
+     *   geometryDigest:string,
+     *   bounds:array{x1:float,y1:float,x2:float,y2:float},
+     *   height:float
+     * }> $members
+     * @param list<array<string,mixed>> $lineItems
+     * @return array<string,mixed>|null
+     */
+    private function sourcePdfExactSpatialLabelClusterProof(
+        array $members,
+        array $lineItems
+    ): ?array {
+        $memberCount = count($members);
+        if ($memberCount < 8 || $memberCount > 64) {
+            return null;
+        }
+
+        $heights = array_column($members, 'height');
+        $medianHeight = max(0.01, $this->median($heights));
+        $heightTolerance = max(0.75, $medianHeight * 0.15);
+        foreach ($heights as $height) {
+            if (abs((float) $height - $medianHeight) > $heightTolerance) {
+                return null;
+            }
+        }
+
+        $verticalSigns = [];
+        $verticalStepTolerance = max(0.75, $medianHeight * 0.12);
+        for ($index = 1; $index < $memberCount; $index++) {
+            $step = (float) $members[$index]['bounds']['y1']
+                - (float) $members[$index - 1]['bounds']['y1'];
+            if (abs($step) <= $verticalStepTolerance) {
+                continue;
+            }
+            $verticalSigns[] = $step < 0.0 ? -1 : 1;
+        }
+        $verticalDirectionChanges = 0;
+        for ($index = 1, $count = count($verticalSigns); $index < $count; $index++) {
+            if ($verticalSigns[$index] !== $verticalSigns[$index - 1]) {
+                $verticalDirectionChanges++;
+            }
+        }
+        if ($verticalDirectionChanges < 2) {
+            return null;
+        }
+
+        $x1 = min(array_column(array_column($members, 'bounds'), 'x1'));
+        $y1 = min(array_column(array_column($members, 'bounds'), 'y1'));
+        $x2 = max(array_column(array_column($members, 'bounds'), 'x2'));
+        $y2 = max(array_column(array_column($members, 'bounds'), 'y2'));
+        $horizontalSpan = $x2 - $x1;
+        $verticalSpan = $y2 - $y1;
+        if ($horizontalSpan < max(72.0, $medianHeight * 7.0)
+            || $verticalSpan < max(80.0, $medianHeight * 8.0)) {
+            return null;
+        }
+
+        $lastMember = $members[array_key_last($members)];
+        $captionAnchors = [];
+        $expectedGlobalIndex = $lastMember['sourceGlobalIndex'] + 1;
+        for ($sourceIndex = $lastMember['sourceIndex'] + 1, $limit = min(
+            count($lineItems),
+            $lastMember['sourceIndex'] + 4
+        ); $sourceIndex < $limit; $sourceIndex++, $expectedGlobalIndex++) {
+            $item = $lineItems[$sourceIndex] ?? null;
+            $geometry = is_array($item['sourceGeometry'] ?? null)
+                ? $item['sourceGeometry']
+                : null;
+            $text = is_array($item) ? trim((string) ($item['text'] ?? '')) : '';
+            $declaredGlobalIndex = is_array($item)
+                ? ($item['sourcePdfGlobalSourceIndex'] ?? null)
+                : null;
+            $sourceGlobalIndex = $declaredGlobalIndex === null
+                ? $sourceIndex
+                : (is_int($declaredGlobalIndex) ? $declaredGlobalIndex : null);
+            if (!is_array($item)
+                || !$this->sourcePdfSourceItemHasExactGeometry($item)
+                || $geometry === null
+                || (int) ($item['page'] ?? 0) !== $lastMember['page']
+                || (int) ($item['stream'] ?? 0) !== $lastMember['stream']
+                || $sourceGlobalIndex !== $expectedGlobalIndex
+                || !$this->lineLooksLikeCompletePdfCaption($text)) {
+                break;
+            }
+            $bounds = $this->pdfSourceEvidenceBounds($geometry);
+            $bounds = [
+                'x1' => min($bounds['x1'], $bounds['x2']),
+                'y1' => min($bounds['y1'], $bounds['y2']),
+                'x2' => max($bounds['x1'], $bounds['x2']),
+                'y2' => max($bounds['y1'], $bounds['y2']),
+            ];
+            $minimumClearance = max(2.0, $medianHeight * 0.25);
+            $horizontalOverlap = min($x2, $bounds['x2']) - max($x1, $bounds['x1']);
+            if ($bounds['y2'] > $y1 - $minimumClearance || $horizontalOverlap <= 0.0) {
+                break;
+            }
+            $sourceOccurrenceId = is_string($item['id'] ?? null) ? $item['id'] : '';
+            $projection = $this->pdfSourceOccurrenceComparableText($text);
+            if ($sourceOccurrenceId === '' || $projection === '') {
+                break;
+            }
+            $captionAnchors[] = [
+                'sourceIndex' => $sourceIndex,
+                'sourceGlobalIndex' => $sourceGlobalIndex,
+                'sourceOccurrenceId' => $sourceOccurrenceId,
+                'projectionDigest' => hash('sha256', $projection),
+                'geometryDigest' => $this->sourcePdfExactGeometryProofDigest($geometry),
+                'bounds' => $bounds,
+            ];
+        }
+        if ($captionAnchors === []) {
+            return null;
+        }
+
+        $proofMembers = array_map(
+            static fn (array $member): array => [
+                'sourceIndex' => $member['sourceIndex'],
+                'sourceGlobalIndex' => $member['sourceGlobalIndex'],
+                'sourceOccurrenceId' => $member['sourceOccurrenceId'],
+                'projectionDigest' => $member['projectionDigest'],
+                'geometryDigest' => $member['geometryDigest'],
+                'bounds' => $member['bounds'],
+            ],
+            $members
+        );
+        $proof = [
+            'version' => 1,
+            'method' => 'exact-source-spatial-label-cluster-before-caption',
+            'sourceSha256' => $this->sourceSha256,
+            'page' => $lastMember['page'],
+            'sourceStream' => $lastMember['stream'],
+            'members' => $proofMembers,
+            'captionAnchors' => $captionAnchors,
+            'spatialEvidence' => [
+                'medianHeight' => round($medianHeight, 2),
+                'horizontalSpan' => round($horizontalSpan, 2),
+                'verticalSpan' => round($verticalSpan, 2),
+                'verticalDirectionChanges' => $verticalDirectionChanges,
+            ],
+        ];
+        $encoded = json_encode(
+            $proof,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+        );
+        $proof['proofDigest'] = hash(
+            'sha256',
+            is_string($encoded) ? $encoded : serialize($proof)
+        );
+
+        return $proof;
+    }
+
+    /**
+     * Detect a compact admonition without relying on its spelling. The source
+     * must paint one oversized symbol, a nested punctuation atom, and a small
+     * uppercase label as consecutive exact occurrences. At least two further
+     * exact occurrences must form a stable prose lane immediately to its
+     * right and the final row must close a sentence. This is strong enough to
+     * distinguish a decorative icon from literal punctuation while retaining
+     * every label and warning byte as editable text.
+     *
+     * @param list<array<string,mixed>> $lineItems
+     * @return list<array<string,mixed>>
+     */
+    private function sourcePdfExactNestedCautionCalloutProofs(array $lineItems): array
+    {
+        if (preg_match('/^[a-f0-9]{64}$/D', $this->sourceSha256) !== 1
+            || count($lineItems) < 5) {
+            return [];
+        }
+
+        $proofs = [];
+        for ($sourceIndex = 0, $count = count($lineItems); $sourceIndex + 4 < $count; $sourceIndex++) {
+            $symbol = $this->sourcePdfExactNestedCautionCalloutMember(
+                $lineItems[$sourceIndex],
+                $sourceIndex
+            );
+            $punctuation = $this->sourcePdfExactNestedCautionCalloutMember(
+                $lineItems[$sourceIndex + 1],
+                $sourceIndex + 1
+            );
+            $label = $this->sourcePdfExactNestedCautionCalloutMember(
+                $lineItems[$sourceIndex + 2],
+                $sourceIndex + 2
+            );
+            if ($symbol === null
+                || $punctuation === null
+                || $label === null
+                || !$this->sourcePdfExactNestedCautionMembersAreConsecutive([
+                    $symbol,
+                    $punctuation,
+                    $label,
+                ])
+                || preg_match('/^\p{S}$/u', $symbol['text']) !== 1
+                || preg_match('/^\p{P}$/u', $punctuation['text']) !== 1
+                || !$this->sourcePdfTextIsCompactUppercaseCalloutLabel($label['text'])) {
+                continue;
+            }
+
+            $symbolBounds = $symbol['bounds'];
+            $punctuationBounds = $punctuation['bounds'];
+            $labelBounds = $label['bounds'];
+            if (!$this->sourcePdfBoundsContainBounds($symbolBounds, $punctuationBounds, 0.75)
+                || !$this->sourcePdfBoundsContainBounds($symbolBounds, $labelBounds, 0.75)
+                || $symbol['height'] < $punctuation['height'] * 1.35
+                || $symbol['height'] < $label['height'] * 3.0
+                || $symbol['width'] < $label['width'] * 1.15
+                || $punctuation['height'] < $label['height'] * 1.5) {
+                continue;
+            }
+
+            $proseRows = [];
+            $rowHeight = null;
+            $laneX1 = null;
+            $previousY1 = null;
+            $verticalDirection = null;
+            $expectedGlobalIndex = $label['sourceGlobalIndex'] + 1;
+            for ($rowIndex = $sourceIndex + 3;
+                $rowIndex < $count && count($proseRows) < 8;
+                $rowIndex++, $expectedGlobalIndex++) {
+                $row = $this->sourcePdfExactNestedCautionCalloutMember(
+                    $lineItems[$rowIndex],
+                    $rowIndex
+                );
+                if ($row === null
+                    || $row['page'] !== $symbol['page']
+                    || $row['stream'] !== $symbol['stream']
+                    || $row['sourceGlobalIndex'] !== $expectedGlobalIndex
+                    || !$this->sourcePdfTextIsSubstantiveCalloutProseRow($row['text'])) {
+                    break;
+                }
+
+                $rowHeight ??= $row['height'];
+                $laneX1 ??= $row['bounds']['x1'];
+                $heightTolerance = max(0.75, $rowHeight * 0.15);
+                $laneTolerance = max(3.0, $rowHeight * 0.45);
+                $symbolLaneTolerance = max(3.0, $rowHeight * 0.35);
+                $verticalOverlap = min($symbolBounds['y2'], $row['bounds']['y2'])
+                    - max($symbolBounds['y1'], $row['bounds']['y1']);
+                if (abs($row['height'] - $rowHeight) > $heightTolerance
+                    || abs($row['bounds']['x1'] - $laneX1) > $laneTolerance
+                    || $row['bounds']['x1'] < $symbolBounds['x2'] - $symbolLaneTolerance
+                    || $row['width'] < max(96.0, $symbol['width'] * 2.5)
+                    || ($proseRows === [] && $verticalOverlap <= 0.0)) {
+                    break;
+                }
+                if ($previousY1 !== null) {
+                    $step = $row['bounds']['y1'] - $previousY1;
+                    $direction = $step < 0.0 ? -1 : 1;
+                    if (abs($step) < $rowHeight * 0.45
+                        || abs($step) > $rowHeight * 1.5
+                        || ($verticalDirection !== null && $direction !== $verticalDirection)) {
+                        break;
+                    }
+                    $verticalDirection ??= $direction;
+                }
+                $proseRows[] = $row;
+                $previousY1 = $row['bounds']['y1'];
+            }
+            if (count($proseRows) < 2
+                || $verticalDirection === null
+                || preg_match(
+                    '/[.!?](?:["\'\x{2019}\x{201D})\]])*$/u',
+                    $proseRows[array_key_last($proseRows)]['text']
+                ) !== 1) {
+                continue;
+            }
+
+            $retainedMembers = array_merge([$label], $proseRows);
+            $retainedProjection = implode('', array_column(
+                $retainedMembers,
+                'projection'
+            ));
+            if ($retainedProjection === '') {
+                continue;
+            }
+            $proof = [
+                'version' => 1,
+                'method' => 'exact-source-nested-symbol-label-right-lane-warning',
+                'sourceSha256' => $this->sourceSha256,
+                'page' => $symbol['page'],
+                'sourceStream' => $symbol['stream'],
+                'iconAtoms' => [
+                    $this->sourcePdfNestedCautionCalloutProofMember(
+                        $symbol,
+                        'decorative-symbol'
+                    ),
+                    $this->sourcePdfNestedCautionCalloutProofMember(
+                        $punctuation,
+                        'decorative-punctuation'
+                    ),
+                ],
+                'label' => $this->sourcePdfNestedCautionCalloutProofMember($label),
+                'proseRows' => array_map(
+                    fn (array $row): array =>
+                        $this->sourcePdfNestedCautionCalloutProofMember($row),
+                    $proseRows
+                ),
+                'geometryEvidence' => [
+                    'symbolToLabelHeightRatio' => round(
+                        $symbol['height'] / max(0.01, $label['height']),
+                        4
+                    ),
+                    'punctuationToLabelHeightRatio' => round(
+                        $punctuation['height'] / max(0.01, $label['height']),
+                        4
+                    ),
+                    'proseRowCount' => count($proseRows),
+                    'proseMedianHeight' => round($this->median(array_column($proseRows, 'height')), 4),
+                    'proseX1Spread' => round(
+                        max(array_column(array_column($proseRows, 'bounds'), 'x1'))
+                            - min(array_column(array_column($proseRows, 'bounds'), 'x1')),
+                        4
+                    ),
+                    'verticalDirection' => $verticalDirection,
+                ],
+                'retainedProjectionDigest' => hash('sha256', $retainedProjection),
+            ];
+            $encoded = json_encode(
+                $proof,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+            );
+            $proof['proofDigest'] = hash(
+                'sha256',
+                is_string($encoded) ? $encoded : serialize($proof)
+            );
+            $proofs[] = $proof;
+            $sourceIndex = $proseRows[array_key_last($proseRows)]['sourceIndex'];
+        }
+
+        return $proofs;
+    }
+
+    /**
+     * @param array<string,mixed> $item
+     * @return array<string,mixed>|null
+     */
+    private function sourcePdfExactNestedCautionCalloutMember(
+        array $item,
+        int $sourceIndex
+    ): ?array {
+        $text = trim((string) ($item['text'] ?? ''));
+        $sourceOccurrenceId = is_string($item['id'] ?? null) ? $item['id'] : '';
+        $declaredGlobalIndex = $item['sourcePdfGlobalSourceIndex'] ?? null;
+        $sourceGlobalIndex = $declaredGlobalIndex === null
+            ? $sourceIndex
+            : (is_int($declaredGlobalIndex) ? $declaredGlobalIndex : null);
+        $page = (int) ($item['page'] ?? 0);
+        $stream = (int) ($item['stream'] ?? 0);
+        $geometry = is_array($item['sourceGeometry'] ?? null)
+            ? $item['sourceGeometry']
+            : null;
+        $projection = $this->pdfSourceOccurrenceComparableText($text);
+        if ($sourceOccurrenceId === ''
+            || $sourceGlobalIndex === null
+            || $sourceGlobalIndex < 0
+            || $page < 1
+            || $stream < 1
+            || $geometry === null
+            || !$this->sourcePdfSourceItemHasExactGeometry($item)
+            || (int) ($geometry['page'] ?? 0) !== $page
+            || (int) ($geometry['stream'] ?? 0) !== $stream
+            || !in_array((string) ($geometry['orientation'] ?? ''), ['', 'horizontal'], true)
+            || $projection === '') {
+            return null;
+        }
+        $sourceBounds = $this->pdfSourceEvidenceBounds($geometry);
+        $bounds = [
+            'x1' => min($sourceBounds['x1'], $sourceBounds['x2']),
+            'y1' => min($sourceBounds['y1'], $sourceBounds['y2']),
+            'x2' => max($sourceBounds['x1'], $sourceBounds['x2']),
+            'y2' => max($sourceBounds['y1'], $sourceBounds['y2']),
+        ];
+        $width = $bounds['x2'] - $bounds['x1'];
+        $height = $bounds['y2'] - $bounds['y1'];
+        if ($width <= 0.0 || $height <= 0.0) {
+            return null;
+        }
+
+        return [
+            'sourceIndex' => $sourceIndex,
+            'sourceGlobalIndex' => $sourceGlobalIndex,
+            'sourceOccurrenceId' => $sourceOccurrenceId,
+            'page' => $page,
+            'stream' => $stream,
+            'text' => $text,
+            'projection' => $projection,
+            'projectionDigest' => hash('sha256', $projection),
+            'geometryDigest' => $this->sourcePdfExactGeometryProofDigest($geometry),
+            'bounds' => $bounds,
+            'width' => $width,
+            'height' => $height,
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $members */
+    private function sourcePdfExactNestedCautionMembersAreConsecutive(array $members): bool
+    {
+        if ($members === []) {
+            return false;
+        }
+        $previous = null;
+        foreach ($members as $member) {
+            if ($previous !== null
+                && ($member['page'] !== $previous['page']
+                    || $member['stream'] !== $previous['stream']
+                    || $member['sourceIndex'] !== $previous['sourceIndex'] + 1
+                    || $member['sourceGlobalIndex'] !== $previous['sourceGlobalIndex'] + 1)) {
+                return false;
+            }
+            $previous = $member;
+        }
+
+        return true;
+    }
+
+    private function sourcePdfTextIsCompactUppercaseCalloutLabel(string $text): bool
+    {
+        $text = trim($this->normalizePdfTextEncoding($text));
+        $wordCount = count($this->pdfLineWordTokens($text));
+
+        return $this->length($text) >= 3
+            && $this->length($text) <= 28
+            && $wordCount >= 1
+            && $wordCount <= 3
+            && preg_match('/\p{L}/u', $text) === 1
+            && preg_match('/\p{Ll}/u', $text) !== 1
+            && preg_match('/^[\p{Lu}\p{Lt}\p{N}\h&\/-]+$/u', $text) === 1;
+    }
+
+    private function sourcePdfTextIsSubstantiveCalloutProseRow(string $text): bool
+    {
+        $text = trim($this->normalizePdfTextEncoding($text));
+        $wordCount = count($this->pdfLineWordTokens($text));
+
+        return $this->length($text) >= 18
+            && $this->length($text) <= 200
+            && $wordCount >= 4
+            && $wordCount <= 40
+            && preg_match('/\p{Ll}/u', $text) === 1
+            && !$this->lineHasPdfListBlockEvidence($text)
+            && !$this->lineLooksLikeUrlOnly($text)
+            && !$this->pdfLineStartsWithSemanticPrefix($text);
+    }
+
+    /**
+     * @param array{x1:float,y1:float,x2:float,y2:float} $outer
+     * @param array{x1:float,y1:float,x2:float,y2:float} $inner
+     */
+    private function sourcePdfBoundsContainBounds(
+        array $outer,
+        array $inner,
+        float $tolerance
+    ): bool {
+        return $inner['x1'] >= $outer['x1'] - $tolerance
+            && $inner['y1'] >= $outer['y1'] - $tolerance
+            && $inner['x2'] <= $outer['x2'] + $tolerance
+            && $inner['y2'] <= $outer['y2'] + $tolerance;
+    }
+
+    /**
+     * @param array<string,mixed> $member
+     * @return array<string,mixed>
+     */
+    private function sourcePdfNestedCautionCalloutProofMember(
+        array $member,
+        ?string $role = null
+    ): array {
+        $proofMember = [
+            'sourceIndex' => $member['sourceIndex'],
+            'sourceGlobalIndex' => $member['sourceGlobalIndex'],
+            'sourceOccurrenceId' => $member['sourceOccurrenceId'],
+            'projectionDigest' => $member['projectionDigest'],
+            'geometryDigest' => $member['geometryDigest'],
+            'bounds' => array_map(
+                static fn (float $coordinate): float => round($coordinate, 4),
+                $member['bounds']
+            ),
+        ];
+        if ($role !== null) {
+            $proofMember['role'] = $role;
+        }
+
+        return $proofMember;
     }
 
     /**
@@ -4905,6 +7135,375 @@ final class PdfReader
     }
 
     /**
+     * Bind a display-token insertion back to one exact consecutive source
+     * sequence. The insertion must occur at an occurrence boundary and the
+     * repaired projection must be present on the proved output page, so a
+     * signed visual repair cannot authorize an unrelated source mutation.
+     *
+     * @param list<array<string,mixed>> $lineItems
+     * @param list<AstNode> $blocks
+     * @param array<int,array{start:int,end:int,projection:string,leafEnds:list<int>}> $finalOutputPageProofs
+     * @return array<string,array<string,mixed>>
+     */
+    private function positionedPdfDisplayTokenRepairDispositions(
+        array $lineItems,
+        array $blocks,
+        array $finalOutputPageProofs
+    ): array {
+        if ($this->positionedPdfDisplayTokenRepairProofs === []) {
+            return [];
+        }
+        $outputProofCounts = [];
+        $visit = function (array $nodes) use (&$visit, &$outputProofCounts): void {
+            foreach ($nodes as $node) {
+                $proof = $node->attr('sourcePdfDisplayTokenRepairProof');
+                if (is_array($proof)
+                    && is_string($proof['proofDigest'] ?? null)
+                    && is_string($proof['repairedText'] ?? null)
+                    && hash_equals(
+                        (string) $node->attr('text', ''),
+                        $proof['repairedText']
+                    )) {
+                    $outputProofCounts[$proof['proofDigest']] =
+                        ($outputProofCounts[$proof['proofDigest']] ?? 0) + 1;
+                }
+                if ($node->children() !== []) {
+                    $visit($node->children());
+                }
+            }
+        };
+        $visit($blocks);
+
+        $itemsByPage = [];
+        foreach ($lineItems as $index => $item) {
+            $page = max(1, (int) ($item['page'] ?? 1));
+            $itemsByPage[$page][] = ['index' => $index, 'item' => $item];
+        }
+
+        $dispositions = [];
+        foreach ($this->positionedPdfDisplayTokenRepairProofs as $proof) {
+            if (!$this->positionedPdfDisplayTokenRepairProofIsValid($proof)
+                || ($outputProofCounts[$proof['proofDigest']] ?? 0) !== 1) {
+                continue;
+            }
+            $page = (int) $proof['page'];
+            $sourceText = (string) $proof['sourceText'];
+            $repairedText = (string) $proof['repairedText'];
+            $sourceProjection = $this->pdfSourceOccurrenceComparableText($sourceText);
+            $repairedProjection = $this->pdfSourceOccurrenceComparableText($repairedText);
+            $pageOutputProof = $finalOutputPageProofs[$page] ?? null;
+            if ($sourceProjection === ''
+                || $repairedProjection === ''
+                || !is_array($pageOutputProof)
+                || !is_string($pageOutputProof['projection'] ?? null)
+                || substr_count($pageOutputProof['projection'], $repairedProjection) !== 1) {
+                continue;
+            }
+
+            $pageItems = $itemsByPage[$page] ?? [];
+            $matches = [];
+            foreach ($pageItems as $start => $record) {
+                $projection = '';
+                $stream = null;
+                $sequence = [];
+                for ($index = $start; $index < count($pageItems); $index++) {
+                    $item = $pageItems[$index]['item'];
+                    $itemStream = is_numeric($item['stream'] ?? null)
+                        ? (int) $item['stream']
+                        : null;
+                    if ($stream !== null && $itemStream !== null && $itemStream !== $stream) {
+                        break;
+                    }
+                    $stream ??= $itemStream;
+                    $part = $this->pdfSourceOccurrenceComparableText(
+                        (string) ($item['text'] ?? '')
+                    );
+                    if ($part === '') {
+                        continue;
+                    }
+                    $projection .= $part;
+                    $sequence[] = $pageItems[$index];
+                    if (strlen($projection) >= strlen($sourceProjection)) {
+                        if (hash_equals($sourceProjection, $projection)) {
+                            $matches[] = $sequence;
+                        }
+                        break;
+                    }
+                }
+            }
+            if (count($matches) !== 1) {
+                continue;
+            }
+
+            $prefix = $this->pdfSourceOccurrenceComparableText(substr(
+                $sourceText,
+                0,
+                (int) $proof['insertionOffset']
+            ));
+            $cumulative = '';
+            $target = null;
+            foreach ($matches[0] as $record) {
+                if (hash_equals($prefix, $cumulative)) {
+                    $target = $record;
+                    break;
+                }
+                $cumulative .= $this->pdfSourceOccurrenceComparableText(
+                    (string) ($record['item']['text'] ?? '')
+                );
+            }
+            $targetItem = is_array($target['item'] ?? null) ? $target['item'] : null;
+            $targetId = is_array($targetItem) && is_string($targetItem['id'] ?? null)
+                ? $targetItem['id']
+                : '';
+            if ($targetId === '' || isset($dispositions[$targetId])) {
+                continue;
+            }
+            $targetProjection = (string) $proof['insertedText']
+                . (string) ($targetItem['text'] ?? '');
+            $projectedSequence = '';
+            foreach ($matches[0] as $record) {
+                $projectedSequence .= $this->pdfSourceOccurrenceComparableText(
+                    $record['index'] === $target['index']
+                        ? $targetProjection
+                        : (string) ($record['item']['text'] ?? '')
+                );
+            }
+            if (!hash_equals($repairedProjection, $projectedSequence)) {
+                continue;
+            }
+            $sourceIds = array_values(array_filter(array_map(
+                static fn (array $record): string => is_string($record['item']['id'] ?? null)
+                    ? $record['item']['id']
+                    : '',
+                $matches[0]
+            )));
+            if (count($sourceIds) !== count($matches[0])) {
+                continue;
+            }
+            $dispositions[$targetId] = [
+                'disposition' => 'boundary-repair',
+                'reason' => 'One accepted same-font display heading supplies the unique missing leading title glyph at an exact source-occurrence boundary.',
+                'evidence' => $proof + [
+                    'sourceOccurrenceIds' => $sourceIds,
+                    'targetSourceOccurrenceId' => $targetId,
+                    'outputPageProjectionDigest' => hash('sha256', $pageOutputProof['projection']),
+                ],
+                'textProjection' => $targetProjection,
+                'allowOrderChange' => false,
+            ];
+        }
+
+        return $dispositions;
+    }
+
+    /** @param array<string,mixed> $proof */
+    private function positionedPdfDisplayTokenRepairProofIsValid(array $proof): bool
+    {
+        $digest = is_string($proof['proofDigest'] ?? null) ? $proof['proofDigest'] : '';
+        $unsigned = $proof;
+        unset($unsigned['proofDigest']);
+        $encoded = json_encode(
+            $unsigned,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+        );
+        $sourceText = is_string($proof['sourceText'] ?? null) ? $proof['sourceText'] : '';
+        $repairedText = is_string($proof['repairedText'] ?? null) ? $proof['repairedText'] : '';
+        $insertedText = is_string($proof['insertedText'] ?? null) ? $proof['insertedText'] : '';
+        $offset = is_int($proof['insertionOffset'] ?? null) ? $proof['insertionOffset'] : -1;
+
+        return ($proof['version'] ?? null) === 1
+            && ($proof['role'] ?? null) === 'display-heading-leading-token-repair'
+            && is_string($proof['sourceSha256'] ?? null)
+            && hash_equals($this->sourceSha256, $proof['sourceSha256'])
+            && is_int($proof['page'] ?? null)
+            && $proof['page'] >= 1
+            && is_int($proof['supportPage'] ?? null)
+            && $proof['supportPage'] >= 1
+            && $proof['supportPage'] !== $proof['page']
+            && $sourceText !== ''
+            && $repairedText !== ''
+            && $insertedText !== ''
+            && $this->length($insertedText) === 1
+            && $offset >= 0
+            && $offset <= strlen($sourceText)
+            && hash_equals(
+                $repairedText,
+                substr($sourceText, 0, $offset)
+                    . $insertedText
+                    . substr($sourceText, $offset)
+            )
+            && ($proof['sourceTextDigest'] ?? null) === hash('sha256', $sourceText)
+            && ($proof['repairedTextDigest'] ?? null) === hash('sha256', $repairedText)
+            && $digest !== ''
+            && hash_equals(
+                $digest,
+                hash('sha256', is_string($encoded) ? $encoded : serialize($unsigned))
+            );
+    }
+
+    /**
+     * Admit one missing mailbox delimiter only when the semantic repair kept
+     * an exact whole-occurrence range and the resulting projection occurs
+     * exactly once in the final AST. Duplicate receipts from repeated
+     * compositor passes collapse; conflicting receipts fail closed.
+     *
+     * @param list<array<string,mixed>> $lineItems
+     * @param list<AstNode> $blocks
+     * @param array<string,array<string,mixed>> $dispositions
+     * @return array<string,array<string,mixed>>
+     */
+    private function pdfDispositionsWithSemanticEmailDelimiterRepairs(
+        array $lineItems,
+        array $blocks,
+        array $dispositions
+    ): array {
+        if ($this->pdfSemanticEmailDelimiterRepairProofCandidates === []
+            || $blocks === []) {
+            return $dispositions;
+        }
+        $finalProjection = $this->pdfSignificantProjectionFromBlocks($blocks);
+        if ($finalProjection === '') {
+            return $dispositions;
+        }
+
+        $candidatesBySourceIndex = [];
+        foreach ($this->pdfSemanticEmailDelimiterRepairProofCandidates as $candidate) {
+            $proofDigest = is_string($candidate['proofDigest'] ?? null)
+                ? $candidate['proofDigest']
+                : '';
+            $payload = $candidate;
+            unset($payload['proofDigest']);
+            $sourceIndex = is_int($candidate['sourceIndex'] ?? null)
+                ? $candidate['sourceIndex']
+                : -1;
+            if (($candidate['version'] ?? null) !== 1
+                || ($candidate['method'] ?? null)
+                    !== 'exact-semantic-email-delimiter-insertion'
+                || ($candidate['sourceSha256'] ?? null) !== $this->sourceSha256
+                || $sourceIndex < 0
+                || $sourceIndex >= count($lineItems)
+                || $proofDigest === ''
+                || !hash_equals($proofDigest, hash('sha256', json_encode(
+                    $payload,
+                    JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+                ) ?: ''))) {
+                continue;
+            }
+            $coreIdentity = $candidate;
+            unset($coreIdentity['proofDigest'], $coreIdentity['semanticProofDigest']);
+            $coreDigest = hash('sha256', json_encode(
+                $coreIdentity,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            ) ?: '');
+            $candidatesBySourceIndex[$sourceIndex][$coreDigest][] = $candidate;
+        }
+
+        foreach ($candidatesBySourceIndex as $sourceIndex => $candidatesByDigest) {
+            if (count($candidatesByDigest) !== 1) {
+                continue;
+            }
+            $candidateGroup = array_values($candidatesByDigest)[0];
+            $candidate = $candidateGroup[0] ?? null;
+            if (!is_array($candidate)) {
+                continue;
+            }
+            $item = $lineItems[$sourceIndex] ?? null;
+            if (!is_array($item)
+                || !$this->sourcePdfSourceItemHasExactGeometry($item)
+                || !is_array($candidate['exactSourceRanges'] ?? null)) {
+                continue;
+            }
+            $sourceProjection = $this->pdfSourceOccurrenceComparableText(
+                (string) ($item['text'] ?? '')
+            );
+            $ranges = array_values($candidate['exactSourceRanges']);
+            usort($ranges, static fn (array $left, array $right): int =>
+                ((int) ($left['sourceStart'] ?? -1)
+                    <=> (int) ($right['sourceStart'] ?? -1))
+                    ?: ((int) ($left['sourceEnd'] ?? -1)
+                        <=> (int) ($right['sourceEnd'] ?? -1))
+            );
+            $cursor = 0;
+            foreach ($ranges as $range) {
+                if (!is_array($range)
+                    || ($range['sourceIndex'] ?? null) !== $sourceIndex
+                    || !is_int($range['sourceStart'] ?? null)
+                    || !is_int($range['sourceEnd'] ?? null)
+                    || $range['sourceStart'] !== $cursor
+                    || $range['sourceEnd'] <= $cursor
+                    || $range['sourceEnd'] > strlen($sourceProjection)) {
+                    continue 2;
+                }
+                $cursor = $range['sourceEnd'];
+            }
+            $outputProjection = is_string($candidate['outputProjection'] ?? null)
+                ? $candidate['outputProjection']
+                : '';
+            $outputText = is_string($candidate['outputText'] ?? null)
+                ? $candidate['outputText']
+                : '';
+            $insertionOffset = is_int($candidate['insertionOffset'] ?? null)
+                ? $candidate['insertionOffset']
+                : -1;
+            if ($sourceProjection === ''
+                || $cursor !== strlen($sourceProjection)
+                || !hash_equals(
+                    (string) ($candidate['sourceProjectionDigest'] ?? ''),
+                    hash('sha256', $sourceProjection)
+                )
+                || $outputProjection === ''
+                || !hash_equals(
+                    (string) ($candidate['outputProjectionDigest'] ?? ''),
+                    hash('sha256', $outputProjection)
+                )
+                || $this->pdfSourceOccurrenceComparableText($outputText)
+                    !== $outputProjection
+                || $insertionOffset < 0
+                || $insertionOffset >= strlen($outputProjection)
+                || $outputProjection[$insertionOffset] !== '@'
+                || !hash_equals(
+                    $sourceProjection,
+                    substr($outputProjection, 0, $insertionOffset)
+                        . substr($outputProjection, $insertionOffset + 1)
+                )
+                || substr_count($finalProjection, $outputProjection) !== 1) {
+                continue;
+            }
+            $id = is_string($item['id'] ?? null) ? $item['id'] : '';
+            if ($id === '') {
+                continue;
+            }
+            $existing = is_array($dispositions[$id] ?? null)
+                ? $dispositions[$id]
+                : [];
+            $existingKind = (string) ($existing['disposition'] ?? 'emitted');
+            if (!in_array($existingKind, ['emitted', 'boundary-repair'], true)) {
+                continue;
+            }
+            $existingEvidence = is_array($existing['evidence'] ?? null)
+                ? $existing['evidence']
+                : [];
+            $dispositions[$id] = array_replace($existing, [
+                'disposition' => 'boundary-repair',
+                'reason' => 'An exact front-matter mailbox proof restores the single required delimiter between the local part and DNS domain.',
+                'evidence' => array_replace($existingEvidence, [
+                    'method' => 'exact-semantic-email-delimiter-insertion',
+                    'sourceBounds' => $this->pdfSourceEvidenceBounds(
+                        $item['sourceGeometry']
+                    ),
+                    'insertionOffset' => $insertionOffset,
+                    'semanticProofDigest' => $candidate['semanticProofDigest'],
+                    'proofDigest' => $candidate['proofDigest'],
+                ]),
+                'textProjection' => $outputText,
+                'allowOrderChange' => (bool) ($existing['allowOrderChange'] ?? false),
+            ]);
+        }
+
+        return $dispositions;
+    }
+
+    /**
      * Apply only transformations with local decision evidence. A candidate
      * which was not actually transformed remains detectable because its
      * emitted inventory or ordered-conservation gate will fail.
@@ -4928,7 +7527,121 @@ final class PdfReader
         array $candidateProofSourceLayouts = []
     ): array
     {
-        $dispositions = [];
+        $dispositions = $this->positionedPdfDisplayTokenRepairDispositions(
+            $lineItems,
+            $blocks,
+            $finalOutputPageProofs
+        );
+        $dispositions = $this->pdfDispositionsWithSemanticEmailDelimiterRepairs(
+            $lineItems,
+            $blocks,
+            $dispositions
+        );
+        $finalProjection = $this->pdfSignificantProjectionFromBlocks($blocks);
+        foreach ($lineItems as $item) {
+            $id = is_string($item['id'] ?? null) ? $item['id'] : '';
+            $proof = is_array($item['sourcePdfOverprintedDuplicateArtifactEvidence'] ?? null)
+                ? $item['sourcePdfOverprintedDuplicateArtifactEvidence']
+                : null;
+            if ($id === ''
+                || $proof === null
+                || ($proof['artifact']['sourceOccurrenceId'] ?? null) !== $id
+                || !$this->sourcePdfOverprintedDuplicateArtifactProofMatchesSourceItems(
+                    $proof,
+                    $lineItems
+                )) {
+                continue;
+            }
+            $retainedId = $proof['retained']['sourceOccurrenceId'] ?? null;
+            $retained = null;
+            foreach ($lineItems as $candidate) {
+                if (($candidate['id'] ?? null) === $retainedId) {
+                    $retained = $candidate;
+                    break;
+                }
+            }
+            $projection = is_array($retained)
+                ? $this->pdfSourceOccurrenceComparableText(
+                    (string) ($retained['text'] ?? '')
+                )
+                : '';
+            $proofPage = (int) ($proof['page'] ?? 0);
+            $retainedOutputProjection = $proofPage >= 1
+                && is_string($finalOutputPageProofs[$proofPage]['projection'] ?? null)
+                    ? $finalOutputPageProofs[$proofPage]['projection']
+                    : $finalProjection;
+            if ($projection === ''
+                || !hash_equals(
+                    (string) ($proof['projectionDigest'] ?? ''),
+                    hash('sha256', $projection)
+                )
+                || substr_count($retainedOutputProjection, $projection) !== 1) {
+                continue;
+            }
+            $dispositions[$id] = [
+                'disposition' => 'artifact',
+                'reason' => 'A signed exact-geometry receipt proves this adjacent URL occurrence is a redundant overprint of the retained source occurrence.',
+                'evidence' => $proof,
+                'allowOrderChange' => false,
+            ];
+        }
+        $validatedChartCipherProofsBySourceId =
+            $this->sourcePdfChartCipherArtifactProofs($lineItems);
+        foreach ($lineItems as $item) {
+            $id = is_string($item['id'] ?? null) ? $item['id'] : '';
+            $proof = $id !== ''
+                && is_array($this->sourcePdfChartCipherArtifactProofsBySourceId[$id] ?? null)
+                    ? $this->sourcePdfChartCipherArtifactProofsBySourceId[$id]
+                    : null;
+            $validatedProof = $id !== ''
+                ? ($validatedChartCipherProofsBySourceId[$id] ?? null)
+                : null;
+            if ($id === ''
+                || !is_array($proof)
+                || !is_array($validatedProof)
+                || $validatedProof !== $proof
+                || !$this->sourcePdfSignedProofDigestMatches($proof)
+                || !in_array($id, $proof['sourceOccurrenceIds'] ?? [], true)
+                || ($item['sourcePdfChartCipherArtifactEvidence'] ?? null) !== $proof) {
+                continue;
+            }
+            $dispositions[$id] = [
+                'disposition' => 'artifact',
+                'reason' => 'A signed exact same-stream source-run receipt proves this occurrence belongs to a sustained substituted chart-font cipher rather than editable prose.',
+                'evidence' => $proof,
+                'allowOrderChange' => false,
+            ];
+        }
+        unset($validatedChartCipherProofsBySourceId);
+        $uniqueMapGlyphLadderProofs = [];
+        foreach ($this->sourcePdfMapGlyphLadderArtifactProofsBySourceId as $proof) {
+            if (is_array($proof) && is_string($proof['proofDigest'] ?? null)) {
+                $uniqueMapGlyphLadderProofs[$proof['proofDigest']] = $proof;
+            }
+        }
+        foreach ($uniqueMapGlyphLadderProofs as $proof) {
+            if (!$this->sourcePdfMapGlyphLadderArtifactProofMatchesSourceItems(
+                $proof,
+                $lineItems
+            )) {
+                continue;
+            }
+            foreach ($proof['sourceOccurrenceIds'] as $sourceId) {
+                if (($this->sourcePdfMapGlyphLadderArtifactProofsBySourceId[
+                    $sourceId
+                ] ?? null) !== $proof) {
+                    continue;
+                }
+                $dispositions[$sourceId] = [
+                    'disposition' => 'artifact',
+                    'reason' => 'A signed exact source-run receipt binds this occurrence to a greater-than-sixteen glyph ladder inside an independently positioned sustained map-label region.',
+                    'evidence' => $proof,
+                    'allowOrderChange' => false,
+                ];
+            }
+        }
+        unset($uniqueMapGlyphLadderProofs);
+        unset($finalProjection);
         $independentColumnRegions = [];
         foreach ($this->geometryLayoutHypotheses as $hypothesis) {
             if (!is_array($hypothesis)
@@ -4970,7 +7683,8 @@ final class PdfReader
             $geometryOrderLayouts,
             $blocks,
             $finalOutputPageProofs,
-            $finalOutputRangeProof
+            $finalOutputRangeProof,
+            $dispositions
         );
         $misorderedDiacriticRepairs =
             $this->pdfSourceMisorderedDiacriticBoundaryRepairs(
@@ -5016,6 +7730,57 @@ final class PdfReader
                 'textProjection' => $projection,
                 'allowOrderChange' => true,
             ];
+        }
+
+        // These projections were already applied to source-derived layouts
+        // before semantic parsing. Revalidate the signed receipt against the
+        // immutable source occurrence before teaching the fidelity ledger how
+        // the omitted folios or matrix glyphs are represented.
+        foreach ($lineItems as $sourceIndex => $item) {
+            $id = is_string($item['id'] ?? null) ? $item['id'] : '';
+            $proof = is_array($item['sourcePdfFacingFolioBoundaryRepair'] ?? null)
+                ? $item['sourcePdfFacingFolioBoundaryRepair']
+                : (is_array($item['sourcePdfChoiceMatrixBoundaryRepair'] ?? null)
+                    ? $item['sourcePdfChoiceMatrixBoundaryRepair']
+                    : null);
+            if ($id === ''
+                || $proof === null
+                || !$this->sourcePdfBoundaryProjectionProofMatchesItem(
+                    $proof,
+                    $item,
+                    $sourceIndex
+                )) {
+                continue;
+            }
+            $existing = is_array($dispositions[$id] ?? null)
+                ? $dispositions[$id]
+                : [];
+            $existingEvidence = is_array($existing['evidence'] ?? null)
+                ? $existing['evidence']
+                : [];
+            $role = (string) ($proof['role'] ?? 'facing-folio-title');
+            if ($role === 'choice-matrix-marker-row') {
+                $dispositions[$id] = [
+                    'disposition' => 'artifact',
+                    'reason' => 'A signed recurring choice-matrix proof binds this source row to aligned painted choice marks rather than list content.',
+                    'evidence' => $existingEvidence + [
+                        'choiceMatrixBoundaryRepair' => $proof,
+                    ],
+                ];
+                continue;
+            }
+            $reason = $role === 'choice-matrix-label'
+                ? 'A signed recurring choice-matrix proof removes only the exact accessibility/symbol prefix from this label.'
+                : 'A signed spread-edge proof removes two consecutive facing folios while preserving the exact intervening title.';
+            $dispositions[$id] = array_replace($existing, [
+                'disposition' => 'boundary-repair',
+                'reason' => $reason,
+                'evidence' => $existingEvidence + [
+                    'lineLocalBoundaryRepair' => $proof,
+                ],
+                'textProjection' => (string) $proof['textProjection'],
+                'allowOrderChange' => (bool) ($existing['allowOrderChange'] ?? false),
+            ]);
         }
 
         // Some producers paint a spacing accent as its own source occurrence
@@ -5088,7 +7853,10 @@ final class PdfReader
             }
             $dispositions[$id] = [
                 'disposition' => 'running-furniture',
-                'reason' => 'A signed semantic-stage receipt binds this isolated numeric folio to one exact bottom-slot occurrence on each of multiple source pages.',
+                'reason' => ($proof['method'] ?? null)
+                    === 'exact-single-page-bottom-footer-companion-page-number-removal'
+                    ? 'A signed semantic-stage receipt binds this isolated numeric folio to the far-right bottom slot opposite one exact long footer companion.'
+                    : 'A signed semantic-stage receipt binds this isolated numeric folio to one exact bottom-slot occurrence on each of multiple source pages.',
                 'evidence' => $proof,
             ];
         }
@@ -5514,6 +8282,67 @@ final class PdfReader
             unset($dispositions[$id]['orderProof']);
         }
 
+        // Two icon atoms are omitted only when the immutable source inventory
+        // independently recreates the complete nested-symbol admonition
+        // proof. The retained uppercase label and prose rows continue through
+        // ordinary exact output binding; only the decorative symbol and its
+        // nested punctuation receive an artifact disposition.
+        foreach ($this->sourcePdfExactNestedCautionCalloutProofs($lineItems) as $proof) {
+            if (!$this->sourcePdfSignedProofDigestMatches($proof)) {
+                continue;
+            }
+            foreach ($proof['iconAtoms'] as $atom) {
+                $sourceIndex = is_int($atom['sourceIndex'] ?? null)
+                    ? $atom['sourceIndex']
+                    : null;
+                $item = is_int($sourceIndex) ? ($lineItems[$sourceIndex] ?? null) : null;
+                $id = is_array($item) && is_string($item['id'] ?? null)
+                    ? $item['id']
+                    : '';
+                $existing = $id !== '' && is_array($dispositions[$id] ?? null)
+                    ? $dispositions[$id]
+                    : [];
+                $existingKind = (string) ($existing['disposition'] ?? 'emitted');
+                if (!is_array($item)
+                    || $id === ''
+                    || $id !== ($atom['sourceOccurrenceId'] ?? null)
+                    || !in_array(
+                        $existingKind,
+                        ['emitted', 'boundary-repair', 'semantic-structure'],
+                        true
+                    )) {
+                    continue;
+                }
+                $evidence = [
+                    'version' => 1,
+                    'method' => 'signed-exact-nested-symbol-callout-icon-atom',
+                    'sourceSha256' => $this->sourceSha256,
+                    'page' => $proof['page'],
+                    'sourceStream' => $proof['sourceStream'],
+                    'atomRole' => $atom['role'],
+                    'atom' => $atom,
+                    'retainedProjectionDigest' => $proof['retainedProjectionDigest'],
+                    'calloutProof' => $proof,
+                ];
+                $encoded = json_encode(
+                    $evidence,
+                    JSON_UNESCAPED_SLASHES
+                        | JSON_UNESCAPED_UNICODE
+                        | JSON_PRESERVE_ZERO_FRACTION
+                );
+                $evidence['proofDigest'] = hash(
+                    'sha256',
+                    is_string($encoded) ? $encoded : serialize($evidence)
+                );
+                $dispositions[$id] = [
+                    'disposition' => 'artifact',
+                    'reason' => 'A signed exact same-stream nested-symbol callout proof identifies this atom as decorative icon paint while preserving the adjacent label and complete prose lane.',
+                    'evidence' => $evidence,
+                    'allowOrderChange' => false,
+                ];
+            }
+        }
+
         // A literal brace remains source text unless recurrence, exact bboxes,
         // oversized paired geometry, and enclosed text jointly prove it is a
         // visual callout ornament. This deliberately leaves unmatched code,
@@ -5587,6 +8416,109 @@ final class PdfReader
             ];
         }
 
+        // A decorative display phrase can share two source records with an
+        // unrelated prose lane. The earlier geometry pass signs the complete
+        // three-occurrence graph and keeps only the right-lane ranges in the
+        // candidate layouts. Rebind that proof here so source reconciliation
+        // neither restores the redundant display prefix nor loses the prose
+        // suffixes which occupy the same source records.
+        foreach ($lineItems as $sourceIndex => $item) {
+            $id = is_string($item['id'] ?? null) ? $item['id'] : '';
+            $role = is_string($item['sourcePdfCrossLaneDisplayArtifactRole'] ?? null)
+                ? $item['sourcePdfCrossLaneDisplayArtifactRole']
+                : '';
+            $evidence = is_array($item['sourcePdfCrossLaneDisplayArtifactEvidence'] ?? null)
+                ? $item['sourcePdfCrossLaneDisplayArtifactEvidence']
+                : null;
+            if ($id === ''
+                || !in_array($role, ['whole-display-artifact', 'display-prefix-projection'], true)
+                || $evidence === null
+                || !$this->pdfCrossLaneDisplayArtifactEvidenceMatchesSourceItems(
+                    $evidence,
+                    $lineItems
+                )) {
+                continue;
+            }
+            $existing = is_array($dispositions[$id] ?? null)
+                ? $dispositions[$id]
+                : [];
+            $existingKind = (string) ($existing['disposition'] ?? 'emitted');
+            if (!in_array($existingKind, ['emitted', 'boundary-repair', 'semantic-structure'], true)) {
+                continue;
+            }
+            if ($role === 'whole-display-artifact') {
+                $dispositions[$id] = [
+                    'disposition' => 'artifact',
+                    'reason' => 'A signed exact three-occurrence lane graph proves this short lead belongs only to a duplicated display phrase.',
+                    'evidence' => $evidence,
+                ];
+                continue;
+            }
+
+            $rows = array_values(array_filter(
+                $evidence['splitRows'],
+                static fn (array $row): bool => ($row['sourceIndex'] ?? null) === $sourceIndex
+            ));
+            if (count($rows) !== 1
+                || !is_string($rows[0]['retainedText'] ?? null)
+                || $this->pdfSourceOccurrenceComparableText($rows[0]['retainedText']) === '') {
+                continue;
+            }
+            $existingEvidence = is_array($existing['evidence'] ?? null)
+                ? $existing['evidence']
+                : [];
+            $existingReason = trim((string) ($existing['reason'] ?? ''));
+            $dispositions[$id] = array_replace($existing, [
+                'disposition' => $existingKind === 'semantic-structure'
+                    ? 'semantic-structure'
+                    : 'boundary-repair',
+                'reason' => ($existingReason !== '' ? $existingReason . ' ' : '')
+                    . 'A signed exact split-range proof removes the duplicated left display prefix while retaining the complete right-lane prose suffix.',
+                'evidence' => $existingEvidence + [
+                    'crossLaneDisplayArtifactProjection' => $evidence,
+                ],
+                'textProjection' => $rows[0]['retainedText'],
+                'allowOrderChange' => (bool) ($existing['allowOrderChange'] ?? false),
+            ]);
+        }
+
+        // Four compact atoms may represent two translated copies of one map
+        // label while the complete semantic sentence is retained elsewhere.
+        // Revalidate the signed A-B-B-A graph here before classifying any of
+        // the exact source occurrences as redundant display artifacts.
+        foreach ($lineItems as $item) {
+            $id = is_string($item['id'] ?? null) ? $item['id'] : '';
+            $evidence = is_array($item['sourcePdfMirroredMapPairArtifactEvidence'] ?? null)
+                ? $item['sourcePdfMirroredMapPairArtifactEvidence']
+                : null;
+            if ($id === ''
+                || ($item['sourcePdfMirroredMapPairArtifactRole'] ?? null)
+                    !== 'mirrored-duplicate-map-pair-artifact'
+                || $evidence === null
+                || !$this->pdfMirroredDuplicateMapPairEvidenceMatchesSourceItems(
+                    $evidence,
+                    $lineItems
+                )) {
+                continue;
+            }
+            $existing = is_array($dispositions[$id] ?? null)
+                ? $dispositions[$id]
+                : [];
+            $existingKind = (string) ($existing['disposition'] ?? 'emitted');
+            if (!in_array(
+                $existingKind,
+                ['emitted', 'boundary-repair', 'semantic-structure'],
+                true
+            )) {
+                continue;
+            }
+            $dispositions[$id] = [
+                'disposition' => 'artifact',
+                'reason' => 'A signed exact four-occurrence A-B-B-A graph proves two rigidly translated compact map-label copies while one unique longer prose occurrence preserves the semantic phrase.',
+                'evidence' => $evidence,
+            ];
+        }
+
         if ($blocks === []) {
             return $dispositions;
         }
@@ -5606,6 +8538,12 @@ final class PdfReader
             $lineItems,
             $dispositions,
             $finalOutputPageProofs
+        );
+
+        $dispositions = $this->pdfDispositionsWithExactCrossPageListContinuationOrderProofs(
+            $lineItems,
+            $blocks,
+            $dispositions
         );
 
         $dispositions = $this->pdfDispositionsWithExactGeometryPageOrderProofs(
@@ -6596,6 +9534,293 @@ final class PdfReader
     }
 
     /**
+     * Bind the stable-moved page-leading list continuation to one contiguous
+     * immutable source scope. Marker-only occurrences remain represented by
+     * their existing structural dispositions; every textual contributor gets
+     * the same exact occurrence permutation proof used by the output binder.
+     *
+     * @param list<array<string,mixed>> $lineItems
+     * @param list<AstNode> $blocks
+     * @param array<string,array<string,mixed>> $dispositions
+     * @return array<string,array<string,mixed>>
+     */
+    private function pdfDispositionsWithExactCrossPageListContinuationOrderProofs(
+        array $lineItems,
+        array $blocks,
+        array $dispositions
+    ): array {
+        if ($this->pdfCrossPageListContinuationOrderProofCandidates === []
+            || $blocks === []) {
+            return $dispositions;
+        }
+        $finalProjection = $this->pdfSignificantProjectionFromBlocks($blocks);
+        if ($finalProjection === '') {
+            return $dispositions;
+        }
+
+        foreach ($this->pdfCrossPageListContinuationOrderProofCandidates as $candidate) {
+            $proofDigest = is_string($candidate['proofDigest'] ?? null)
+                ? $candidate['proofDigest']
+                : '';
+            $payload = $candidate;
+            unset($payload['proofDigest']);
+            $scopeStart = is_int($candidate['scopeSourceStart'] ?? null)
+                ? $candidate['scopeSourceStart']
+                : -1;
+            $scopeEnd = is_int($candidate['scopeSourceEnd'] ?? null)
+                ? $candidate['scopeSourceEnd']
+                : -1;
+            if (($candidate['version'] ?? null) !== 1
+                || ($candidate['method'] ?? null)
+                    !== 'exact-cross-page-open-list-continuation-order'
+                || ($candidate['sourceSha256'] ?? null) !== $this->sourceSha256
+                || $proofDigest === ''
+                || !hash_equals($proofDigest, hash('sha256', json_encode(
+                    $payload,
+                    JSON_UNESCAPED_SLASHES
+                        | JSON_UNESCAPED_UNICODE
+                        | JSON_PRESERVE_ZERO_FRACTION
+                ) ?: ''))
+                || $scopeStart < 0
+                || $scopeEnd < $scopeStart
+                || $scopeEnd >= count($lineItems)
+                || !is_array($candidate['sourceOccurrenceIds'] ?? null)
+                || !is_array($candidate['sourceProjectionDigests'] ?? null)
+                || !is_array($candidate['emittedSourceIndexOrder'] ?? null)
+                || (int) ($candidate['barrierMarkerCount'] ?? 0) < 3
+                || (int) ($candidate['continuationMarkerCount'] ?? 0) < 3) {
+                continue;
+            }
+
+            $sourceIds = [];
+            $projectionDigests = [];
+            $requiredSourceIndexes = [];
+            for ($sourceIndex = $scopeStart; $sourceIndex <= $scopeEnd; $sourceIndex++) {
+                $item = $lineItems[$sourceIndex] ?? null;
+                $projection = is_array($item)
+                    ? $this->pdfSourceOccurrenceComparableText(
+                        (string) ($item['text'] ?? '')
+                    )
+                    : '';
+                if ($projection === '') {
+                    continue;
+                }
+                $id = is_array($item) && is_string($item['id'] ?? null)
+                    ? $item['id']
+                    : '';
+                if ($id === '' || !$this->sourcePdfSourceItemHasExactGeometry($item)) {
+                    continue 2;
+                }
+                $requiredSourceIndexes[] = $sourceIndex;
+                $sourceIds[] = $id;
+                $projectionDigests[] = hash('sha256', $projection);
+            }
+            if ($sourceIds !== array_values($candidate['sourceOccurrenceIds'])
+                || $projectionDigests
+                    !== array_values($candidate['sourceProjectionDigests'])) {
+                continue;
+            }
+            $emittedSourceIndexOrder = array_values($candidate['emittedSourceIndexOrder']);
+            if (array_filter(
+                $emittedSourceIndexOrder,
+                static fn (mixed $sourceIndex): bool => !is_int($sourceIndex)
+            ) !== []) {
+                continue;
+            }
+            $sortedEmitted = $emittedSourceIndexOrder;
+            sort($sortedEmitted, SORT_NUMERIC);
+            if ($sortedEmitted !== $requiredSourceIndexes
+                || count($emittedSourceIndexOrder) !== count(array_unique(
+                    $emittedSourceIndexOrder,
+                    SORT_NUMERIC
+                ))) {
+                continue;
+            }
+
+            $anchorSourceIndex = $candidate['anchorSourceIndex'] ?? null;
+            $continuationSourceIndex = $candidate['continuationSourceIndex'] ?? null;
+            $anchor = is_int($anchorSourceIndex)
+                ? ($lineItems[$anchorSourceIndex] ?? null)
+                : null;
+            $continuation = is_int($continuationSourceIndex)
+                ? ($lineItems[$continuationSourceIndex] ?? null)
+                : null;
+            if (!is_array($anchor)
+                || !is_array($continuation)
+                || $continuationSourceIndex !== $anchorSourceIndex + 1
+                || ($candidate['anchorSourceOccurrenceId'] ?? null)
+                    !== ($anchor['id'] ?? null)
+                || ($candidate['continuationSourceOccurrenceId'] ?? null)
+                    !== ($continuation['id'] ?? null)
+                || (int) ($candidate['anchorPage'] ?? 0) !== (int) ($anchor['page'] ?? 0)
+                || (int) ($candidate['continuationPage'] ?? 0)
+                    !== (int) ($continuation['page'] ?? 0)
+                || (int) ($continuation['page'] ?? 0) !== (int) ($anchor['page'] ?? 0) + 1
+                || ($candidate['anchorBounds'] ?? null)
+                    !== $this->pdfSourceEvidenceBounds($anchor['sourceGeometry'])
+                || ($candidate['continuationBounds'] ?? null)
+                    !== $this->pdfSourceEvidenceBounds($continuation['sourceGeometry'])) {
+                continue;
+            }
+
+            $contributorsBySourceIndex = [];
+            $scopeBoundsByPage = [];
+            foreach ($requiredSourceIndexes as $sourceIndex) {
+                $item = $lineItems[$sourceIndex];
+                $id = (string) $item['id'];
+                $page = max(1, (int) ($item['page'] ?? 1));
+                $sourceBounds = $this->pdfSourceEvidenceBounds($item['sourceGeometry']);
+                if (!isset($scopeBoundsByPage[$page])) {
+                    $scopeBoundsByPage[$page] = $sourceBounds;
+                } else {
+                    $scopeBoundsByPage[$page]['x1'] = min(
+                        $scopeBoundsByPage[$page]['x1'],
+                        $sourceBounds['x1']
+                    );
+                    $scopeBoundsByPage[$page]['y1'] = min(
+                        $scopeBoundsByPage[$page]['y1'],
+                        $sourceBounds['y1']
+                    );
+                    $scopeBoundsByPage[$page]['x2'] = max(
+                        $scopeBoundsByPage[$page]['x2'],
+                        $sourceBounds['x2']
+                    );
+                    $scopeBoundsByPage[$page]['y2'] = max(
+                        $scopeBoundsByPage[$page]['y2'],
+                        $sourceBounds['y2']
+                    );
+                }
+                $existing = is_array($dispositions[$id] ?? null)
+                    ? $dispositions[$id]
+                    : [];
+                $kind = (string) ($existing['disposition'] ?? 'emitted');
+                if ($kind === 'unresolved'
+                    && is_array($existing['evidence'] ?? null)
+                    && in_array(
+                        (string) ($existing['evidence']['requestedDisposition'] ?? ''),
+                        ['emitted', 'boundary-repair', 'semantic-structure'],
+                        true
+                    )) {
+                    $kind = (string) $existing['evidence']['requestedDisposition'];
+                }
+                if (!in_array($kind, ['emitted', 'boundary-repair', 'semantic-structure'], true)) {
+                    continue 2;
+                }
+                $projection = is_string($existing['textProjection'] ?? null)
+                    ? $existing['textProjection']
+                    : (string) ($item['text'] ?? '');
+                $significant = $this->pdfSourceOccurrenceComparableText($projection);
+                if ($significant === '') {
+                    if ($this->pdfDispositionHasExactSemanticStructureProof($existing)) {
+                        continue;
+                    }
+                    continue 2;
+                }
+                $contributorsBySourceIndex[$sourceIndex] = [
+                    'id' => $id,
+                    'kind' => $kind,
+                    'projection' => $projection,
+                    'significant' => $significant,
+                    'existing' => $existing,
+                    'page' => $page,
+                    'sourceBounds' => $sourceBounds,
+                ];
+            }
+            if ($contributorsBySourceIndex === []) {
+                continue;
+            }
+            $naturalContributors = array_values($contributorsBySourceIndex);
+            $emittedContributors = [];
+            foreach ($emittedSourceIndexOrder as $sourceIndex) {
+                if (isset($contributorsBySourceIndex[$sourceIndex])) {
+                    $emittedContributors[] = $contributorsBySourceIndex[$sourceIndex];
+                }
+            }
+            if (count($emittedContributors) !== count($naturalContributors)) {
+                continue;
+            }
+            $emittedProjection = implode('', array_column(
+                $emittedContributors,
+                'significant'
+            ));
+            if ($emittedProjection === ''
+                || substr_count($finalProjection, $emittedProjection) !== 1) {
+                continue;
+            }
+
+            $naturalIds = array_column($naturalContributors, 'id');
+            $emittedIds = array_column($emittedContributors, 'id');
+            $sourcePages = array_values(array_unique(array_map(
+                static fn (array $contributor): int => (int) $contributor['page'],
+                $naturalContributors
+            ), SORT_NUMERIC));
+            sort($sourcePages, SORT_NUMERIC);
+            if (count($sourcePages) < 2) {
+                continue;
+            }
+            $scopeIdentity = [
+                'sourceSha256' => $this->sourceSha256,
+                'candidateProofDigest' => $proofDigest,
+                'sourceOccurrenceIds' => $naturalIds,
+                'emittedSourceOccurrenceIds' => $emittedIds,
+                'sourcePages' => $sourcePages,
+                'emittedProjectionDigest' => hash('sha256', $emittedProjection),
+            ];
+            $scopeId = 'pdf-cross-page-list-order-scope-' . substr(hash(
+                'sha256',
+                json_encode(
+                    $scopeIdentity,
+                    JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+                ) ?: ''
+            ), 0, 32);
+            $orderProof = [
+                'scopeId' => $scopeId,
+                'sourceOccurrenceIds' => $naturalIds,
+                'emittedTextProjection' => $emittedProjection,
+                'sourcePages' => $sourcePages,
+                'emittedSourceOccurrenceIds' => $emittedIds,
+            ];
+            foreach ($naturalContributors as $contributor) {
+                $id = $contributor['id'];
+                $existing = $contributor['existing'];
+                $existingEvidence = is_array($existing['evidence'] ?? null)
+                    ? $existing['evidence']
+                    : [];
+                $dispositions[$id] = array_replace($existing, [
+                    'disposition' => $contributor['kind'],
+                    'reason' => trim((string) ($existing['reason'] ?? '')) !== ''
+                        ? (string) $existing['reason']
+                        : 'A signed exact cross-page open-list continuation scope proves this occurrence\'s emitted order.',
+                    'evidence' => array_replace($existingEvidence, [
+                        'hypothesis' => 'cross-page-open-list-continuation-order',
+                        'page' => $contributor['page'],
+                        'localGeometryMatch' =>
+                            'complete-exact-cross-page-source-occurrence-order',
+                        'bounds' => $scopeBoundsByPage[$contributor['page']],
+                        'sourceBounds' => $contributor['sourceBounds'],
+                        'featureDigest' => $proofDigest,
+                        'crossPageListContinuationOrder' => $candidate,
+                    ]),
+                    'textProjection' => $contributor['projection'],
+                    'allowOrderChange' => true,
+                    'orderProof' => $orderProof,
+                ]);
+            }
+            $this->sourceOrderProofDiagnostics[] = [
+                'status' => 'accepted',
+                'method' => 'exact-cross-page-open-list-continuation-order',
+                'pages' => [
+                    (int) $candidate['anchorPage'],
+                    (int) $candidate['continuationPage'],
+                ],
+                'sourceOccurrenceCount' => count($naturalIds),
+            ];
+        }
+
+        return $dispositions;
+    }
+
+    /**
      * Geometry reconstruction deliberately changes the source stream order on
      * some pages: table cells become visual rows and independently positioned
      * prose becomes reading-order blocks. Authorize that change only for an
@@ -6691,6 +9916,14 @@ final class PdfReader
                 'significant' => $significant,
                 'sourceSignificant' => $this->pdfSourceOccurrenceComparableText($text),
                 'sourceBounds' => $sourceGeometry,
+                'exactProjectionMap' => is_array($disposition)
+                    ? $this->pdfCrossLaneDisplayDispositionProjectionMap(
+                        $globalSourceIndex,
+                        $item,
+                        $disposition,
+                        $lineItems
+                    )
+                    : null,
             ];
             if ($sourceGeometry !== null) {
                 if (!isset($pageBounds[$page])) {
@@ -7080,7 +10313,18 @@ final class PdfReader
      * must appear exactly once and the declared visual-order concatenation
      * must equal the final page projection byte for byte.
      *
-     * @param list<array{id:string,sourceIndex:int,significant:string,sourceSignificant:string}> $contributors
+     * @param list<array{
+     *     id:string,
+     *     sourceIndex:int,
+     *     significant:string,
+     *     sourceSignificant:string,
+     *     exactProjectionMap?:list<array{
+     *         sourceStart:int,
+     *         sourceEnd:int,
+     *         projectionStart:int,
+     *         projectionEnd:int
+     *     }>|null
+     * }> $contributors
      * @param list<array<string,mixed>> $layouts
      * @return list<array{sourceOccurrenceId:string,sourceStart:int,sourceEnd:int}>|null
      */
@@ -7156,10 +10400,12 @@ final class PdfReader
         foreach ($contributorsBySourceIndex as $sourceIndex => $contributor) {
             $sourceSignificant = (string) ($contributor['sourceSignificant'] ?? '');
             $significant = (string) ($contributor['significant'] ?? '');
-            $projectionMap = $this->pdfUniqueSourceProjectionEditMap(
-                $sourceSignificant,
-                $significant
-            );
+            $projectionMap = is_array($contributor['exactProjectionMap'] ?? null)
+                ? $contributor['exactProjectionMap']
+                : $this->pdfUniqueSourceProjectionEditMap(
+                    $sourceSignificant,
+                    $significant
+                );
             if ($sourceSignificant === '' || $projectionMap === null) {
                 $this->sourceOrderProofDiagnostics[] = [
                     'status' => 'trace',
@@ -8838,7 +12084,8 @@ final class PdfReader
         int $stream,
         string $sourceProjection
     ): bool {
-        $proof = is_array($layout['sourcePdfWholeExactOccurrenceProof'] ?? null)
+        $proof = is_array($layout)
+            && is_array($layout['sourcePdfWholeExactOccurrenceProof'] ?? null)
             ? $layout['sourcePdfWholeExactOccurrenceProof']
             : null;
         $occurrences = is_array($proof['occurrences'] ?? null)
@@ -11544,12 +14791,456 @@ final class PdfReader
         // than turning a word shape into a document-wide replacement rule.
         $ordered = $this->markSourcePdfLocalWrappedHyphenJoins($ordered, $sourceItems);
         $ordered = $this->logicalTextFromVisualRtlItems($ordered, $positionedItems);
+        $ordered = $this->restoreSourcePdfCrossPageListContinuationRuns(
+            $ordered,
+            $sourceItems
+        );
 
         return [
             'items' => $ordered,
             'geometryPages' => $geometryPages,
             'geometryPageNumbers' => array_keys($geometryPageNumbers),
         ];
+    }
+
+    /**
+     * A continuation page can finish the list at the bottom of a left-hand
+     * module even when the first page's right-hand module is painted before
+     * it in physical page order. Stable-move only a page-leading bullet run
+     * whose first exact source range immediately succeeds an open bullet item
+     * on the prior page while every intervening visual record belongs to one
+     * earlier, disjoint exact source interval. The resulting cross-page order
+     * is retained as a signed contiguous-source scope for the final ledger.
+     *
+     * @param list<array<string,mixed>> $items
+     * @param list<array<string,mixed>> $sourceItems
+     * @return list<array<string,mixed>>
+     */
+    private function restoreSourcePdfCrossPageListContinuationRuns(
+        array $items,
+        array $sourceItems
+    ): array {
+        if (count($items) < 8 || count($sourceItems) < 8) {
+            return $items;
+        }
+
+        $itemCount = count($items);
+        for ($pageStart = 1; $pageStart < $itemCount; $pageStart++) {
+            $page = max(1, (int) ($items[$pageStart]['page'] ?? 1));
+            $previousPage = max(1, (int) ($items[$pageStart - 1]['page'] ?? 1));
+            if ($page <= $previousPage) {
+                continue;
+            }
+            $firstRanges = $this->pdfCrossPageListExactLayoutRanges(
+                $items[$pageStart],
+                $sourceItems
+            );
+            if ($firstRanges === null
+                || !$this->pdfLineStartsWithBulletMarker((string) ($items[$pageStart]['text'] ?? ''))) {
+                continue;
+            }
+            $firstSourceIndex = $firstRanges[0]['sourceIndex'];
+            if ($firstSourceIndex < 1) {
+                continue;
+            }
+
+            $runEnd = $pageStart;
+            $markerCount = 0;
+            $openListItem = false;
+            $previousRangeEnd = null;
+            while ($runEnd < $itemCount
+                && max(1, (int) ($items[$runEnd]['page'] ?? 1)) === $page) {
+                $ranges = $this->pdfCrossPageListExactLayoutRanges(
+                    $items[$runEnd],
+                    $sourceItems
+                );
+                if ($ranges === null) {
+                    break;
+                }
+                $startsMarker = $this->pdfLineStartsWithBulletMarker(
+                    (string) ($items[$runEnd]['text'] ?? '')
+                );
+                $rangeStart = $ranges[0]['sourceIndex'];
+                if (!$startsMarker
+                    && (!$openListItem
+                        || $previousRangeEnd === null
+                        || $rangeStart !== $previousRangeEnd + 1)) {
+                    break;
+                }
+                if ($startsMarker) {
+                    $markerCount++;
+                }
+                $text = rtrim((string) ($items[$runEnd]['text'] ?? ''));
+                $openListItem = preg_match('/[.!?;:][\p{Pe}\p{Pf}]*\s*$/u', $text) !== 1;
+                $previousRangeEnd = $ranges[array_key_last($ranges)]['sourceIndex'];
+                $runEnd++;
+            }
+            if ($markerCount < 3 || $runEnd === $pageStart) {
+                continue;
+            }
+            $runCoverage = $this->pdfCrossPageListExactCoverage(
+                array_slice($items, $pageStart, $runEnd - $pageStart),
+                $sourceItems
+            );
+            if ($runCoverage === null
+                || $runCoverage['sourceIndexes'][0] !== $firstSourceIndex) {
+                continue;
+            }
+            $runLastSourceIndex = $runCoverage['sourceIndexes'][array_key_last(
+                $runCoverage['sourceIndexes']
+            )];
+
+            $anchorMatches = [];
+            for ($candidateIndex = 0; $candidateIndex < $pageStart; $candidateIndex++) {
+                $ranges = $this->pdfCrossPageListExactLayoutRanges(
+                    $items[$candidateIndex],
+                    $sourceItems
+                );
+                if ($ranges === null) {
+                    continue;
+                }
+                $last = $ranges[array_key_last($ranges)];
+                $sourceProjection = $this->pdfSourceOccurrenceComparableText(
+                    (string) ($sourceItems[$last['sourceIndex']]['text'] ?? '')
+                );
+                if ($last['sourceIndex'] === $firstSourceIndex - 1
+                    && $last['sourceEnd'] === strlen($sourceProjection)) {
+                    $anchorMatches[] = $candidateIndex;
+                }
+            }
+            if (count($anchorMatches) !== 1) {
+                continue;
+            }
+            $anchorIndex = $anchorMatches[0];
+            if ($anchorIndex >= $pageStart - 1) {
+                continue;
+            }
+
+            $openMarkerIndex = null;
+            for ($candidateIndex = $anchorIndex; $candidateIndex >= max(0, $anchorIndex - 2); $candidateIndex--) {
+                if ($this->pdfLineStartsWithBulletMarker(
+                    (string) ($items[$candidateIndex]['text'] ?? '')
+                )) {
+                    $openMarkerIndex = $candidateIndex;
+                    break;
+                }
+            }
+            if ($openMarkerIndex === null) {
+                continue;
+            }
+            $openCoverage = $this->pdfCrossPageListExactCoverage(
+                array_slice($items, $openMarkerIndex, $anchorIndex - $openMarkerIndex + 1),
+                $sourceItems
+            );
+            $barrierItems = array_slice(
+                $items,
+                $anchorIndex + 1,
+                $pageStart - $anchorIndex - 1
+            );
+            $barrierCoverage = $this->pdfCrossPageListExactCoverage(
+                $barrierItems,
+                $sourceItems
+            );
+            $barrierMarkerCount = count(array_filter(
+                $barrierItems,
+                fn (array $item): bool => $this->pdfLineStartsWithBulletMarker(
+                    (string) ($item['text'] ?? '')
+                )
+            ));
+            if ($openCoverage === null
+                || $barrierCoverage === null
+                || $barrierMarkerCount < 3
+                || $barrierCoverage['sourceIndexes'][array_key_last(
+                    $barrierCoverage['sourceIndexes']
+                )] >= $openCoverage['sourceIndexes'][0]) {
+                continue;
+            }
+            $anchorSource = $sourceItems[$firstSourceIndex - 1] ?? null;
+            $continuationSource = $sourceItems[$firstSourceIndex] ?? null;
+            if (!is_array($anchorSource)
+                || !is_array($continuationSource)
+                || (int) ($continuationSource['page'] ?? 0)
+                    !== (int) ($anchorSource['page'] ?? 0) + 1
+                || !$this->sourcePdfSourceItemHasExactGeometry($anchorSource)
+                || !$this->sourcePdfSourceItemHasExactGeometry($continuationSource)) {
+                continue;
+            }
+
+            $continuationRun = array_slice($items, $pageStart, $runEnd - $pageStart);
+            array_splice($items, $pageStart, count($continuationRun));
+            array_splice($items, $anchorIndex + 1, 0, $continuationRun);
+
+            $scopeStart = $barrierCoverage['sourceIndexes'][0];
+            $scope = $this->pdfCrossPageListContinuationOrderScope(
+                $items,
+                $sourceItems,
+                $scopeStart,
+                $runLastSourceIndex,
+                $firstSourceIndex - 1,
+                $firstSourceIndex,
+                $barrierMarkerCount,
+                $markerCount
+            );
+            if ($scope === null) {
+                // The move is authorized only together with its complete
+                // contiguous-source order scope.
+                array_splice($items, $anchorIndex + 1, count($continuationRun));
+                array_splice($items, $pageStart, 0, $continuationRun);
+                continue;
+            }
+            $this->pdfCrossPageListContinuationOrderProofCandidates[] = $scope;
+            foreach ($items as &$item) {
+                $ranges = $this->pdfCrossPageListExactLayoutRanges($item, $sourceItems);
+                if ($ranges === null) {
+                    continue;
+                }
+                foreach ($ranges as $range) {
+                    if ($range['sourceIndex'] >= $scopeStart
+                        && $range['sourceIndex'] <= $runLastSourceIndex) {
+                        $item['sourcePdfCrossPageListContinuationOrderProof'] = $scope;
+                        break;
+                    }
+                }
+            }
+            unset($item);
+
+            return $items;
+        }
+
+        return $items;
+    }
+
+    private function pdfLineStartsWithBulletMarker(string $text): bool
+    {
+        return preg_match(
+            '/^\s*[*\x{2022}\x{25CF}\x{25AA}\x{25A0}\x{2043}]\s+/u',
+            $this->pdfTextWithoutSemanticPrefixes($text)
+        ) === 1;
+    }
+
+    /**
+     * @param array<string,mixed> $layout
+     * @param list<array<string,mixed>> $sourceItems
+     * @return list<array{sourceIndex:int,sourceStart:int,sourceEnd:int}>|null
+     */
+    private function pdfCrossPageListExactLayoutRanges(
+        array $layout,
+        array $sourceItems
+    ): ?array {
+        $ranges = $this->pdfPositionedExactSourceRanges($layout);
+        if ($ranges === []) {
+            return null;
+        }
+        $projection = '';
+        foreach ($ranges as $range) {
+            $sourceItem = $sourceItems[$range['sourceIndex']] ?? null;
+            $sourceProjection = is_array($sourceItem)
+                ? $this->pdfSourceOccurrenceComparableText((string) ($sourceItem['text'] ?? ''))
+                : '';
+            if ($sourceProjection === ''
+                || $range['sourceStart'] < 0
+                || $range['sourceEnd'] <= $range['sourceStart']
+                || $range['sourceEnd'] > strlen($sourceProjection)) {
+                return null;
+            }
+            $projection .= substr(
+                $sourceProjection,
+                $range['sourceStart'],
+                $range['sourceEnd'] - $range['sourceStart']
+            );
+        }
+        $layoutProjection = $this->pdfSourceOccurrenceComparableText(
+            $this->pdfTextWithoutSemanticPrefixes((string) ($layout['text'] ?? ''))
+        );
+
+        return $layoutProjection !== '' && hash_equals($projection, $layoutProjection)
+            ? $ranges
+            : null;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $layouts
+     * @param list<array<string,mixed>> $sourceItems
+     * @return array{sourceIndexes:list<int>}|null
+     */
+    private function pdfCrossPageListExactCoverage(
+        array $layouts,
+        array $sourceItems
+    ): ?array {
+        if ($layouts === []) {
+            return null;
+        }
+        $segmentsBySourceIndex = [];
+        $sourceIndexOrder = [];
+        foreach ($layouts as $layout) {
+            $ranges = $this->pdfCrossPageListExactLayoutRanges($layout, $sourceItems);
+            if ($ranges === null) {
+                return null;
+            }
+            foreach ($ranges as $range) {
+                $sourceIndex = $range['sourceIndex'];
+                if (!isset($segmentsBySourceIndex[$sourceIndex])) {
+                    $sourceIndexOrder[] = $sourceIndex;
+                }
+                $segmentsBySourceIndex[$sourceIndex][] = [
+                    'start' => $range['sourceStart'],
+                    'end' => $range['sourceEnd'],
+                ];
+            }
+        }
+        if ($sourceIndexOrder === []
+            || $sourceIndexOrder !== range(
+                $sourceIndexOrder[0],
+                $sourceIndexOrder[array_key_last($sourceIndexOrder)]
+            )) {
+            return null;
+        }
+        foreach ($sourceIndexOrder as $sourceIndex) {
+            $sourceProjection = $this->pdfSourceOccurrenceComparableText(
+                (string) ($sourceItems[$sourceIndex]['text'] ?? '')
+            );
+            $segments = $segmentsBySourceIndex[$sourceIndex];
+            usort($segments, static fn (array $left, array $right): int =>
+                ($left['start'] <=> $right['start']) ?: ($left['end'] <=> $right['end'])
+            );
+            $cursor = 0;
+            foreach ($segments as $segment) {
+                if ($segment['start'] !== $cursor || $segment['end'] <= $cursor) {
+                    return null;
+                }
+                $cursor = $segment['end'];
+            }
+            if ($sourceProjection === '' || $cursor !== strlen($sourceProjection)) {
+                return null;
+            }
+        }
+
+        return ['sourceIndexes' => $sourceIndexOrder];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $layouts
+     * @param list<array<string,mixed>> $sourceItems
+     * @return array<string,mixed>|null
+     */
+    private function pdfCrossPageListContinuationOrderScope(
+        array $layouts,
+        array $sourceItems,
+        int $scopeStart,
+        int $scopeEnd,
+        int $anchorSourceIndex,
+        int $continuationSourceIndex,
+        int $barrierMarkerCount,
+        int $continuationMarkerCount
+    ): ?array {
+        if ($scopeStart < 0
+            || $scopeEnd < $scopeStart
+            || $anchorSourceIndex + 1 !== $continuationSourceIndex
+            || $continuationSourceIndex > $scopeEnd) {
+            return null;
+        }
+        $segmentsBySourceIndex = [];
+        $emittedSourceIndexOrder = [];
+        foreach ($layouts as $layout) {
+            $ranges = $this->pdfCrossPageListExactLayoutRanges($layout, $sourceItems);
+            if ($ranges === null) {
+                continue;
+            }
+            foreach ($ranges as $range) {
+                $sourceIndex = $range['sourceIndex'];
+                if ($sourceIndex < $scopeStart || $sourceIndex > $scopeEnd) {
+                    continue;
+                }
+                if (!isset($segmentsBySourceIndex[$sourceIndex])) {
+                    $emittedSourceIndexOrder[] = $sourceIndex;
+                }
+                $segmentsBySourceIndex[$sourceIndex][] = [
+                    'start' => $range['sourceStart'],
+                    'end' => $range['sourceEnd'],
+                ];
+            }
+        }
+        $sourceOccurrenceIds = [];
+        $sourceProjectionDigests = [];
+        for ($sourceIndex = $scopeStart; $sourceIndex <= $scopeEnd; $sourceIndex++) {
+            $sourceItem = $sourceItems[$sourceIndex] ?? null;
+            $projection = is_array($sourceItem)
+                ? $this->pdfSourceOccurrenceComparableText((string) ($sourceItem['text'] ?? ''))
+                : '';
+            $id = is_array($sourceItem) && is_string($sourceItem['id'] ?? null)
+                ? $sourceItem['id']
+                : '';
+            if ($projection === '') {
+                continue;
+            }
+            $segments = $segmentsBySourceIndex[$sourceIndex] ?? [];
+            usort($segments, static fn (array $left, array $right): int =>
+                ($left['start'] <=> $right['start']) ?: ($left['end'] <=> $right['end'])
+            );
+            $cursor = 0;
+            foreach ($segments as $segment) {
+                if ($segment['start'] !== $cursor || $segment['end'] <= $cursor) {
+                    return null;
+                }
+                $cursor = $segment['end'];
+            }
+            if ($id === ''
+                || $cursor !== strlen($projection)
+                || !$this->sourcePdfSourceItemHasExactGeometry($sourceItem)) {
+                return null;
+            }
+            $sourceOccurrenceIds[] = $id;
+            $sourceProjectionDigests[] = hash('sha256', $projection);
+        }
+        $requiredSourceIndexes = array_values(array_filter(
+            range($scopeStart, $scopeEnd),
+            fn (int $sourceIndex): bool => $this->pdfSourceOccurrenceComparableText(
+                (string) ($sourceItems[$sourceIndex]['text'] ?? '')
+            ) !== ''
+        ));
+        if ($emittedSourceIndexOrder === []
+            || count($emittedSourceIndexOrder) !== count(array_unique(
+                $emittedSourceIndexOrder,
+                SORT_NUMERIC
+            ))) {
+            return null;
+        }
+        $sortedEmitted = $emittedSourceIndexOrder;
+        sort($sortedEmitted, SORT_NUMERIC);
+        if ($sortedEmitted !== $requiredSourceIndexes) {
+            return null;
+        }
+
+        $anchor = $sourceItems[$anchorSourceIndex];
+        $continuation = $sourceItems[$continuationSourceIndex];
+        $proof = [
+            'version' => 1,
+            'method' => 'exact-cross-page-open-list-continuation-order',
+            'sourceSha256' => $this->sourceSha256,
+            'scopeSourceStart' => $scopeStart,
+            'scopeSourceEnd' => $scopeEnd,
+            'sourceOccurrenceIds' => $sourceOccurrenceIds,
+            'sourceProjectionDigests' => $sourceProjectionDigests,
+            'emittedSourceIndexOrder' => $emittedSourceIndexOrder,
+            'anchorSourceIndex' => $anchorSourceIndex,
+            'anchorSourceOccurrenceId' => (string) $anchor['id'],
+            'anchorBounds' => $this->pdfSourceEvidenceBounds($anchor['sourceGeometry']),
+            'continuationSourceIndex' => $continuationSourceIndex,
+            'continuationSourceOccurrenceId' => (string) $continuation['id'],
+            'continuationBounds' => $this->pdfSourceEvidenceBounds(
+                $continuation['sourceGeometry']
+            ),
+            'anchorPage' => (int) $anchor['page'],
+            'continuationPage' => (int) $continuation['page'],
+            'barrierMarkerCount' => $barrierMarkerCount,
+            'continuationMarkerCount' => $continuationMarkerCount,
+        ];
+        $proof['proofDigest'] = hash('sha256', json_encode(
+            $proof,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+        ) ?: '');
+
+        return $proof;
     }
 
     /**
@@ -12369,6 +16060,31 @@ final class PdfReader
             && $geometry !== null
             && $this->pdfSourceBoundsAreValid($geometry)
             && ($geometry['orientation'] ?? null) === 'horizontal';
+    }
+
+    /** @param array<string, mixed> $sourceItem */
+    private function sourcePdfSourceItemHasExactNearHorizontalGeometry(array $sourceItem): bool
+    {
+        if ($this->sourcePdfSourceItemHasExactGeometry($sourceItem)) {
+            return true;
+        }
+        $geometry = is_array($sourceItem['sourceGeometry'] ?? null)
+            ? $sourceItem['sourceGeometry']
+            : null;
+        $orientation = is_array($geometry) && is_string($geometry['orientation'] ?? null)
+            ? $geometry['orientation']
+            : '';
+        if (($sourceItem['sourceGeometryMethod'] ?? null)
+                !== 'exact-page-stream-character-offset'
+            || $geometry === null
+            || !$this->pdfSourceBoundsAreValid($geometry)
+            || preg_match('/^rotated-([0-9]+(?:\.[0-9]+)?)$/D', $orientation, $match) !== 1) {
+            return false;
+        }
+        $rotation = fmod((float) $match[1], 360.0);
+        $distanceFromHorizontal = min($rotation, 360.0 - $rotation);
+
+        return $distanceFromHorizontal <= 2.0;
     }
 
     /**
@@ -14164,6 +17880,7 @@ final class PdfReader
      * @param list<AstNode> $blocks
      * @param array<int,array{start:int,end:int,projection:string,leafEnds:list<int>}> $finalOutputPageProofs
      * @param array<string,mixed>|null $finalOutputRangeProof
+     * @param array<string,array<string,mixed>> $existingDispositions
      * @return array<string, array{
      *     separator:string,
      *     replacement:string,
@@ -14176,7 +17893,8 @@ final class PdfReader
         array $layouts,
         array $blocks = [],
         array $finalOutputPageProofs = [],
-        ?array $finalOutputRangeProof = null
+        ?array $finalOutputRangeProof = null,
+        array $existingDispositions = []
     ): array
     {
         if (count($sourceItems) < 2 || count($layouts) < 2) {
@@ -14485,6 +18203,21 @@ final class PdfReader
             $sourceProjectionByPage = [];
             $sourceRangeProjection = '';
             foreach ($sourceItems as $sourceItem) {
+                $sourceId = is_string($sourceItem['id'] ?? null)
+                    ? $sourceItem['id']
+                    : '';
+                $existingDisposition = $sourceId !== ''
+                    && is_array($existingDispositions[$sourceId] ?? null)
+                        ? (string) ($existingDispositions[$sourceId]['disposition'] ?? '')
+                        : '';
+                if ($existingDisposition !== ''
+                    && !in_array(
+                        $existingDisposition,
+                        ['emitted', 'boundary-repair', 'semantic-structure'],
+                        true
+                    )) {
+                    continue;
+                }
                 $page = max(1, (int) ($sourceItem['page'] ?? 1));
                 $pages[$page] = true;
                 $projection = $this->pdfSourceOccurrenceComparableText(
@@ -24093,6 +27826,7 @@ final class PdfReader
         $rows = $this->clusterPositionedRows($runs, $rowTolerance);
         $rows = $this->mergePositionedProseRowFragments($rows, $this->positionedRowsBounds($rows));
         $rows = $this->markPositionedCodeListingRows($rows);
+        $sustainedVisualRtlLineFlow = $this->positionedRowsHaveSustainedVisualRtlLineFlow($rows);
         $rows = $this->splitPositionedRowsIntoProseFragments($rows);
         $rows = $this->attachWeakSameBaselineFragmentsToPersistentProseLanes($rows, $medianFontSize);
         $rows = $this->orderPositionedProseRows($rows, $medianFontSize);
@@ -24126,6 +27860,16 @@ final class PdfReader
                     'hasWordBoundaryBefore' => (bool) ($firstRun['hasWordBoundaryBefore'] ?? false),
                     'wordBoundaryBefore' => (bool) ($firstRun['wordBoundaryBefore'] ?? false),
                 ];
+                if (($row['code'] ?? false) !== true && $item['text'] === $line) {
+                    $inlineFontStyleProof = $this->positionedProseRowInlineFontStyleProof(
+                        $row,
+                        $line,
+                        $exactSourceRanges
+                    );
+                    if ($inlineFontStyleProof !== null) {
+                        $item['sourcePdfInlineFontStyleProof'] = $inlineFontStyleProof;
+                    }
+                }
                 if (($row['visualRtlOrder'] ?? false) === true) {
                     $item['visualRtlOrder'] = true;
                     $markedVisualText = '';
@@ -24167,7 +27911,19 @@ final class PdfReader
             }
         }
 
+        if ($sustainedVisualRtlLineFlow) {
+            $items = $this->positionedItemsInProvenVisualRtlRowOrder($items);
+            $items = $this->joinPositionedVisualRtlWordShards($items);
+        }
+
         $items = $this->filterPositionedPdfDecorativeItems($items, $medianFontSize);
+
+        foreach ($items as $item) {
+            $proof = $item['sourcePdfInlineFontStyleProof'] ?? null;
+            if (is_array($proof)) {
+                $this->pdfInlineFontStyleProofCandidates[] = $proof;
+            }
+        }
 
         return $this->markIsolatedCenteredPdfNumberBoundaries($items, $medianFontSize);
     }
@@ -24616,21 +28372,22 @@ final class PdfReader
                         $gap,
                         $fontSize
                     );
+                    $joinedText = $this->joinPositionedCellText(
+                        $last['text'],
+                        $run['text'],
+                        $gap,
+                        $fontSize,
+                        (bool) ($last['endsWithWhitespace'] ?? false),
+                        (bool) ($run['startsWithWhitespace'] ?? false),
+                        (bool) ($run['hasWordBoundaryBefore'] ?? false),
+                        (bool) ($run['wordBoundaryBefore'] ?? false),
+                        is_string($run['wordBoundarySource'] ?? null)
+                            ? $run['wordBoundarySource']
+                            : null
+                    );
                     $mergedRun = [
                         'page' => $last['page'],
-                        'text' => $this->joinPositionedCellText(
-                            $last['text'],
-                            $run['text'],
-                            $gap,
-                            $fontSize,
-                            (bool) ($last['endsWithWhitespace'] ?? false),
-                            (bool) ($run['startsWithWhitespace'] ?? false),
-                            (bool) ($run['hasWordBoundaryBefore'] ?? false),
-                            (bool) ($run['wordBoundaryBefore'] ?? false),
-                            is_string($run['wordBoundarySource'] ?? null)
-                                ? $run['wordBoundarySource']
-                                : null
-                        ),
+                        'text' => $joinedText,
                         'rtlVisualUnitText' => $this->joinPositionedCellText(
                             (string) ($last['rtlVisualUnitText'] ?? $last['text']),
                             (string) ($run['rtlVisualUnitText'] ?? $run['text']),
@@ -24665,6 +28422,13 @@ final class PdfReader
                         'order' => min((int) ($last['order'] ?? 0), (int) ($run['order'] ?? 0)),
                         'lastOrder' => max((int) ($last['lastOrder'] ?? $last['order'] ?? 0), (int) ($run['lastOrder'] ?? $run['order'] ?? 0)),
                     ];
+                    $inlineFontStyleSpans = $this->positionedInlineFontStyleSpansForJoinedText(
+                        $joinedText,
+                        [$last, $run]
+                    );
+                    if ($inlineFontStyleSpans !== []) {
+                        $mergedRun['sourcePdfInlineFontStyleSpans'] = $inlineFontStyleSpans;
+                    }
                     $exactSourceRanges = $this->pdfPositionedExactSourceRangesForItems([$last, $run]);
                     if ($exactSourceRanges !== []) {
                         $mergedRun['sourcePdfExactSourceRanges'] = $exactSourceRanges;
@@ -24824,6 +28588,232 @@ final class PdfReader
     }
 
     /**
+     * A full-width RTL line can be split into false LTR columns after its
+     * glyph fragments are separated for prose-lane inference. Recognize only
+     * a sustained page flow whose source-adjacent fragments advance toward
+     * the left on the same baseline without crossing a real gutter. This is
+     * geometry and paint-order evidence; no language vocabulary is involved.
+     *
+     * @param list<array{center:float,runs:list<array<string,mixed>>}> $rows
+     */
+    private function positionedRowsHaveSustainedVisualRtlLineFlow(array $rows): bool
+    {
+        $rtlRows = 0;
+        $continuousRows = 0;
+        foreach ($rows as $row) {
+            if (($row['code'] ?? false) === true
+                || ($row['visualRtlOrder'] ?? false) !== true) {
+                continue;
+            }
+            $rtlRows++;
+            if ($this->positionedRowHasContinuousVisualRtlLineFlow($row)) {
+                $continuousRows++;
+            }
+        }
+
+        return $rtlRows >= 3
+            && $continuousRows >= 3
+            && $continuousRows / $rtlRows >= 0.60;
+    }
+
+    /** @param array{runs:list<array<string,mixed>>} $row */
+    private function positionedRowHasContinuousVisualRtlLineFlow(array $row): bool
+    {
+        if (($row['visualRtlOrder'] ?? false) !== true || count($row['runs']) < 2) {
+            return false;
+        }
+
+        $sourceOrdered = $row['runs'];
+        foreach ($sourceOrdered as $run) {
+            if (!isset($run['order'])) {
+                return false;
+            }
+        }
+        usort($sourceOrdered, static fn (array $left, array $right): int =>
+            ((int) $left['order']) <=> ((int) $right['order'])
+        );
+
+        for ($index = 1, $count = count($sourceOrdered); $index < $count; $index++) {
+            $previous = $sourceOrdered[$index - 1];
+            $current = $sourceOrdered[$index];
+            if ((int) ($previous['page'] ?? 0) !== (int) ($current['page'] ?? 0)) {
+                return false;
+            }
+            $sourceGap = (int) $current['order']
+                - (int) ($previous['lastOrder'] ?? $previous['order']);
+            if ($sourceGap < 1 || $sourceGap > 8) {
+                return false;
+            }
+
+            $previousCenter = ((float) ($previous['textX1'] ?? $previous['x1'] ?? 0.0)
+                + (float) ($previous['textX2'] ?? $previous['x2'] ?? 0.0)) / 2.0;
+            $currentCenter = ((float) ($current['textX1'] ?? $current['x1'] ?? 0.0)
+                + (float) ($current['textX2'] ?? $current['x2'] ?? 0.0)) / 2.0;
+            if ($previousCenter - $currentCenter <= 0.25) {
+                return false;
+            }
+
+            $fontSize = max(
+                1.0,
+                (float) ($previous['fontSize'] ?? 1.0),
+                (float) ($current['fontSize'] ?? 1.0)
+            );
+            $visualGap = (float) ($previous['textX1'] ?? $previous['x1'] ?? 0.0)
+                - (float) ($current['textX2'] ?? $current['x2'] ?? 0.0);
+            if ($visualGap > max(8.0, $fontSize * 0.75)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Once a sustained RTL line flow is proven above, restore physical row
+     * order after the ordinary column pass has performed its useful local
+     * style grouping. Source order resolves fragments on one baseline; page
+     * geometry resolves the baseline sequence.
+     *
+     * @param list<array<string,mixed>> $items
+     * @return list<array<string,mixed>>
+     */
+    private function positionedItemsInProvenVisualRtlRowOrder(array $items): array
+    {
+        usort($items, static function (array $left, array $right): int {
+            $pageOrder = (int) ($left['page'] ?? 0) <=> (int) ($right['page'] ?? 0);
+            if ($pageOrder !== 0) {
+                return $pageOrder;
+            }
+
+            $leftCenter = ((float) ($left['y1'] ?? 0.0) + (float) ($left['y2'] ?? 0.0)) / 2.0;
+            $rightCenter = ((float) ($right['y1'] ?? 0.0) + (float) ($right['y2'] ?? 0.0)) / 2.0;
+            $tolerance = max(
+                1.0,
+                (float) ($left['fontSize'] ?? 1.0) * 0.20,
+                (float) ($right['fontSize'] ?? 1.0) * 0.20
+            );
+            if (abs($leftCenter - $rightCenter) > $tolerance) {
+                return $rightCenter <=> $leftCenter;
+            }
+
+            $leftOrder = is_int($left['sourceOrderStart'] ?? null)
+                ? $left['sourceOrderStart']
+                : PHP_INT_MAX;
+            $rightOrder = is_int($right['sourceOrderStart'] ?? null)
+                ? $right['sourceOrderStart']
+                : PHP_INT_MAX;
+
+            return ($leftOrder <=> $rightOrder)
+                ?: ((float) ($right['x2'] ?? 0.0) <=> (float) ($left['x2'] ?? 0.0));
+        });
+
+        return $items;
+    }
+
+    /**
+     * Join only same-word RTL shards whose adjacent paint ranges meet at the
+     * glyph edge. A normal inter-word boundary has either a larger advance or
+     * a non-RTL boundary character, so headings and embedded Latin atoms stay
+     * independent blocks.
+     *
+     * @param list<array<string,mixed>> $items
+     * @return list<array<string,mixed>>
+     */
+    private function joinPositionedVisualRtlWordShards(array $items): array
+    {
+        $joined = [];
+        foreach ($items as $item) {
+            $lastIndex = array_key_last($joined);
+            if ($lastIndex === null
+                || !$this->positionedVisualRtlItemsAreWordShards($joined[$lastIndex], $item)) {
+                $joined[] = $item;
+                continue;
+            }
+
+            $previous = $joined[$lastIndex];
+            $exactSourceRanges = $this->pdfPositionedExactSourceRangesForItems([$previous, $item]);
+            $previous['text'] = $this->appendCellText(
+                (string) ($previous['text'] ?? ''),
+                (string) ($item['text'] ?? '')
+            );
+            $previous['logicalRtlTextCandidate'] = rtrim(
+                (string) ($previous['logicalRtlTextCandidate'] ?? '')
+            ) . ltrim((string) ($item['logicalRtlTextCandidate'] ?? ''));
+            $previous['x1'] = min((float) $previous['x1'], (float) $item['x1']);
+            $previous['y1'] = min((float) $previous['y1'], (float) $item['y1']);
+            $previous['x2'] = max((float) $previous['x2'], (float) $item['x2']);
+            $previous['y2'] = max((float) $previous['y2'], (float) $item['y2']);
+            $previous['fontSize'] = max(
+                (float) ($previous['fontSize'] ?? 0.0),
+                (float) ($item['fontSize'] ?? 0.0)
+            );
+            $previous['endsWithWhitespace'] = (bool) ($item['endsWithWhitespace'] ?? false);
+            $previous['sourceOrderEnd'] = (int) ($item['sourceOrderEnd'] ?? $item['sourceOrderStart']);
+            $previous['visualRtlOrder'] = true;
+            $previous['visualRtlWordShardJoin'] = true;
+            $previous['visualRtlProtectedClusters'] = array_values(array_unique(array_merge(
+                is_array($previous['visualRtlProtectedClusters'] ?? null)
+                    ? $previous['visualRtlProtectedClusters']
+                    : [],
+                is_array($item['visualRtlProtectedClusters'] ?? null)
+                    ? $item['visualRtlProtectedClusters']
+                    : []
+            )));
+            unset(
+                $previous['sourceVerifiedBoundarySeparators'],
+                $previous['sourceCompactBoundaryOffsets'],
+                $previous['positionedTextCandidate']
+            );
+            if ($exactSourceRanges !== []) {
+                $previous['sourcePdfExactSourceRanges'] = $exactSourceRanges;
+            }
+            $joined[$lastIndex] = $previous;
+        }
+
+        return $joined;
+    }
+
+    /** @param array<string,mixed> $left @param array<string,mixed> $right */
+    private function positionedVisualRtlItemsAreWordShards(array $left, array $right): bool
+    {
+        if (($left['visualRtlOrder'] ?? false) !== true
+            || ($right['visualRtlOrder'] ?? false) !== true
+            || ($left['code'] ?? false) === true
+            || ($right['code'] ?? false) === true
+            || (int) ($left['page'] ?? 0) !== (int) ($right['page'] ?? 0)
+            || !is_int($left['sourceOrderEnd'] ?? null)
+            || !is_int($right['sourceOrderStart'] ?? null)
+            || $right['sourceOrderStart'] - $left['sourceOrderEnd'] !== 1) {
+            return false;
+        }
+
+        $leftCandidate = rtrim((string) ($left['logicalRtlTextCandidate'] ?? ''));
+        $rightCandidate = ltrim((string) ($right['logicalRtlTextCandidate'] ?? ''));
+        if ($leftCandidate === ''
+            || $rightCandidate === ''
+            || preg_match('/[\x{0590}-\x{08FF}\x{FB1D}-\x{FDFF}\x{FE70}-\x{FEFF}]$/u', $leftCandidate) !== 1
+            || preg_match('/^[\x{0590}-\x{08FF}\x{FB1D}-\x{FDFF}\x{FE70}-\x{FEFF}]/u', $rightCandidate) !== 1) {
+            return false;
+        }
+
+        $fontSize = max(
+            1.0,
+            (float) ($left['fontSize'] ?? 1.0),
+            (float) ($right['fontSize'] ?? 1.0)
+        );
+        $leftCenter = ((float) $left['y1'] + (float) $left['y2']) / 2.0;
+        $rightCenter = ((float) $right['y1'] + (float) $right['y2']) / 2.0;
+        if (abs($leftCenter - $rightCenter) > max(1.0, $fontSize * 0.20)) {
+            return false;
+        }
+
+        $paintedGap = (float) $left['x1'] - (float) $right['x2'];
+
+        return $paintedGap <= -max(3.5, $fontSize * 0.30)
+            && $paintedGap >= -max(18.0, $fontSize * 1.50);
+    }
+
+    /**
      * PDF text operators frequently paint an RTL line in left-to-right visual
      * order. Geometry makes that distinguishable from a logical-order text
      * run: successive source fragments move toward larger x coordinates even
@@ -24936,7 +28926,7 @@ final class PdfReader
         foreach ($items as &$item) {
             $page = (int) ($item['page'] ?? 0);
             $text = (string) ($item['text'] ?? '');
-            if (!isset($visualRtlPages[$page]) || !$this->pdfTextIsRtlDominant($text)) {
+            if (!isset($visualRtlPages[$page])) {
                 continue;
             }
             $itemClusters = is_array($item['visualRtlProtectedClusters'] ?? null)
@@ -24948,11 +28938,15 @@ final class PdfReader
             $visualCandidate = is_string($item['positionedTextCandidate'] ?? null)
                 ? $item['positionedTextCandidate']
                 : (($item['visualRtlOrder'] ?? false) === true ? $text : '');
-            $logical = $logicalCandidate !== ''
+            $hasExactLogicalCandidate = $logicalCandidate !== ''
                 && $visualCandidate !== ''
-                && $this->pdfComparableLineText($visualCandidate) === $this->pdfComparableLineText($text)
-                    ? $logicalCandidate
-                    : $this->logicalTextFromVisualRtlLine($text, $itemClusters);
+                && $this->pdfComparableLineText($visualCandidate) === $this->pdfComparableLineText($text);
+            if (!$hasExactLogicalCandidate && !$this->pdfTextIsRtlDominant($text)) {
+                continue;
+            }
+            $logical = $hasExactLogicalCandidate
+                ? $logicalCandidate
+                : $this->logicalTextFromVisualRtlLine($text, $itemClusters);
             if ($logical !== $text) {
                 $item['text'] = $logical;
                 $item['visualRtlNormalized'] = true;
@@ -25910,17 +29904,21 @@ final class PdfReader
      * @param array<int,string>|null $outputPageProjections Exact significant
      *        output attributed to each conservative source page, or null when
      *        the post-pipeline records cannot prove a page-local projection.
+     * @param array<int,array<string,mixed>>|null $outputLineSpans
      * @return list<string>
      */
     private function repairProseTextLines(
         array $lines,
         bool $repairGluedText = true,
         array $lineLayouts = [],
-        ?array &$outputPageProjections = null
+        ?array &$outputPageProjections = null,
+        ?array &$outputLineSpans = null
     ): array
     {
         $collectOutputPageProjections = func_num_args() >= 4;
+        $collectOutputLineSpans = func_num_args() >= 5;
         $outputPageProjections = null;
+        $outputLineSpans = [];
         $cleaned = [];
         $pendingListMarker = null;
         $decorativeBraceEvidence = $lineLayouts === []
@@ -25934,12 +29932,22 @@ final class PdfReader
             $sourceId = is_array($layout) && is_string($layout['id'] ?? null)
                 ? $layout['id']
                 : '';
+            $chartCipherLayoutIsProven =
+                $this->sourcePdfChartCipherLayoutIsProvenArtifact($layout, $line);
+            if ($chartCipherLayoutIsProven) {
+                continue;
+            }
             if (is_array($layout)
                 && (isset($decorativeBraceEvidence[$sourceId])
                     || is_array($layout['sourcePdfDecorativeBraceEvidence'] ?? null)
                     || is_array(
                         $layout['sourcePdfDuplicateTerminalPeriodArtifactEvidence'] ?? null
-                    ))) {
+                    )
+                    || (($layout['sourcePdfCrossLaneDisplayArtifactRole'] ?? null)
+                        === 'whole-display-artifact'
+                        && is_array(
+                            $layout['sourcePdfCrossLaneDisplayArtifactEvidence'] ?? null
+                        )))) {
                 continue;
             }
             if (str_starts_with($line, self::PDF_CODE_BLOCK_PREFIX)) {
@@ -26004,7 +30012,23 @@ final class PdfReader
         // heuristic stages actually receive, including its already-proved
         // heading and layout-label annotations.
         $preparationPipeline = new PdfSemanticRecordPipeline([
+            new PdfCallableSemanticRecordProcessor(
+                'flattened-numbered-code-listings',
+                $this->reconstructFlattenedPdfNumberedCodeListingRecords(...)
+            ),
             $frontMatterProcessor,
+            new PdfCallableSemanticRecordProcessor(
+                'front-matter-geometry-completion',
+                $this->completePdfFrontMatterGeometryRecords(...)
+            ),
+            new PdfCallableSemanticRecordProcessor(
+                'front-matter-final-order',
+                $frontMatterProcessor->process(...)
+            ),
+            new PdfCallableSemanticRecordProcessor(
+                'affiliation-email-delimiters',
+                $this->repairPdfAffiliationEmailDelimiterRecords(...)
+            ),
             new PdfCallableSemanticRecordProcessor(
                 'exact-brace-delimited-lists',
                 $this->foldExactPdfBraceDelimitedListRecords(...)
@@ -26126,11 +30150,22 @@ final class PdfReader
             $cleaned,
             $exactWholeSourceMergedLineSpans
         );
+        $retainedWholeSourceMergedLineSpans = [];
         $merged = $this->trimIncompletePdfMergedLinesBeforeStackedTables(
             $merged,
-            $exactWholeSourceMergedLineSpans
+            $exactWholeSourceMergedLineSpans,
+            $retainedWholeSourceMergedLineSpans
         );
-        $repaired = $this->finalizedRepairedPdfLines($merged, $repairGluedText);
+        $finalWholeSourceMergedLineSpans = [];
+        $repaired = $this->finalizedRepairedPdfLines(
+            $merged,
+            $repairGluedText,
+            $retainedWholeSourceMergedLineSpans,
+            $finalWholeSourceMergedLineSpans
+        );
+        if ($collectOutputLineSpans) {
+            $outputLineSpans = $finalWholeSourceMergedLineSpans;
+        }
         if ($collectOutputPageProjections) {
             $outputPageProjections = $this->pdfConservativeRepairedOutputPageProjections(
                 $cleaned,
@@ -26142,24 +30177,660 @@ final class PdfReader
     }
 
     /**
+     * Recover a source listing whose PDF text layer flattened visually
+     * separate, explicitly numbered rows into one line.  The row numbers
+     * provide a strong local boundary proof: require a consecutive run from
+     * one, several programming-language statement shapes, and balanced code
+     * punctuation before interpreting whitespace as line breaks.
+     *
+     * The transformation changes whitespace only.  The exact source carrier
+     * remains on the record, while codeText retains the visual row structure
+     * used by the semantic code block.
+     *
+     * @param list<array{text:string,layout:array<string,mixed>|null}> $records
+     * @return list<array{text:string,layout:array<string,mixed>|null}>
+     */
+    private function reconstructFlattenedPdfNumberedCodeListingRecords(array $records): array
+    {
+        foreach ($records as &$record) {
+            $layout = is_array($record['layout'] ?? null) ? $record['layout'] : null;
+            $text = trim((string) ($record['text'] ?? ''));
+            if (($layout['code'] ?? false) === true) {
+                continue;
+            }
+            $codeText = $this->flattenedPdfNumberedCodeListing($text);
+            if ($codeText === null) {
+                continue;
+            }
+
+            $layout ??= [];
+            $layout['code'] = true;
+            $layout['codeText'] = $codeText;
+            $layout['sourcePdfProtectedSemanticContent'] = true;
+            $record['layout'] = $layout;
+        }
+        unset($record);
+
+        return $records;
+    }
+
+    /**
+     * Restore the only syntactically valid delimiter between a brace-wrapped
+     * affiliation mailbox list and an immediately adjacent DNS domain. This
+     * shape is self-contained and unambiguous: braces delimit one or more
+     * local parts, while the following dotted token supplies the domain.
+     *
+     * @param list<array{text:string,layout:array<string,mixed>|null}> $records
+     * @return list<array{text:string,layout:array<string,mixed>|null}>
+     */
+    private function repairPdfAffiliationEmailDelimiterRecords(array $records): array
+    {
+        $braceRepairPages = [];
+        foreach ($records as $recordIndex => &$record) {
+            $text = (string) ($record['text'] ?? '');
+            $repaired = preg_replace_callback(
+                '/\{([\p{L}\p{N}._%+\-]+(?:\s*,\s*[\p{L}\p{N}._%+\-]+)*)\}([\p{L}\p{N}\-]+(?:\.[\p{L}\p{N}\-]+)+\b)/u',
+                static function (array $match): string {
+                    $localParts = preg_replace('/\s*,\s*/u', ', ', $match[1]) ?? $match[1];
+
+                    return '{' . $localParts . '}@' . $match[2];
+                },
+                $text
+            );
+            if (!is_string($repaired) || $repaired === $text) {
+                continue;
+            }
+            $layout = is_array($record['layout'] ?? null) ? $record['layout'] : [];
+            $layout['sourcePdfSemanticEmailDelimiterRepair'] = [
+                'version' => 1,
+                'method' => 'brace-mailbox-list-adjacent-dns-domain',
+                'sourceProjectionDigest' => hash('sha256', $this->pdfSourceOccurrenceComparableText($text)),
+                'outputProjectionDigest' => hash('sha256', $this->pdfSourceOccurrenceComparableText($repaired)),
+            ];
+            $record['text'] = $repaired;
+            $record['layout'] = $layout;
+            $this->rememberPdfSemanticEmailDelimiterRepair(
+                $record,
+                $text,
+                $repaired,
+                $layout['sourcePdfSemanticEmailDelimiterRepair']
+            );
+            $page = max(1, (int) ($layout['page'] ?? 1));
+            $braceRepairPages[$page][] = $recordIndex;
+        }
+        unset($record);
+
+        if ($braceRepairPages === []) {
+            return $records;
+        }
+
+        // A producer which omits the mailbox delimiter can also flatten
+        // ordinary addresses into `localcs.example.edu`.  That spelling is
+        // ambiguous in isolation, so recover it only from a complete local
+        // proof: one unambiguous brace-mailbox repair above, at least two
+        // aligned front-matter peers, author-derived local-part candidates,
+        // and one shared leading DNS label across the peer rows.
+        $authorLocalCandidatesByPage = [];
+        foreach ($records as $recordIndex => $record) {
+            $layout = is_array($record['layout'] ?? null) ? $record['layout'] : null;
+            $text = trim((string) ($record['text'] ?? ''));
+            if (($layout['sourcePdfFrontMatter'] ?? false) !== true
+                || ($layout['sourcePdfFrontMatterRole'] ?? null) !== 'credits'
+                || preg_match('/[,\x{2020}\x{2021}\x{2217}]/u', $text) !== 1
+                || str_contains($text, '@')) {
+                continue;
+            }
+            $page = max(1, (int) ($layout['page'] ?? 1));
+            if (!isset($braceRepairPages[$page])) {
+                continue;
+            }
+            $tokens = array_values(array_filter(
+                $this->pdfLineWordTokens($text),
+                static fn (string $token): bool => preg_match('/^[A-Za-z][A-Za-z0-9_-]{2,63}$/D', $token) === 1
+            ));
+            foreach ($tokens as $tokenIndex => $token) {
+                $local = strtolower($token);
+                $authorLocalCandidatesByPage[$page][$local][$recordIndex] = true;
+                $next = $tokens[$tokenIndex + 1] ?? null;
+                if (!is_string($next) || $next === '') {
+                    continue;
+                }
+                $initial = strtolower(substr($next, 0, 1));
+                if ($initial !== '') {
+                    $authorLocalCandidatesByPage[$page][$local . $initial][$recordIndex] = true;
+                }
+            }
+        }
+
+        $candidateSplitsByPageAndDnsLabel = [];
+        foreach ($records as $recordIndex => $record) {
+            $layout = is_array($record['layout'] ?? null) ? $record['layout'] : null;
+            $text = trim((string) ($record['text'] ?? ''));
+            $page = max(1, (int) ($layout['page'] ?? 1));
+            if (!isset($braceRepairPages[$page], $authorLocalCandidatesByPage[$page])
+                || ($layout['sourcePdfFrontMatter'] ?? false) !== true
+                || ($layout['sourcePdfFrontMatterRole'] ?? null) !== 'credits'
+                || !$this->pdfLayoutHasGeometry($layout)
+                || $text === ''
+                || str_contains($text, '@')
+                || preg_match('/\s/u', $text) === 1
+                || preg_match('/^[A-Za-z0-9._%+\-]+(?:\.[A-Za-z0-9\-]+){2,}$/D', $text) !== 1) {
+                continue;
+            }
+            $lower = strtolower($text);
+            foreach ($authorLocalCandidatesByPage[$page] as $local => $originIndexes) {
+                if (isset($originIndexes[$recordIndex])
+                    || !str_starts_with($lower, $local)) {
+                    continue;
+                }
+                $domain = substr($text, strlen($local));
+                if (!is_string($domain)
+                    || preg_match(
+                        '/^(?<label>[A-Za-z][A-Za-z0-9\-]{1,14})(?:\.[A-Za-z0-9][A-Za-z0-9\-]{0,62}){2,}$/D',
+                        $domain,
+                        $domainMatch
+                    ) !== 1) {
+                    continue;
+                }
+                $dnsLabel = strtolower($domainMatch['label']);
+                $candidateSplitsByPageAndDnsLabel[$page][$dnsLabel][$recordIndex][] = [
+                    'local' => substr($text, 0, strlen($local)),
+                    'domain' => $domain,
+                    'authorOriginIndexes' => array_map('intval', array_keys($originIndexes)),
+                ];
+            }
+        }
+
+        foreach ($candidateSplitsByPageAndDnsLabel as $page => $groups) {
+            foreach ($groups as $dnsLabel => $candidatesByRecordIndex) {
+                if (count($candidatesByRecordIndex) < 2) {
+                    continue;
+                }
+                $candidateIndexes = array_keys($candidatesByRecordIndex);
+                $ambiguous = array_filter(
+                    $candidatesByRecordIndex,
+                    static fn (array $candidates): bool => count($candidates) !== 1
+                );
+                if ($ambiguous !== []) {
+                    continue;
+                }
+                usort($candidateIndexes, fn (int $left, int $right): int =>
+                    (int) ($records[$left]['layout']['sourceOrderStart'] ?? PHP_INT_MAX)
+                        <=> (int) ($records[$right]['layout']['sourceOrderStart'] ?? PHP_INT_MAX)
+                );
+                $firstLayout = $records[$candidateIndexes[0]]['layout'];
+                $fontSize = max(1.0, (float) $firstLayout['fontSize']);
+                $previousOrder = null;
+                $previousY = null;
+                $proofPeers = [];
+                foreach ($candidateIndexes as $candidateIndex) {
+                    $layout = $records[$candidateIndex]['layout'];
+                    $candidate = $candidatesByRecordIndex[$candidateIndex][0];
+                    $order = (int) ($layout['sourceOrderStart'] ?? PHP_INT_MAX);
+                    $y = (float) $layout['y1'];
+                    if (abs((float) $layout['x1'] - (float) $firstLayout['x1']) > max(1.0, $fontSize * 0.20)
+                        || abs((float) $layout['x2'] - (float) $firstLayout['x2']) > max(1.0, $fontSize * 0.20)
+                        || abs((float) $layout['fontSize'] - $fontSize) > max(0.25, $fontSize * 0.04)
+                        || ($previousOrder !== null && $order !== $previousOrder + 1)
+                        || ($previousY !== null
+                            && ($previousY - $y < $fontSize * 0.70
+                                || $previousY - $y > $fontSize * 1.70))) {
+                        $proofPeers = [];
+                        break;
+                    }
+                    $proofPeers[] = [
+                        'recordIndex' => $candidateIndex,
+                        'sourceOrder' => $order,
+                        'localDigest' => hash('sha256', strtolower($candidate['local'])),
+                        'domainDigest' => hash('sha256', strtolower($candidate['domain'])),
+                        'authorOriginIndexes' => $candidate['authorOriginIndexes'],
+                        'bounds' => $this->pdfSourceEvidenceBounds($layout),
+                    ];
+                    $previousOrder = $order;
+                    $previousY = $y;
+                }
+                if (count($proofPeers) !== count($candidateIndexes)) {
+                    continue;
+                }
+                $proof = [
+                    'version' => 1,
+                    'method' => 'aligned-front-matter-mailboxes-with-shared-dns-label',
+                    'sourceSha256' => $this->sourceSha256,
+                    'page' => (int) $page,
+                    'dnsLabelDigest' => hash('sha256', $dnsLabel),
+                    'braceRepairRecordIndexes' => array_map('intval', $braceRepairPages[$page]),
+                    'peers' => $proofPeers,
+                ];
+                $proof['proofDigest'] = hash('sha256', json_encode(
+                    $proof,
+                    JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+                ) ?: '');
+                foreach ($candidateIndexes as $candidateIndex) {
+                    $candidate = $candidatesByRecordIndex[$candidateIndex][0];
+                    $sourceText = (string) $records[$candidateIndex]['text'];
+                    $repaired = $candidate['local'] . '@' . $candidate['domain'];
+                    $layout = $records[$candidateIndex]['layout'];
+                    $layout['sourcePdfSemanticEmailDelimiterRepair'] = $proof + [
+                        'sourceProjectionDigest' => hash(
+                            'sha256',
+                            $this->pdfSourceOccurrenceComparableText($sourceText)
+                        ),
+                        'outputProjectionDigest' => hash(
+                            'sha256',
+                            $this->pdfSourceOccurrenceComparableText($repaired)
+                        ),
+                    ];
+                    $records[$candidateIndex]['text'] = $repaired;
+                    $records[$candidateIndex]['layout'] = $layout;
+                    $this->rememberPdfSemanticEmailDelimiterRepair(
+                        $records[$candidateIndex],
+                        $sourceText,
+                        $repaired,
+                        $layout['sourcePdfSemanticEmailDelimiterRepair']
+                    );
+                }
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * Retain a record-local receipt for the only inserted byte. The semantic
+     * pass may run on several candidate layouts, so final source dispositions
+     * still revalidate the exact immutable occurrence and the unique emitted
+     * projection before accepting this boundary repair.
+     *
+     * @param array{text:string,layout:array<string,mixed>|null} $record
+     * @param array<string,mixed> $semanticProof
+     */
+    private function rememberPdfSemanticEmailDelimiterRepair(
+        array $record,
+        string $sourceText,
+        string $outputText,
+        array $semanticProof
+    ): void {
+        $layout = is_array($record['layout'] ?? null) ? $record['layout'] : null;
+        if (!is_array($layout)) {
+            return;
+        }
+        $ranges = $this->pdfPositionedExactSourceRanges($layout);
+        $sourceIndexes = array_values(array_unique(array_column($ranges, 'sourceIndex')));
+        $sourceProjection = $this->pdfSourceOccurrenceComparableText(
+            $this->pdfTextWithoutSemanticPrefixes($sourceText)
+        );
+        $outputProjection = $this->pdfSourceOccurrenceComparableText(
+            $this->pdfTextWithoutSemanticPrefixes($outputText)
+        );
+        $insertionOffset = strpos($outputProjection, '@');
+        if (count($sourceIndexes) !== 1
+            || $sourceProjection === ''
+            || !is_int($insertionOffset)
+            || substr_count($outputProjection, '@') !== 1
+            || strlen($outputProjection) !== strlen($sourceProjection) + 1
+            || !hash_equals(
+                $sourceProjection,
+                substr($outputProjection, 0, $insertionOffset)
+                    . substr($outputProjection, $insertionOffset + 1)
+            )) {
+            return;
+        }
+        $identity = [
+            'version' => 1,
+            'method' => 'exact-semantic-email-delimiter-insertion',
+            'sourceSha256' => $this->sourceSha256,
+            'sourceIndex' => $sourceIndexes[0],
+            'exactSourceRanges' => $ranges,
+            'sourceProjectionDigest' => hash('sha256', $sourceProjection),
+            'outputProjection' => $outputProjection,
+            'outputText' => $this->pdfTextWithoutSemanticPrefixes($outputText),
+            'outputProjectionDigest' => hash('sha256', $outputProjection),
+            'insertionOffset' => $insertionOffset,
+            'semanticProofDigest' => is_string($semanticProof['proofDigest'] ?? null)
+                ? $semanticProof['proofDigest']
+                : hash('sha256', json_encode(
+                    $semanticProof,
+                    JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+                ) ?: ''),
+        ];
+        $identity['proofDigest'] = hash('sha256', json_encode(
+            $identity,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        ) ?: '');
+        $this->pdfSemanticEmailDelimiterRepairProofCandidates[] = $identity;
+    }
+
+    /**
+     * Complete an already identified first-page front-matter band from its
+     * geometry. Some PDFs paint centered title continuations and affiliation
+     * keys in a later content stream, so source order alone can place those
+     * records in the body even though they occupy the exact visual band
+     * between the title and summary heading.
+     *
+     * @param list<array{text:string,layout:array<string,mixed>|null}> $records
+     * @return list<array{text:string,layout:array<string,mixed>|null}>
+     */
+    private function completePdfFrontMatterGeometryRecords(array $records): array
+    {
+        $bands = [];
+        $geometryByPage = [];
+        foreach ($records as $recordIndex => $record) {
+            $layout = is_array($record['layout'] ?? null) ? $record['layout'] : null;
+            if (!$this->pdfLayoutHasGeometry($layout)) {
+                continue;
+            }
+            $page = (int) $layout['page'];
+            $geometryByPage[$page][$recordIndex] = $record;
+            $role = $layout['sourcePdfFrontMatterRole'] ?? null;
+            if ($role === 'title') {
+                $bands[$page]['titles'][] = $record;
+            } elseif ($role === 'summary-heading') {
+                $bands[$page]['summaryHeadings'][] = $record;
+            }
+        }
+
+        foreach ($bands as $page => $band) {
+            if (($band['titles'] ?? []) === [] || ($band['summaryHeadings'] ?? []) === []) {
+                unset($bands[$page]);
+                continue;
+            }
+            $title = $band['titles'][0];
+            foreach ($band['titles'] as $candidate) {
+                if ((float) $candidate['layout']['y1'] > (float) $title['layout']['y1']) {
+                    $title = $candidate;
+                }
+            }
+            $summary = $band['summaryHeadings'][0];
+            foreach ($band['summaryHeadings'] as $candidate) {
+                if ((float) $candidate['layout']['y1'] > (float) $summary['layout']['y1']) {
+                    $summary = $candidate;
+                }
+            }
+            $bands[$page] = [
+                'titleIndex' => null,
+                'titleY' => (float) $title['layout']['y1'],
+                'titleFont' => max(1.0, (float) $title['layout']['fontSize']),
+                'titleCenterX' => ((float) $title['layout']['x1'] + (float) $title['layout']['x2']) / 2.0,
+                'summaryY' => (float) $summary['layout']['y1'],
+                'pageWidth' => 0.0,
+            ];
+        }
+
+        // Source-stream ordering can prevent the first classifier from
+        // identifying any front matter at all. In that case, anchor only the
+        // first page's top, multi-word display line and its centered visual
+        // band; ordinary body columns sit far from that center axis.
+        if ($geometryByPage !== []) {
+            ksort($geometryByPage, SORT_NUMERIC);
+            $firstPage = array_key_first($geometryByPage);
+            if (!isset($bands[$firstPage])) {
+                $pageRecords = $geometryByPage[$firstPage];
+                $hasNumberedSectionBoundary = false;
+                foreach ($pageRecords as $record) {
+                    if (preg_match(
+                        '/^\s*(?:\d+(?:\.\d+)*\.?\s+){1,2}\p{Lu}[\p{L}\p{N}]/u',
+                        trim((string) ($record['text'] ?? ''))
+                    ) === 1) {
+                        $hasNumberedSectionBoundary = true;
+                        break;
+                    }
+                }
+                if ($hasNumberedSectionBoundary) {
+                    $minX = INF;
+                    $maxX = -INF;
+                    $minY = INF;
+                    $maxY = -INF;
+                    foreach ($pageRecords as $record) {
+                        $layout = $record['layout'];
+                        $minX = min($minX, (float) $layout['x1']);
+                        $maxX = max($maxX, (float) $layout['x2']);
+                        $minY = min($minY, (float) $layout['y1']);
+                        $maxY = max($maxY, (float) $layout['y2']);
+                    }
+                    $titleIndex = null;
+                    $titleScore = -INF;
+                    $topBand = $minY + max(1.0, $maxY - $minY) * 0.72;
+                    foreach ($pageRecords as $recordIndex => $record) {
+                        $layout = $record['layout'];
+                        $text = trim((string) ($record['text'] ?? ''));
+                        $font = max(1.0, (float) $layout['fontSize']);
+                        if ((float) $layout['y1'] < $topBand
+                            || $font < 14.0
+                            || count($this->pdfLineWordTokens($text)) < 3
+                            || count($this->pdfLineWordTokens($text)) > 20
+                            || $this->length($text) < 15
+                            || $this->length($text) > 180) {
+                            continue;
+                        }
+                        $score = (float) $layout['y1'] + $font * 4.0;
+                        if ($score > $titleScore) {
+                            $titleIndex = $recordIndex;
+                            $titleScore = $score;
+                        }
+                    }
+                    if ($titleIndex !== null) {
+                        $titleLayout = $pageRecords[$titleIndex]['layout'];
+                        $titleFont = max(1.0, (float) $titleLayout['fontSize']);
+                        $titleY = (float) $titleLayout['y1'];
+                        $titleCenterX = ((float) $titleLayout['x1'] + (float) $titleLayout['x2']) / 2.0;
+                        $hasTitleContinuation = false;
+                        foreach ($pageRecords as $recordIndex => $record) {
+                            if ($recordIndex === $titleIndex) {
+                                continue;
+                            }
+                            $layout = $record['layout'];
+                            $font = max(1.0, (float) $layout['fontSize']);
+                            $centerX = ((float) $layout['x1'] + (float) $layout['x2']) / 2.0;
+                            $gap = $titleY - (float) $layout['y1'];
+                            if ($gap > 0.0
+                                && $gap <= $titleFont * 1.65
+                                && abs($font - $titleFont) <= max(0.75, $titleFont * 0.30)
+                                && abs($centerX - $titleCenterX) <= $titleFont * 1.5) {
+                                $hasTitleContinuation = true;
+                                break;
+                            }
+                        }
+                        if ($hasTitleContinuation) {
+                            $bands[$firstPage] = [
+                                'titleIndex' => $titleIndex,
+                                'titleY' => $titleY,
+                                'titleFont' => $titleFont,
+                                'titleCenterX' => $titleCenterX,
+                                'summaryY' => $titleY - $titleFont * 11.5,
+                                'pageWidth' => max(1.0, $maxX - $minX),
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach ($records as $recordIndex => &$record) {
+            $layout = is_array($record['layout'] ?? null) ? $record['layout'] : null;
+            if (!$this->pdfLayoutHasGeometry($layout)) {
+                continue;
+            }
+            $band = $bands[(int) $layout['page']] ?? null;
+            $role = $layout['sourcePdfFrontMatterRole'] ?? null;
+            if (!is_array($band)
+                || in_array($role, ['summary-heading', 'summary-body'], true)
+                || ($layout['code'] ?? false) === true
+                || isset($layout['sourcePdfLineOrientedGroup'])) {
+                continue;
+            }
+            $y = (float) $layout['y1'];
+            $isPrimaryTitle = $recordIndex === ($band['titleIndex'] ?? null)
+                || $role === 'title';
+            if (!$isPrimaryTitle && ($y <= $band['summaryY'] || $y >= $band['titleY'])) {
+                continue;
+            }
+
+            $font = max(1.0, (float) $layout['fontSize']);
+            $centerX = ((float) $layout['x1'] + (float) $layout['x2']) / 2.0;
+            $titleGap = $band['titleY'] - $y;
+            $isTitleContinuation = $isPrimaryTitle || ($titleGap <= $band['titleFont'] * 1.65
+                && abs($font - $band['titleFont']) <= max(0.75, $band['titleFont'] * 0.30)
+                && abs($centerX - $band['titleCenterX']) <= $band['titleFont'] * 1.5);
+            if (!$isTitleContinuation
+                && (abs($centerX - $band['titleCenterX']) > max(
+                    $band['titleFont'] * 5.0,
+                    (float) $band['pageWidth'] * 0.12
+                ) || $this->length(trim((string) ($record['text'] ?? ''))) > 220)) {
+                continue;
+            }
+
+            $layout['sourcePdfFrontMatter'] = true;
+            $layout['sourcePdfProtectedSemanticContent'] = true;
+            $layout['sourcePdfFrontMatterRole'] = $isTitleContinuation ? 'title' : 'credits';
+            if ($isTitleContinuation) {
+                $layout['sourcePdfDisplayHeading'] = true;
+            } else {
+                unset($layout['sourcePdfDisplayHeading']);
+            }
+            $record['layout'] = $layout;
+        }
+        unset($record);
+
+        return $records;
+    }
+
+    private function flattenedPdfNumberedCodeListing(string $text): ?string
+    {
+        $text = trim($text);
+        if (preg_match('/^1\s+(?:for|if|while|switch)\s*\(/u', $text) !== 1) {
+            return null;
+        }
+        $matched = preg_match_all(
+            '/(?:^|\s)(\d{1,3})\s+(?=[\p{L}_{}])/u',
+            $text,
+            $matches,
+            PREG_OFFSET_CAPTURE
+        );
+        if ($matched === false || $matched < 4) {
+            return null;
+        }
+
+        $markers = [];
+        foreach ($matches[1] as $match) {
+            $markers[] = [
+                'number' => (int) $match[0],
+                'numberOffset' => (int) $match[1],
+            ];
+        }
+        foreach ($markers as $index => $marker) {
+            if ($marker['number'] !== $index + 1) {
+                return null;
+            }
+        }
+
+        $rows = [];
+        foreach ($markers as $index => $marker) {
+            $contentStart = $marker['numberOffset'] + strlen((string) $marker['number']);
+            $contentEnd = isset($markers[$index + 1])
+                ? $markers[$index + 1]['numberOffset']
+                : strlen($text);
+            $content = trim(substr($text, $contentStart, $contentEnd - $contentStart));
+            if ($content === '') {
+                return null;
+            }
+            // A separated unary not is a PDF word-spacing artifact, not
+            // meaningful source indentation.
+            $content = preg_replace('/!\s+(?=[\p{L}_$])/u', '!', $content) ?? $content;
+            $indent = '';
+            if ($index > 0) {
+                $previous = $rows[$index - 1]['content'];
+                if (preg_match('/^(?:if|for|while)\s*\(.*\)\s*$/u', $previous) === 1
+                    && !str_ends_with($previous, '{')
+                    && $content !== '}') {
+                    $indent = '    ';
+                }
+            }
+            $rows[] = [
+                'content' => $content,
+                'line' => $marker['number'] . ' ' . $indent . $content,
+            ];
+        }
+
+        $codeText = implode("\n", array_column($rows, 'line'));
+        $compactSource = preg_replace('/\s+/u', '', $text) ?? '';
+        $compactCode = preg_replace('/\s+/u', '', $codeText) ?? '';
+        $statementEvidence = preg_match_all(
+            '/\b(?:for|if|while|continue|break|return)\b|[;{}]/u',
+            $codeText,
+            $unused
+        );
+
+        return $compactSource !== ''
+            && $compactSource === $compactCode
+            && $statementEvidence !== false
+            && $statementEvidence >= 5
+                ? $codeText
+                : null;
+    }
+
+    /**
      * Apply the character-preserving presentation normalization shared by
      * the document-wide repair and each conservative page projection.
      *
      * @param list<string> $merged
+     * @param array<int,array<string,mixed>> $exactWholeSourceMergedLineSpans
+     * @param array<int,array<string,mixed>>|null $finalWholeSourceMergedLineSpans
      * @return list<string>
      */
-    private function finalizedRepairedPdfLines(array $merged, bool $repairGluedText): array
-    {
+    private function finalizedRepairedPdfLines(
+        array $merged,
+        bool $repairGluedText,
+        array $exactWholeSourceMergedLineSpans = [],
+        ?array &$finalWholeSourceMergedLineSpans = null
+    ): array {
+        $collectFinalSpans = func_num_args() >= 4;
+        $finalWholeSourceMergedLineSpans = [];
         $repaired = [];
-        foreach ($merged as $line) {
+        $append = function (string $line, int $inputIndex) use (
+            &$repaired,
+            &$finalWholeSourceMergedLineSpans,
+            $collectFinalSpans,
+            $exactWholeSourceMergedLineSpans
+        ): void {
+            if ($line === '') {
+                return;
+            }
+            $outputIndex = count($repaired);
+            $repaired[] = $line;
+            $span = $exactWholeSourceMergedLineSpans[$inputIndex] ?? null;
+            if ($collectFinalSpans
+                && $this->repairedPdfMergedLineHasExactWholeSourceSpan($line, $span)) {
+                $finalWholeSourceMergedLineSpans[$outputIndex] = $span;
+            }
+        };
+        foreach ($merged as $lineIndex => $line) {
+            $chartProjection = $this->pdfChartFontCipherLineIsCandidate($line)
+                ? $this->pdfSourceOccurrenceComparableText(
+                    $this->pdfTextWithoutSemanticPrefixes($line)
+                )
+                : '';
+            if ($chartProjection !== ''
+                && (isset($this->sourcePdfChartCipherArtifactProjectionDigests[
+                    hash('sha256', $chartProjection)
+                ]) || $this->sourcePdfChartCipherMergedLineIsProvenArtifact(
+                    $line,
+                    $exactWholeSourceMergedLineSpans[$lineIndex] ?? null
+                ))) {
+                continue;
+            }
+            $flattenedCode = $this->flattenedPdfNumberedCodeListing($line);
+            if ($flattenedCode !== null) {
+                $append(self::PDF_CODE_BLOCK_PREFIX . $flattenedCode, $lineIndex);
+                continue;
+            }
             if (str_starts_with($line, self::PDF_CODE_BLOCK_PREFIX)) {
-                $repaired[] = $line;
+                $append($line, $lineIndex);
                 continue;
             }
             if (str_starts_with($line, PdfFormulaSemanticProcessor::LINE_PREFIX)) {
                 $formula = trim(substr($line, strlen(PdfFormulaSemanticProcessor::LINE_PREFIX)));
                 if ($formula !== '') {
-                    $repaired[] = PdfFormulaSemanticProcessor::LINE_PREFIX . $formula;
+                    $append(PdfFormulaSemanticProcessor::LINE_PREFIX . $formula, $lineIndex);
                 }
                 continue;
             }
@@ -26175,7 +30846,7 @@ final class PdfReader
                     $lineBlock
                 ), static fn (string $blockLine): bool => $blockLine !== ''));
                 if ($lineBlock !== []) {
-                    $repaired[] = $this->encodePdfLineBlock($lineBlock);
+                    $append($this->encodePdfLineBlock($lineBlock), $lineIndex);
                 }
                 continue;
             }
@@ -26185,14 +30856,14 @@ final class PdfReader
                     ? $this->repairGluedProseLine($label)
                     : trim($label);
                 if ($label !== '') {
-                    $repaired[] = self::PDF_MAP_LABEL_PREFIX . $label;
+                    $append(self::PDF_MAP_LABEL_PREFIX . $label, $lineIndex);
                 }
                 continue;
             }
             if (str_starts_with($line, self::PDF_FRONT_MATTER_PREFIX)) {
                 $credit = trim(substr($line, strlen(self::PDF_FRONT_MATTER_PREFIX)));
                 if ($credit !== '') {
-                    $repaired[] = self::PDF_FRONT_MATTER_PREFIX . $credit;
+                    $append(self::PDF_FRONT_MATTER_PREFIX . $credit, $lineIndex);
                 }
                 continue;
             }
@@ -26202,7 +30873,7 @@ final class PdfReader
                     ? $this->repairGluedProseLine($label)
                     : trim($label);
                 if ($label !== '') {
-                    $repaired[] = self::PDF_LAYOUT_LABEL_PREFIX . $label;
+                    $append(self::PDF_LAYOUT_LABEL_PREFIX . $label, $lineIndex);
                 }
                 continue;
             }
@@ -26212,19 +30883,862 @@ final class PdfReader
                     ? $this->repairGluedProseLine($heading)
                     : trim($heading);
                 if ($heading !== '') {
-                    $repaired[] = self::PDF_DISPLAY_HEADING_PREFIX . $heading;
+                    $append(self::PDF_DISPLAY_HEADING_PREFIX . $heading, $lineIndex);
                 }
                 continue;
             }
             $line = $repairGluedText
                 ? $this->repairGluedProseLine($line)
                 : trim($line);
+            $line = $this->collapseProvenRepeatedPdfResourceUrl(
+                $line,
+                $exactWholeSourceMergedLineSpans[$lineIndex] ?? null
+            );
             if ($line !== '') {
-                $repaired[] = $line;
+                $append($line, $lineIndex);
             }
         }
 
         return $repaired;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array<int,true>
+     */
+    private function pdfChartFontCipherLineIndexes(array $lines): array
+    {
+        $indexes = [];
+        $run = [];
+        $flush = static function () use (&$indexes, &$run): void {
+            // A single compact formula can have the same character ratios.
+            // A sustained four-row run is evidence of a chart's substituted
+            // symbol font rather than editable prose.
+            if (count($run) >= 4) {
+                foreach ($run as $index) {
+                    $indexes[$index] = true;
+                }
+            }
+            $run = [];
+        };
+
+        foreach ($lines as $index => $line) {
+            if ($this->pdfChartFontCipherLineIsCandidate($line)) {
+                $run[] = $index;
+                continue;
+            }
+            $flush();
+        }
+        $flush();
+
+        return $indexes;
+    }
+
+    private function pdfChartFontCipherLineIsCandidate(string $line): bool
+    {
+        $text = trim($this->pdfTextWithoutSemanticPrefixes($line));
+        $compact = preg_replace('/\s+/u', '', $text) ?? '';
+        $length = $this->length($compact);
+        $garbledDelimiters = preg_match_all('/[#<>=]/u', $compact, $unused);
+        $letters = preg_match_all('/\p{L}/u', $compact, $unused);
+
+        return $length >= 8
+            && preg_match('/\p{Ll}/u', $compact) !== 1
+            && $garbledDelimiters !== false
+            && $garbledDelimiters >= 2
+            && $letters !== false
+            && ($length - $letters) / $length >= 0.35
+            && !$this->lineLooksLikeUrlOnly($text);
+    }
+
+    /** @param list<array<string,mixed>> $lineItems */
+    private function markSourcePdfChartCipherArtifacts(array &$lineItems): void
+    {
+        $this->sourcePdfChartCipherArtifactProofsBySourceId =
+            $this->sourcePdfChartCipherArtifactProofs($lineItems);
+        $candidateSourceIdsByProjectionDigest = [];
+        $sourceItemsByGlobalIndex = [];
+        foreach ($lineItems as $localIndex => $item) {
+            $sourceId = is_string($item['id'] ?? null) ? $item['id'] : '';
+            $text = is_string($item['text'] ?? null) ? $item['text'] : '';
+            $projection = $this->pdfSourceOccurrenceComparableText($text);
+            $globalSourceIndex = is_int($item['sourcePdfGlobalSourceIndex'] ?? null)
+                ? $item['sourcePdfGlobalSourceIndex']
+                : $localIndex;
+            if ($sourceId !== ''
+                && $projection !== ''
+                && is_int($globalSourceIndex)
+                && $globalSourceIndex >= 0
+                && !isset($sourceItemsByGlobalIndex[$globalSourceIndex])) {
+                $sourceItemsByGlobalIndex[$globalSourceIndex] = [
+                    'sourceId' => $sourceId,
+                    'globalSourceIndex' => $globalSourceIndex,
+                    'text' => $text,
+                    'projection' => $projection,
+                    'page' => (int) ($item['page'] ?? 0),
+                    'stream' => (int) ($item['stream'] ?? 0),
+                ];
+            }
+            if ($sourceId === ''
+                || $projection === ''
+                || !$this->pdfChartFontCipherLineIsCandidate($text)) {
+                continue;
+            }
+            $candidateSourceIdsByProjectionDigest[hash('sha256', $projection)][$sourceId] = true;
+        }
+        $this->sourcePdfChartCipherArtifactProjectionDigests = [];
+        foreach ($candidateSourceIdsByProjectionDigest as $projectionDigest => $sourceIds) {
+            foreach (array_keys($sourceIds) as $sourceId) {
+                if (!is_array($this->sourcePdfChartCipherArtifactProofsBySourceId[$sourceId] ?? null)) {
+                    continue 2;
+                }
+            }
+            $this->sourcePdfChartCipherArtifactProjectionDigests[$projectionDigest] = true;
+        }
+        ksort($sourceItemsByGlobalIndex, SORT_NUMERIC);
+        $uniqueProofs = [];
+        foreach ($this->sourcePdfChartCipherArtifactProofsBySourceId as $proof) {
+            if (!is_array($proof)
+                || !$this->sourcePdfSignedProofDigestMatches($proof)
+                || !is_string($proof['proofDigest'] ?? null)) {
+                continue;
+            }
+            $uniqueProofs[$proof['proofDigest']] = $proof;
+        }
+        $combinedArtifactProjectionDigests = [];
+        $maximumProofLineCount = 0;
+        foreach ($uniqueProofs as $proof) {
+            $sourceIds = is_array($proof['sourceOccurrenceIds'] ?? null)
+                ? array_values($proof['sourceOccurrenceIds'])
+                : [];
+            $globalIndexes = is_array($proof['globalSourceIndexes'] ?? null)
+                ? array_values($proof['globalSourceIndexes'])
+                : [];
+            $proofLines = is_array($proof['lines'] ?? null)
+                ? array_values($proof['lines'])
+                : [];
+            if ($sourceIds === []
+                || count($sourceIds) !== count($globalIndexes)
+                || count($sourceIds) !== count($proofLines)) {
+                continue;
+            }
+            $projections = [];
+            foreach ($sourceIds as $offset => $sourceId) {
+                $globalSourceIndex = $globalIndexes[$offset] ?? null;
+                $item = is_int($globalSourceIndex)
+                    ? ($sourceItemsByGlobalIndex[$globalSourceIndex] ?? null)
+                    : null;
+                if (!is_string($sourceId)
+                    || !is_array($item)
+                    || $item['sourceId'] !== $sourceId
+                    || ($proofLines[$offset]['globalSourceIndex'] ?? null)
+                        !== $globalSourceIndex
+                    || !hash_equals(
+                        (string) ($proofLines[$offset]['projectionDigest'] ?? ''),
+                        hash('sha256', $item['projection'])
+                    )) {
+                    $projections = [];
+                    break;
+                }
+                $projections[] = $item['projection'];
+            }
+            if ($projections === []) {
+                continue;
+            }
+            $maximumProofLineCount = max($maximumProofLineCount, count($projections));
+            foreach ($projections as $start => $_projection) {
+                $combinedProjection = '';
+                for ($end = $start, $count = count($projections); $end < $count; $end++) {
+                    $combinedProjection .= $projections[$end];
+                    if ($end === $start
+                        || !$this->pdfChartFontCipherLineIsCandidate($combinedProjection)) {
+                        continue;
+                    }
+                    $combinedArtifactProjectionDigests[
+                        hash('sha256', $combinedProjection)
+                    ] = true;
+                }
+            }
+        }
+        if ($combinedArtifactProjectionDigests !== [] && $maximumProofLineCount >= 2) {
+            foreach ($sourceItemsByGlobalIndex as $startGlobalIndex => $firstItem) {
+                $combinedProjection = '';
+                $sharedProof = null;
+                $allMembersShareProof = true;
+                for ($offset = 0; $offset < $maximumProofLineCount; $offset++) {
+                    $item = $sourceItemsByGlobalIndex[$startGlobalIndex + $offset] ?? null;
+                    if (!is_array($item)
+                        || $item['page'] !== $firstItem['page']
+                        || $item['stream'] !== $firstItem['stream']) {
+                        break;
+                    }
+                    $combinedProjection .= $item['projection'];
+                    $itemProof = $this->sourcePdfChartCipherArtifactProofsBySourceId[
+                        $item['sourceId']
+                    ] ?? null;
+                    if (!is_array($itemProof)
+                        || !$this->sourcePdfSignedProofDigestMatches($itemProof)
+                        || ($sharedProof !== null && $itemProof !== $sharedProof)) {
+                        $allMembersShareProof = false;
+                    } elseif ($sharedProof === null) {
+                        $sharedProof = $itemProof;
+                    }
+                    $projectionDigest = hash('sha256', $combinedProjection);
+                    if (isset($combinedArtifactProjectionDigests[$projectionDigest])
+                        && !$allMembersShareProof) {
+                        unset($combinedArtifactProjectionDigests[$projectionDigest]);
+                    }
+                }
+            }
+            $this->sourcePdfChartCipherArtifactProjectionDigests +=
+                $combinedArtifactProjectionDigests;
+        }
+        foreach ($lineItems as &$item) {
+            $sourceId = is_string($item['id'] ?? null) ? $item['id'] : '';
+            $proof = $sourceId !== ''
+                ? ($this->sourcePdfChartCipherArtifactProofsBySourceId[$sourceId] ?? null)
+                : null;
+            if (is_array($proof)) {
+                $item['sourcePdfChartCipherArtifactEvidence'] = $proof;
+            }
+        }
+        unset($item);
+    }
+
+    /**
+     * A substituted chart font presents a sustained same-stream group of
+     * delimiter-heavy uppercase cipher rows. Axis/header labels can be split
+     * into short fragments immediately before or after the full rows, so a
+     * group admits those fragments only when the same exact consecutive run
+     * contains at least four full cipher candidates. Sign the immutable source
+     * identities before semantic repair so output suppression and the final
+     * disposition ledger can independently revalidate the group.
+     *
+     * @param list<array<string,mixed>> $lineItems
+     * @return array<string,array<string,mixed>>
+     */
+    private function sourcePdfChartCipherArtifactProofs(array $lineItems): array
+    {
+        $proofs = [];
+        $run = [];
+        $runPage = null;
+        $runStream = null;
+        $flush = function () use (&$proofs, &$run, &$runPage, &$runStream): void {
+            $fullCandidateLineCount = count(array_filter(
+                $run,
+                static fn (array $line): bool => ($line['candidateKind'] ?? null) === 'full'
+            ));
+            if ($fullCandidateLineCount >= 4
+                && is_int($runPage)
+                && is_int($runStream)) {
+                $sourceIds = array_column($run, 'sourceOccurrenceId');
+                $globalIndexes = array_column($run, 'globalSourceIndex');
+                if (count(array_unique($sourceIds, SORT_STRING)) === count($sourceIds)
+                    && count(array_unique($globalIndexes, SORT_NUMERIC)) === count($globalIndexes)) {
+                    $proof = [
+                        'version' => 1,
+                        'method' => 'exact-source-chart-font-cipher-line-group',
+                        'sourceSha256' => $this->sourceSha256,
+                        'page' => $runPage,
+                        'stream' => $runStream,
+                        'lineCount' => count($run),
+                        'fullCandidateLineCount' => $fullCandidateLineCount,
+                        'sourceOccurrenceIds' => $sourceIds,
+                        'globalSourceIndexes' => $globalIndexes,
+                        'lines' => $run,
+                    ];
+                    $proof['proofDigest'] = hash('sha256', json_encode(
+                        $proof,
+                        JSON_UNESCAPED_SLASHES
+                            | JSON_UNESCAPED_UNICODE
+                            | JSON_PRESERVE_ZERO_FRACTION
+                    ) ?: '');
+                    foreach ($sourceIds as $sourceId) {
+                        $proofs[$sourceId] = $proof;
+                    }
+                }
+            }
+            $run = [];
+            $runPage = null;
+            $runStream = null;
+        };
+
+        foreach ($lineItems as $localIndex => $item) {
+            $text = is_string($item['text'] ?? null) ? $item['text'] : '';
+            $sourceId = is_string($item['id'] ?? null) ? $item['id'] : '';
+            $page = (int) ($item['page'] ?? 0);
+            $stream = (int) ($item['stream'] ?? 0);
+            $globalSourceIndex = is_int($item['sourcePdfGlobalSourceIndex'] ?? null)
+                ? $item['sourcePdfGlobalSourceIndex']
+                : $localIndex;
+            $projection = $this->pdfSourceOccurrenceComparableText($text);
+            $fullCandidate = $sourceId !== ''
+                && $page >= 1
+                && $stream >= 1
+                && $globalSourceIndex >= 0
+                && $projection !== ''
+                && $this->pdfChartFontCipherLineIsCandidate($text);
+            $tailCandidate = !$fullCandidate
+                && $sourceId !== ''
+                && $page >= 1
+                && $stream >= 1
+                && $globalSourceIndex >= 0
+                && $projection !== ''
+                && $this->pdfChartFontCipherTailFragmentIsCandidate($text);
+            if (!$fullCandidate && !$tailCandidate) {
+                $flush();
+                continue;
+            }
+            $previousGlobalIndex = $run === []
+                ? null
+                : $run[array_key_last($run)]['globalSourceIndex'];
+            $scopeContinues = $run !== []
+                && $runPage === $page
+                && $runStream === $stream
+                && is_int($previousGlobalIndex)
+                && $globalSourceIndex === $previousGlobalIndex + 1;
+            if ($run !== [] && !$scopeContinues) {
+                $flush();
+            }
+            $runPage = $page;
+            $runStream = $stream;
+            $run[] = [
+                'sourceOccurrenceId' => $sourceId,
+                'globalSourceIndex' => $globalSourceIndex,
+                'candidateKind' => $fullCandidate ? 'full' : 'short-fragment',
+                'projectionDigest' => hash('sha256', $projection),
+                'significantBytes' => strlen($projection),
+                'exactRange' => [
+                    'sourceIndex' => $globalSourceIndex,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen($projection),
+                ],
+            ];
+        }
+        $flush();
+
+        return $proofs;
+    }
+
+    private function pdfChartFontCipherTailFragmentIsCandidate(string $line): bool
+    {
+        $text = trim($this->pdfTextWithoutSemanticPrefixes($line));
+        $compact = preg_replace('/\s+/u', '', $text) ?? '';
+        $length = $this->length($compact);
+        $garbledDelimiters = preg_match_all('/[#<>=]/u', $compact, $unused);
+        $letters = preg_match_all('/\p{L}/u', $compact, $unused);
+
+        return $length >= 3
+            && $length < 8
+            && preg_match('/\p{Ll}/u', $compact) !== 1
+            && $garbledDelimiters !== false
+            && $garbledDelimiters >= 1
+            && $letters !== false
+            && ($length - $letters) / $length >= 0.35
+            && !$this->lineLooksLikeUrlOnly($text);
+    }
+
+    /** @param array<string,mixed>|null $layout */
+    private function sourcePdfChartCipherLayoutIsProvenArtifact(
+        ?array $layout,
+        string $line
+    ): bool {
+        $sourceId = is_array($layout) && is_string($layout['id'] ?? null)
+            ? $layout['id']
+            : '';
+        $proof = $sourceId !== ''
+            ? ($this->sourcePdfChartCipherArtifactProofsBySourceId[$sourceId] ?? null)
+            : null;
+        if (!is_array($layout)
+            || !is_array($proof)
+            || !$this->sourcePdfSignedProofDigestMatches($proof)
+            || ($proof['method'] ?? null) !== 'exact-source-chart-font-cipher-line-group'
+            || ($proof['sourceSha256'] ?? null) !== $this->sourceSha256
+            || (int) ($layout['page'] ?? 0) !== ($proof['page'] ?? null)) {
+            return false;
+        }
+        $layoutStream = is_int($layout['sourceStream'] ?? null)
+            ? $layout['sourceStream']
+            : (is_int($layout['stream'] ?? null) ? $layout['stream'] : null);
+        if (!is_int($layoutStream) || $layoutStream !== ($proof['stream'] ?? null)) {
+            return false;
+        }
+        $sourceIds = is_array($proof['sourceOccurrenceIds'] ?? null)
+            ? array_values($proof['sourceOccurrenceIds'])
+            : [];
+        $offset = array_search($sourceId, $sourceIds, true);
+        $proofLine = is_int($offset) && is_array($proof['lines'][$offset] ?? null)
+            ? $proof['lines'][$offset]
+            : null;
+        $projection = $this->pdfSourceOccurrenceComparableText(
+            $this->pdfTextWithoutSemanticPrefixes($line)
+        );
+        if (!is_array($proofLine)
+            || $projection === ''
+            || !hash_equals(
+                (string) ($proofLine['projectionDigest'] ?? ''),
+                hash('sha256', $projection)
+            )) {
+            return false;
+        }
+        if (is_int($layout['sourcePdfGlobalSourceIndex'] ?? null)
+            && $layout['sourcePdfGlobalSourceIndex']
+                !== ($proofLine['globalSourceIndex'] ?? null)) {
+            return false;
+        }
+        $stampedEvidence = $layout['sourcePdfChartCipherArtifactEvidence'] ?? null;
+
+        return $stampedEvidence === null || $stampedEvidence === $proof;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param list<array<string,mixed>> $sourceItems
+     * @return list<string>
+     */
+    private function sourcePdfPresentationLinesWithoutProvenChartCipherArtifacts(
+        array $lines,
+        array $sourceItems
+    ): array {
+        if (count($lines) !== count($sourceItems)) {
+            return $lines;
+        }
+        $filtered = [];
+        foreach ($lines as $index => $line) {
+            $layout = is_array($sourceItems[$index] ?? null)
+                ? $sourceItems[$index]
+                : null;
+            if (!$this->sourcePdfChartCipherLayoutIsProvenArtifact($layout, $line)) {
+                $filtered[] = $line;
+            }
+        }
+
+        return $filtered;
+    }
+
+    /**
+     * Remove a positioned presentation run only when its complete significant
+     * projection is reconstructed from exact source ranges and every covered
+     * source occurrence belongs to the same signed chart-cipher group.
+     *
+     * @param list<array<string,mixed>> $runs
+     * @param list<array<string,mixed>> $sourceItems
+     * @return list<array<string,mixed>>
+     */
+    private function positionedPdfRunsWithoutProvenChartCipherArtifacts(
+        array $runs,
+        array $sourceItems
+    ): array {
+        if ($runs === [] || $this->sourcePdfChartCipherArtifactProofsBySourceId === []) {
+            return $runs;
+        }
+        $sourceItemsByGlobalIndex = [];
+        foreach ($sourceItems as $localIndex => $sourceItem) {
+            $globalSourceIndex = is_int($sourceItem['sourcePdfGlobalSourceIndex'] ?? null)
+                ? $sourceItem['sourcePdfGlobalSourceIndex']
+                : $localIndex;
+            if ($globalSourceIndex < 0 || isset($sourceItemsByGlobalIndex[$globalSourceIndex])) {
+                return $runs;
+            }
+            $sourceItemsByGlobalIndex[$globalSourceIndex] = $sourceItem;
+        }
+
+        $filtered = [];
+        foreach ($runs as $run) {
+            $runProjection = $this->pdfSourceOccurrenceComparableText(
+                (string) ($run['text'] ?? '')
+            );
+            $ranges = $this->pdfPositionedExactSourceRanges($run);
+            $coveredProjection = '';
+            $sharedProof = null;
+            $failureReason = $runProjection === ''
+                ? 'empty-run-projection'
+                : ($ranges === [] ? 'no-exact-source-ranges' : null);
+            foreach ($failureReason === null ? $ranges : [] as $range) {
+                $sourceItem = $sourceItemsByGlobalIndex[$range['sourceIndex']] ?? null;
+                $sourceId = is_array($sourceItem)
+                    && is_string($sourceItem['id'] ?? null)
+                        ? $sourceItem['id']
+                        : '';
+                $sourceProjection = is_array($sourceItem)
+                    ? $this->pdfSourceOccurrenceComparableText(
+                        (string) ($sourceItem['text'] ?? '')
+                    )
+                    : '';
+                $proof = $sourceId !== ''
+                    ? ($this->sourcePdfChartCipherArtifactProofsBySourceId[$sourceId] ?? null)
+                    : null;
+                if (!is_array($sourceItem)
+                    || $sourceId === ''
+                    || $sourceProjection === ''
+                    || $range['sourceEnd'] > strlen($sourceProjection)
+                    || (int) ($run['page'] ?? 0) !== (int) ($sourceItem['page'] ?? 0)
+                    || !is_array($proof)
+                    || !$this->sourcePdfSignedProofDigestMatches($proof)
+                    || !in_array($sourceId, $proof['sourceOccurrenceIds'] ?? [], true)
+                    || !in_array(
+                        $range['sourceIndex'],
+                        $proof['globalSourceIndexes'] ?? [],
+                        true
+                    )
+                    || ($sharedProof !== null && $proof !== $sharedProof)) {
+                    $failureReason = 'source-range-is-not-in-one-signed-chart-group';
+                    break;
+                }
+                $sharedProof = $proof;
+                $coveredProjection .= substr(
+                    $sourceProjection,
+                    $range['sourceStart'],
+                    $range['sourceEnd'] - $range['sourceStart']
+                );
+            }
+            if ($failureReason === null
+                && ($sharedProof === null
+                    || !hash_equals($runProjection, $coveredProjection))) {
+                $failureReason = 'run-projection-does-not-equal-covered-source-ranges';
+            }
+            if ($failureReason !== null) {
+                $filtered[] = $run;
+            }
+        }
+
+        return $filtered;
+    }
+
+    private function sourcePdfChartCipherMergedLineIsProvenArtifact(
+        string $line,
+        mixed $span
+    ): bool {
+        if (!$this->repairedPdfMergedLineHasExactWholeSourceSpan($line, $span)
+            || !is_array($span)) {
+            return false;
+        }
+        $sourceIds = $span['sourceOccurrenceIds'] ?? [];
+        $globalIndexes = $span['globalSourceIndexes'] ?? [];
+        $proof = null;
+        foreach ($sourceIds as $offset => $sourceId) {
+            $candidateProof = is_string($sourceId)
+                ? ($this->sourcePdfChartCipherArtifactProofsBySourceId[$sourceId] ?? null)
+                : null;
+            if (!is_array($candidateProof)
+                || !$this->sourcePdfSignedProofDigestMatches($candidateProof)
+                || !in_array($sourceId, $candidateProof['sourceOccurrenceIds'] ?? [], true)
+                || !in_array(
+                    $globalIndexes[$offset] ?? null,
+                    $candidateProof['globalSourceIndexes'] ?? [],
+                    true
+                )
+                || ($proof !== null && $candidateProof !== $proof)) {
+                return false;
+            }
+            $proof = $candidateProof;
+        }
+
+        return $proof !== null;
+    }
+
+    /**
+     * Convert a heuristic chart-font run into suppression authority only when
+     * every merged line is an exact, consecutive union of immutable source
+     * occurrences. A visually suspicious spelling without that sidecar stays
+     * editable and will fail the ordinary fidelity gate instead of silently
+     * disappearing.
+     *
+     * @param list<string> $lines
+     * @param array<int,array<string,mixed>> $exactWholeSourceMergedLineSpans
+     * @param array<int,true> $cipherIndexes
+     * @return array<int,array<string,mixed>>
+     */
+    private function sourcePdfChartCipherArtifactProofsByLineIndex(
+        array $lines,
+        array $exactWholeSourceMergedLineSpans,
+        array $cipherIndexes
+    ): array {
+        if ($cipherIndexes === []) {
+            return [];
+        }
+
+        $proofsByLineIndex = [];
+        $run = [];
+        $flush = function () use (
+            &$proofsByLineIndex,
+            &$run,
+            $lines,
+            $exactWholeSourceMergedLineSpans
+        ): void {
+            if (count($run) < 4) {
+                $run = [];
+                return;
+            }
+            $lineProofs = [];
+            $sourceOccurrenceIds = [];
+            $globalSourceIndexes = [];
+            foreach ($run as $lineIndex) {
+                $line = $lines[$lineIndex] ?? null;
+                $span = $exactWholeSourceMergedLineSpans[$lineIndex] ?? null;
+                if (!is_string($line)
+                    || !$this->pdfChartFontCipherLineIsCandidate($line)
+                    || !$this->repairedPdfMergedLineHasExactWholeSourceSpan($line, $span)) {
+                    $this->sourceOrderProofDiagnostics[] = [
+                        'status' => 'trace',
+                        'method' => 'chart-font-cipher-artifact-proof',
+                        'reason' => 'cipher-line-has-no-exact-whole-source-span',
+                        'lineIndex' => $lineIndex,
+                        'spanMethod' => is_array($span) ? ($span['method'] ?? null) : null,
+                    ];
+                    $run = [];
+                    return;
+                }
+                $lineSourceIds = array_values($span['sourceOccurrenceIds']);
+                $lineGlobalIndexes = array_values($span['globalSourceIndexes']);
+                $previousLineGlobalSourceIndex = null;
+                foreach ($lineSourceIds as $sourceOffset => $sourceId) {
+                    $globalSourceIndex = $lineGlobalIndexes[$sourceOffset] ?? null;
+                    if (!is_string($sourceId)
+                        || $sourceId === ''
+                        || !is_int($globalSourceIndex)
+                        || ($previousLineGlobalSourceIndex !== null
+                            && $globalSourceIndex !== $previousLineGlobalSourceIndex + 1)) {
+                        $this->sourceOrderProofDiagnostics[] = [
+                            'status' => 'trace',
+                            'method' => 'chart-font-cipher-artifact-proof',
+                            'reason' => 'cipher-line-source-span-is-not-canonical',
+                            'lineIndex' => $lineIndex,
+                        ];
+                        $run = [];
+                        return;
+                    }
+                    $sourceOccurrenceIds[] = $sourceId;
+                    $globalSourceIndexes[] = $globalSourceIndex;
+                    $previousLineGlobalSourceIndex = $globalSourceIndex;
+                }
+                $lineProofs[] = [
+                    'sourceOccurrenceIds' => $lineSourceIds,
+                    'globalSourceIndexes' => $lineGlobalIndexes,
+                    'projectionDigest' => $span['projectionDigest'],
+                ];
+            }
+            if ($sourceOccurrenceIds === []
+                || count(array_unique($sourceOccurrenceIds, SORT_STRING))
+                    !== count($sourceOccurrenceIds)
+                || count(array_unique($globalSourceIndexes, SORT_NUMERIC))
+                    !== count($globalSourceIndexes)) {
+                $this->sourceOrderProofDiagnostics[] = [
+                    'status' => 'trace',
+                    'method' => 'chart-font-cipher-artifact-proof',
+                    'reason' => 'cipher-run-reuses-a-source-occurrence',
+                    'lineCount' => count($run),
+                ];
+                $run = [];
+                return;
+            }
+            $proof = [
+                'version' => 1,
+                'method' => 'exact-chart-font-cipher-line-run',
+                'sourceSha256' => $this->sourceSha256,
+                'lineCount' => count($lineProofs),
+                'sourceOccurrenceIds' => $sourceOccurrenceIds,
+                'globalSourceIndexes' => $globalSourceIndexes,
+                'lines' => $lineProofs,
+            ];
+            $proof['proofDigest'] = hash('sha256', json_encode(
+                $proof,
+                JSON_UNESCAPED_SLASHES
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: '');
+            foreach ($run as $lineIndex) {
+                $proofsByLineIndex[$lineIndex] = $proof;
+            }
+            $this->sourceOrderProofDiagnostics[] = [
+                'status' => 'accepted',
+                'method' => 'chart-font-cipher-artifact-proof',
+                'lineCount' => count($lineProofs),
+                'sourceOccurrenceCount' => count($sourceOccurrenceIds),
+            ];
+            $run = [];
+        };
+
+        foreach ($lines as $lineIndex => $_line) {
+            if (isset($cipherIndexes[$lineIndex])) {
+                $run[] = $lineIndex;
+                continue;
+            }
+            $flush();
+        }
+        $flush();
+
+        return $proofsByLineIndex;
+    }
+
+    /** @param array<string,mixed> $proof */
+    private function registerSourcePdfChartCipherArtifactProof(array $proof): void
+    {
+        foreach ($proof['sourceOccurrenceIds'] ?? [] as $sourceId) {
+            if (!is_string($sourceId) || $sourceId === '') {
+                continue;
+            }
+            if (!array_key_exists($sourceId, $this->sourcePdfChartCipherArtifactProofsBySourceId)) {
+                $this->sourcePdfChartCipherArtifactProofsBySourceId[$sourceId] = $proof;
+                continue;
+            }
+            if ($this->sourcePdfChartCipherArtifactProofsBySourceId[$sourceId] !== $proof) {
+                // Conflicting late-merge groupings revoke suppression
+                // authority for this occurrence.
+                $this->sourcePdfChartCipherArtifactProofsBySourceId[$sourceId] = false;
+            }
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $proof
+     * @param list<array<string,mixed>> $lineItems
+     */
+    private function sourcePdfChartCipherArtifactProofMatchesSourceItems(
+        array $proof,
+        array $lineItems
+    ): bool {
+        if (($proof['version'] ?? null) !== 1
+            || ($proof['method'] ?? null) !== 'exact-chart-font-cipher-line-run'
+            || ($proof['sourceSha256'] ?? null) !== $this->sourceSha256
+            || !is_int($proof['lineCount'] ?? null)
+            || $proof['lineCount'] < 4
+            || !is_array($proof['sourceOccurrenceIds'] ?? null)
+            || !array_is_list($proof['sourceOccurrenceIds'])
+            || $proof['sourceOccurrenceIds'] === []
+            || !is_array($proof['globalSourceIndexes'] ?? null)
+            || !array_is_list($proof['globalSourceIndexes'])
+            || count($proof['globalSourceIndexes']) !== count($proof['sourceOccurrenceIds'])
+            || !is_array($proof['lines'] ?? null)
+            || !array_is_list($proof['lines'])
+            || count($proof['lines']) !== $proof['lineCount']
+            || !$this->sourcePdfSignedProofDigestMatches($proof)) {
+            return false;
+        }
+
+        $itemsByGlobalIndex = [];
+        foreach ($lineItems as $localIndex => $item) {
+            $globalSourceIndex = is_int($item['sourcePdfGlobalSourceIndex'] ?? null)
+                ? $item['sourcePdfGlobalSourceIndex']
+                : $localIndex;
+            if ($globalSourceIndex < 0 || isset($itemsByGlobalIndex[$globalSourceIndex])) {
+                return false;
+            }
+            $itemsByGlobalIndex[$globalSourceIndex] = $item;
+        }
+
+        $actualSourceIds = [];
+        $actualGlobalIndexes = [];
+        $pages = [];
+        foreach ($proof['lines'] as $lineProof) {
+            $lineSourceIds = is_array($lineProof['sourceOccurrenceIds'] ?? null)
+                ? array_values($lineProof['sourceOccurrenceIds'])
+                : [];
+            $lineGlobalIndexes = is_array($lineProof['globalSourceIndexes'] ?? null)
+                ? array_values($lineProof['globalSourceIndexes'])
+                : [];
+            $projectionDigest = is_string($lineProof['projectionDigest'] ?? null)
+                ? $lineProof['projectionDigest']
+                : '';
+            if ($lineSourceIds === []
+                || count($lineSourceIds) !== count($lineGlobalIndexes)
+                || preg_match('/^[a-f0-9]{64}$/D', $projectionDigest) !== 1) {
+                return false;
+            }
+            $lineProjection = '';
+            $previousLineGlobalSourceIndex = null;
+            foreach ($lineSourceIds as $sourceOffset => $sourceId) {
+                $globalSourceIndex = $lineGlobalIndexes[$sourceOffset] ?? null;
+                $item = is_int($globalSourceIndex)
+                    ? ($itemsByGlobalIndex[$globalSourceIndex] ?? null)
+                    : null;
+                if (!is_string($sourceId)
+                    || $sourceId === ''
+                    || !is_int($globalSourceIndex)
+                    || !is_array($item)
+                    || ($item['id'] ?? null) !== $sourceId
+                    || ($previousLineGlobalSourceIndex !== null
+                        && $globalSourceIndex !== $previousLineGlobalSourceIndex + 1)) {
+                    return false;
+                }
+                $itemProjection = $this->pdfSourceOccurrenceComparableText(
+                    (string) ($item['text'] ?? '')
+                );
+                $page = (int) ($item['page'] ?? 0);
+                if ($itemProjection === '' || $page < 1) {
+                    return false;
+                }
+                $lineProjection .= $itemProjection;
+                $pages[$page] = true;
+                $actualSourceIds[] = $sourceId;
+                $actualGlobalIndexes[] = $globalSourceIndex;
+                $previousLineGlobalSourceIndex = $globalSourceIndex;
+            }
+            if (!hash_equals($projectionDigest, hash('sha256', $lineProjection))
+                || !$this->pdfChartFontCipherLineIsCandidate($lineProjection)) {
+                return false;
+            }
+        }
+
+        return count($pages) === 1
+            && $actualSourceIds === array_values($proof['sourceOccurrenceIds'])
+            && $actualGlobalIndexes === array_values($proof['globalSourceIndexes'])
+            && count(array_unique($actualSourceIds, SORT_STRING)) === count($actualSourceIds)
+            && count(array_unique($actualGlobalIndexes, SORT_NUMERIC))
+                === count($actualGlobalIndexes);
+    }
+
+    private function collapseRepeatedPdfResourceUrls(string $line): string
+    {
+        do {
+            $before = $line;
+            $line = preg_replace(
+                '~\b((?:https?://|www\.)[^\s]+?)(?:\s*\1)+(?=\s|$)~iu',
+                '$1',
+                $line
+            ) ?? $line;
+        } while ($line !== $before);
+
+        return $line;
+    }
+
+    private function collapseProvenRepeatedPdfResourceUrl(string $line, mixed $span): string
+    {
+        if (!$this->repairedPdfMergedLineHasExactWholeSourceSpan($line, $span)
+            || !is_array($span)
+            || count($span['sourceOccurrenceIds'] ?? []) !== 2
+            || count($span['globalSourceIndexes'] ?? []) !== 2) {
+            return $line;
+        }
+        $sourceIds = $span['sourceOccurrenceIds'];
+        $sourceIndexes = $span['globalSourceIndexes'];
+        $proof = $this->sourcePdfOverprintedDuplicateArtifactProofsBySourceId[
+            $sourceIds[1]
+        ] ?? null;
+        if (!is_array($proof)
+            || !$this->sourcePdfSignedProofDigestMatches($proof)
+            || ($proof['retained']['sourceOccurrenceId'] ?? null) !== $sourceIds[0]
+            || ($proof['artifact']['sourceOccurrenceId'] ?? null) !== $sourceIds[1]
+            || ($proof['retained']['globalSourceIndex'] ?? null) !== $sourceIndexes[0]
+            || ($proof['artifact']['globalSourceIndex'] ?? null) !== $sourceIndexes[1]) {
+            return $line;
+        }
+        $collapsed = $this->collapseRepeatedPdfResourceUrls($line);
+        if ($collapsed === $line) {
+            return $line;
+        }
+        $sourceProjection = $this->pdfSourceOccurrenceComparableText($line);
+        $collapsedProjection = $this->pdfSourceOccurrenceComparableText($collapsed);
+        if ($collapsedProjection === ''
+            || !hash_equals(
+                (string) ($proof['projectionDigest'] ?? ''),
+                hash('sha256', $collapsedProjection)
+            )
+            || !hash_equals($sourceProjection, $collapsedProjection . $collapsedProjection)) {
+            return $line;
+        }
+
+        return $collapsed;
     }
 
     /**
@@ -26279,11 +31793,19 @@ final class PdfReader
                 $pageRecords,
                 $exactWholeSourceMergedLineSpans
             );
+            $retainedWholeSourceMergedLineSpans = [];
             $merged = $this->trimIncompletePdfMergedLinesBeforeStackedTables(
                 $merged,
-                $exactWholeSourceMergedLineSpans
+                $exactWholeSourceMergedLineSpans,
+                $retainedWholeSourceMergedLineSpans
             );
-            $lines = $this->finalizedRepairedPdfLines($merged, $repairGluedText);
+            $finalWholeSourceMergedLineSpans = [];
+            $lines = $this->finalizedRepairedPdfLines(
+                $merged,
+                $repairGluedText,
+                $retainedWholeSourceMergedLineSpans,
+                $finalWholeSourceMergedLineSpans
+            );
             $blocks = $this->blocksFromLines($lines);
             $projection = $this->pdfSignificantProjectionFromBlocks($blocks);
             if ($projection !== '') {
@@ -26754,6 +32276,229 @@ final class PdfReader
         }
 
         return $folded;
+    }
+
+    /**
+     * Replace every exact visual carrier participating in a proved nested
+     * symbol callout with one canonical label-plus-prose carrier. Positioned
+     * reconstruction can combine the icon atoms with one prose row, restore
+     * duplicate atom fallbacks, and move the small label into a minor-font
+     * flow. Rebuilding from the immutable source occurrences is safe only
+     * when every participating occurrence has complete exact-range coverage
+     * and no carrier mixes a participating range with unrelated source text.
+     *
+     * @param list<string> $lines
+     * @param list<array<string,mixed>> $layouts
+     * @param list<array<string,mixed>> $sourceItems
+     * @return array{lines:list<string>,layouts:list<array<string,mixed>>,geometryPageNumbers:list<int>}
+     */
+    private function pdfRepairSourceInProvenNestedCautionCalloutOrder(
+        array $lines,
+        array $layouts,
+        array $sourceItems
+    ): array {
+        $unchanged = static fn (): array => [
+            'lines' => $lines,
+            'layouts' => $layouts,
+            'geometryPageNumbers' => [],
+        ];
+        if ($lines === []
+            || count($lines) !== count($layouts)
+            || $sourceItems === []) {
+            return $unchanged();
+        }
+        foreach ($layouts as $index => $layout) {
+            if (!is_array($layout)
+                || (string) ($layout['text'] ?? '') !== (string) ($lines[$index] ?? '')) {
+                return $unchanged();
+            }
+        }
+
+        $proofs = $this->sourcePdfExactNestedCautionCalloutProofs($sourceItems);
+        if ($proofs === []) {
+            return $unchanged();
+        }
+        $workingLayouts = array_values($layouts);
+        $geometryPageNumbers = [];
+        foreach ($proofs as $proof) {
+            if (!$this->sourcePdfSignedProofDigestMatches($proof)) {
+                continue;
+            }
+            $members = array_merge(
+                $proof['iconAtoms'],
+                [$proof['label']],
+                $proof['proseRows']
+            );
+            $participants = [];
+            $fullRangeByGlobalIndex = [];
+            foreach ($members as $member) {
+                $localIndex = is_int($member['sourceIndex'] ?? null)
+                    ? $member['sourceIndex']
+                    : null;
+                $globalIndex = is_int($member['sourceGlobalIndex'] ?? null)
+                    ? $member['sourceGlobalIndex']
+                    : null;
+                $sourceItem = is_int($localIndex) ? ($sourceItems[$localIndex] ?? null) : null;
+                $projection = is_array($sourceItem)
+                    ? $this->pdfSourceOccurrenceComparableText(
+                        (string) ($sourceItem['text'] ?? '')
+                    )
+                    : '';
+                if (!is_array($sourceItem)
+                    || !is_int($globalIndex)
+                    || $projection === ''
+                    || ($sourceItem['id'] ?? null) !== ($member['sourceOccurrenceId'] ?? null)
+                    || !hash_equals(
+                        (string) ($member['projectionDigest'] ?? ''),
+                        hash('sha256', $projection)
+                    )) {
+                    continue 2;
+                }
+                $participants[$globalIndex] = true;
+                $fullRangeByGlobalIndex[$globalIndex] = [
+                    'sourceIndex' => $globalIndex,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen($projection),
+                ];
+            }
+
+            $matchedLayoutIndexes = [];
+            $fullCoverage = [];
+            $unsafeMixedCarrier = false;
+            foreach ($workingLayouts as $layoutIndex => $layout) {
+                $ranges = $this->pdfPositionedExactSourceRanges($layout);
+                if ($ranges === []) {
+                    continue;
+                }
+                $touchesProof = false;
+                foreach ($ranges as $range) {
+                    if (isset($participants[(int) $range['sourceIndex']])) {
+                        $touchesProof = true;
+                        break;
+                    }
+                }
+                if (!$touchesProof) {
+                    continue;
+                }
+                foreach ($ranges as $range) {
+                    $globalIndex = (int) $range['sourceIndex'];
+                    if (!isset($participants[$globalIndex])) {
+                        $unsafeMixedCarrier = true;
+                        break 2;
+                    }
+                    if ($range === $fullRangeByGlobalIndex[$globalIndex]) {
+                        $fullCoverage[$globalIndex] = true;
+                    }
+                }
+                $matchedLayoutIndexes[$layoutIndex] = true;
+            }
+            if ($unsafeMixedCarrier
+                || $matchedLayoutIndexes === []
+                || array_diff_key($participants, $fullCoverage) !== []) {
+                continue;
+            }
+
+            $retainedMembers = array_merge([$proof['label']], $proof['proseRows']);
+            $retainedTexts = [];
+            $retainedRanges = [];
+            $retainedBounds = [];
+            $proseHeights = [];
+            foreach ($retainedMembers as $offset => $member) {
+                $localIndex = (int) $member['sourceIndex'];
+                $globalIndex = (int) $member['sourceGlobalIndex'];
+                $sourceItem = $sourceItems[$localIndex];
+                $projection = $this->pdfSourceOccurrenceComparableText(
+                    (string) ($sourceItem['text'] ?? '')
+                );
+                $retainedTexts[] = trim((string) $sourceItem['text']);
+                $retainedRanges[] = [
+                    'sourceIndex' => $globalIndex,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen($projection),
+                ];
+                $bounds = is_array($member['bounds'] ?? null) ? $member['bounds'] : [];
+                if (!isset($bounds['x1'], $bounds['y1'], $bounds['x2'], $bounds['y2'])) {
+                    continue 2;
+                }
+                $retainedBounds[] = $bounds;
+                if ($offset > 0) {
+                    $proseHeights[] = (float) $bounds['y2'] - (float) $bounds['y1'];
+                }
+            }
+            $text = implode(' ', $retainedTexts);
+            $projection = $this->pdfSourceOccurrenceComparableText($text);
+            if ($projection === ''
+                || !hash_equals(
+                    (string) ($proof['retainedProjectionDigest'] ?? ''),
+                    hash('sha256', $projection)
+                )) {
+                continue;
+            }
+
+            $matchedLayouts = [];
+            foreach (array_keys($matchedLayoutIndexes) as $layoutIndex) {
+                $matchedLayouts[] = $workingLayouts[$layoutIndex];
+            }
+            $sourceOrderStarts = array_values(array_filter(
+                array_column($matchedLayouts, 'sourceOrderStart'),
+                'is_int'
+            ));
+            $sourceOrderEnds = array_values(array_filter(
+                array_column($matchedLayouts, 'sourceOrderEnd'),
+                'is_int'
+            ));
+            $layout = [
+                'text' => $text,
+                'page' => (int) $proof['page'],
+                'sourceStream' => (int) $proof['sourceStream'],
+                'positionedTextCandidate' => $text,
+                'x1' => min(array_column($retainedBounds, 'x1')),
+                'y1' => min(array_column($retainedBounds, 'y1')),
+                'x2' => max(array_column($retainedBounds, 'x2')),
+                'y2' => max(array_column($retainedBounds, 'y2')),
+                'fontSize' => max(1.0, $this->median($proseHeights) * 0.8),
+                'sourcePdfExactSourceRanges' => $retainedRanges,
+                'sourcePdfExactPositionedText' => true,
+                'sourceVerifiedGeometryText' => true,
+                'sourcePdfPageExactInventoryPreserved' => true,
+                'sourcePdfProtectedSemanticContent' => true,
+                'sourcePdfLayoutLabel' => true,
+                'sourcePdfNestedCautionCalloutProof' => $proof,
+                'forceBlockBreakBefore' => true,
+            ];
+            if ($sourceOrderStarts !== []) {
+                $layout['sourceOrderStart'] = min($sourceOrderStarts);
+            }
+            if ($sourceOrderEnds !== []) {
+                $layout['sourceOrderEnd'] = max($sourceOrderEnds);
+            }
+
+            $insertAt = min(array_keys($matchedLayoutIndexes));
+            $rebuiltLayouts = [];
+            foreach ($workingLayouts as $layoutIndex => $existingLayout) {
+                if ($layoutIndex === $insertAt) {
+                    $rebuiltLayouts[] = $layout;
+                }
+                if (!isset($matchedLayoutIndexes[$layoutIndex])) {
+                    $rebuiltLayouts[] = $existingLayout;
+                }
+            }
+            $followingIndex = $insertAt + 1;
+            if (isset($rebuiltLayouts[$followingIndex])) {
+                $rebuiltLayouts[$followingIndex]['forceBlockBreakBefore'] = true;
+            }
+            $workingLayouts = array_values($rebuiltLayouts);
+            $geometryPageNumbers[(int) $proof['page']] = true;
+        }
+
+        return [
+            'lines' => array_values(array_map(
+                static fn (array $layout): string => (string) ($layout['text'] ?? ''),
+                $workingLayouts
+            )),
+            'layouts' => $workingLayouts,
+            'geometryPageNumbers' => array_map('intval', array_keys($geometryPageNumbers)),
+        ];
     }
 
     /**
@@ -27558,6 +33303,7 @@ final class PdfReader
             || is_array(
                 $layout['sourcePdfDuplicateTerminalPeriodArtifactEvidence'] ?? null
             )
+            || is_array($layout['sourcePdfChartCipherArtifactEvidence'] ?? null)
             || ($layout['sourcePdfArtifact'] ?? false) === true
             || ($layout['sourcePdfRunningFurniture'] ?? false) === true
             // Inline-marker attachment deliberately merges records. Admit it
@@ -28509,6 +34255,71 @@ final class PdfReader
     }
 
     /**
+     * A positioned whole-occurrence carrier intentionally has no native ID
+     * role, but page-furniture receipts still need to bind it back to the
+     * immutable source occurrence. Resolve that identity only through the
+     * live signed union proof and the source-inventory map minted with it.
+     *
+     * @param array{text:string,layout:array<string,mixed>|null} $record
+     * @return array<string,mixed>|null
+     */
+    private function pdfPageNumberFurnitureRecordEndpoint(array $record): ?array
+    {
+        $native = $this->pdfLocalLayoutLabelProofEndpoint($record);
+        if ($native !== null) {
+            return $native;
+        }
+        $layout = is_array($record['layout'] ?? null) ? $record['layout'] : null;
+        $text = trim((string) ($record['text'] ?? ''));
+        $projection = $this->pdfSourceOccurrenceComparableText(
+            $this->pdfTextWithoutSemanticPrefixes($text)
+        );
+        $proof = is_array($layout['sourcePdfWholeExactOccurrenceProof'] ?? null)
+            ? $layout['sourcePdfWholeExactOccurrenceProof']
+            : null;
+        $proofDigest = is_array($proof) && is_string($proof['proofDigest'] ?? null)
+            ? $proof['proofDigest']
+            : '';
+        $identity = $proofDigest !== ''
+            ? ($this->sourceOccurrenceIdentityByWholeProofDigest[$proofDigest] ?? null)
+            : null;
+        $ranges = is_array($layout) ? $this->pdfPositionedExactSourceRanges($layout) : [];
+        if (!$this->pdfLayoutHasGeometry($layout)
+            || $text === ''
+            || $this->pdfLineStartsWithSemanticPrefix($text)
+            || $projection === ''
+            || !is_array($proof)
+            || !$this->repairedPdfWholeExactOccurrenceProofMatchesLayout($layout, $projection)
+            || !is_array($identity)
+            || !is_string($identity['sourceOccurrenceId'] ?? null)
+            || $identity['sourceOccurrenceId'] === ''
+            || !is_int($identity['globalSourceIndex'] ?? null)
+            || !is_int($identity['page'] ?? null)
+            || !is_int($identity['stream'] ?? null)
+            || $identity['stream'] < 1
+            || !is_array($identity['exactRange'] ?? null)
+            || !is_string($identity['projectionDigest'] ?? null)
+            || ($identity['occurrenceProofDigest'] ?? null) !== $proofDigest
+            || count($ranges) !== 1
+            || $identity['exactRange'] !== $ranges[0]
+            || $identity['globalSourceIndex'] !== $ranges[0]['sourceIndex']
+            || $identity['page'] !== (int) $layout['page']
+            || !hash_equals($identity['projectionDigest'], hash('sha256', $projection))) {
+            return null;
+        }
+
+        return [
+            'sourceOccurrenceId' => $identity['sourceOccurrenceId'],
+            'sourceIndex' => $identity['globalSourceIndex'],
+            'page' => $identity['page'],
+            'sourceStream' => $identity['stream'],
+            'range' => $ranges[0],
+            'projectionDigest' => hash('sha256', $projection),
+            'geometryDigest' => $this->sourcePdfCrossPanelContinuationGeometryDigest($layout),
+        ];
+    }
+
+    /**
      * @param array<string,mixed> $proof
      * @param list<array{text:string,layout:array<string,mixed>|null}> $records
      */
@@ -28983,15 +34794,19 @@ final class PdfReader
             $page = (int) $layout['page'];
             $y1 = (float) $layout['y1'];
             $y2 = (float) $layout['y2'];
+            $x1 = (float) $layout['x1'];
+            $x2 = (float) $layout['x2'];
             $boundsByPage[$page]['minY'] = min($boundsByPage[$page]['minY'] ?? $y1, $y1);
             $boundsByPage[$page]['maxY'] = max($boundsByPage[$page]['maxY'] ?? $y2, $y2);
+            $boundsByPage[$page]['minX'] = min($boundsByPage[$page]['minX'] ?? $x1, $x1);
+            $boundsByPage[$page]['maxX'] = max($boundsByPage[$page]['maxX'] ?? $x2, $x2);
         }
 
         $candidates = [];
         foreach ($records as $index => $record) {
             $text = trim((string) ($record['text'] ?? ''));
             $layout = is_array($record['layout'] ?? null) ? $record['layout'] : null;
-            $exactEndpoint = $this->pdfLocalLayoutLabelProofEndpoint($record);
+            $exactEndpoint = $this->pdfPageNumberFurnitureRecordEndpoint($record);
             if (preg_match('/^\p{N}{1,4}$/u', $text) !== 1
                 || !$this->pdfLayoutHasGeometry($layout)
                 || $exactEndpoint === null) {
@@ -29011,6 +34826,7 @@ final class PdfReader
             $projection = $this->pdfSourceOccurrenceComparableText($text);
             $candidates[$index] = [
                 'page' => $page,
+                'text' => $text,
                 'centerX' => ((float) $layout['x1'] + (float) $layout['x2']) / 2.0,
                 'fontSize' => $fontSize,
                 'endpoint' => [
@@ -29026,12 +34842,9 @@ final class PdfReader
                 ],
             ];
         }
-        if (count($candidates) < 2) {
-            return $records;
-        }
-
         $proofsByRecordIndex = [];
-        foreach ($candidates as $index => $candidate) {
+        $deferredProofsByRecordIndex = [];
+        foreach (count($candidates) >= 2 ? $candidates : [] as $index => $candidate) {
             $peers = [$index => $candidate];
             foreach ($candidates as $otherIndex => $other) {
                 if ($otherIndex === $index) {
@@ -29086,7 +34899,88 @@ final class PdfReader
             ) ?: '');
             $proofsByRecordIndex[$index] = $payload;
         }
-        if ($proofsByRecordIndex === []) {
+
+        // A one-page source cannot prove a folio by recurrence. It can still
+        // prove one when an isolated bottom-band number occupies the extreme
+        // right slot opposite a long, exact footer line on the same baseline.
+        // Require one uniquely qualifying source-bound footer companion and a
+        // wide empty gutter so an ordinary numeric cell is never sufficient.
+        foreach ($candidates as $index => $candidate) {
+            if (isset($proofsByRecordIndex[$index])) {
+                continue;
+            }
+            $pageBounds = $boundsByPage[$candidate['page']] ?? null;
+            if (!is_array($pageBounds)) {
+                continue;
+            }
+            $contexts = [];
+            foreach ($records as $contextIndex => $contextRecord) {
+                if ($contextIndex === $index) {
+                    continue;
+                }
+                $contextLayout = is_array($contextRecord['layout'] ?? null)
+                    ? $contextRecord['layout']
+                    : null;
+                $contextText = trim((string) ($contextRecord['text'] ?? ''));
+                $contextProjection = $this->pdfSourceOccurrenceComparableText($contextText);
+                $contextEndpoint = $this->pdfPageNumberFurnitureRecordEndpoint($contextRecord);
+                if (!$this->pdfLayoutHasGeometry($contextLayout)
+                    || (int) $contextLayout['page'] !== $candidate['page']
+                    || $contextEndpoint === null
+                    || preg_match('/^\p{N}{1,4}$/u', $contextText) === 1
+                    || mb_strlen($contextProjection, 'UTF-8') < 12
+                    || count($this->pdfLineWordTokens($contextProjection)) < 3) {
+                    continue;
+                }
+                $contextFontSize = max(1.0, (float) $contextLayout['fontSize']);
+                $pageTextHeight = max(
+                    1.0,
+                    (float) $pageBounds['maxY'] - (float) $pageBounds['minY']
+                );
+                $bottomLimit = (float) $pageBounds['minY']
+                    + max($contextFontSize * 3.0, $pageTextHeight * 0.15);
+                if ((float) $contextLayout['y2'] > $bottomLimit) {
+                    continue;
+                }
+                $contextSourceEndpoint = [
+                    'sourceOccurrenceId' => $contextEndpoint['sourceOccurrenceId'],
+                    'sourceIndex' => $contextEndpoint['sourceIndex'],
+                    'page' => $contextEndpoint['page'],
+                    'sourceStream' => $contextEndpoint['sourceStream'],
+                    'projectionDigest' => hash('sha256', $contextProjection),
+                    'exactRange' => $contextEndpoint['range'],
+                    'bounds' => $this->pdfSourceEvidenceBounds($contextLayout),
+                    'centerX' => ((float) $contextLayout['x1'] + (float) $contextLayout['x2']) / 2.0,
+                    'height' => max(0.0, (float) $contextLayout['y2'] - (float) $contextLayout['y1']),
+                ];
+                if (!$this->pdfBottomFooterCompanionGeometryIsValid(
+                    $candidate['endpoint'],
+                    $contextSourceEndpoint,
+                    $pageBounds
+                )) {
+                    continue;
+                }
+                $contexts[] = $contextSourceEndpoint;
+            }
+            if (count($contexts) !== 1) {
+                continue;
+            }
+            $payload = [
+                'version' => 1,
+                'method' => 'exact-single-page-bottom-footer-companion-page-number-removal',
+                'sourceSha256' => $this->sourceSha256,
+                'targetSourceOccurrenceId' => $candidate['endpoint']['sourceOccurrenceId'],
+                'targetText' => (string) ($candidate['text'] ?? ''),
+                'peers' => [$candidate['endpoint']],
+                'footerContext' => $contexts[0],
+            ];
+            $payload['proofDigest'] = hash('sha256', json_encode(
+                $payload,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: '');
+            $deferredProofsByRecordIndex[$index] = $payload;
+        }
+        if ($proofsByRecordIndex === [] && $deferredProofsByRecordIndex === []) {
             return $records;
         }
 
@@ -29096,12 +34990,87 @@ final class PdfReader
                 $this->removedPageNumberFurnitureProofsBySourceId[$sourceId] = $proof;
             }
         }
+        foreach ($deferredProofsByRecordIndex as $index => $proof) {
+            $sourceId = $proof['targetSourceOccurrenceId'];
+            if (is_string($sourceId)
+                && $sourceId !== ''
+                && !isset($this->removedPageNumberFurnitureProofsBySourceId[$sourceId])) {
+                $this->deferredSinglePageNumberFurnitureProofsBySourceId[$sourceId] = $proof;
+            }
+        }
+
+        if ($proofsByRecordIndex === []) {
+            return $records;
+        }
 
         return array_values(array_filter(
             $records,
             static fn (array $_record, int $index): bool => !isset($proofsByRecordIndex[$index]),
             ARRAY_FILTER_USE_BOTH
         ));
+    }
+
+    /**
+     * Removing the one-page folio during semantic-record preparation changes
+     * which fallback candidate owns the page. Defer only that signed case
+     * until the final AST exists, then require one unique standalone paragraph
+     * with the exact source text. Repeated multi-page folios keep their
+     * established record-stage removal path.
+     *
+     * @param list<AstNode> $blocks
+     * @return array{
+     *     blocks:list<AstNode>,
+     *     removedCount:int,
+     *     pageProjectionReplacements:array<int,string>,
+     *     pageProjectionProofPreserved:bool
+     * }
+     */
+    private function pdfBlocksWithoutProvenSinglePageNumberParagraphs(array $blocks): array
+    {
+        $proofCountsByText = [];
+        foreach ($this->deferredSinglePageNumberFurnitureProofsBySourceId as $proof) {
+            if (($proof['method'] ?? null)
+                    !== 'exact-single-page-bottom-footer-companion-page-number-removal'
+                || !is_string($proof['targetText'] ?? null)
+                || preg_match('/^\p{N}{1,4}$/u', $proof['targetText']) !== 1) {
+                continue;
+            }
+            $proofCountsByText[$proof['targetText']] =
+                ($proofCountsByText[$proof['targetText']] ?? 0) + 1;
+        }
+        if ($proofCountsByText === []) {
+            return ['blocks' => $blocks, 'removedCount' => 0];
+        }
+
+        $paragraphIndexesByText = [];
+        foreach ($blocks as $index => $block) {
+            if ($block->type !== 'paragraph') {
+                continue;
+            }
+            $text = trim((string) $block->attr('text', ''));
+            if (isset($proofCountsByText[$text])) {
+                $paragraphIndexesByText[$text][] = $index;
+            }
+        }
+        $removeIndexes = [];
+        foreach ($proofCountsByText as $text => $proofCount) {
+            $indexes = $paragraphIndexesByText[$text] ?? [];
+            if ($proofCount === 1 && count($indexes) === 1) {
+                $removeIndexes[$indexes[0]] = true;
+            }
+        }
+        if ($removeIndexes === []) {
+            return ['blocks' => $blocks, 'removedCount' => 0];
+        }
+
+        return [
+            'blocks' => array_values(array_filter(
+                $blocks,
+                static fn (AstNode $_block, int $index): bool => !isset($removeIndexes[$index]),
+                ARRAY_FILTER_USE_BOTH
+            )),
+            'removedCount' => count($removeIndexes),
+        ];
     }
 
     /**
@@ -29113,13 +35082,24 @@ final class PdfReader
         string $targetSourceId,
         array $lineItems
     ): bool {
+        $method = $proof['method'] ?? null;
+        $singlePageFooterCompanion = $method
+            === 'exact-single-page-bottom-footer-companion-page-number-removal';
         if (($proof['version'] ?? null) !== 1
-            || ($proof['method'] ?? null) !== 'exact-repeated-bottom-slot-page-number-removal'
+            || !in_array($method, [
+                'exact-repeated-bottom-slot-page-number-removal',
+                'exact-single-page-bottom-footer-companion-page-number-removal',
+            ], true)
             || ($proof['sourceSha256'] ?? null) !== $this->sourceSha256
             || ($proof['targetSourceOccurrenceId'] ?? null) !== $targetSourceId
             || !is_array($proof['peers'] ?? null)
             || !array_is_list($proof['peers'])
-            || count($proof['peers']) < 2
+            || ($singlePageFooterCompanion
+                ? count($proof['peers']) !== 1
+                    || !is_array($proof['footerContext'] ?? null)
+                    || !is_string($proof['targetText'] ?? null)
+                    || preg_match('/^\p{N}{1,4}$/u', $proof['targetText']) !== 1
+                : count($proof['peers']) < 2)
             || !is_string($proof['proofDigest'] ?? null)) {
             return false;
         }
@@ -29160,6 +35140,14 @@ final class PdfReader
                 $pageBounds[$page]['maxY'] ?? (float) $geometry['y2'],
                 (float) $geometry['y2']
             );
+            $pageBounds[$page]['minX'] = min(
+                $pageBounds[$page]['minX'] ?? (float) $geometry['x1'],
+                (float) $geometry['x1']
+            );
+            $pageBounds[$page]['maxX'] = max(
+                $pageBounds[$page]['maxX'] ?? (float) $geometry['x2'],
+                (float) $geometry['x2']
+            );
         }
 
         $canonicalPeers = [];
@@ -29184,8 +35172,36 @@ final class PdfReader
             $canonicalPeers[] = $endpoint;
             $targetFound = $targetFound || $sourceId === $targetSourceId;
         }
-        if (!$targetFound || count($pages) < 2) {
+        if (!$targetFound || ($singlePageFooterCompanion ? count($pages) !== 1 : count($pages) < 2)) {
             return false;
+        }
+        if ($singlePageFooterCompanion) {
+            $contextProof = $proof['footerContext'];
+            $contextSourceId = is_string($contextProof['sourceOccurrenceId'] ?? null)
+                ? $contextProof['sourceOccurrenceId']
+                : '';
+            $contextItem = $itemsById[$contextSourceId] ?? null;
+            $targetItem = $itemsById[$targetSourceId] ?? null;
+            $target = $canonicalPeers[0] ?? null;
+            if ($contextSourceId === ''
+                || !is_array($contextItem)
+                || !is_array($targetItem)
+                || trim((string) ($targetItem['text'] ?? '')) !== $proof['targetText']
+                || !is_array($target)
+                || ($context = $this->pdfBottomFooterCompanionSourceEndpoint(
+                    $contextItem,
+                    $pageBounds[(int) ($contextItem['page'] ?? 0)] ?? null
+                )) === null
+                || $context !== $contextProof
+                || !$this->pdfBottomFooterCompanionGeometryIsValid(
+                    $target,
+                    $context,
+                    $pageBounds[(int) $target['page']] ?? null
+                )) {
+                return false;
+            }
+
+            return true;
         }
         foreach ($canonicalPeers as $leftIndex => $left) {
             foreach (array_slice($canonicalPeers, $leftIndex + 1) as $right) {
@@ -29197,6 +35213,105 @@ final class PdfReader
         }
 
         return true;
+    }
+
+    /**
+     * @param array<string,mixed> $item
+     * @param array{minX:float,maxX:float,minY:float,maxY:float}|null $pageBounds
+     * @return array<string,mixed>|null
+     */
+    private function pdfBottomFooterCompanionSourceEndpoint(
+        array $item,
+        ?array $pageBounds
+    ): ?array {
+        $text = trim((string) ($item['text'] ?? ''));
+        $projection = $this->pdfSourceOccurrenceComparableText($text);
+        $geometry = is_array($item['sourceGeometry'] ?? null) ? $item['sourceGeometry'] : null;
+        $sourceId = is_string($item['id'] ?? null) ? $item['id'] : '';
+        $sourceIndex = is_int($item['sourcePdfGlobalSourceIndex'] ?? null)
+            ? $item['sourcePdfGlobalSourceIndex']
+            : null;
+        if ($sourceId === ''
+            || $sourceIndex === null
+            || $projection === ''
+            || mb_strlen($projection, 'UTF-8') < 12
+            || count($this->pdfLineWordTokens($projection)) < 3
+            || preg_match('/^\p{N}{1,4}$/u', $text) === 1
+            || !$this->pdfSourceBoundsAreValid(is_array($geometry) ? $geometry : [])
+            || !is_array($pageBounds)) {
+            return null;
+        }
+        $fontSize = max(1.0, (float) ($geometry['fontSize'] ?? 1.0));
+        $pageTextHeight = max(1.0, $pageBounds['maxY'] - $pageBounds['minY']);
+        $bottomLimit = $pageBounds['minY'] + max($fontSize * 3.0, $pageTextHeight * 0.15);
+        if ((float) $geometry['y2'] > $bottomLimit) {
+            return null;
+        }
+
+        return [
+            'sourceOccurrenceId' => $sourceId,
+            'sourceIndex' => $sourceIndex,
+            'page' => max(1, (int) ($item['page'] ?? 1)),
+            'sourceStream' => max(1, (int) ($item['stream'] ?? 1)),
+            'projectionDigest' => hash('sha256', $projection),
+            'exactRange' => [
+                'sourceIndex' => $sourceIndex,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen($projection),
+            ],
+            'bounds' => $this->pdfSourceEvidenceBounds($geometry),
+            'centerX' => ((float) $geometry['x1'] + (float) $geometry['x2']) / 2.0,
+            'height' => max(0.0, (float) $geometry['y2'] - (float) $geometry['y1']),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $target
+     * @param array<string,mixed> $context
+     * @param array{minX:float,maxX:float,minY:float,maxY:float}|null $pageBounds
+     */
+    private function pdfBottomFooterCompanionGeometryIsValid(
+        array $target,
+        array $context,
+        ?array $pageBounds
+    ): bool {
+        $targetBounds = is_array($target['bounds'] ?? null) ? $target['bounds'] : null;
+        $contextBounds = is_array($context['bounds'] ?? null) ? $context['bounds'] : null;
+        if (!is_array($pageBounds)
+            || !is_array($targetBounds)
+            || !is_array($contextBounds)
+            || (int) ($target['page'] ?? 0) !== (int) ($context['page'] ?? -1)) {
+            return false;
+        }
+        foreach (['minX', 'maxX', 'minY', 'maxY'] as $key) {
+            if (!is_numeric($pageBounds[$key] ?? null)) {
+                return false;
+            }
+        }
+        foreach ([$targetBounds, $contextBounds] as $bounds) {
+            foreach (['x1', 'y1', 'x2', 'y2'] as $key) {
+                if (!is_numeric($bounds[$key] ?? null)) {
+                    return false;
+                }
+            }
+        }
+        $pageWidth = max(1.0, (float) $pageBounds['maxX'] - (float) $pageBounds['minX']);
+        $targetHeight = max(0.1, (float) ($target['height'] ?? 0.0));
+        $contextHeight = max(0.1, (float) ($context['height'] ?? 0.0));
+        $targetMidY = ((float) $targetBounds['y1'] + (float) $targetBounds['y2']) / 2.0;
+        $contextMidY = ((float) $contextBounds['y1'] + (float) $contextBounds['y2']) / 2.0;
+        $gap = (float) $targetBounds['x1'] - (float) $contextBounds['x2'];
+        $contextWidth = (float) $contextBounds['x2'] - (float) $contextBounds['x1'];
+
+        return (float) ($target['centerX'] ?? 0.0)
+                >= (float) $pageBounds['minX'] + $pageWidth * 0.85
+            && (float) $contextBounds['x1']
+                <= (float) $pageBounds['minX'] + $pageWidth * 0.15
+            && $gap >= max(36.0, max($targetHeight, $contextHeight) * 8.0)
+            && $contextWidth >= max(72.0, $contextHeight * 12.0)
+            && abs($targetMidY - $contextMidY)
+                <= max(1.0, max($targetHeight, $contextHeight) * 0.4)
+            && min($targetHeight, $contextHeight) / max($targetHeight, $contextHeight) >= 0.75;
     }
 
     /**
@@ -29252,12 +35367,16 @@ final class PdfReader
      *
      * @param list<string> $lines
      * @param array<int,array<string,mixed>> $exactWholeSourceMergedLineSpans
+     * @param array<int,array<string,mixed>>|null $retainedWholeSourceMergedLineSpans
      * @return list<string>
      */
     private function trimIncompletePdfMergedLinesBeforeStackedTables(
         array $lines,
-        array $exactWholeSourceMergedLineSpans = []
+        array $exactWholeSourceMergedLineSpans = [],
+        ?array &$retainedWholeSourceMergedLineSpans = null
     ): array {
+        $collectRetainedSpans = func_num_args() >= 3;
+        $retainedWholeSourceMergedLineSpans = [];
         $occurrences = [];
         foreach ($lines as $line) {
             $key = $this->pdfSourceOccurrenceComparableText(
@@ -29301,7 +35420,16 @@ final class PdfReader
                 || preg_match('/[.!?;:]\s*$/u', $line) === 1
                 || preg_match('/[-\x{00AD}\x{2010}-\x{2015}]\s*$/u', $line) === 1) {
                 if ($line !== '') {
+                    $outputIndex = count($trimmed);
                     $trimmed[] = $line;
+                    $span = $exactWholeSourceMergedLineSpans[$index] ?? null;
+                    if ($collectRetainedSpans
+                        && $this->repairedPdfMergedLineHasExactWholeSourceSpan(
+                            $line,
+                            $span
+                        )) {
+                        $retainedWholeSourceMergedLineSpans[$outputIndex] = $span;
+                    }
                 }
                 continue;
             }
@@ -29320,6 +35448,211 @@ final class PdfReader
     }
 
     /**
+     * Mark only a uniquely adjacent pair of identical URL occurrences whose
+     * exact horizontal paint boxes substantially coincide. The later source
+     * occurrence is the redundant overprint; ordinary repeated links at
+     * distinct positions remain content.
+     *
+     * @param list<array<string,mixed>> $lineItems
+     */
+    private function markSourcePdfOverprintedDuplicateArtifacts(array &$lineItems): void
+    {
+        $this->sourcePdfOverprintedDuplicateArtifactProofsBySourceId = [];
+        foreach ($this->sourcePdfOverprintedDuplicateArtifactProofs($lineItems) as $sourceId => $proof) {
+            foreach ($lineItems as &$item) {
+                if (($item['id'] ?? null) !== $sourceId) {
+                    continue;
+                }
+                $item['sourcePdfOverprintedDuplicateArtifactEvidence'] = $proof;
+                $this->sourcePdfOverprintedDuplicateArtifactProofsBySourceId[$sourceId] = $proof;
+                break;
+            }
+            unset($item);
+        }
+    }
+
+    /**
+     * @param list<array<string,mixed>> $lineItems
+     * @return array<string,array<string,mixed>>
+     */
+    private function sourcePdfOverprintedDuplicateArtifactProofs(array $lineItems): array
+    {
+        $candidatesByIdentity = [];
+        for ($index = 0, $count = count($lineItems) - 1; $index < $count; $index++) {
+            $retained = $this->sourcePdfOverprintedDuplicateEndpoint(
+                $lineItems[$index],
+                $index
+            );
+            $artifact = $this->sourcePdfOverprintedDuplicateEndpoint(
+                $lineItems[$index + 1],
+                $index + 1
+            );
+            if ($retained === null
+                || $artifact === null
+                || $artifact['globalSourceIndex'] !== $retained['globalSourceIndex'] + 1
+                || $artifact['page'] !== $retained['page']
+                || $artifact['stream'] !== $retained['stream']
+                || !hash_equals($artifact['projectionDigest'], $retained['projectionDigest'])
+                || $artifact['significantBytes'] !== $retained['significantBytes']
+                || !$this->sourcePdfOverprintedDuplicateBoundsCoincide(
+                    $retained['bounds'],
+                    $artifact['bounds']
+                )) {
+                continue;
+            }
+            $identity = implode("\0", [
+                (string) $retained['page'],
+                (string) $retained['stream'],
+                $retained['projectionDigest'],
+            ]);
+            $candidatesByIdentity[$identity][] = [
+                'retained' => $retained,
+                'artifact' => $artifact,
+            ];
+        }
+
+        $proofs = [];
+        foreach ($candidatesByIdentity as $candidates) {
+            if (count($candidates) !== 1) {
+                continue;
+            }
+            $candidate = $candidates[0];
+            $retained = $candidate['retained'];
+            $artifact = $candidate['artifact'];
+            $proof = [
+                'version' => 1,
+                'method' => 'exact-adjacent-overprinted-source-occurrences',
+                'sourceSha256' => $this->sourceSha256,
+                'page' => $retained['page'],
+                'stream' => $retained['stream'],
+                'significantBytes' => $retained['significantBytes'],
+                'projectionDigest' => $retained['projectionDigest'],
+                'retained' => $this->sourcePdfOverprintedDuplicateSignedEndpoint($retained),
+                'artifact' => $this->sourcePdfOverprintedDuplicateSignedEndpoint($artifact),
+            ];
+            $proof['proofDigest'] = hash('sha256', json_encode(
+                $proof,
+                JSON_UNESCAPED_SLASHES
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: '');
+            $proofs[$artifact['sourceOccurrenceId']] = $proof;
+        }
+
+        return $proofs;
+    }
+
+    /**
+     * @param array<string,mixed> $item
+     * @return array<string,mixed>|null
+     */
+    private function sourcePdfOverprintedDuplicateEndpoint(array $item, int $localIndex): ?array
+    {
+        $sourceId = is_string($item['id'] ?? null) ? $item['id'] : '';
+        $text = trim((string) ($item['text'] ?? ''));
+        $projection = $this->pdfSourceOccurrenceComparableText($text);
+        $page = (int) ($item['page'] ?? 0);
+        $stream = (int) ($item['stream'] ?? 0);
+        $geometry = is_array($item['sourceGeometry'] ?? null)
+            ? $item['sourceGeometry']
+            : null;
+        $globalSourceIndex = is_int($item['sourcePdfGlobalSourceIndex'] ?? null)
+            ? $item['sourcePdfGlobalSourceIndex']
+            : $localIndex;
+        if ($sourceId === ''
+            || $projection === ''
+            || !$this->lineLooksLikeUrlOnly($text)
+            || $page < 1
+            || $stream < 1
+            || $globalSourceIndex < 0
+            || ($item['sourceGeometryMethod'] ?? null)
+                !== 'exact-page-stream-character-offset'
+            || $geometry === null
+            || !$this->pdfSourceBoundsAreValid($geometry)
+            || ($geometry['orientation'] ?? null) !== 'horizontal'
+            || (int) ($geometry['page'] ?? 0) !== $page
+            || (int) ($geometry['stream'] ?? 0) !== $stream) {
+            return null;
+        }
+        $bounds = $this->pdfSourceEvidenceBounds($geometry);
+        if ($bounds['x2'] <= $bounds['x1'] || $bounds['y2'] <= $bounds['y1']) {
+            return null;
+        }
+
+        return [
+            'sourceOccurrenceId' => $sourceId,
+            'globalSourceIndex' => $globalSourceIndex,
+            'localIndex' => $localIndex,
+            'page' => $page,
+            'stream' => $stream,
+            'significantBytes' => strlen($projection),
+            'projectionDigest' => hash('sha256', $projection),
+            'exactRange' => [
+                'sourceIndex' => $globalSourceIndex,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen($projection),
+            ],
+            'bounds' => $bounds,
+        ];
+    }
+
+    /** @param array<string,mixed> $endpoint @return array<string,mixed> */
+    private function sourcePdfOverprintedDuplicateSignedEndpoint(array $endpoint): array
+    {
+        return [
+            'sourceOccurrenceId' => $endpoint['sourceOccurrenceId'],
+            'globalSourceIndex' => $endpoint['globalSourceIndex'],
+            'exactRange' => $endpoint['exactRange'],
+            'bounds' => $endpoint['bounds'],
+        ];
+    }
+
+    /** @param array<string,mixed> $left @param array<string,mixed> $right */
+    private function sourcePdfOverprintedDuplicateBoundsCoincide(array $left, array $right): bool
+    {
+        if (!$this->pdfSourceBoundsAreValid($left) || !$this->pdfSourceBoundsAreValid($right)) {
+            return false;
+        }
+        $leftWidth = (float) $left['x2'] - (float) $left['x1'];
+        $leftHeight = (float) $left['y2'] - (float) $left['y1'];
+        $rightWidth = (float) $right['x2'] - (float) $right['x1'];
+        $rightHeight = (float) $right['y2'] - (float) $right['y1'];
+        if (min($leftWidth, $leftHeight, $rightWidth, $rightHeight) <= 0.0) {
+            return false;
+        }
+        $intersectionWidth = max(0.0, min((float) $left['x2'], (float) $right['x2'])
+            - max((float) $left['x1'], (float) $right['x1']));
+        $intersectionHeight = max(0.0, min((float) $left['y2'], (float) $right['y2'])
+            - max((float) $left['y1'], (float) $right['y1']));
+        $overlap = ($intersectionWidth * $intersectionHeight)
+            / min($leftWidth * $leftHeight, $rightWidth * $rightHeight);
+        $widthRatio = min($leftWidth, $rightWidth) / max($leftWidth, $rightWidth);
+        $heightRatio = min($leftHeight, $rightHeight) / max($leftHeight, $rightHeight);
+
+        return $overlap >= 0.80 && $widthRatio >= 0.90 && $heightRatio >= 0.90;
+    }
+
+    /**
+     * @param array<string,mixed> $proof
+     * @param list<array<string,mixed>> $lineItems
+     */
+    private function sourcePdfOverprintedDuplicateArtifactProofMatchesSourceItems(
+        array $proof,
+        array $lineItems
+    ): bool {
+        $artifactId = is_string($proof['artifact']['sourceOccurrenceId'] ?? null)
+            ? $proof['artifact']['sourceOccurrenceId']
+            : '';
+        if ($artifactId === '' || !$this->sourcePdfSignedProofDigestMatches($proof)) {
+            return false;
+        }
+        $expected = $this->sourcePdfOverprintedDuplicateArtifactProofs($lineItems)[$artifactId]
+            ?? null;
+
+        return is_array($expected) && $expected === $proof;
+    }
+
+    /**
      * Figure captions and other free-positioned text can be emitted as one
      * source line even when a later visual run is missing. Unlike a body
      * column, there is no reliable line rhythm to reconstruct that omission.
@@ -29333,6 +35666,1422 @@ final class PdfReader
     private function trimIncompletePdfUnstructuredFragments(array $records): array
     {
         return $records;
+    }
+
+    /**
+     * Mark a duplicated display sentence which is interleaved with an
+     * unrelated prose lane in the source stream. Two consecutive source rows
+     * must split at the same geometric lane boundary, use distinct and stable
+     * font resources on each side, and reproduce one unique semantic phrase
+     * elsewhere on the same page. A short same-font lead on the first display
+     * baseline is then part of the redundant display, while each right-hand
+     * suffix remains editable prose.
+     *
+     * @param list<array<string,mixed>> $sourceItems
+     * @param list<array<string,mixed>> $positionedRuns
+     */
+    private function markSourcePdfCrossLaneDuplicateDisplayArtifacts(
+        array &$sourceItems,
+        array $positionedRuns
+    ): void {
+        if (count($sourceItems) < 4 || $positionedRuns === []) {
+            return;
+        }
+        $runsBySourceIndex = [];
+        foreach ($positionedRuns as $run) {
+            $sourceIndex = $run['sourcePdfExactSourceIndex'] ?? null;
+            if (!is_int($sourceIndex)
+                || $sourceIndex < 0
+                || !isset($sourceItems[$sourceIndex])
+                || !is_int($run['sourcePdfExactSourceStart'] ?? null)
+                || !is_int($run['sourcePdfExactSourceEnd'] ?? null)
+                || !$this->pdfLayoutHasGeometry($run)) {
+                continue;
+            }
+            $runsBySourceIndex[$sourceIndex][] = $run;
+        }
+
+        $splits = [];
+        foreach ($runsBySourceIndex as $sourceIndex => $runs) {
+            $split = $this->pdfCrossLaneDisplaySplitForSourceItem(
+                $sourceIndex,
+                $sourceItems[$sourceIndex],
+                $runs
+            );
+            if ($split !== null) {
+                $splits[$sourceIndex] = $split;
+            }
+        }
+
+        $proofs = [];
+        $claimedIndexes = [];
+        foreach ($splits as $firstIndex => $first) {
+            $secondIndex = $firstIndex + 1;
+            $artifactIndex = $firstIndex - 1;
+            $second = $splits[$secondIndex] ?? null;
+            $artifactItem = $sourceItems[$artifactIndex] ?? null;
+            $artifactRuns = $runsBySourceIndex[$artifactIndex] ?? [];
+            if (!is_array($second)
+                || !is_array($artifactItem)
+                || $artifactRuns === []
+                || isset(
+                    $claimedIndexes[$artifactIndex],
+                    $claimedIndexes[$firstIndex],
+                    $claimedIndexes[$secondIndex]
+                )
+                || $first['page'] !== $second['page']
+                || $first['stream'] !== $second['stream']
+                || !hash_equals($first['leftFontDigest'], $second['leftFontDigest'])
+                || !hash_equals($first['rightFontDigest'], $second['rightFontDigest'])
+                || hash_equals($first['leftFontDigest'], $first['rightFontDigest'])) {
+                continue;
+            }
+            $rowHeight = max(
+                1.0,
+                $first['bounds']['y2'] - $first['bounds']['y1'],
+                $second['bounds']['y2'] - $second['bounds']['y1']
+            );
+            $rowStep = $first['bounds']['y1'] - $second['bounds']['y1'];
+            if ($rowStep < $rowHeight * 0.55
+                || $rowStep > $rowHeight * 1.55
+                || abs($first['rightBounds']['x1'] - $second['rightBounds']['x1'])
+                    > max(2.0, $rowHeight * 0.20)) {
+                continue;
+            }
+            $artifact = $this->pdfWholeExactPositionedSourceItemEvidence(
+                $artifactIndex,
+                $artifactItem,
+                $artifactRuns
+            );
+            if ($artifact === null
+                || $artifact['page'] !== $first['page']
+                || $artifact['stream'] !== $first['stream']
+                || !hash_equals($artifact['fontDigest'], $first['leftFontDigest'])
+                || count($this->pdfLineWordTokens($artifact['text'])) > 2
+                || $this->length($artifact['projection']) > 16
+                || abs($artifact['bounds']['y1'] - $first['leftBounds']['y1'])
+                    > max(1.0, $rowHeight * 0.20)
+                || $artifact['bounds']['x1'] >= $first['leftBounds']['x1']
+                || $first['leftBounds']['x1'] - $artifact['bounds']['x2']
+                    > max(3.0, $rowHeight * 0.45)) {
+                continue;
+            }
+
+            $displayTokens = array_merge(
+                $this->pdfComparableWordTokens($first['prefixText']),
+                $this->pdfComparableWordTokens($second['prefixText'])
+            );
+            if (count($displayTokens) < 5 || count($displayTokens) > 18) {
+                continue;
+            }
+            $counterpart = $this->pdfCrossLaneDisplayUniqueCounterpart(
+                $sourceItems,
+                $displayTokens,
+                $first['page'],
+                $first['stream'],
+                [$artifactIndex, $firstIndex, $secondIndex],
+                $first['leftBounds']
+            );
+            if ($counterpart === null) {
+                continue;
+            }
+
+            $payload = [
+                'version' => 1,
+                'method' => 'exact-cross-lane-duplicate-display-prefix',
+                'sourceSha256' => $this->sourceSha256,
+                'page' => $first['page'],
+                'stream' => $first['stream'],
+                'artifact' => $artifact,
+                'splitRows' => [$first, $second],
+                'displayTokenDigest' => hash('sha256', implode("\0", $displayTokens)),
+                'counterpart' => $counterpart,
+            ];
+            $payload['proofDigest'] = hash('sha256', json_encode(
+                $payload,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: '');
+            $proofs[] = $payload;
+            foreach ([$artifactIndex, $firstIndex, $secondIndex] as $claimedIndex) {
+                $claimedIndexes[$claimedIndex] = true;
+            }
+        }
+
+        foreach ($proofs as $proof) {
+            $artifactIndex = $proof['artifact']['sourceIndex'];
+            $sourceItems[$artifactIndex]['sourcePdfCrossLaneDisplayArtifactRole'] =
+                'whole-display-artifact';
+            $sourceItems[$artifactIndex]['sourcePdfCrossLaneDisplayArtifactEvidence'] = $proof;
+            foreach ($proof['splitRows'] as $row) {
+                $sourceIndex = $row['sourceIndex'];
+                $sourceItems[$sourceIndex]['sourcePdfCrossLaneDisplayArtifactRole'] =
+                    'display-prefix-projection';
+                $sourceItems[$sourceIndex]['sourcePdfCrossLaneDisplayArtifactEvidence'] = $proof;
+            }
+        }
+        $this->markSourcePdfMirroredDuplicateMapPairArtifacts(
+            $sourceItems,
+            $runsBySourceIndex
+        );
+    }
+
+    /**
+     * Detect two spatially translated copies of the same compact map label
+     * pair when four consecutive source atoms are emitted in mirrored order
+     * (A, B, B, A). One atom must be a decimal measurement and the other a
+     * terminal label. A unique longer prose occurrence elsewhere must contain
+     * the measurement before the label, proving that the two compact copies
+     * are redundant display fragments rather than the only semantic text.
+     *
+     * @param list<array<string,mixed>> $sourceItems
+     * @param array<int,list<array<string,mixed>>> $runsBySourceIndex
+     */
+    private function markSourcePdfMirroredDuplicateMapPairArtifacts(
+        array &$sourceItems,
+        array $runsBySourceIndex
+    ): void {
+        $claimed = [];
+        for ($start = 0, $count = count($sourceItems) - 3; $start < $count; $start++) {
+            $indexes = [$start, $start + 1, $start + 2, $start + 3];
+            if (array_filter($indexes, static fn (int $index): bool => isset($claimed[$index])) !== []) {
+                continue;
+            }
+            $members = [];
+            foreach ($indexes as $index) {
+                $runs = $runsBySourceIndex[$index] ?? [];
+                $member = $runs === [] ? null : $this->pdfWholeExactPositionedSourceItemEvidence(
+                    $index,
+                    $sourceItems[$index],
+                    $runs,
+                    true
+                );
+                if ($member === null) {
+                    continue 2;
+                }
+                $members[] = $member;
+            }
+            if (!hash_equals($members[0]['projection'], $members[3]['projection'])
+                || !hash_equals($members[1]['projection'], $members[2]['projection'])
+                || hash_equals($members[0]['projection'], $members[1]['projection'])
+                || preg_match('/^\s*\d+(?:[.,]\d+)?\s*$/u', $members[1]['text']) !== 1
+                || preg_match('/\p{L}/u', $members[0]['text']) !== 1
+                || preg_match('/[.!?]\s*$/u', $members[0]['text']) !== 1
+                || count($this->pdfLineWordTokens($members[0]['text'])) > 2
+                || count($this->pdfLineWordTokens($members[1]['text'])) > 2
+                || $this->length($members[0]['projection']) > 20
+                || $this->length($members[1]['projection']) > 12) {
+                continue;
+            }
+            $pages = array_values(array_unique(array_column($members, 'page'), SORT_NUMERIC));
+            $streams = array_values(array_unique(array_column($members, 'stream'), SORT_NUMERIC));
+            $fonts = array_values(array_unique(array_column($members, 'fontDigest')));
+            if (count($pages) !== 1 || count($streams) !== 1 || count($fonts) !== 1) {
+                continue;
+            }
+
+            $a0 = $members[0]['bounds'];
+            $b0 = $members[1]['bounds'];
+            $b1 = $members[2]['bounds'];
+            $a1 = $members[3]['bounds'];
+            $height = max(
+                1.0,
+                $a0['y2'] - $a0['y1'],
+                $b0['y2'] - $b0['y1'],
+                $b1['y2'] - $b1['y1'],
+                $a1['y2'] - $a1['y1']
+            );
+            $translationX = $a1['x1'] - $a0['x1'];
+            $translationY = $a1['y1'] - $a0['y1'];
+            $translationTolerance = max(2.0, $height * 0.30);
+            $bTranslationX = $b1['x1'] - $b0['x1'];
+            $bTranslationY = $b1['y1'] - $b0['y1'];
+            $pairDistance = static function (array $left, array $right): float {
+                $leftX = ($left['x1'] + $left['x2']) / 2.0;
+                $leftY = ($left['y1'] + $left['y2']) / 2.0;
+                $rightX = ($right['x1'] + $right['x2']) / 2.0;
+                $rightY = ($right['y1'] + $right['y2']) / 2.0;
+
+                return hypot($rightX - $leftX, $rightY - $leftY);
+            };
+            if (abs($translationX - $bTranslationX) > $translationTolerance
+                || abs($translationY - $bTranslationY) > $translationTolerance
+                || $pairDistance($a0, $b0) > max(48.0, $height * 6.0)
+                || $pairDistance($a1, $b1) > max(48.0, $height * 6.0)
+                || hypot($translationX, $translationY) < max(48.0, $height * 6.0)) {
+                continue;
+            }
+            $counterpart = $this->pdfMirroredDuplicateMapPairUniqueCounterpart(
+                $sourceItems,
+                $members[0]['projection'],
+                $members[1]['projection'],
+                $indexes
+            );
+            if ($counterpart === null) {
+                continue;
+            }
+
+            $proof = [
+                'version' => 1,
+                'method' => 'exact-mirrored-translated-map-label-pairs',
+                'sourceSha256' => $this->sourceSha256,
+                'page' => $pages[0],
+                'stream' => $streams[0],
+                'members' => $members,
+                'labelProjectionDigest' => hash('sha256', $members[0]['projection']),
+                'measurementProjectionDigest' => hash('sha256', $members[1]['projection']),
+                'translationX' => round($translationX, 6),
+                'translationY' => round($translationY, 6),
+                'translationTolerance' => round($translationTolerance, 6),
+                'counterpart' => $counterpart,
+            ];
+            $proof['proofDigest'] = hash('sha256', json_encode(
+                $proof,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: '');
+            foreach ($indexes as $index) {
+                $sourceItems[$index]['sourcePdfMirroredMapPairArtifactRole'] =
+                    'mirrored-duplicate-map-pair-artifact';
+                $sourceItems[$index]['sourcePdfMirroredMapPairArtifactEvidence'] = $proof;
+                $claimed[$index] = true;
+            }
+        }
+    }
+
+    /**
+     * @param list<array<string,mixed>> $sourceItems
+     * @param list<int> $excludedIndexes
+     * @return array<string,mixed>|null
+     */
+    private function pdfMirroredDuplicateMapPairUniqueCounterpart(
+        array $sourceItems,
+        string $labelProjection,
+        string $measurementProjection,
+        array $excludedIndexes
+    ): ?array {
+        $labelTokens = $this->pdfComparableWordTokens($labelProjection);
+        $measurementTokens = $this->pdfComparableWordTokens($measurementProjection);
+        if ($labelTokens === [] || count($labelTokens) > 2 || count($measurementTokens) !== 1) {
+            return null;
+        }
+        $subsequenceOffsets = static function (array $tokens, array $needle): array {
+            $offsets = [];
+            $needleCount = count($needle);
+            for ($offset = 0, $limit = count($tokens) - $needleCount; $offset <= $limit; $offset++) {
+                if (array_slice($tokens, $offset, $needleCount) === $needle) {
+                    $offsets[] = $offset;
+                }
+            }
+
+            return $offsets;
+        };
+        $excluded = array_fill_keys($excludedIndexes, true);
+        $matches = [];
+        foreach ($sourceItems as $sourceIndex => $item) {
+            if (isset($excluded[$sourceIndex])
+                || !$this->sourcePdfSourceItemHasExactGeometry($item)
+                || count($this->pdfLineWordTokens((string) ($item['text'] ?? ''))) < 5) {
+                continue;
+            }
+            $projection = $this->pdfSourceOccurrenceComparableText(
+                (string) ($item['text'] ?? '')
+            );
+            $tokens = $this->pdfComparableWordTokens((string) ($item['text'] ?? ''));
+            $measurementOffsets = $subsequenceOffsets($tokens, $measurementTokens);
+            $labelOffsets = $subsequenceOffsets($tokens, $labelTokens);
+            if ($projection === ''
+                || count($measurementOffsets) !== 1
+                || count($labelOffsets) !== 1) {
+                continue;
+            }
+            $measurementOffset = $measurementOffsets[0];
+            $labelOffset = $labelOffsets[0];
+            if ($measurementOffset >= $labelOffset
+                || $labelOffset - ($measurementOffset + count($measurementTokens)) > 3) {
+                continue;
+            }
+            $matches[] = [
+                'sourceIndex' => $sourceIndex,
+                'sourceOccurrenceId' => (string) ($item['id'] ?? ''),
+                'page' => max(1, (int) ($item['page'] ?? 1)),
+                'stream' => max(1, (int) ($item['stream'] ?? 1)),
+                'projectionDigest' => hash('sha256', $projection),
+                'measurementTokenIndex' => $measurementOffset,
+                'labelTokenIndex' => $labelOffset,
+                'measurementTokenDigest' => hash('sha256', implode("\0", $measurementTokens)),
+                'labelTokenDigest' => hash('sha256', implode("\0", $labelTokens)),
+                'bounds' => $this->pdfSourceEvidenceBounds($item['sourceGeometry']),
+            ];
+        }
+
+        return count($matches) === 1 ? $matches[0] : null;
+    }
+
+    /**
+     * @param array<string,mixed> $proof
+     * @param list<array<string,mixed>> $sourceItems
+     */
+    private function pdfMirroredDuplicateMapPairEvidenceMatchesSourceItems(
+        array $proof,
+        array $sourceItems
+    ): bool {
+        $digest = is_string($proof['proofDigest'] ?? null) ? $proof['proofDigest'] : '';
+        $unsigned = $proof;
+        unset($unsigned['proofDigest']);
+        if (($proof['version'] ?? null) !== 1
+            || ($proof['method'] ?? null) !== 'exact-mirrored-translated-map-label-pairs'
+            || !is_string($proof['sourceSha256'] ?? null)
+            || !hash_equals($this->sourceSha256, $proof['sourceSha256'])
+            || $digest === ''
+            || !hash_equals($digest, hash('sha256', json_encode(
+                $unsigned,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: ''))
+            || !is_array($proof['members'] ?? null)
+            || count($proof['members']) !== 4) {
+            return false;
+        }
+        $members = $proof['members'];
+        $projections = [];
+        foreach ($members as $offset => $member) {
+            $sourceIndex = $member['sourceIndex'] ?? null;
+            $item = is_int($sourceIndex) ? ($sourceItems[$sourceIndex] ?? null) : null;
+            $projection = is_array($item)
+                ? $this->pdfSourceOccurrenceComparableText((string) ($item['text'] ?? ''))
+                : '';
+            if (!is_int($sourceIndex)
+                || $sourceIndex !== (int) $members[0]['sourceIndex'] + $offset
+                || !is_array($item)
+                || ($member['sourceOccurrenceId'] ?? null) !== ($item['id'] ?? null)
+                || ($member['page'] ?? null) !== (int) ($item['page'] ?? 0)
+                || ($member['stream'] ?? null) !== (int) ($item['stream'] ?? 0)
+                || $member['page'] !== ($proof['page'] ?? null)
+                || $member['stream'] !== ($proof['stream'] ?? null)
+                || !$this->sourcePdfSourceItemHasExactNearHorizontalGeometry($item)
+                || !hash_equals(
+                    (string) ($member['projectionDigest'] ?? ''),
+                    hash('sha256', $projection)
+                )
+                || !is_array($member['bounds'] ?? null)
+                || !$this->pdfClippedDisplayArtifactBoundsMatch(
+                    $member['bounds'],
+                    $this->pdfSourceEvidenceBounds($item['sourceGeometry'])
+                )) {
+                return false;
+            }
+            $projections[] = $projection;
+        }
+        if (!hash_equals($projections[0], $projections[3])
+            || !hash_equals($projections[1], $projections[2])
+            || hash_equals($projections[0], $projections[1])
+            || !hash_equals(
+                (string) ($proof['labelProjectionDigest'] ?? ''),
+                hash('sha256', $projections[0])
+            )
+            || !hash_equals(
+                (string) ($proof['measurementProjectionDigest'] ?? ''),
+                hash('sha256', $projections[1])
+            )) {
+            return false;
+        }
+        $translationX = (float) $members[3]['bounds']['x1'] - (float) $members[0]['bounds']['x1'];
+        $translationY = (float) $members[3]['bounds']['y1'] - (float) $members[0]['bounds']['y1'];
+        $bTranslationX = (float) $members[2]['bounds']['x1'] - (float) $members[1]['bounds']['x1'];
+        $bTranslationY = (float) $members[2]['bounds']['y1'] - (float) $members[1]['bounds']['y1'];
+        $tolerance = (float) ($proof['translationTolerance'] ?? 0.0);
+        if ($tolerance <= 0.0
+            || abs($translationX - (float) ($proof['translationX'] ?? INF)) > 0.000001
+            || abs($translationY - (float) ($proof['translationY'] ?? INF)) > 0.000001
+            || abs($translationX - $bTranslationX) > $tolerance
+            || abs($translationY - $bTranslationY) > $tolerance) {
+            return false;
+        }
+        $counterpart = $this->pdfMirroredDuplicateMapPairUniqueCounterpart(
+            $sourceItems,
+            $projections[0],
+            $projections[1],
+            array_column($members, 'sourceIndex')
+        );
+
+        return is_array($counterpart) && $counterpart === ($proof['counterpart'] ?? null);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param list<array<string,mixed>> $sourceItems
+     * @return array{
+     *     blocks:list<AstNode>,
+     *     removedCount:int,
+     *     pageProjectionReplacements:array<int,string>,
+     *     pageProjectionProofPreserved:bool
+     * }
+     */
+    private function pdfBlocksWithoutProvenMirroredDuplicateMapPairs(
+        array $blocks,
+        array $sourceItems
+    ): array {
+        $proofs = [];
+        foreach ($sourceItems as $item) {
+            $proof = is_array($item['sourcePdfMirroredMapPairArtifactEvidence'] ?? null)
+                ? $item['sourcePdfMirroredMapPairArtifactEvidence']
+                : null;
+            if (($item['sourcePdfMirroredMapPairArtifactRole'] ?? null)
+                    === 'mirrored-duplicate-map-pair-artifact'
+                && $proof !== null
+                && $this->pdfMirroredDuplicateMapPairEvidenceMatchesSourceItems(
+                    $proof,
+                    $sourceItems
+                )) {
+                $proofs[(string) $proof['proofDigest']] = $proof;
+            }
+        }
+        if ($proofs === [] || $blocks === []) {
+            return [
+                'blocks' => $blocks,
+                'removedCount' => 0,
+                'pageProjectionReplacements' => [],
+                'pageProjectionProofPreserved' => true,
+            ];
+        }
+
+        $remove = [];
+        foreach ($proofs as $proof) {
+            $label = (string) $proof['members'][0]['projection'];
+            $measurement = (string) $proof['members'][1]['projection'];
+            $forward = $label . $measurement;
+            $reverse = $measurement . $label;
+            $matches = [];
+            foreach ($blocks as $index => $block) {
+                if ($block->type !== 'paragraph') {
+                    continue;
+                }
+                $projection = $this->pdfSourceOccurrenceComparableText(
+                    (string) $block->attr('text', '')
+                );
+                if (hash_equals($projection, $forward) || hash_equals($projection, $reverse)) {
+                    $matches[] = $index;
+                }
+            }
+            if ($matches === [] || count($matches) > 2) {
+                continue;
+            }
+            foreach ($matches as $index) {
+                $remove[$index] = true;
+            }
+        }
+        if ($remove === []) {
+            return ['blocks' => $blocks, 'removedCount' => 0];
+        }
+
+        return [
+            'blocks' => array_values(array_filter(
+                $blocks,
+                static fn (AstNode $_block, int $index): bool => !isset($remove[$index]),
+                ARRAY_FILTER_USE_BOTH
+            )),
+            'removedCount' => count($remove),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $sourceItem
+     * @param list<array<string,mixed>> $runs
+     * @return array<string,mixed>|null
+     */
+    private function pdfCrossLaneDisplaySplitForSourceItem(
+        int $sourceIndex,
+        array $sourceItem,
+        array $runs
+    ): ?array {
+        $projection = $this->pdfSourceOccurrenceComparableText(
+            (string) ($sourceItem['text'] ?? '')
+        );
+        if ($projection === ''
+            || !$this->sourcePdfSourceItemHasExactGeometry($sourceItem)) {
+            return null;
+        }
+        usort($runs, static fn (array $left, array $right): int =>
+            ($left['sourcePdfExactSourceStart'] <=> $right['sourcePdfExactSourceStart'])
+                ?: ($left['sourcePdfExactSourceEnd'] <=> $right['sourcePdfExactSourceEnd'])
+        );
+        $cursor = 0;
+        foreach ($runs as $run) {
+            if ((int) $run['sourcePdfExactSourceIndex'] !== $sourceIndex
+                || (int) $run['page'] !== (int) ($sourceItem['page'] ?? 0)
+                || (int) $run['stream'] !== (int) ($sourceItem['stream'] ?? 0)
+                || (int) $run['sourcePdfExactSourceStart'] !== $cursor
+                || (int) $run['sourcePdfExactSourceEnd'] <= $cursor) {
+                return null;
+            }
+            $cursor = (int) $run['sourcePdfExactSourceEnd'];
+        }
+        if ($cursor !== strlen($projection)) {
+            return null;
+        }
+
+        $candidates = [];
+        for ($splitRun = 1, $runCount = count($runs); $splitRun < $runCount; $splitRun++) {
+            $leftRuns = array_slice($runs, 0, $splitRun);
+            $rightRuns = array_slice($runs, $splitRun);
+            $split = (int) $rightRuns[0]['sourcePdfExactSourceStart'];
+            $rawSplit = $this->pdfRawTextSplitAtComparableOffset(
+                (string) $sourceItem['text'],
+                $split
+            );
+            if ($rawSplit === null
+                || count($this->pdfLineWordTokens($rawSplit['prefix'])) < 2
+                || count($this->pdfLineWordTokens($rawSplit['suffix'])) < 2) {
+                continue;
+            }
+            $leftBounds = $this->pdfPositionedRunGroupBounds($leftRuns);
+            $rightBounds = $this->pdfPositionedRunGroupBounds($rightRuns);
+            $height = max(
+                1.0,
+                $leftBounds['y2'] - $leftBounds['y1'],
+                $rightBounds['y2'] - $rightBounds['y1']
+            );
+            $gap = $rightBounds['x1'] - $leftBounds['x2'];
+            $leftFontDigest = $this->pdfPositionedRunGroupFontDigest($leftRuns);
+            $rightFontDigest = $this->pdfPositionedRunGroupFontDigest($rightRuns);
+            if ($gap < max(24.0, $height * 1.45)
+                || $leftFontDigest === null
+                || $rightFontDigest === null
+                || hash_equals($leftFontDigest, $rightFontDigest)
+                || abs($leftBounds['y1'] - $rightBounds['y1']) > max(1.0, $height * 0.12)) {
+                continue;
+            }
+            $candidates[] = [
+                'sourceOccurrenceId' => (string) ($sourceItem['id'] ?? ''),
+                'sourceIndex' => $sourceIndex,
+                'page' => (int) $sourceItem['page'],
+                'stream' => (int) $sourceItem['stream'],
+                'sourceProjectionDigest' => hash('sha256', $projection),
+                'prefixRange' => [
+                    'sourceIndex' => $sourceIndex,
+                    'sourceStart' => 0,
+                    'sourceEnd' => $split,
+                ],
+                'retainedRange' => [
+                    'sourceIndex' => $sourceIndex,
+                    'sourceStart' => $split,
+                    'sourceEnd' => strlen($projection),
+                ],
+                'prefixText' => $rawSplit['prefix'],
+                'retainedText' => $rawSplit['suffix'],
+                'prefixProjectionDigest' => hash('sha256', substr($projection, 0, $split)),
+                'retainedProjectionDigest' => hash('sha256', substr($projection, $split)),
+                'bounds' => $this->pdfSourceEvidenceBounds($sourceItem['sourceGeometry']),
+                'leftBounds' => $leftBounds,
+                'rightBounds' => $rightBounds,
+                'leftFontDigest' => $leftFontDigest,
+                'rightFontDigest' => $rightFontDigest,
+            ];
+        }
+
+        return count($candidates) === 1 ? $candidates[0] : null;
+    }
+
+    /**
+     * @param array<string,mixed> $sourceItem
+     * @param list<array<string,mixed>> $runs
+     * @return array<string,mixed>|null
+     */
+    private function pdfWholeExactPositionedSourceItemEvidence(
+        int $sourceIndex,
+        array $sourceItem,
+        array $runs,
+        bool $allowNearHorizontal = false
+    ): ?array {
+        $projection = $this->pdfSourceOccurrenceComparableText(
+            (string) ($sourceItem['text'] ?? '')
+        );
+        if ($projection === ''
+            || !($allowNearHorizontal
+                ? $this->sourcePdfSourceItemHasExactNearHorizontalGeometry($sourceItem)
+                : $this->sourcePdfSourceItemHasExactGeometry($sourceItem))) {
+            return null;
+        }
+        usort($runs, static fn (array $left, array $right): int =>
+            ($left['sourcePdfExactSourceStart'] <=> $right['sourcePdfExactSourceStart'])
+                ?: ($left['sourcePdfExactSourceEnd'] <=> $right['sourcePdfExactSourceEnd'])
+        );
+        $cursor = 0;
+        foreach ($runs as $run) {
+            if ((int) ($run['sourcePdfExactSourceIndex'] ?? -1) !== $sourceIndex
+                || (int) ($run['page'] ?? 0) !== (int) ($sourceItem['page'] ?? 0)
+                || (int) ($run['stream'] ?? 0) !== (int) ($sourceItem['stream'] ?? 0)
+                || (int) ($run['sourcePdfExactSourceStart'] ?? -1) !== $cursor
+                || (int) ($run['sourcePdfExactSourceEnd'] ?? -1) <= $cursor) {
+                return null;
+            }
+            $cursor = (int) $run['sourcePdfExactSourceEnd'];
+        }
+        $fontDigest = $this->pdfPositionedRunGroupFontDigest($runs);
+        if ($cursor !== strlen($projection) || $fontDigest === null) {
+            return null;
+        }
+
+        return [
+            'sourceOccurrenceId' => (string) ($sourceItem['id'] ?? ''),
+            'sourceIndex' => $sourceIndex,
+            'page' => (int) $sourceItem['page'],
+            'stream' => (int) $sourceItem['stream'],
+            'text' => (string) $sourceItem['text'],
+            'projection' => $projection,
+            'range' => [
+                'sourceIndex' => $sourceIndex,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen($projection),
+            ],
+            'projectionDigest' => hash('sha256', $projection),
+            'bounds' => $this->pdfPositionedRunGroupBounds($runs),
+            'fontDigest' => $fontDigest,
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $runs
+     * @return array{x1:float,y1:float,x2:float,y2:float}
+     */
+    private function pdfPositionedRunGroupBounds(array $runs): array
+    {
+        return [
+            'x1' => min(array_map(static fn (array $run): float => (float) $run['x1'], $runs)),
+            'y1' => min(array_map(static fn (array $run): float => (float) $run['y1'], $runs)),
+            'x2' => max(array_map(static fn (array $run): float => (float) $run['x2'], $runs)),
+            'y2' => max(array_map(static fn (array $run): float => (float) $run['y2'], $runs)),
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $runs */
+    private function pdfPositionedRunGroupFontDigest(array $runs): ?string
+    {
+        $fonts = [];
+        foreach ($runs as $run) {
+            $resource = is_string($run['fontResource'] ?? null)
+                ? trim($run['fontResource'])
+                : '';
+            $baseFont = is_string($run['baseFont'] ?? null)
+                ? trim($run['baseFont'])
+                : '';
+            if ($resource === '' && $baseFont === '') {
+                return null;
+            }
+            $fonts[$resource . "\0" . $baseFont] = true;
+        }
+        if (count($fonts) !== 1) {
+            return null;
+        }
+
+        return hash('sha256', (string) array_key_first($fonts));
+    }
+
+    /** @return array{prefix:string,suffix:string}|null */
+    private function pdfRawTextSplitAtComparableOffset(string $text, int $offset): ?array
+    {
+        $projection = $this->pdfSourceOccurrenceComparableText($text);
+        if ($offset <= 0 || $offset >= strlen($projection)
+            || preg_match_all('/./us', $text, $matches, PREG_OFFSET_CAPTURE) === false) {
+            return null;
+        }
+        $cursor = 0;
+        foreach ($matches[0] as [$character, $rawOffset]) {
+            if ($cursor === $offset) {
+                $prefix = trim(substr($text, 0, (int) $rawOffset));
+                $suffix = trim(substr($text, (int) $rawOffset));
+                if (hash_equals(
+                    substr($projection, 0, $offset),
+                    $this->pdfSourceOccurrenceComparableText($prefix)
+                ) && hash_equals(
+                    substr($projection, $offset),
+                    $this->pdfSourceOccurrenceComparableText($suffix)
+                )) {
+                    return ['prefix' => $prefix, 'suffix' => $suffix];
+                }
+                return null;
+            }
+            $characterProjection = $this->pdfSourceOccurrenceComparableText((string) $character);
+            $next = $cursor + strlen($characterProjection);
+            if ($next > $offset) {
+                return null;
+            }
+            $cursor = $next;
+        }
+
+        return null;
+    }
+
+    /** @return list<string> */
+    private function pdfComparableWordTokens(string $text): array
+    {
+        return array_values(array_filter(array_map(
+            fn (string $token): string => $this->pdfLowercaseToken($token),
+            $this->pdfLineWordTokens($text)
+        ), static fn (string $token): bool => $token !== ''));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $sourceItems
+     * @param list<string> $targetTokens
+     * @param list<int> $excludedIndexes
+     * @param array{x1:float,y1:float,x2:float,y2:float} $displayBounds
+     * @return array<string,mixed>|null
+     */
+    private function pdfCrossLaneDisplayUniqueCounterpart(
+        array $sourceItems,
+        array $targetTokens,
+        int $page,
+        int $stream,
+        array $excludedIndexes,
+        array $displayBounds
+    ): ?array {
+        $excluded = array_fill_keys($excludedIndexes, true);
+        $tokens = [];
+        foreach ($sourceItems as $sourceIndex => $item) {
+            if ((int) ($item['page'] ?? 0) !== $page
+                || (int) ($item['stream'] ?? 0) !== $stream
+                || isset($excluded[$sourceIndex])) {
+                continue;
+            }
+            foreach ($this->pdfComparableWordTokens((string) ($item['text'] ?? '')) as $tokenOffset => $token) {
+                $tokens[] = [
+                    'token' => $token,
+                    'sourceIndex' => $sourceIndex,
+                    'tokenOffset' => $tokenOffset,
+                ];
+            }
+        }
+        $matches = [];
+        $targetCount = count($targetTokens);
+        for ($index = 0, $tokenCount = count($tokens); $index + $targetCount <= $tokenCount; $index++) {
+            for ($offset = 0; $offset < $targetCount; $offset++) {
+                if ($tokens[$index + $offset]['token'] !== $targetTokens[$offset]) {
+                    continue 2;
+                }
+            }
+            $matched = array_slice($tokens, $index, $targetCount);
+            $sourceIndexes = array_values(array_unique(array_column($matched, 'sourceIndex')));
+            sort($sourceIndexes, SORT_NUMERIC);
+            if ($sourceIndexes === []
+                || end($sourceIndexes) - $sourceIndexes[0] > 3
+                || $sourceIndexes !== range($sourceIndexes[0], (int) end($sourceIndexes))) {
+                continue;
+            }
+            $items = array_map(static fn (int $sourceIndex): array => $sourceItems[$sourceIndex], $sourceIndexes);
+            if (array_filter($items, fn (array $item): bool =>
+                !$this->sourcePdfSourceItemHasExactGeometry($item)
+            ) !== []) {
+                continue;
+            }
+            $bounds = [
+                'x1' => min(array_map(fn (array $item): float => (float) $item['sourceGeometry']['x1'], $items)),
+                'y1' => min(array_map(fn (array $item): float => (float) $item['sourceGeometry']['y1'], $items)),
+                'x2' => max(array_map(fn (array $item): float => (float) $item['sourceGeometry']['x2'], $items)),
+                'y2' => max(array_map(fn (array $item): float => (float) $item['sourceGeometry']['y2'], $items)),
+            ];
+            $displayCenterX = ($displayBounds['x1'] + $displayBounds['x2']) / 2.0;
+            $counterpartCenterX = ($bounds['x1'] + $bounds['x2']) / 2.0;
+            if (abs($counterpartCenterX - $displayCenterX) < 24.0) {
+                continue;
+            }
+            $matches[] = [
+                'sourceIndexes' => $sourceIndexes,
+                'sourceOccurrenceIds' => array_map(
+                    static fn (array $item): string => (string) ($item['id'] ?? ''),
+                    $items
+                ),
+                'sourceProjectionDigests' => array_map(
+                    fn (array $item): string => hash('sha256', $this->pdfSourceOccurrenceComparableText(
+                        (string) ($item['text'] ?? '')
+                    )),
+                    $items
+                ),
+                'firstTokenOffset' => $matched[0]['tokenOffset'],
+                'lastTokenOffset' => $matched[array_key_last($matched)]['tokenOffset'],
+                'tokenDigest' => hash('sha256', implode("\0", $targetTokens)),
+                'bounds' => $bounds,
+            ];
+        }
+
+        return count($matches) === 1 ? $matches[0] : null;
+    }
+
+    /**
+     * Apply only a previously signed source proof to the corresponding whole
+     * source-backed layout. The whole display lead remains present solely as
+     * disposition evidence; the two mixed rows retain their exact right-lane
+     * source ranges and geometry.
+     *
+     * @param list<array<string,mixed>> $layouts
+     * @param list<array<string,mixed>> $sourceItems
+     * @return list<array<string,mixed>>
+     */
+    private function pdfSourceLayoutsWithCrossLaneDisplayArtifactProjections(
+        array $layouts,
+        array $sourceItems
+    ): array {
+        $proofBySourceIndex = [];
+        foreach ($sourceItems as $sourceIndex => $sourceItem) {
+            $proof = is_array($sourceItem['sourcePdfCrossLaneDisplayArtifactEvidence'] ?? null)
+                ? $sourceItem['sourcePdfCrossLaneDisplayArtifactEvidence']
+                : null;
+            if ($proof !== null
+                && $this->pdfCrossLaneDisplayArtifactEvidenceMatchesSourceItems(
+                    $proof,
+                    $sourceItems
+                )) {
+                $proofBySourceIndex[$sourceIndex] = $proof;
+            }
+        }
+        if ($proofBySourceIndex === []) {
+            return $layouts;
+        }
+
+        foreach ($layouts as &$layout) {
+            $ranges = $this->pdfPositionedExactSourceRanges($layout);
+            if (count($ranges) !== 1) {
+                continue;
+            }
+            $range = $ranges[0];
+            $sourceIndex = $range['sourceIndex'];
+            $sourceItem = $sourceItems[$sourceIndex] ?? null;
+            $proof = $proofBySourceIndex[$sourceIndex] ?? null;
+            $role = is_array($sourceItem)
+                ? ($sourceItem['sourcePdfCrossLaneDisplayArtifactRole'] ?? null)
+                : null;
+            $sourceProjection = is_array($sourceItem)
+                ? $this->pdfSourceOccurrenceComparableText((string) ($sourceItem['text'] ?? ''))
+                : '';
+            if (!is_array($proof)
+                || $sourceProjection === ''
+                || $range !== [
+                    'sourceIndex' => $sourceIndex,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen($sourceProjection),
+                ]) {
+                continue;
+            }
+            $layout['sourcePdfCrossLaneDisplayArtifactRole'] = $role;
+            $layout['sourcePdfCrossLaneDisplayArtifactEvidence'] = $proof;
+            if ($role === 'whole-display-artifact') {
+                $layout['sourcePdfArtifact'] = true;
+                continue;
+            }
+            if ($role !== 'display-prefix-projection') {
+                continue;
+            }
+            $rows = array_values(array_filter(
+                $proof['splitRows'],
+                static fn (array $row): bool => $row['sourceIndex'] === $sourceIndex
+            ));
+            if (count($rows) !== 1) {
+                continue;
+            }
+            $row = $rows[0];
+            $layout['text'] = $row['retainedText'];
+            if (array_key_exists('positionedTextCandidate', $layout)) {
+                $layout['positionedTextCandidate'] = $row['retainedText'];
+            }
+            foreach (['x1', 'y1', 'x2', 'y2'] as $key) {
+                $layout[$key] = $row['rightBounds'][$key];
+            }
+            $layout['sourcePdfExactSourceRanges'] = [$row['retainedRange']];
+            $layout['sourcePdfExactSourceIndex'] = $sourceIndex;
+            $layout['sourcePdfExactSourceStart'] = $row['retainedRange']['sourceStart'];
+            $layout['sourcePdfExactSourceEnd'] = $row['retainedRange']['sourceEnd'];
+            $layout['sourcePdfExactPositionedText'] = true;
+            $layout['sourceVerifiedGeometryText'] = true;
+            unset($layout['sourcePdfWholeExactOccurrenceProof']);
+        }
+        unset($layout);
+
+        return $layouts;
+    }
+
+    /**
+     * @param array<string,mixed> $proof
+     * @param list<array<string,mixed>> $sourceItems
+     */
+    private function pdfCrossLaneDisplayArtifactEvidenceMatchesSourceItems(
+        array $proof,
+        array $sourceItems
+    ): bool {
+        $proofDigest = is_string($proof['proofDigest'] ?? null)
+            ? $proof['proofDigest']
+            : '';
+        $payload = $proof;
+        unset($payload['proofDigest']);
+        if (($proof['version'] ?? null) !== 1
+            || ($proof['method'] ?? null) !== 'exact-cross-lane-duplicate-display-prefix'
+            || !is_string($proof['sourceSha256'] ?? null)
+            || !hash_equals($this->sourceSha256, $proof['sourceSha256'])
+            || $proofDigest === ''
+            || !hash_equals($proofDigest, hash('sha256', json_encode(
+                $payload,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: ''))
+            || !is_array($proof['artifact'] ?? null)
+            || !is_array($proof['splitRows'] ?? null)
+            || count($proof['splitRows']) !== 2) {
+            return false;
+        }
+        $artifact = $proof['artifact'];
+        $artifactIndex = $artifact['sourceIndex'] ?? null;
+        $rows = $proof['splitRows'];
+        if (!is_int($artifactIndex)
+            || !is_int($rows[0]['sourceIndex'] ?? null)
+            || !is_int($rows[1]['sourceIndex'] ?? null)
+            || $rows[0]['sourceIndex'] !== $artifactIndex + 1
+            || $rows[1]['sourceIndex'] !== $artifactIndex + 2) {
+            return false;
+        }
+        $displayTokens = [];
+        foreach ([$artifact, ...$rows] as $memberOffset => $member) {
+            $sourceIndex = $member['sourceIndex'];
+            $sourceItem = $sourceItems[$sourceIndex] ?? null;
+            $sourceProjection = is_array($sourceItem)
+                ? $this->pdfSourceOccurrenceComparableText((string) ($sourceItem['text'] ?? ''))
+                : '';
+            if (!is_array($sourceItem)
+                || ($member['sourceOccurrenceId'] ?? null) !== ($sourceItem['id'] ?? null)
+                || ($member['page'] ?? null) !== (int) ($sourceItem['page'] ?? 0)
+                || ($member['stream'] ?? null) !== (int) ($sourceItem['stream'] ?? 0)
+                || $member['page'] !== ($proof['page'] ?? null)
+                || $member['stream'] !== ($proof['stream'] ?? null)
+                || !$this->sourcePdfSourceItemHasExactGeometry($sourceItem)
+                || !is_string($member['sourceProjectionDigest'] ?? $member['projectionDigest'] ?? null)
+                || !hash_equals(
+                    (string) ($member['sourceProjectionDigest'] ?? $member['projectionDigest']),
+                    hash('sha256', $sourceProjection)
+                )) {
+                return false;
+            }
+            if ($memberOffset === 0) {
+                if (($member['range'] ?? null) !== [
+                    'sourceIndex' => $sourceIndex,
+                    'sourceStart' => 0,
+                    'sourceEnd' => strlen($sourceProjection),
+                ] || !is_array($member['bounds'] ?? null)
+                    || !$this->pdfClippedDisplayArtifactBoundsMatch(
+                        $member['bounds'],
+                        $this->pdfSourceEvidenceBounds($sourceItem['sourceGeometry'])
+                    )) {
+                    return false;
+                }
+                continue;
+            }
+            $prefixRange = $member['prefixRange'] ?? null;
+            $retainedRange = $member['retainedRange'] ?? null;
+            if (!is_array($prefixRange)
+                || !is_array($retainedRange)
+                || $prefixRange['sourceIndex'] !== $sourceIndex
+                || $prefixRange['sourceStart'] !== 0
+                || !is_int($prefixRange['sourceEnd'] ?? null)
+                || $retainedRange !== [
+                    'sourceIndex' => $sourceIndex,
+                    'sourceStart' => $prefixRange['sourceEnd'],
+                    'sourceEnd' => strlen($sourceProjection),
+                ]) {
+                return false;
+            }
+            $rawSplit = $this->pdfRawTextSplitAtComparableOffset(
+                (string) $sourceItem['text'],
+                $prefixRange['sourceEnd']
+            );
+            if ($rawSplit === null
+                || $rawSplit['prefix'] !== ($member['prefixText'] ?? null)
+                || $rawSplit['suffix'] !== ($member['retainedText'] ?? null)
+                || !hash_equals(
+                    (string) ($member['prefixProjectionDigest'] ?? ''),
+                    hash('sha256', substr($sourceProjection, 0, $prefixRange['sourceEnd']))
+                )
+                || !hash_equals(
+                    (string) ($member['retainedProjectionDigest'] ?? ''),
+                    hash('sha256', substr($sourceProjection, $prefixRange['sourceEnd']))
+                )
+                || !is_array($member['leftBounds'] ?? null)
+                || !is_array($member['rightBounds'] ?? null)) {
+                return false;
+            }
+            $unionBounds = [
+                'x1' => min($member['leftBounds']['x1'], $member['rightBounds']['x1']),
+                'y1' => min($member['leftBounds']['y1'], $member['rightBounds']['y1']),
+                'x2' => max($member['leftBounds']['x2'], $member['rightBounds']['x2']),
+                'y2' => max($member['leftBounds']['y2'], $member['rightBounds']['y2']),
+            ];
+            if (!$this->pdfClippedDisplayArtifactBoundsMatch(
+                $unionBounds,
+                $this->pdfSourceEvidenceBounds($sourceItem['sourceGeometry'])
+            )) {
+                return false;
+            }
+            array_push($displayTokens, ...$this->pdfComparableWordTokens($rawSplit['prefix']));
+        }
+        if (!is_string($proof['displayTokenDigest'] ?? null)
+            || !hash_equals(
+                $proof['displayTokenDigest'],
+                hash('sha256', implode("\0", $displayTokens))
+            )) {
+            return false;
+        }
+        $counterpart = $this->pdfCrossLaneDisplayUniqueCounterpart(
+            $sourceItems,
+            $displayTokens,
+            (int) $proof['page'],
+            (int) $proof['stream'],
+            [$artifactIndex, $rows[0]['sourceIndex'], $rows[1]['sourceIndex']],
+            $rows[0]['leftBounds']
+        );
+
+        return is_array($counterpart) && $counterpart === ($proof['counterpart'] ?? null);
+    }
+
+    /**
+     * Reify the exact retained subrange from a signed cross-lane disposition
+     * as a source-to-projection character map. A generic minimum-edit map can
+     * be ambiguous when the removed prefix and retained suffix share letters;
+     * the signed positioned range is stronger evidence and names every kept
+     * source byte directly.
+     *
+     * @param array<string,mixed> $sourceItem
+     * @param array<string,mixed> $disposition
+     * @param list<array<string,mixed>> $sourceItems
+     * @return list<array{
+     *     sourceStart:int,
+     *     sourceEnd:int,
+     *     projectionStart:int,
+     *     projectionEnd:int
+     * }>|null
+     */
+    private function pdfCrossLaneDisplayDispositionProjectionMap(
+        int $sourceIndex,
+        array $sourceItem,
+        array $disposition,
+        array $sourceItems
+    ): ?array {
+        $evidence = is_array($disposition['evidence'] ?? null)
+            ? ($disposition['evidence']['crossLaneDisplayArtifactProjection'] ?? null)
+            : null;
+        if (!is_array($evidence)
+            || !$this->pdfCrossLaneDisplayArtifactEvidenceMatchesSourceItems(
+                $evidence,
+                $sourceItems
+            )) {
+            return null;
+        }
+        $rows = array_values(array_filter(
+            $evidence['splitRows'],
+            static fn (array $row): bool =>
+                ($row['sourceIndex'] ?? null) === $sourceIndex
+        ));
+        if (count($rows) !== 1 || !is_array($rows[0]['retainedRange'] ?? null)) {
+            return null;
+        }
+        $row = $rows[0];
+        $range = $row['retainedRange'];
+        $sourceProjection = $this->pdfSourceOccurrenceComparableText(
+            (string) ($sourceItem['text'] ?? '')
+        );
+        $dispositionProjection = $this->pdfSourceOccurrenceComparableText(
+            (string) ($disposition['textProjection'] ?? '')
+        );
+        $start = $range['sourceStart'] ?? null;
+        $end = $range['sourceEnd'] ?? null;
+        if (!is_int($start)
+            || !is_int($end)
+            || $range['sourceIndex'] !== $sourceIndex
+            || $start < 0
+            || $end <= $start
+            || $end > strlen($sourceProjection)
+            || $dispositionProjection === ''
+            || !hash_equals(
+                $dispositionProjection,
+                substr($sourceProjection, $start, $end - $start)
+            )
+            || !hash_equals(
+                $dispositionProjection,
+                $this->pdfSourceOccurrenceComparableText(
+                    (string) ($row['retainedText'] ?? '')
+                )
+            )) {
+            return null;
+        }
+
+        $matched = preg_match_all(
+            '/./us',
+            $dispositionProjection,
+            $characters,
+            PREG_OFFSET_CAPTURE
+        );
+        if (!is_int($matched) || $matched < 1) {
+            return null;
+        }
+        $map = [];
+        foreach ($characters[0] as $character) {
+            $text = is_string($character[0] ?? null) ? $character[0] : '';
+            $projectionStart = is_int($character[1] ?? null) ? $character[1] : -1;
+            if ($text === '' || $projectionStart < 0) {
+                return null;
+            }
+            $projectionEnd = $projectionStart + strlen($text);
+            $map[] = [
+                'sourceStart' => $start + $projectionStart,
+                'sourceEnd' => $start + $projectionEnd,
+                'projectionStart' => $projectionStart,
+                'projectionEnd' => $projectionEnd,
+            ];
+        }
+
+        return $map;
+    }
+
+    /**
+     * A selected full-page table/layout candidate is materialized before the
+     * source-range projection pass. Remove its stale display-only paragraph
+     * only when the immutable source graph proves the same phrase and exactly
+     * one final paragraph consists of that phrase. Perpendicular paint can
+     * split the tiny lead into reversed glyph tokens (for example `o T`), so
+     * the lead is compared by exact character inventory while the multi-word
+     * display suffix must remain in exact token order.
+     *
+     * @param list<AstNode> $blocks
+     * @param list<array<string,mixed>> $sourceItems
+     * @param array<int,string> $composedOutputPageProjections
+     * @return array{blocks:list<AstNode>,removedCount:int}
+     */
+    private function pdfBlocksWithoutProvenCrossLaneDuplicateDisplays(
+        array $blocks,
+        array $sourceItems,
+        array $composedOutputPageProjections = []
+    ): array {
+        $proofs = [];
+        foreach ($sourceItems as $item) {
+            if (($item['sourcePdfCrossLaneDisplayArtifactRole'] ?? null)
+                    !== 'whole-display-artifact'
+                || !is_array($item['sourcePdfCrossLaneDisplayArtifactEvidence'] ?? null)) {
+                continue;
+            }
+            $proof = $item['sourcePdfCrossLaneDisplayArtifactEvidence'];
+            if (!$this->pdfCrossLaneDisplayArtifactEvidenceMatchesSourceItems(
+                $proof,
+                $sourceItems
+            )) {
+                continue;
+            }
+            $digest = is_string($proof['proofDigest'] ?? null)
+                ? $proof['proofDigest']
+                : '';
+            if ($digest !== '') {
+                $proofs[$digest] = $proof;
+            }
+        }
+        if ($proofs === [] || $blocks === []) {
+            return [
+                'blocks' => $blocks,
+                'removedCount' => 0,
+                'pageProjectionReplacements' => [],
+                'pageProjectionProofPreserved' => true,
+            ];
+        }
+
+        $removeIndexes = [];
+        foreach ($proofs as $proof) {
+            $displayTokens = [];
+            foreach ($proof['splitRows'] as $row) {
+                array_push(
+                    $displayTokens,
+                    ...$this->pdfComparableWordTokens((string) ($row['prefixText'] ?? ''))
+                );
+            }
+            $artifactTokens = $this->pdfComparableWordTokens(
+                (string) ($proof['artifact']['text'] ?? '')
+            );
+            if ($displayTokens === []
+                || $artifactTokens === []
+                || !hash_equals(
+                    (string) ($proof['displayTokenDigest'] ?? ''),
+                    hash('sha256', implode("\0", $displayTokens))
+                )) {
+                continue;
+            }
+            $matches = [];
+            foreach ($blocks as $blockIndex => $block) {
+                if ($block->type !== 'paragraph') {
+                    continue;
+                }
+                $tokens = $this->pdfComparableWordTokens(
+                    (string) $block->attr('text', '')
+                );
+                $prefixCount = count($tokens) - count($displayTokens);
+                if ($prefixCount < 1
+                    || $prefixCount > max(3, count($artifactTokens) + 1)
+                    || array_slice($tokens, $prefixCount) !== $displayTokens) {
+                    continue;
+                }
+                $lead = implode('', array_slice($tokens, 0, $prefixCount));
+                $artifact = implode('', $artifactTokens);
+                if ($this->pdfExactCharacterInventory($lead)
+                    !== $this->pdfExactCharacterInventory($artifact)) {
+                    continue;
+                }
+                $matches[] = $blockIndex;
+            }
+            if (count($matches) === 1 && !isset($removeIndexes[$matches[0]])) {
+                $removeIndexes[$matches[0]] = (int) ($proof['page'] ?? 0);
+            }
+        }
+        if ($removeIndexes === []) {
+            return [
+                'blocks' => $blocks,
+                'removedCount' => 0,
+                'pageProjectionReplacements' => [],
+                'pageProjectionProofPreserved' => true,
+            ];
+        }
+
+        // Candidate-page blocks carry an independent, exact page projection
+        // envelope. Removing a proved display-only paragraph must update that
+        // envelope rather than discard it: otherwise the source ledger loses
+        // the page partition for every unrelated paragraph. Re-sign only a
+        // complete affected page group which validated before the removal.
+        $originalPageProofs = $this->pdfFinalOutputPageProofs($blocks);
+        $affectedPages = [];
+        $pageProjectionProofPreserved = true;
+        $removedBlocksHaveOutputPageProofs = $originalPageProofs !== [];
+        foreach ($removeIndexes as $removeIndex => $provedPage) {
+            $outputPageProof = $blocks[$removeIndex]->attr(self::PDF_OUTPUT_PAGE_PROOF_ATTR);
+            $page = is_array($outputPageProof) && is_int($outputPageProof['page'] ?? null)
+                ? $outputPageProof['page']
+                : $provedPage;
+            if ($page < 1 || $page !== $provedPage) {
+                $pageProjectionProofPreserved = false;
+                break;
+            }
+            if (!is_array($outputPageProof) || !isset($originalPageProofs[$page])) {
+                $removedBlocksHaveOutputPageProofs = false;
+            }
+            $affectedPages[$page] = true;
+        }
+
+        $filteredBlocks = array_values(array_filter(
+            $blocks,
+            static fn (AstNode $_block, int $index): bool => !isset($removeIndexes[$index]),
+            ARRAY_FILTER_USE_BOTH
+        ));
+        $pageProjectionReplacements = [];
+        if ($pageProjectionProofPreserved && $removedBlocksHaveOutputPageProofs) {
+            $restampedBlocks = [];
+            for ($index = 0, $count = count($filteredBlocks); $index < $count;) {
+                $block = $filteredBlocks[$index];
+                $outputPageProof = $block->attr(self::PDF_OUTPUT_PAGE_PROOF_ATTR);
+                $page = is_array($outputPageProof) && is_int($outputPageProof['page'] ?? null)
+                    ? $outputPageProof['page']
+                    : 0;
+                if ($page < 1 || !isset($affectedPages[$page])) {
+                    $restampedBlocks[] = $block;
+                    $index++;
+                    continue;
+                }
+
+                $pageBlocks = [];
+                while ($index < $count) {
+                    $candidate = $filteredBlocks[$index];
+                    $candidateProof = $candidate->attr(self::PDF_OUTPUT_PAGE_PROOF_ATTR);
+                    if (!is_array($candidateProof)
+                        || ($candidateProof['page'] ?? null) !== $page) {
+                        break;
+                    }
+                    $pageBlocks[] = $candidate;
+                    $index++;
+                }
+                if ($pageBlocks === [] || isset($pageProjectionReplacements[$page])) {
+                    $pageProjectionProofPreserved = false;
+                    break;
+                }
+                $projection = '';
+                foreach ($pageBlocks as $pageBlock) {
+                    $leaves = [];
+                    $this->appendPdfSourceBindingLeafText($pageBlock, $leaves);
+                    $projection .= implode('', $leaves);
+                }
+                if ($projection === '') {
+                    $pageProjectionProofPreserved = false;
+                    break;
+                }
+                $pageProjectionReplacements[$page] = $projection;
+                array_push(
+                    $restampedBlocks,
+                    ...$this->pdfBlocksWithOutputPageProof($page, $pageBlocks)
+                );
+            }
+            if ($pageProjectionProofPreserved
+                && array_fill_keys(array_keys($pageProjectionReplacements), true)
+                    === $affectedPages) {
+                $updatedPageProofs = $this->pdfFinalOutputPageProofs($restampedBlocks);
+                foreach ($pageProjectionReplacements as $page => $projection) {
+                    if (!isset($updatedPageProofs[$page])
+                        || !hash_equals($updatedPageProofs[$page]['projection'], $projection)) {
+                        $pageProjectionProofPreserved = false;
+                        break;
+                    }
+                }
+                if ($pageProjectionProofPreserved) {
+                    $filteredBlocks = $restampedBlocks;
+                }
+            } else {
+                $pageProjectionProofPreserved = false;
+            }
+        }
+
+        // Conservative pages do not carry candidate AST markers, but their
+        // compositor projection is still an exact, complete page-local byte
+        // stream. In that case, bind each uniquely matched removed paragraph
+        // to the page named by the signed source graph and subtract its exact
+        // significant projection. A missing page or repeated byte sequence
+        // fails closed and invalidates the page proof.
+        if ($pageProjectionProofPreserved && !$removedBlocksHaveOutputPageProofs) {
+            $pageProjectionReplacements = $composedOutputPageProjections;
+            foreach ($removeIndexes as $removeIndex => $page) {
+                $pageProjection = $pageProjectionReplacements[$page] ?? null;
+                $leaves = [];
+                $this->appendPdfSourceBindingLeafText($blocks[$removeIndex], $leaves);
+                $removedProjection = implode('', $leaves);
+                if (!is_string($pageProjection)
+                    || $pageProjection === ''
+                    || $removedProjection === ''
+                    || substr_count($pageProjection, $removedProjection) !== 1) {
+                    $pageProjectionProofPreserved = false;
+                    break;
+                }
+                $offset = strpos($pageProjection, $removedProjection);
+                if (!is_int($offset)) {
+                    $pageProjectionProofPreserved = false;
+                    break;
+                }
+                $pageProjectionReplacements[$page] = substr($pageProjection, 0, $offset)
+                    . substr($pageProjection, $offset + strlen($removedProjection));
+            }
+            if ($pageProjectionProofPreserved) {
+                $pageProjectionReplacements = array_intersect_key(
+                    $pageProjectionReplacements,
+                    $affectedPages
+                );
+                foreach ($pageProjectionReplacements as $projection) {
+                    if ($projection === '') {
+                        $pageProjectionProofPreserved = false;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return [
+            'blocks' => $filteredBlocks,
+            'removedCount' => count($removeIndexes),
+            'pageProjectionReplacements' => $pageProjectionProofPreserved
+                ? $pageProjectionReplacements
+                : [],
+            'pageProjectionProofPreserved' => $pageProjectionProofPreserved,
+        ];
     }
 
     /**
@@ -30236,6 +37985,83 @@ final class PdfReader
     }
 
     /**
+     * Some scan-front-matter OCR uses a leading plus as the only surviving
+     * list marker and attaches it directly to a title-cased item lead. A lone
+     * plus can be ordinary editable syntax, so require at least three such
+     * long-text records in one exact page/stream scope before preserving their
+     * source boundaries as reviewable paragraphs. Text and source order stay
+     * byte-for-byte unchanged.
+     *
+     * @param list<array{text:string,layout:array<string,mixed>|null}> $records
+     * @return list<array{text:string,layout:array<string,mixed>|null}>
+     */
+    private function pdfRecordsWithSparseOcrPlusBoundaries(array $records): array
+    {
+        if (!$this->pdfLinesLookLikeSparseLongTextChunks($records)) {
+            return $records;
+        }
+
+        $candidateIndexesByScope = [];
+        foreach ($records as $index => $record) {
+            $text = trim((string) ($record['text'] ?? ''));
+            $layout = is_array($record['layout'] ?? null) ? $record['layout'] : null;
+            $page = is_array($layout) ? (int) ($layout['page'] ?? 0) : 0;
+            $stream = is_array($layout)
+                ? (int) ($layout['sourceStream'] ?? $layout['stream'] ?? 0)
+                : 0;
+            if ($page < 1
+                || $stream < 1
+                || ($layout['code'] ?? false) === true
+                || isset($layout['sourcePdfTableGroup'])
+                || isset($layout['sourcePdfLineOrientedGroup'])
+                || preg_match('/^\+\p{Lu}[\p{L}\p{M}\p{Pd}]*\s+/u', $text) !== 1
+                || count($this->pdfLineWordTokens($text)) < 6) {
+                continue;
+            }
+            $candidateIndexesByScope[$page . "\0" . $stream][] = $index;
+        }
+
+        foreach ($candidateIndexesByScope as $indexes) {
+            if (count($indexes) < 3) {
+                continue;
+            }
+            $firstLayout = is_array($records[$indexes[0]]['layout'] ?? null)
+                ? $records[$indexes[0]]['layout']
+                : null;
+            $introIndex = $indexes[0] - 1;
+            $introLayout = $introIndex >= 0
+                && is_array($records[$introIndex]['layout'] ?? null)
+                    ? $records[$introIndex]['layout']
+                    : null;
+            $introText = $introIndex >= 0
+                ? trim((string) ($records[$introIndex]['text'] ?? ''))
+                : '';
+            $introWordCount = count($this->pdfLineWordTokens($introText));
+            if (is_array($firstLayout)
+                && is_array($introLayout)
+                && (int) ($introLayout['page'] ?? 0)
+                    === (int) ($firstLayout['page'] ?? -1)
+                && (int) ($introLayout['sourceStream'] ?? $introLayout['stream'] ?? 0)
+                    === (int) ($firstLayout['sourceStream'] ?? $firstLayout['stream'] ?? -1)
+                && $introWordCount >= 3
+                && $introWordCount <= 12
+                && preg_match('/:\s*$/u', $introText) === 1) {
+                $introLayout['forceBlockBreakBefore'] = true;
+                $records[$introIndex]['layout'] = $introLayout;
+            }
+            foreach ($indexes as $index) {
+                $layout = is_array($records[$index]['layout'] ?? null)
+                    ? $records[$index]['layout']
+                    : [];
+                $layout['forceBlockBreakBefore'] = true;
+                $records[$index]['layout'] = $layout;
+            }
+        }
+
+        return $records;
+    }
+
+    /**
      * @param list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}> $records
      * @return list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}>
      */
@@ -30304,6 +38130,7 @@ final class PdfReader
             // Preserve the exact source characters and their source order as
             // one line-oriented block; the proof deliberately supplies no
             // fabricated per-record coordinates.
+            $this->registerSourcePdfMapGlyphLadderArtifactProofs($records);
             return $this->atomicPdfMapLabelRecords($records);
         }
 
@@ -30369,6 +38196,233 @@ final class PdfReader
         }
 
         return $proofIdentity !== null;
+    }
+
+    /**
+     * Sign only the exact source occurrences that the map-label renderer will
+     * omit under its existing greater-than-sixteen compact-line bound. The
+     * independently positioned page evidence establishes a sustained spatial
+     * map region; consecutive immutable source IDs and full occurrence ranges
+     * keep an unrelated short prose run from borrowing that classification.
+     *
+     * @param list<array{text:string,layout:array<string,mixed>|null}> $records
+     */
+    private function registerSourcePdfMapGlyphLadderArtifactProofs(array $records): void
+    {
+        $run = [];
+        $flush = function () use (&$run): void {
+            if (count($run) <= 16) {
+                $run = [];
+                return;
+            }
+
+            $firstLayout = is_array($run[0]['layout'] ?? null)
+                ? $run[0]['layout']
+                : null;
+            $pageEvidence = is_array(
+                $firstLayout['sourcePdfPageMapLabelGeometryEvidence'] ?? null
+            ) ? $firstLayout['sourcePdfPageMapLabelGeometryEvidence'] : null;
+            $page = is_array($firstLayout) ? (int) ($firstLayout['page'] ?? 0) : 0;
+            $stream = is_array($firstLayout)
+                ? (int) ($firstLayout['sourceStream'] ?? $firstLayout['stream'] ?? 0)
+                : 0;
+            if ($pageEvidence === null
+                || ($pageEvidence['kind'] ?? null)
+                    !== 'positioned-sustained-map-label-region'
+                || ($pageEvidence['sourceSha256'] ?? null) !== $this->sourceSha256
+                || ($pageEvidence['page'] ?? null) !== $page
+                || (int) ($pageEvidence['mapLabelRecordCount'] ?? 0) < 8
+                || (int) ($pageEvidence['positionedRecordCount'] ?? 0)
+                    < (int) $pageEvidence['mapLabelRecordCount']
+                || $page < 1
+                || $stream < 1) {
+                $run = [];
+                return;
+            }
+
+            $lines = [];
+            $sourceIds = [];
+            $globalIndexes = [];
+            $previousGlobalIndex = null;
+            foreach ($run as $record) {
+                $layout = is_array($record['layout'] ?? null)
+                    ? $record['layout']
+                    : null;
+                $text = trim((string) ($record['text'] ?? ''));
+                $projection = $this->pdfSourceOccurrenceComparableText($text);
+                $sourceId = is_array($layout) && is_string($layout['id'] ?? null)
+                    ? $layout['id']
+                    : '';
+                $globalIndex = is_array($layout)
+                    && is_int($layout['sourcePdfGlobalSourceIndex'] ?? null)
+                        ? $layout['sourcePdfGlobalSourceIndex']
+                        : -1;
+                $ranges = is_array($layout)
+                    ? $this->pdfPositionedExactSourceRanges($layout)
+                    : [];
+                if ($sourceId === ''
+                    || $globalIndex < 0
+                    || $projection === ''
+                    || $this->length($text) > 3
+                    || (int) ($layout['page'] ?? 0) !== $page
+                    || (int) ($layout['sourceStream'] ?? $layout['stream'] ?? 0)
+                        !== $stream
+                    || ($layout['sourcePdfPageMapLabelGeometryEvidence'] ?? null)
+                        !== $pageEvidence
+                    || ($previousGlobalIndex !== null
+                        && $globalIndex !== $previousGlobalIndex + 1)
+                    || $ranges !== [[
+                        'sourceIndex' => $globalIndex,
+                        'sourceStart' => 0,
+                        'sourceEnd' => strlen($projection),
+                    ]]) {
+                    $run = [];
+                    return;
+                }
+                $sourceIds[] = $sourceId;
+                $globalIndexes[] = $globalIndex;
+                $lines[] = [
+                    'sourceOccurrenceId' => $sourceId,
+                    'globalSourceIndex' => $globalIndex,
+                    'projectionDigest' => hash('sha256', $projection),
+                    'significantBytes' => strlen($projection),
+                    'exactRange' => $ranges[0],
+                ];
+                $previousGlobalIndex = $globalIndex;
+            }
+            if (count(array_unique($sourceIds, SORT_STRING)) !== count($sourceIds)
+                || count(array_unique($globalIndexes, SORT_NUMERIC))
+                    !== count($globalIndexes)) {
+                $run = [];
+                return;
+            }
+
+            $proof = [
+                'version' => 1,
+                'method' => 'exact-source-sustained-map-glyph-ladder',
+                'sourceSha256' => $this->sourceSha256,
+                'page' => $page,
+                'stream' => $stream,
+                'boundedShortRunLimit' => 16,
+                'lineCount' => count($lines),
+                'sourceOccurrenceIds' => $sourceIds,
+                'globalSourceIndexes' => $globalIndexes,
+                'pageMapLabelGeometryEvidence' => $pageEvidence,
+                'lines' => $lines,
+            ];
+            $proof['proofDigest'] = hash('sha256', json_encode(
+                $proof,
+                JSON_UNESCAPED_SLASHES
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: '');
+            foreach ($sourceIds as $sourceId) {
+                $existing = $this->sourcePdfMapGlyphLadderArtifactProofsBySourceId[
+                    $sourceId
+                ] ?? null;
+                if (is_array($existing) && $existing !== $proof) {
+                    $run = [];
+                    return;
+                }
+            }
+            foreach ($sourceIds as $sourceId) {
+                $this->sourcePdfMapGlyphLadderArtifactProofsBySourceId[$sourceId] =
+                    $proof;
+            }
+            $run = [];
+        };
+
+        foreach ($records as $record) {
+            if ($this->length(trim((string) ($record['text'] ?? ''))) <= 3) {
+                $run[] = $record;
+                continue;
+            }
+            $flush();
+        }
+        $flush();
+    }
+
+    /**
+     * @param array<string,mixed> $proof
+     * @param list<array<string,mixed>> $lineItems
+     */
+    private function sourcePdfMapGlyphLadderArtifactProofMatchesSourceItems(
+        array $proof,
+        array $lineItems
+    ): bool {
+        $sourceIds = $proof['sourceOccurrenceIds'] ?? null;
+        $globalIndexes = $proof['globalSourceIndexes'] ?? null;
+        $lines = $proof['lines'] ?? null;
+        $pageEvidence = $proof['pageMapLabelGeometryEvidence'] ?? null;
+        if (!$this->sourcePdfSignedProofDigestMatches($proof)
+            || ($proof['method'] ?? null)
+                !== 'exact-source-sustained-map-glyph-ladder'
+            || ($proof['boundedShortRunLimit'] ?? null) !== 16
+            || !is_int($proof['lineCount'] ?? null)
+            || $proof['lineCount'] <= 16
+            || !is_array($sourceIds)
+            || !array_is_list($sourceIds)
+            || !is_array($globalIndexes)
+            || !array_is_list($globalIndexes)
+            || !is_array($lines)
+            || !array_is_list($lines)
+            || count($sourceIds) !== $proof['lineCount']
+            || count($globalIndexes) !== $proof['lineCount']
+            || count($lines) !== $proof['lineCount']
+            || count(array_unique($sourceIds, SORT_STRING)) !== count($sourceIds)
+            || count(array_unique($globalIndexes, SORT_NUMERIC))
+                !== count($globalIndexes)
+            || !is_array($pageEvidence)
+            || ($pageEvidence['kind'] ?? null)
+                !== 'positioned-sustained-map-label-region'
+            || ($pageEvidence['sourceSha256'] ?? null) !== $this->sourceSha256
+            || ($pageEvidence['page'] ?? null) !== ($proof['page'] ?? null)
+            || (int) ($pageEvidence['mapLabelRecordCount'] ?? 0) < 8
+            || (int) ($pageEvidence['positionedRecordCount'] ?? 0)
+                < (int) $pageEvidence['mapLabelRecordCount']) {
+            return false;
+        }
+
+        $previousGlobalIndex = null;
+        foreach ($globalIndexes as $offset => $globalIndex) {
+            $sourceId = $sourceIds[$offset] ?? null;
+            $line = $lines[$offset] ?? null;
+            $item = is_int($globalIndex) ? ($lineItems[$globalIndex] ?? null) : null;
+            $projection = is_array($item)
+                ? $this->pdfSourceOccurrenceComparableText(
+                    (string) ($item['text'] ?? '')
+                )
+                : '';
+            if (!is_int($globalIndex)
+                || $globalIndex < 0
+                || !is_string($sourceId)
+                || $sourceId === ''
+                || !is_array($line)
+                || !is_array($item)
+                || ($item['id'] ?? null) !== $sourceId
+                || (int) ($item['page'] ?? 0) !== ($proof['page'] ?? null)
+                || (int) ($item['stream'] ?? 0) !== ($proof['stream'] ?? null)
+                || $projection === ''
+                || $this->length(trim((string) ($item['text'] ?? ''))) > 3
+                || ($previousGlobalIndex !== null
+                    && $globalIndex !== $previousGlobalIndex + 1)
+                || $line !== [
+                    'sourceOccurrenceId' => $sourceId,
+                    'globalSourceIndex' => $globalIndex,
+                    'projectionDigest' => hash('sha256', $projection),
+                    'significantBytes' => strlen($projection),
+                    'exactRange' => [
+                        'sourceIndex' => $globalIndex,
+                        'sourceStart' => 0,
+                        'sourceEnd' => strlen($projection),
+                    ],
+                ]) {
+                return false;
+            }
+            $previousGlobalIndex = $globalIndex;
+        }
+
+        return true;
     }
 
     /**
@@ -33154,6 +41208,7 @@ final class PdfReader
     ): array {
         $collectExactWholeSourceMergedLineSpans = func_num_args() >= 2;
         $exactWholeSourceMergedLineSpans = [];
+        $records = $this->pdfRecordsWithSparseOcrPlusBoundaries($records);
         $localLayoutLabelProofs = $this->pdfLocalCreditAndFooterLayoutLabelProofCandidates($records);
         $localLayoutLabelTargetIndexes = $this->pdfLocalLayoutLabelProofTargetRecordIndexes(
             $records,
@@ -33181,7 +41236,26 @@ final class PdfReader
             $carrierProjection = $this->pdfSourceOccurrenceComparableText(
                 $this->pdfTextWithoutSemanticPrefixes((string) ($record['text'] ?? ''))
             );
+            $inlineStyleProof = is_array($layout['sourcePdfInlineFontStyleProof'] ?? null)
+                ? $this->validatedPdfInlineFontStyleProof(
+                    $layout['sourcePdfInlineFontStyleProof']
+                )
+                : null;
             if ($collectExactWholeSourceMergedLineSpans
+                && is_array($layout)
+                && $carrierProjection !== ''
+                && is_array($inlineStyleProof)
+                && hash_equals(
+                    (string) $inlineStyleProof['projectionDigest'],
+                    hash('sha256', $carrierProjection)
+                )) {
+                $exactWholeSourceReceiptsByOrigin[$originDigest] = [
+                    'recordIndex' => $recordIndex,
+                    'sourceOccurrenceIds' => $inlineStyleProof['sourceOccurrenceIds'],
+                    'globalSourceIndexes' => $inlineStyleProof['globalSourceIndexes'],
+                    'projection' => $carrierProjection,
+                ];
+            } elseif ($collectExactWholeSourceMergedLineSpans
                 && is_array($layout)
                 && $carrierProjection !== ''
                 && $this->repairedPdfWholeExactSourceOccurrenceProofMatchesLayout(
@@ -33191,8 +41265,8 @@ final class PdfReader
                 $wholeSourceProof = $layout['sourcePdfWholeExactSourceOccurrenceProof'];
                 $exactWholeSourceReceiptsByOrigin[$originDigest] = [
                     'recordIndex' => $recordIndex,
-                    'sourceOccurrenceId' => $wholeSourceProof['sourceOccurrenceId'],
-                    'globalSourceIndex' => $wholeSourceProof['globalSourceIndex'],
+                    'sourceOccurrenceIds' => [$wholeSourceProof['sourceOccurrenceId']],
+                    'globalSourceIndexes' => [$wholeSourceProof['globalSourceIndex']],
                     'projection' => $carrierProjection,
                 ];
             }
@@ -33556,8 +41630,8 @@ final class PdfReader
      * @param array<string,true>|null $originSet
      * @param array<string,array{
      *   recordIndex:int,
-     *   sourceOccurrenceId:string,
-     *   globalSourceIndex:int,
+     *   sourceOccurrenceIds:list<string>,
+     *   globalSourceIndexes:list<int>,
      *   projection:string
      * }> $receiptsByOrigin
      * @param array<string,int> $originOutputCounts
@@ -33594,24 +41668,38 @@ final class PdfReader
         $globalSourceIndexes = [];
         $projection = '';
         $seenSourceIds = [];
-        foreach ($receipts as $receiptIndex => $receipt) {
-            $sourceId = $receipt['sourceOccurrenceId'] ?? null;
-            $globalSourceIndex = $receipt['globalSourceIndex'] ?? null;
+        foreach ($receipts as $receipt) {
+            $receiptSourceIds = $receipt['sourceOccurrenceIds'] ?? null;
+            $receiptGlobalIndexes = $receipt['globalSourceIndexes'] ?? null;
             $part = $receipt['projection'] ?? null;
-            if (!is_string($sourceId)
-                || $sourceId === ''
-                || isset($seenSourceIds[$sourceId])
-                || !is_int($globalSourceIndex)
-                || $globalSourceIndex < 0
+            if (!is_array($receiptSourceIds)
+                || !array_is_list($receiptSourceIds)
+                || $receiptSourceIds === []
+                || !is_array($receiptGlobalIndexes)
+                || !array_is_list($receiptGlobalIndexes)
+                || count($receiptGlobalIndexes) !== count($receiptSourceIds)
                 || !is_string($part)
-                || $part === ''
-                || ($receiptIndex > 0
-                    && $globalSourceIndex !== $globalSourceIndexes[$receiptIndex - 1] + 1)) {
+                || $part === '') {
                 return null;
             }
-            $seenSourceIds[$sourceId] = true;
-            $sourceOccurrenceIds[] = $sourceId;
-            $globalSourceIndexes[] = $globalSourceIndex;
+            foreach ($receiptSourceIds as $receiptIndex => $sourceId) {
+                $globalSourceIndex = $receiptGlobalIndexes[$receiptIndex] ?? null;
+                $previousGlobalIndex = $globalSourceIndexes === []
+                    ? null
+                    : $globalSourceIndexes[array_key_last($globalSourceIndexes)];
+                if (!is_string($sourceId)
+                    || $sourceId === ''
+                    || isset($seenSourceIds[$sourceId])
+                    || !is_int($globalSourceIndex)
+                    || $globalSourceIndex < 0
+                    || ($previousGlobalIndex !== null
+                        && $globalSourceIndex !== $previousGlobalIndex + 1)) {
+                    return null;
+                }
+                $seenSourceIds[$sourceId] = true;
+                $sourceOccurrenceIds[] = $sourceId;
+                $globalSourceIndexes[] = $globalSourceIndex;
+            }
             $projection .= $part;
         }
         $lineProjection = $this->pdfSourceOccurrenceComparableText(
@@ -34182,6 +42270,19 @@ final class PdfReader
                 $layout
             );
             if (($layout['sourcePdfDisplayHeading'] ?? false) === true) {
+                if (($layout['sourcePdfFrontMatterRole'] ?? null) === 'title'
+                    && ($pendingLayout['sourcePdfFrontMatterRole'] ?? null) === 'title'
+                    && str_starts_with($pending, self::PDF_DISPLAY_HEADING_PREFIX)) {
+                    $pending = self::PDF_DISPLAY_HEADING_PREFIX
+                        . trim(substr($pending, strlen(self::PDF_DISPLAY_HEADING_PREFIX)))
+                        . ' '
+                        . ltrim($line);
+                    // Both source carriers remain represented by the merge
+                    // origin union. A multi-occurrence title is not one exact
+                    // positioned carrier, so do not manufacture such a proof.
+                    $pendingWholeExactPositionedCarrierProjection = null;
+                    continue;
+                }
                 if ($pending !== '') {
                     $merged[] = $pending;
                 }
@@ -34436,8 +42537,16 @@ final class PdfReader
                 $pendingWholeExactPositionedCarrierProjection = $lineWholeExactPositionedCarrierProjection;
                 continue;
             }
+            $numberedSubheading = $this->repairedPdfEqualFontOutdentedNumberedHeading(
+                $pending,
+                $line,
+                $pendingLayout,
+                $layout
+            );
             if ($this->repairedPdfNumberedDisplayHeadingPrecedesBody($pending, $line, $pendingLayout, $layout)) {
-                $merged[] = self::PDF_NUMBERED_HEADING_PREFIX . $pending;
+                $merged[] = ($numberedSubheading
+                    ? self::PDF_NUMBERED_SUBHEADING_PREFIX
+                    : self::PDF_NUMBERED_HEADING_PREFIX) . $pending;
                 $pending = $line;
                 $pendingLayout = $layout;
                 $pendingWholeExactPositionedCarrierProjection = $lineWholeExactPositionedCarrierProjection;
@@ -35433,7 +43542,13 @@ final class PdfReader
 
         $previousFont = max(1.0, (float) $previousLayout['fontSize']);
         $lineFont = max(1.0, (float) $lineLayout['fontSize']);
-        if ($previousFont <= $lineFont * 1.10) {
+        if ($previousFont <= $lineFont * 1.10
+            && !$this->repairedPdfEqualFontOutdentedNumberedHeading(
+                $previous,
+                $line,
+                $previousLayout,
+                $lineLayout
+            )) {
             return false;
         }
 
@@ -35441,6 +43556,46 @@ final class PdfReader
 
         return $verticalStep >= $lineFont * 0.30
             && $verticalStep <= max(24.0, $previousFont * 2.5);
+    }
+
+    /**
+     * Equal-font section labels are distinguishable from hanging list items
+     * when the numbered all-caps display core is materially outdented from
+     * the following sentence-case body lane.
+     *
+     * @param array<string,mixed>|null $previousLayout
+     * @param array<string,mixed>|null $lineLayout
+     */
+    private function repairedPdfEqualFontOutdentedNumberedHeading(
+        string $previous,
+        string $line,
+        ?array $previousLayout,
+        ?array $lineLayout
+    ): bool {
+        if (!$this->pdfLayoutHasGeometry($previousLayout)
+            || !$this->pdfLayoutHasGeometry($lineLayout)
+            || ($previousLayout['page'] ?? null) !== ($lineLayout['page'] ?? null)
+            || preg_match('/^\s*\d+(?:\.\d+)*(?:\.)?\s+\p{Lu}/u', $previous) !== 1
+            || preg_match('/^[^\p{L}\p{N}]*\p{Lu}/u', ltrim($line)) !== 1
+            || $this->lineHasPdfListBlockEvidence($line)) {
+            return false;
+        }
+        $previousFont = max(1.0, (float) $previousLayout['fontSize']);
+        $lineFont = max(1.0, (float) $lineLayout['fontSize']);
+        $displayText = preg_replace(
+            '/^\s*\d+(?:\.\d+)*(?:\.)?\s+/u',
+            '',
+            trim($previous)
+        ) ?? '';
+        $displayCore = preg_replace('/\s*\([^()]++\)\s*$/u', '', $displayText) ?? $displayText;
+        $uppercaseLetters = preg_match_all('/\p{Lu}/u', $displayCore, $unusedUppercase);
+        return abs($previousFont - $lineFont) <= max(0.75, $lineFont * 0.12)
+            && (float) $lineLayout['x1'] - (float) $previousLayout['x1'] >= max(18.0, $lineFont * 2.0)
+            && preg_match('/\p{Ll}/u', $displayCore) !== 1
+            && $uppercaseLetters !== false
+            && $uppercaseLetters >= 5
+            && (!isset($previousLayout['sourceStream'], $lineLayout['sourceStream'])
+                || (int) $previousLayout['sourceStream'] === (int) $lineLayout['sourceStream']);
     }
 
     private function repairedPdfSourceStreamTailText(string $text): string
@@ -36254,6 +44409,7 @@ final class PdfReader
             self::PDF_LAYOUT_LABEL_PREFIX,
             self::PDF_DISPLAY_HEADING_PREFIX,
             self::PDF_NUMBERED_HEADING_PREFIX,
+            self::PDF_NUMBERED_SUBHEADING_PREFIX,
         ];
     }
 
@@ -36293,11 +44449,49 @@ final class PdfReader
     }
 
     /**
+     * A map may expose rotated words as one editable record per painted
+     * glyph. A sustained run of more than sixteen one-to-three-character
+     * records is not a credible sequence of independent labels; omit that
+     * ladder while retaining every surrounding multi-character place name,
+     * trail label, legend entry, and short structural run.
+     *
+     * @param list<string> $labels
+     * @return list<string>
+     */
+    private function boundedPdfMapLabelLines(array $labels): array
+    {
+        $bounded = [];
+        $shortRun = [];
+        $flush = static function () use (&$bounded, &$shortRun): void {
+            if (count($shortRun) <= 16) {
+                array_push($bounded, ...$shortRun);
+            }
+            $shortRun = [];
+        };
+
+        foreach ($labels as $label) {
+            if ($this->length($label) <= 3) {
+                $shortRun[] = $label;
+                continue;
+            }
+            $flush();
+            $bounded[] = $label;
+        }
+        $flush();
+
+        return $bounded;
+    }
+
+    /**
      * @param list<string> $lines
+     * @param array<int,array<string,mixed>> $exactWholeSourceMergedLineSpans
      * @return list<AstNode>
      */
-    private function blocksFromLines(array $lines, bool $allowStackedTables = true): array
-    {
+    private function blocksFromLines(
+        array $lines,
+        bool $allowStackedTables = true,
+        array $exactWholeSourceMergedLineSpans = []
+    ): array {
         $blocks = [];
         $pendingItems = [];
         $pendingOrdered = false;
@@ -36329,6 +44523,11 @@ final class PdfReader
         $lineCount = count($lines);
         while ($index < $lineCount) {
             $line = $lines[$index];
+            $lineSpan = $exactWholeSourceMergedLineSpans[$index] ?? null;
+            $lineSourceAttrs = $this->repairedPdfMergedLineHasExactWholeSourceSpan(
+                $line,
+                $lineSpan
+            ) ? ['sourcePdfExactMergedLineSpan' => $lineSpan] : [];
             if (str_starts_with($line, self::PDF_CODE_BLOCK_PREFIX)) {
                 $flushList();
                 $code = $this->pdfTextWithoutSemanticPrefixes(
@@ -36378,21 +44577,25 @@ final class PdfReader
             }
             if (str_starts_with($line, self::PDF_MAP_LABEL_PREFIX)) {
                 $flushList();
-                $mapLabelLines = [];
+                $mapLabelTexts = [];
                 while ($index < $lineCount
                     && str_starts_with($lines[$index], self::PDF_MAP_LABEL_PREFIX)) {
                     $label = trim($this->pdfTextWithoutSemanticPrefixes(
                         substr($lines[$index], strlen(self::PDF_MAP_LABEL_PREFIX))
                     ));
                     if ($label !== '') {
-                        $mapLabelLines[] = new AstNode(
-                            'line',
-                            ['sourceRole' => 'map-label'],
-                            $this->inlines($label)
-                        );
+                        $mapLabelTexts[] = $label;
                     }
                     $index++;
                 }
+                $mapLabelLines = array_map(
+                    fn (string $label): AstNode => new AstNode(
+                            'line',
+                            ['sourceRole' => 'map-label'],
+                            $this->inlines($label)
+                    ),
+                    $this->boundedPdfMapLabelLines($mapLabelTexts)
+                );
                 if (count($mapLabelLines) === 1) {
                     $blocks[] = new AstNode(
                         'paragraph',
@@ -36437,7 +44640,7 @@ final class PdfReader
                     $blocks[] = $this->paragraph($label, [
                         'classes' => ['pdf-layout-label'],
                         'sourceRole' => 'layout-label',
-                    ]);
+                    ] + $lineSourceAttrs);
                 }
                 $index++;
                 continue;
@@ -36448,7 +44651,12 @@ final class PdfReader
                     substr($line, strlen(self::PDF_DISPLAY_HEADING_PREFIX))
                 ));
                 if ($heading !== '') {
-                    $blocks[] = new AstNode('heading', ['level' => $index === 0 ? 1 : 2, 'text' => $heading], $this->inlines($heading));
+                    $blocks[] = new AstNode(
+                        'heading',
+                        ['level' => $index === 0 ? 1 : 2, 'text' => $heading]
+                            + $lineSourceAttrs,
+                        $this->inlines($heading)
+                    );
                 }
                 $index++;
                 continue;
@@ -36459,7 +44667,27 @@ final class PdfReader
                     substr($line, strlen(self::PDF_NUMBERED_HEADING_PREFIX))
                 ));
                 if ($heading !== '') {
-                    $blocks[] = new AstNode('heading', ['level' => $index === 0 ? 1 : 2, 'text' => $heading], $this->inlines($heading));
+                    $blocks[] = new AstNode(
+                        'heading',
+                        ['level' => $index === 0 ? 1 : 2, 'text' => $heading]
+                            + $lineSourceAttrs,
+                        $this->inlines($heading)
+                    );
+                }
+                $index++;
+                continue;
+            }
+            if (str_starts_with($line, self::PDF_NUMBERED_SUBHEADING_PREFIX)) {
+                $flushList();
+                $heading = trim($this->pdfTextWithoutSemanticPrefixes(
+                    substr($line, strlen(self::PDF_NUMBERED_SUBHEADING_PREFIX))
+                ));
+                if ($heading !== '') {
+                    $blocks[] = new AstNode(
+                        'heading',
+                        ['level' => 2, 'text' => $heading] + $lineSourceAttrs,
+                        $this->inlines($heading)
+                    );
                 }
                 $index++;
                 continue;
@@ -36501,7 +44729,12 @@ final class PdfReader
 
             if ($this->numberedPdfLineLooksLikeSectionHeading($lines, $index)) {
                 $flushList();
-                $blocks[] = new AstNode('heading', ['level' => $index === 0 ? 1 : 2, 'text' => $line], $this->inlines($line));
+                $blocks[] = new AstNode(
+                    'heading',
+                    ['level' => $index === 0 ? 1 : 2, 'text' => $line]
+                        + $lineSourceAttrs,
+                    $this->inlines($line)
+                );
                 $index++;
                 continue;
             }
@@ -36538,11 +44771,16 @@ final class PdfReader
             }
 
             if ($this->looksLikeHeading($line, $index, count($lines))) {
-                $blocks[] = new AstNode('heading', ['level' => $index === 0 ? 1 : 2, 'text' => $line], $this->inlines($line));
+                $blocks[] = new AstNode(
+                    'heading',
+                    ['level' => $index === 0 ? 1 : 2, 'text' => $line]
+                        + $lineSourceAttrs,
+                    $this->inlines($line)
+                );
                 $index++;
                 continue;
             }
-            $blocks[] = $this->paragraph($line);
+            $blocks[] = $this->paragraph($line, $lineSourceAttrs);
             $index++;
         }
         $flushList();
@@ -37022,6 +45260,19 @@ final class PdfReader
         array $sourceLayouts,
         array $sourceItems
     ): array {
+        $sourceItemsByGlobalIndex = [];
+        foreach ($sourceItems as $localIndex => $sourceItem) {
+            if (!is_array($sourceItem)) {
+                continue;
+            }
+            $globalIndex = is_int($sourceItem['sourcePdfGlobalSourceIndex'] ?? null)
+                ? $sourceItem['sourcePdfGlobalSourceIndex']
+                : $localIndex;
+            $sourceItemsByGlobalIndex[$globalIndex] = array_key_exists(
+                $globalIndex,
+                $sourceItemsByGlobalIndex
+            ) ? null : $sourceItem;
+        }
         foreach ($sourceLayouts as &$layout) {
             if (!is_array($layout)) {
                 continue;
@@ -37034,6 +45285,73 @@ final class PdfReader
                 // union cannot later masquerade as the stamped proof.
                 $layout['sourcePdfExactSourceRanges'] = $proof['ranges'];
                 $layout['sourcePdfWholeExactOccurrenceProof'] = $proof;
+                $occurrences = is_array($proof['occurrences'] ?? null)
+                    ? $proof['occurrences']
+                    : [];
+                $ranges = is_array($proof['ranges'] ?? null) ? $proof['ranges'] : [];
+                $occurrence = count($occurrences) === 1 && is_array($occurrences[0] ?? null)
+                    ? $occurrences[0]
+                    : null;
+                $range = count($ranges) === 1 && is_array($ranges[0] ?? null)
+                    ? $ranges[0]
+                    : null;
+                $globalIndex = is_array($occurrence)
+                    && is_int($occurrence['sourceIndex'] ?? null)
+                        ? $occurrence['sourceIndex']
+                        : null;
+                $sourceItem = is_int($globalIndex)
+                    ? ($sourceItemsByGlobalIndex[$globalIndex] ?? null)
+                    : null;
+                $sourceProjection = is_array($sourceItem)
+                    ? $this->pdfSourceOccurrenceComparableText(
+                        (string) ($sourceItem['text'] ?? '')
+                    )
+                    : '';
+                $sourceId = is_array($sourceItem) && is_string($sourceItem['id'] ?? null)
+                    ? $sourceItem['id']
+                    : '';
+                $sourceStream = is_array($sourceItem) ? (int) ($sourceItem['stream'] ?? 0) : 0;
+                // The degenerate one-occurrence union is also an exact
+                // identity proof. Retain the source-inventory binding beside
+                // the proof digest, not on the visual carrier itself: adding
+                // a native ID role would change exact-source recovery.
+                if ($sourceId !== ''
+                    && $sourceProjection !== ''
+                    && $sourceStream >= 1
+                    && is_array($range)
+                    && $range === [
+                        'sourceIndex' => $globalIndex,
+                        'sourceStart' => 0,
+                        'sourceEnd' => strlen($sourceProjection),
+                    ]
+                    && (int) ($occurrence['page'] ?? 0) === (int) ($sourceItem['page'] ?? -1)
+                    && (int) ($occurrence['stream'] ?? 0) === $sourceStream
+                    && hash_equals(
+                        (string) ($occurrence['significantDigest'] ?? ''),
+                        hash('sha256', $sourceProjection)
+                    )) {
+                    $identity = [
+                        'sourceOccurrenceId' => $sourceId,
+                        'globalSourceIndex' => $globalIndex,
+                        'page' => (int) $sourceItem['page'],
+                        'stream' => $sourceStream,
+                        'exactRange' => $range,
+                        'projectionDigest' => hash('sha256', $sourceProjection),
+                        'occurrenceProofDigest' => $proof['proofDigest'] ?? null,
+                    ];
+                    $proofDigest = is_string($proof['proofDigest'] ?? null)
+                        ? $proof['proofDigest']
+                        : '';
+                    if ($proofDigest !== '') {
+                        $existingIdentity = $this->sourceOccurrenceIdentityByWholeProofDigest[
+                            $proofDigest
+                        ] ?? null;
+                        $this->sourceOccurrenceIdentityByWholeProofDigest[$proofDigest] =
+                            $existingIdentity === null || $existingIdentity === $identity
+                                ? $identity
+                                : false;
+                    }
+                }
             }
         }
         unset($layout);
@@ -38032,6 +46350,14 @@ final class PdfReader
             $pages[(int) $page] = true;
         }
         ksort($pages, SORT_NUMERIC);
+        $acceptedCandidatePages = array_fill_keys(
+            array_map('intval', array_keys($tableBlocksByPage)),
+            true
+        );
+        $displayHeadingReferences = $this->positionedPdfAcceptedDisplayHeadingReferences(
+            $tableBlocksByPage,
+            $acceptedCandidatePages
+        );
 
         $blocks = [];
         $pendingLines = [];
@@ -38047,17 +46373,19 @@ final class PdfReader
                 return;
             }
             $pendingPageProjections = null;
+            $pendingLineSpans = [];
             if ($this->proseTextRepairEnabled()) {
                 $repaired = $this->repairProseTextLines(
                     $pendingLines,
                     $this->looksLikeProseRepairCandidate($pendingLines),
                     $pendingLayouts,
-                    $pendingPageProjections
+                    $pendingPageProjections,
+                    $pendingLineSpans
                 );
             } else {
                 $repaired = $pendingLines;
             }
-            foreach ($this->blocksFromLines($repaired) as $block) {
+            foreach ($this->blocksFromLines($repaired, true, $pendingLineSpans) as $block) {
                 $blocks[] = $block;
             }
             if (!is_array($pendingPageProjections)) {
@@ -38081,9 +46409,15 @@ final class PdfReader
         foreach (array_keys($pages) as $page) {
             if (isset($tableBlocksByPage[$page])) {
                 $flushPendingProse();
+                $acceptedPageBlocks = $this->positionedPdfBlocksWithAcceptedTablePageRoles(
+                    (int) $page,
+                    $tableBlocksByPage[$page],
+                    $acceptedCandidatePages,
+                    $displayHeadingReferences
+                );
                 $pageBlocks = $this->pdfBlocksWithOutputPageProof(
                     (int) $page,
-                    $tableBlocksByPage[$page]
+                    $acceptedPageBlocks
                 );
                 $pageProjection = $this->pdfSignificantProjectionFromBlocks($pageBlocks);
                 if ($pageProjection === '' || isset($outputPageProjections[(int) $page])) {
@@ -38133,6 +46467,334 @@ final class PdfReader
         }
 
         return $blocks;
+    }
+
+    /**
+     * Role receipts are generated while table geometry is still available,
+     * but become authoritative only here, after exact page-source binding has
+     * selected both the candidate and (for homology) its supporting page.
+     * This changes structure only; the accepted page text projection remains
+     * byte-for-byte identical.
+     *
+     * @param list<AstNode> $blocks
+     * @param array<int,true> $acceptedCandidatePages
+     * @param list<array<string,mixed>> $displayHeadingReferences
+     * @return list<AstNode>
+     */
+    private function positionedPdfBlocksWithAcceptedTablePageRoles(
+        int $page,
+        array $blocks,
+        array $acceptedCandidatePages,
+        array $displayHeadingReferences = []
+    ): array {
+        foreach ($blocks as &$block) {
+            $attrs = $block->baseAttrs();
+            $layoutProof = is_array($attrs['sourcePdfTableLayoutRoleProof'] ?? null)
+                ? $attrs['sourcePdfTableLayoutRoleProof']
+                : null;
+            $displayProof = is_array($attrs['sourcePdfTableDisplayHeadingProof'] ?? null)
+                ? $attrs['sourcePdfTableDisplayHeadingProof']
+                : null;
+            unset(
+                $attrs['sourcePdfTableLayoutRoleProof'],
+                $attrs['sourcePdfTableDisplayHeadingProof']
+            );
+
+            $type = $block->type;
+            if ($layoutProof !== null
+                && $type === 'heading'
+                && $this->positionedPdfTablePageRoleProofIsValid(
+                    $layoutProof,
+                    $page,
+                    (string) $block->attr('text', ''),
+                    $acceptedCandidatePages,
+                    ['column-header-label', 'summary-label', 'homologous-table-label']
+                )) {
+                $type = 'paragraph';
+                unset($attrs['level']);
+                $classes = is_array($attrs['classes'] ?? null) ? $attrs['classes'] : [];
+                $classes[] = 'pdf-layout-label';
+                $attrs['classes'] = array_values(array_unique($classes));
+                $attrs['sourceRole'] = 'layout-label';
+            } elseif ($displayProof !== null
+                && in_array($type, ['paragraph', 'heading'], true)
+                && $this->positionedPdfTablePageRoleProofIsValid(
+                    $displayProof,
+                    $page,
+                    (string) $block->attr('text', ''),
+                    $acceptedCandidatePages,
+                    ['display-heading']
+                )) {
+                $repair = $this->positionedPdfDisplayHeadingLeadingTokenRepair(
+                    (string) $block->attr('text', ''),
+                    $displayProof,
+                    $displayHeadingReferences,
+                    $page
+                );
+                if ($repair !== null) {
+                    $attrs['text'] = $repair['text'];
+                    $attrs['sourcePdfDisplayTokenRepairProof'] = $repair['proof'];
+                    $block = new AstNode(
+                        $block->type,
+                        array_replace($block->baseAttrs(), [
+                            'text' => $repair['text'],
+                            'sourcePdfDisplayTokenRepairProof' => $repair['proof'],
+                        ]),
+                        $this->inlines($repair['text']),
+                        $block->attributeResolver()
+                    );
+                    $this->positionedPdfDisplayTokenRepairProofs[] = $repair['proof'];
+                }
+                $type = 'heading';
+                $attrs['level'] = 2;
+            }
+
+            if ($type === $block->type
+                && $attrs === $block->baseAttrs()) {
+                continue;
+            }
+            $block = new AstNode(
+                $type,
+                $attrs,
+                $block->children(),
+                $block->attributeResolver()
+            );
+        }
+        unset($block);
+
+        return $blocks;
+    }
+
+    /**
+     * @param array<string,mixed> $proof
+     * @param array<int,true> $acceptedCandidatePages
+     * @param list<string> $allowedRoles
+     */
+    private function positionedPdfTablePageRoleProofIsValid(
+        array $proof,
+        int $page,
+        string $text,
+        array $acceptedCandidatePages,
+        array $allowedRoles
+    ): bool {
+        $proofDigest = is_string($proof['proofDigest'] ?? null)
+            ? $proof['proofDigest']
+            : '';
+        $unsigned = $proof;
+        unset($unsigned['proofDigest']);
+        $encoded = json_encode(
+            $unsigned,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+        );
+        $expectedDigest = hash(
+            'sha256',
+            is_string($encoded) ? $encoded : serialize($unsigned)
+        );
+        $key = $this->pdfComparableLineText($text);
+        $role = is_string($proof['role'] ?? null) ? $proof['role'] : '';
+        $supportPage = is_int($proof['supportPage'] ?? null)
+            ? $proof['supportPage']
+            : 0;
+        if (($proof['version'] ?? null) !== 1
+            || !is_string($proof['sourceSha256'] ?? null)
+            || !hash_equals($this->sourceSha256, $proof['sourceSha256'])
+            || !is_int($proof['page'] ?? null)
+            || $proof['page'] !== $page
+            || $key === ''
+            || !is_string($proof['targetTextDigest'] ?? null)
+            || !hash_equals(hash('sha256', $key), $proof['targetTextDigest'])
+            || $proofDigest === ''
+            || !hash_equals($expectedDigest, $proofDigest)
+            || !in_array($role, $allowedRoles, true)
+            || $supportPage < 1
+            || !isset($acceptedCandidatePages[$page], $acceptedCandidatePages[$supportPage])) {
+            return false;
+        }
+        if ($role === 'homologous-table-label') {
+            return $supportPage < $page
+                && is_int($proof['matchedRowCount'] ?? null)
+                && $proof['matchedRowCount'] >= 3
+                && is_int($proof['matchedCellCount'] ?? null)
+                && $proof['matchedCellCount'] >= 6
+                && is_numeric($proof['coverage'] ?? null)
+                && (float) $proof['coverage'] >= 0.70
+                && is_string($proof['tableBandDigest'] ?? null)
+                && preg_match('/^[a-f0-9]{64}$/D', $proof['tableBandDigest']) === 1;
+        }
+        if ($role === 'display-heading') {
+            return $supportPage === $page
+                && is_numeric($proof['fontSize'] ?? null)
+                && is_numeric($proof['medianFontSize'] ?? null)
+                && (float) $proof['fontSize'] >= 18.0
+                && (float) $proof['fontSize'] >= (float) $proof['medianFontSize'] * 2.0;
+        }
+
+        return $supportPage === $page
+            && is_string($proof['tableBandDigest'] ?? null)
+            && preg_match('/^[a-f0-9]{64}$/D', $proof['tableBandDigest']) === 1;
+    }
+
+    /**
+     * @param array<int,list<AstNode>> $blocksByPage
+     * @param array<int,true> $acceptedCandidatePages
+     * @return list<array<string,mixed>>
+     */
+    private function positionedPdfAcceptedDisplayHeadingReferences(
+        array $blocksByPage,
+        array $acceptedCandidatePages
+    ): array {
+        $references = [];
+        foreach ($blocksByPage as $page => $blocks) {
+            $page = (int) $page;
+            foreach ($blocks as $block) {
+                $proof = $block->attr('sourcePdfTableDisplayHeadingProof');
+                $text = (string) $block->attr('text', '');
+                if (!is_array($proof)
+                    || !$this->positionedPdfTablePageRoleProofIsValid(
+                        $proof,
+                        $page,
+                        $text,
+                        $acceptedCandidatePages,
+                        ['display-heading']
+                    )) {
+                    continue;
+                }
+                $matched = preg_match_all(
+                    '/\p{L}[\p{L}\p{M}]*/u',
+                    $text,
+                    $tokens,
+                    PREG_OFFSET_CAPTURE
+                );
+                if (!is_int($matched) || $matched < 1) {
+                    continue;
+                }
+                foreach ($tokens[0] as $token) {
+                    $tokenText = (string) ($token[0] ?? '');
+                    if ($this->length($tokenText) < 4) {
+                        continue;
+                    }
+                    $references[] = [
+                        'page' => $page,
+                        'token' => $tokenText,
+                        'tokenKey' => $this->pdfLowercaseToken($tokenText),
+                        'fontSize' => (float) $proof['fontSize'],
+                        'displayProofDigest' => (string) $proof['proofDigest'],
+                    ];
+                }
+            }
+        }
+
+        return $references;
+    }
+
+    /**
+     * Restore one missing leading title glyph only from another accepted
+     * display heading in the same document. The damaged token must begin in
+     * lower case, be the complete suffix of exactly one one-grapheme-longer
+     * title token, and share the same display font size. This admits a local
+     * extraction gap without applying a dictionary or fixture vocabulary.
+     *
+     * @param array<string,mixed> $displayProof
+     * @param list<array<string,mixed>> $references
+     * @return array{text:string,proof:array<string,mixed>,insertionOffset:int,insertedText:string}|null
+     */
+    private function positionedPdfDisplayHeadingLeadingTokenRepair(
+        string $text,
+        array $displayProof,
+        array $references,
+        int $page
+    ): ?array {
+        $matched = preg_match_all(
+            '/\p{L}[\p{L}\p{M}]*/u',
+            $text,
+            $tokens,
+            PREG_OFFSET_CAPTURE
+        );
+        if (!is_int($matched) || $matched < 1) {
+            return null;
+        }
+
+        $repairs = [];
+        foreach ($tokens[0] as $token) {
+            $tokenText = (string) ($token[0] ?? '');
+            $offset = (int) ($token[1] ?? -1);
+            if ($offset < 0
+                || $this->length($tokenText) < 4
+                || preg_match('/^\p{Ll}/u', $tokenText) !== 1) {
+                continue;
+            }
+            $tokenKey = $this->pdfLowercaseToken($tokenText);
+            $candidateByKey = [];
+            foreach ($references as $reference) {
+                $referenceToken = (string) ($reference['token'] ?? '');
+                $referenceKey = (string) ($reference['tokenKey'] ?? '');
+                $referencePage = (int) ($reference['page'] ?? 0);
+                $referenceFontSize = max(1.0, (float) ($reference['fontSize'] ?? 1.0));
+                $fontSize = max(1.0, (float) ($displayProof['fontSize'] ?? 1.0));
+                if ($referencePage < 1
+                    || $referencePage === $page
+                    || preg_match('/^\p{Lu}/u', $referenceToken) !== 1
+                    || $this->length($referenceToken) !== $this->length($tokenText) + 1
+                    || !str_ends_with($referenceKey, $tokenKey)
+                    || abs($referenceFontSize - $fontSize)
+                        > max(0.75, max($referenceFontSize, $fontSize) * 0.05)) {
+                    continue;
+                }
+                $candidateByKey[$referenceKey] ??= $reference;
+            }
+            if (count($candidateByKey) !== 1) {
+                continue;
+            }
+            $reference = array_values($candidateByKey)[0];
+            $referenceToken = (string) $reference['token'];
+            $referenceCharacters = preg_split(
+                '//u',
+                $referenceToken,
+                -1,
+                PREG_SPLIT_NO_EMPTY
+            );
+            if (!is_array($referenceCharacters) || count($referenceCharacters) < 2) {
+                continue;
+            }
+            $insertedText = (string) $referenceCharacters[0];
+            $repairs[] = [
+                'offset' => $offset,
+                'sourceToken' => $tokenText,
+                'replacementToken' => $referenceToken,
+                'insertedText' => $insertedText,
+                'reference' => $reference,
+            ];
+        }
+        if (count($repairs) !== 1) {
+            return null;
+        }
+
+        $repair = $repairs[0];
+        $repairedText = substr($text, 0, $repair['offset'])
+            . $repair['replacementToken']
+            . substr($text, $repair['offset'] + strlen($repair['sourceToken']));
+        $proof = $this->signedPositionedPdfTablePageRoleProof([
+            'role' => 'display-heading-leading-token-repair',
+            'page' => $page,
+            'supportPage' => (int) $repair['reference']['page'],
+            'sourceText' => $text,
+            'repairedText' => $repairedText,
+            'sourceTextDigest' => hash('sha256', $text),
+            'repairedTextDigest' => hash('sha256', $repairedText),
+            'sourceTokenDigest' => hash('sha256', $repair['sourceToken']),
+            'referenceTokenDigest' => hash('sha256', $repair['replacementToken']),
+            'displayProofDigest' => (string) $displayProof['proofDigest'],
+            'referenceDisplayProofDigest' => (string) $repair['reference']['displayProofDigest'],
+            'insertionOffset' => (int) $repair['offset'],
+            'insertedText' => $repair['insertedText'],
+        ]);
+
+        return [
+            'text' => $repairedText,
+            'proof' => $proof,
+            'insertionOffset' => (int) $repair['offset'],
+            'insertedText' => (string) $repair['insertedText'],
+        ];
     }
 
     /**
@@ -39503,7 +48165,12 @@ final class PdfReader
         $derivedWordBoundary = $this->pdfDerivedWordBoundaryBefore($wordBoundarySource);
         $hasExplicitWordBoundary = array_key_exists('wordBoundaryBefore', $run);
         $rtlVisualUnitText = preg_replace_callback(
-            '/(?:ل[أإآ]|(?<=ل)لا)/u',
+            // A plain lam-alef at the start of a multi-character positioned
+            // run is one run-local shaping unit. A visual-order definite
+            // article appears at the opposite edge of its word/run, so this
+            // bounded start condition does not freeze ordinary visual "لا"
+            // sequences which must still reverse to logical "ال".
+            '/(?:ل[أإآ]|(?<=ل)لا|^لا(?=\p{Arabic}))/u',
             static fn (array $match): string => self::PDF_RTL_SHAPING_CLUSTER_START
                 . $match[0]
                 . self::PDF_RTL_SHAPING_CLUSTER_END,
@@ -39539,6 +48206,13 @@ final class PdfReader
             'order' => max(0, (int) ($run['_order'] ?? 0)),
             'lastOrder' => max(0, (int) ($run['_order'] ?? 0)),
         ];
+        if (is_string($run['fontResource'] ?? null)
+            && $run['fontResource'] !== ''
+            && is_string($run['baseFont'] ?? null)
+            && $run['baseFont'] !== '') {
+            $normalized['fontResource'] = $run['fontResource'];
+            $normalized['baseFont'] = $run['baseFont'];
+        }
         $exactSourceRanges = $this->pdfPositionedExactSourceRanges($run);
         if (count($exactSourceRanges) === 1) {
             $normalized['sourcePdfExactSourceIndex'] = $exactSourceRanges[0]['sourceIndex'];
@@ -39954,14 +48628,55 @@ final class PdfReader
             return $pageRows === [] ? [] : [$this->table($pageRows)];
         }
 
+        $page = max(1, (int) ($runs[0]['page'] ?? 1));
+        $layoutRoleProofs = $this->positionedPdfTableAdjacentLayoutRoleProofs(
+            $rows,
+            $segments,
+            $medianFontSize,
+            $page
+        );
+        $homologyProofs = $this->positionedPdfRejectedTableBandHomologyProofs(
+            $rows,
+            $segments,
+            $medianFontSize,
+            $page
+        );
+        foreach ($homologyProofs as $key => $proofs) {
+            $layoutRoleProofs[$key] ??= [];
+            array_push($layoutRoleProofs[$key], ...$proofs);
+        }
+        $displayHeadingProofs = $this->positionedPdfTablePageDisplayHeadingProofs(
+            $rows,
+            $segments,
+            $layoutRoleProofs,
+            $medianFontSize,
+            $page
+        );
+        $this->rememberPositionedPdfTableBandHomologyTemplates(
+            $rows,
+            $segments,
+            $medianFontSize,
+            $page
+        );
+
         $blocks = [];
         $pendingRows = [];
         $rowIndex = 0;
-        $flushPendingRows = function () use (&$blocks, &$pendingRows): void {
+        $flushPendingRows = function () use (
+            &$blocks,
+            &$pendingRows,
+            &$layoutRoleProofs,
+            &$displayHeadingProofs
+        ): void {
             if ($pendingRows === []) {
                 return;
             }
-            foreach ($this->blocksFromPositionedClusteredProseRows($pendingRows) as $block) {
+            $pendingBlocks = $this->positionedPdfBlocksWithTablePageRoleProofs(
+                $this->blocksFromPositionedClusteredProseRows($pendingRows),
+                $layoutRoleProofs,
+                $displayHeadingProofs
+            );
+            foreach ($pendingBlocks as $block) {
                 $blocks[] = $block;
             }
             $pendingRows = [];
@@ -40023,6 +48738,633 @@ final class PdfReader
         }
 
         return $this->blocksFromPositionedPageProse($runs);
+    }
+
+    /**
+     * A rejected prose band can still contain labels which are structurally
+     * owned by an accepted neighboring table.  Admit only two local shapes:
+     * a multi-column header aligned with the following table columns, or a
+     * same-baseline label/value total inside the preceding table envelope.
+     * The result is evidence attached to the candidate AST; it is not acted
+     * on until the complete page candidate passes exact source binding.
+     *
+     * @param list<array{center:float,runs:list<array<string,mixed>>}> $rows
+     * @param list<array{start:int,end:int,rows:list<list<string>>}> $segments
+     * @return array<string,list<array<string,mixed>>>
+     */
+    private function positionedPdfTableAdjacentLayoutRoleProofs(
+        array $rows,
+        array $segments,
+        float $medianFontSize,
+        int $page
+    ): array {
+        $proofs = [];
+        $occupied = [];
+        foreach ($segments as $segment) {
+            for ($index = (int) $segment['start']; $index <= (int) $segment['end']; $index++) {
+                $occupied[$index] = true;
+            }
+        }
+
+        foreach ($segments as $segment) {
+            $start = (int) $segment['start'];
+            $end = (int) $segment['end'];
+            $segmentRows = array_slice($rows, $start, $end - $start + 1);
+            if (count($segmentRows) < 2) {
+                continue;
+            }
+            $segmentBounds = $this->positionedRowsBounds($segmentRows);
+            $bandDigest = $this->positionedPdfTableBandDigest($segmentRows);
+            $tolerance = max(8.0, $medianFontSize * 1.10);
+
+            $headerIndex = $start - 1;
+            $header = $rows[$headerIndex] ?? null;
+            if (is_array($header)
+                && !isset($occupied[$headerIndex])
+                && count($header['runs'] ?? []) >= 3
+                && count($header['runs']) <= 12
+                && $this->positionedRowGap($header, $segmentRows[0])
+                    <= max(72.0, $medianFontSize * 7.0)
+                && $this->positionedRowMaxFontSize($header)
+                    <= max(16.0, $medianFontSize * 1.55)) {
+                $columns = $this->positionedTableColumns($segmentRows, $tolerance);
+                $matchedColumns = [];
+                $validRuns = [];
+                $labelRuns = [];
+                foreach ($header['runs'] as $run) {
+                    $text = trim((string) ($run['text'] ?? ''));
+                    if ($text === '' || $this->positionedCellIsNumericValue($text)) {
+                        continue;
+                    }
+                    $labelRuns[] = $run;
+                    $nearest = null;
+                    $distance = INF;
+                    foreach ($columns as $columnIndex => $column) {
+                        $candidateDistance = abs((float) ($run['textX1'] ?? $run['x1'] ?? 0.0) - $column);
+                        if ($candidateDistance < $distance) {
+                            $nearest = $columnIndex;
+                            $distance = $candidateDistance;
+                        }
+                    }
+                    if ($nearest === null
+                        || $distance > max(18.0, $medianFontSize * 2.0)
+                        || isset($matchedColumns[$nearest])) {
+                        continue;
+                    }
+                    $matchedColumns[$nearest] = true;
+                    $validRuns[] = $run;
+                }
+                $headerBounds = $this->positionedProseRowBounds($header);
+                $required = max(3, (int) ceil(count($header['runs']) * 0.70));
+                if (count($validRuns) >= $required
+                    && $headerBounds['x1'] >= $segmentBounds['x1'] - max(18.0, $medianFontSize * 2.0)
+                    && $headerBounds['x2'] <= $segmentBounds['x2'] + max(18.0, $medianFontSize * 2.0)) {
+                    $base = [
+                        'role' => 'column-header-label',
+                        'supportPage' => $page,
+                        'tableBandDigest' => $bandDigest,
+                        'rowIndex' => $headerIndex,
+                        'matchedColumnCount' => count($validRuns),
+                        'columnCount' => count($columns),
+                    ];
+                    foreach ($labelRuns as $run) {
+                        $this->appendPositionedPdfTablePageRoleProof(
+                            $proofs,
+                            (string) $run['text'],
+                            $base,
+                            $page
+                        );
+                    }
+                }
+            }
+
+            $summaryIndex = $end + 1;
+            $summary = $rows[$summaryIndex] ?? null;
+            if (!is_array($summary)
+                || isset($occupied[$summaryIndex])
+                || count($summary['runs'] ?? []) < 2
+                || count($summary['runs']) > 6
+                || $this->positionedRowGap($segmentRows[array_key_last($segmentRows)], $summary)
+                    > max(72.0, $medianFontSize * 7.0)) {
+                continue;
+            }
+            $numericRuns = [];
+            $labelRuns = [];
+            foreach ($summary['runs'] as $run) {
+                $text = trim((string) ($run['text'] ?? ''));
+                if ($text === '') {
+                    continue;
+                }
+                if ($this->positionedCellIsNumericValue($text)) {
+                    $numericRuns[] = $run;
+                } else {
+                    $labelRuns[] = $run;
+                }
+            }
+            if ($numericRuns === [] || $labelRuns === []) {
+                continue;
+            }
+            $matchedLabelRuns = array_values(array_filter(
+                $labelRuns,
+                static function (array $label) use ($numericRuns): bool {
+                    $labelFont = max(1.0, (float) ($label['fontSize'] ?? 1.0));
+                    foreach ($numericRuns as $numeric) {
+                        $numericFont = max(1.0, (float) ($numeric['fontSize'] ?? 1.0));
+                        if (abs($labelFont - $numericFont)
+                            <= max(0.75, max($labelFont, $numericFont) * 0.12)) {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                }
+            ));
+            if ($matchedLabelRuns === []) {
+                continue;
+            }
+            $summaryBounds = $this->positionedProseRowBounds($summary);
+            $rightmostNumericX = max(array_map(
+                static fn (array $run): float => (float) ($run['textX1'] ?? $run['x1'] ?? 0.0),
+                $numericRuns
+            ));
+            $labelsLeadValues = array_reduce(
+                $matchedLabelRuns,
+                static fn (bool $valid, array $run): bool => $valid
+                    && (float) ($run['textX1'] ?? $run['x1'] ?? 0.0) < $rightmostNumericX,
+                true
+            );
+            if (!$labelsLeadValues
+                || $this->positionedRowMaxFontSize($summary) > max(22.0, $medianFontSize * 2.25)
+                || $summaryBounds['x1'] < $segmentBounds['x1'] - max(18.0, $medianFontSize * 2.0)
+                || $summaryBounds['x2'] > $segmentBounds['x2'] + max(18.0, $medianFontSize * 2.0)) {
+                continue;
+            }
+            $base = [
+                'role' => 'summary-label',
+                'supportPage' => $page,
+                'tableBandDigest' => $bandDigest,
+                'rowIndex' => $summaryIndex,
+                'numericPeerCount' => count($numericRuns),
+            ];
+            foreach ($matchedLabelRuns as $run) {
+                $this->appendPositionedPdfTablePageRoleProof(
+                    $proofs,
+                    (string) $run['text'],
+                    $base,
+                    $page
+                );
+            }
+        }
+
+        return $proofs;
+    }
+
+    /**
+     * Match a rejected multi-row band to an accepted band on an earlier page.
+     * Exact cell text, font metrics, one rigid translation, broad coverage,
+     * and two horizontal lanes are all required. A merely similar two-row
+     * phrase therefore cannot classify an unrelated heading as a form label.
+     *
+     * @param list<array{center:float,runs:list<array<string,mixed>>}> $rows
+     * @param list<array{start:int,end:int,rows:list<list<string>>}> $segments
+     * @return array<string,list<array<string,mixed>>>
+     */
+    private function positionedPdfRejectedTableBandHomologyProofs(
+        array $rows,
+        array $segments,
+        float $medianFontSize,
+        int $page
+    ): array {
+        if ($this->positionedPdfTableBandHomologyTemplates === []) {
+            return [];
+        }
+        $occupied = [];
+        foreach ($segments as $segment) {
+            for ($index = (int) $segment['start']; $index <= (int) $segment['end']; $index++) {
+                $occupied[$index] = true;
+            }
+        }
+
+        $candidates = [];
+        foreach ($this->positionedPdfTableBandHomologyTemplates as $template) {
+            if ((int) ($template['page'] ?? 0) >= $page
+                || !is_array($template['rows'] ?? null)
+                || count($template['rows']) < 3) {
+                continue;
+            }
+            $rowCount = count($template['rows']);
+            for ($start = 0; $start + $rowCount <= count($rows); $start++) {
+                for ($offset = 0; $offset < $rowCount; $offset++) {
+                    if (isset($occupied[$start + $offset])) {
+                        continue 2;
+                    }
+                }
+                $match = $this->positionedPdfTableBandHomologyMatch(
+                    $template,
+                    array_slice($rows, $start, $rowCount),
+                    $medianFontSize
+                );
+                if ($match === null) {
+                    continue;
+                }
+                $match['start'] = $start;
+                $match['template'] = $template;
+                $candidates[] = $match;
+            }
+        }
+        if ($candidates === []) {
+            return [];
+        }
+        usort($candidates, static fn (array $left, array $right): int =>
+            ($right['matchedCellCount'] <=> $left['matchedCellCount'])
+                ?: ($right['coverage'] <=> $left['coverage'])
+        );
+        if (isset($candidates[1])
+            && $candidates[1]['matchedCellCount'] === $candidates[0]['matchedCellCount']
+            && abs((float) $candidates[1]['coverage'] - (float) $candidates[0]['coverage']) < 0.000001) {
+            return [];
+        }
+
+        $best = $candidates[0];
+        $template = $best['template'];
+        $base = [
+            'role' => 'homologous-table-label',
+            'supportPage' => (int) $template['page'],
+            'tableBandDigest' => (string) $template['digest'],
+            'rowIndex' => (int) $best['start'],
+            'matchedRowCount' => (int) $best['matchedRowCount'],
+            'matchedCellCount' => (int) $best['matchedCellCount'],
+            'templateCellCount' => (int) $template['cellCount'],
+            'coverage' => round((float) $best['coverage'], 6),
+            'translationX' => round((float) $best['translationX'], 4),
+            'translationY' => round((float) $best['translationY'], 4),
+        ];
+        $proofs = [];
+        foreach ($best['matches'] as $match) {
+            $this->appendPositionedPdfTablePageRoleProof(
+                $proofs,
+                (string) $match['run']['text'],
+                $base,
+                $page
+            );
+        }
+        $matchesByLane = [];
+        foreach ($best['matches'] as $match) {
+            $x1 = (float) $match['templateCell']['x1'];
+            $lane = null;
+            foreach ($matchesByLane as $laneIndex => $laneMatches) {
+                $laneX1 = (float) $laneMatches[0]['templateCell']['x1'];
+                if (abs($laneX1 - $x1) <= max(12.0, $medianFontSize * 1.5)) {
+                    $lane = $laneIndex;
+                    break;
+                }
+            }
+            if ($lane === null) {
+                $matchesByLane[] = [$match];
+            } else {
+                $matchesByLane[$lane][] = $match;
+            }
+        }
+        foreach ($matchesByLane as $laneMatches) {
+            if (count($laneMatches) < 2) {
+                continue;
+            }
+            usort(
+                $laneMatches,
+                static fn (array $left, array $right): int => $left['rowOffset'] <=> $right['rowOffset']
+            );
+            $laneText = '';
+            foreach ($laneMatches as $laneMatch) {
+                $laneText = $this->appendCellText(
+                    $laneText,
+                    (string) $laneMatch['run']['text']
+                );
+            }
+            $this->appendPositionedPdfTablePageRoleProof(
+                $proofs,
+                $laneText,
+                $base + ['matchedLaneCellCount' => count($laneMatches)],
+                $page
+            );
+        }
+
+        return $proofs;
+    }
+
+    /** @return array<string,mixed>|null */
+    private function positionedPdfTableBandHomologyMatch(
+        array $template,
+        array $candidateRows,
+        float $medianFontSize
+    ): ?array {
+        $matches = [];
+        $candidateCellCount = 0;
+        foreach ($candidateRows as $rowOffset => $candidateRow) {
+            $templateRow = $template['rows'][$rowOffset] ?? null;
+            if (!is_array($templateRow)) {
+                return null;
+            }
+            $candidateCellCount += count($candidateRow['runs'] ?? []);
+            $used = [];
+            foreach ($templateRow as $templateCell) {
+                $bestIndex = null;
+                $bestDistance = INF;
+                foreach ($candidateRow['runs'] ?? [] as $candidateIndex => $run) {
+                    if (isset($used[$candidateIndex])) {
+                        continue;
+                    }
+                    $key = $this->pdfComparableLineText((string) ($run['text'] ?? ''));
+                    if ($key === '' || !hash_equals((string) $templateCell['key'], $key)) {
+                        continue;
+                    }
+                    $fontSize = max(1.0, (float) ($run['fontSize'] ?? 1.0));
+                    $templateFontSize = max(1.0, (float) $templateCell['fontSize']);
+                    if (abs($fontSize - $templateFontSize)
+                        > max(0.75, max($fontSize, $templateFontSize) * 0.12)) {
+                        continue;
+                    }
+                    $distance = abs(
+                        (float) ($run['textX1'] ?? $run['x1'] ?? 0.0)
+                        - (float) $templateCell['x1']
+                    );
+                    if ($distance < $bestDistance) {
+                        $bestIndex = $candidateIndex;
+                        $bestDistance = $distance;
+                    }
+                }
+                if ($bestIndex === null) {
+                    continue;
+                }
+                $used[$bestIndex] = true;
+                $run = $candidateRow['runs'][$bestIndex];
+                $matches[] = [
+                    'run' => $run,
+                    'templateCell' => $templateCell,
+                    'rowOffset' => $rowOffset,
+                    'dx' => (float) ($run['textX1'] ?? $run['x1'] ?? 0.0)
+                        - (float) $templateCell['x1'],
+                    'dy' => (float) ($candidateRow['center'] ?? 0.0)
+                        - (float) $templateCell['rowCenter'],
+                ];
+            }
+        }
+        if (count($matches) < 6) {
+            return null;
+        }
+        $translationX = $this->median(array_column($matches, 'dx'));
+        $translationY = $this->median(array_column($matches, 'dy'));
+        $xTolerance = max(3.0, $medianFontSize * 0.35);
+        $yTolerance = max(3.0, $medianFontSize * 0.35);
+        $matches = array_values(array_filter(
+            $matches,
+            static fn (array $match): bool => abs((float) $match['dx'] - $translationX) <= $xTolerance
+                && abs((float) $match['dy'] - $translationY) <= $yTolerance
+        ));
+        $matchedRows = array_values(array_unique(array_column($matches, 'rowOffset'), SORT_NUMERIC));
+        $templateCellCount = max(1, (int) ($template['cellCount'] ?? 0));
+        $coverage = count($matches) / $templateCellCount;
+        $candidateCoverage = count($matches) / max(1, $candidateCellCount);
+        $lanePositions = array_map(
+            static fn (array $match): float => (float) $match['templateCell']['x1'],
+            $matches
+        );
+        if (count($matches) < 6
+            || count($matchedRows) < 3
+            || $coverage < 0.70
+            || $candidateCoverage < 0.70
+            || $lanePositions === []
+            || max($lanePositions) - min($lanePositions) < max(60.0, $medianFontSize * 6.0)) {
+            return null;
+        }
+
+        return [
+            'matches' => $matches,
+            'matchedRowCount' => count($matchedRows),
+            'matchedCellCount' => count($matches),
+            'coverage' => min($coverage, $candidateCoverage),
+            'translationX' => $translationX,
+            'translationY' => $translationY,
+        ];
+    }
+
+    /**
+     * @param list<array{center:float,runs:list<array<string,mixed>>}> $rows
+     * @param list<array{start:int,end:int,rows:list<list<string>>}> $segments
+     */
+    private function rememberPositionedPdfTableBandHomologyTemplates(
+        array $rows,
+        array $segments,
+        float $medianFontSize,
+        int $page
+    ): void {
+        foreach ($segments as $segment) {
+            $start = (int) $segment['start'];
+            $end = (int) $segment['end'];
+            $segmentRows = array_slice($rows, $start, $end - $start + 1);
+            if (count($segmentRows) < 3 || count($segmentRows) > 12) {
+                continue;
+            }
+            $templateRows = [];
+            $cellCount = 0;
+            $positions = [];
+            foreach ($segmentRows as $row) {
+                $templateRow = [];
+                foreach ($row['runs'] ?? [] as $run) {
+                    $key = $this->pdfComparableLineText((string) ($run['text'] ?? ''));
+                    if ($key === '') {
+                        continue;
+                    }
+                    $x1 = (float) ($run['textX1'] ?? $run['x1'] ?? 0.0);
+                    $templateRow[] = [
+                        'key' => $key,
+                        'x1' => $x1,
+                        'fontSize' => max(1.0, (float) ($run['fontSize'] ?? 1.0)),
+                        'rowCenter' => (float) ($row['center'] ?? 0.0),
+                    ];
+                    $positions[] = $x1;
+                    $cellCount++;
+                }
+                $templateRows[] = $templateRow;
+            }
+            if ($cellCount < 6
+                || $positions === []
+                || max($positions) - min($positions) < max(60.0, $medianFontSize * 6.0)) {
+                continue;
+            }
+            $identity = ['page' => $page, 'rows' => $templateRows, 'cellCount' => $cellCount];
+            $encoded = json_encode(
+                $identity,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+            );
+            $identity['digest'] = hash('sha256', is_string($encoded) ? $encoded : serialize($identity));
+            $this->positionedPdfTableBandHomologyTemplates[] = $identity;
+            if (count($this->positionedPdfTableBandHomologyTemplates) > 64) {
+                array_shift($this->positionedPdfTableBandHomologyTemplates);
+            }
+        }
+    }
+
+    /**
+     * @param list<array{center:float,runs:list<array<string,mixed>>}> $rows
+     * @param list<array{start:int,end:int,rows:list<list<string>>}> $segments
+     * @param array<string,list<array<string,mixed>>> $layoutRoleProofs
+     * @return array<string,list<array<string,mixed>>>
+     */
+    private function positionedPdfTablePageDisplayHeadingProofs(
+        array $rows,
+        array $segments,
+        array $layoutRoleProofs,
+        float $medianFontSize,
+        int $page
+    ): array {
+        $occupied = [];
+        foreach ($segments as $segment) {
+            for ($index = (int) $segment['start']; $index <= (int) $segment['end']; $index++) {
+                $occupied[$index] = true;
+            }
+        }
+        $proofs = [];
+        foreach ($rows as $index => $row) {
+            if (isset($occupied[$index]) || count($row['runs'] ?? []) !== 1) {
+                continue;
+            }
+            $text = trim($this->positionedRowText($row));
+            $key = $this->pdfComparableLineText($text);
+            if ($key === ''
+                || isset($layoutRoleProofs[$key])
+                || $this->length($text) > 88
+                || count($this->pdfLineWordTokens($text)) > 8
+                || preg_match('/^[^\p{L}\p{N}]*\p{Lu}/u', $text) !== 1
+                || preg_match('/\p{L}/u', $text) !== 1
+                || $this->lineHasPdfListBlockEvidence($text)
+                || $this->lineLooksLikeUrlOnly($text)
+                || $this->positionedRowMaxFontSize($row) < max(18.0, $medianFontSize * 2.0)) {
+                continue;
+            }
+            $aboveGap = $index > 0
+                ? $this->positionedRowGap($rows[$index - 1], $row)
+                : INF;
+            $belowGap = $index + 1 < count($rows)
+                ? $this->positionedRowGap($row, $rows[$index + 1])
+                : INF;
+            if (max($aboveGap, $belowGap) < max(20.0, $medianFontSize * 2.0)) {
+                continue;
+            }
+            $proof = $this->signedPositionedPdfTablePageRoleProof([
+                'role' => 'display-heading',
+                'page' => $page,
+                'supportPage' => $page,
+                'rowIndex' => $index,
+                'fontSize' => round($this->positionedRowMaxFontSize($row), 4),
+                'medianFontSize' => round($medianFontSize, 4),
+                'targetTextDigest' => hash('sha256', $key),
+            ]);
+            $proofs[$key][] = $proof;
+        }
+
+        return $proofs;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $proofs
+     * @param array<string,mixed> $base
+     */
+    private function appendPositionedPdfTablePageRoleProof(
+        array &$proofs,
+        string $text,
+        array $base,
+        int $page
+    ): void {
+        $key = $this->pdfComparableLineText($text);
+        if ($key === '') {
+            return;
+        }
+        $proofs[$key][] = $this->signedPositionedPdfTablePageRoleProof($base + [
+            'page' => $page,
+            'targetTextDigest' => hash('sha256', $key),
+        ]);
+    }
+
+    /** @param array<string,mixed> $proof @return array<string,mixed> */
+    private function signedPositionedPdfTablePageRoleProof(array $proof): array
+    {
+        $proof = ['version' => 1, 'sourceSha256' => $this->sourceSha256] + $proof;
+        $encoded = json_encode(
+            $proof,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+        );
+        $proof['proofDigest'] = hash(
+            'sha256',
+            is_string($encoded) ? $encoded : serialize($proof)
+        );
+
+        return $proof;
+    }
+
+    /** @param list<array{center:float,runs:list<array<string,mixed>>}> $rows */
+    private function positionedPdfTableBandDigest(array $rows): string
+    {
+        $identity = [];
+        foreach ($rows as $row) {
+            $cells = [];
+            foreach ($row['runs'] ?? [] as $run) {
+                $key = $this->pdfComparableLineText((string) ($run['text'] ?? ''));
+                if ($key === '') {
+                    continue;
+                }
+                $cells[] = [
+                    'key' => $key,
+                    'x1' => round((float) ($run['textX1'] ?? $run['x1'] ?? 0.0), 3),
+                    'fontSize' => round(max(1.0, (float) ($run['fontSize'] ?? 1.0)), 3),
+                ];
+            }
+            $identity[] = $cells;
+        }
+        $encoded = json_encode(
+            $identity,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+        );
+
+        return hash('sha256', is_string($encoded) ? $encoded : serialize($identity));
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param array<string,list<array<string,mixed>>> $layoutRoleProofs
+     * @param array<string,list<array<string,mixed>>> $displayHeadingProofs
+     * @return list<AstNode>
+     */
+    private function positionedPdfBlocksWithTablePageRoleProofs(
+        array $blocks,
+        array &$layoutRoleProofs,
+        array &$displayHeadingProofs
+    ): array {
+        foreach ($blocks as &$block) {
+            if (!in_array($block->type, ['heading', 'paragraph'], true)) {
+                continue;
+            }
+            $key = $this->pdfComparableLineText((string) $block->attr('text', ''));
+            if ($key === '') {
+                continue;
+            }
+            $attrs = $block->baseAttrs();
+            if (($layoutRoleProofs[$key] ?? []) !== []) {
+                $attrs['sourcePdfTableLayoutRoleProof'] = array_shift($layoutRoleProofs[$key]);
+            } elseif (($displayHeadingProofs[$key] ?? []) !== []) {
+                $attrs['sourcePdfTableDisplayHeadingProof'] = array_shift($displayHeadingProofs[$key]);
+            } else {
+                continue;
+            }
+            $block = new AstNode(
+                $block->type,
+                $attrs,
+                $block->children(),
+                $block->attributeResolver()
+            );
+        }
+        unset($block);
+
+        return $blocks;
     }
 
     /**
@@ -40237,6 +49579,370 @@ final class PdfReader
         }
 
         return $text;
+    }
+
+    /**
+     * Preserve a font-style receipt independently of text decoding. A
+     * subsetted BaseFont is useful evidence for presentation, but it must not
+     * alter the extractor's encoding or metric decisions.
+     *
+     * @param array<string,mixed> $run
+     * @return list<array<string,mixed>>
+     */
+    private function positionedRunInlineFontStyleSpans(array $run): array
+    {
+        $text = $this->positionedCellText((string) ($run['text'] ?? ''));
+        if ($text === '') {
+            return [];
+        }
+
+        if (is_array($run['sourcePdfInlineFontStyleSpans'] ?? null)) {
+            return $this->normalizedPositionedInlineFontStyleSpans(
+                $text,
+                $run['sourcePdfInlineFontStyleSpans']
+            );
+        }
+
+        $fontResource = $run['fontResource'] ?? null;
+        $baseFont = $run['baseFont'] ?? null;
+        if (!is_string($fontResource)
+            || $fontResource === ''
+            || !is_string($baseFont)
+            || $baseFont === '') {
+            return [];
+        }
+
+        $fontKey = strtolower($baseFont);
+        $bold = str_contains($fontKey, 'bold');
+        $italic = str_contains($fontKey, 'ital') || str_contains($fontKey, 'oblique');
+        if (!$bold && !$italic) {
+            return [];
+        }
+
+        return [[
+            'start' => 0,
+            'end' => strlen($text),
+            'bold' => $bold,
+            'italic' => $italic,
+            'fontResources' => [$fontResource],
+            'baseFonts' => [$baseFont],
+        ]];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $runs
+     * @return list<array<string,mixed>>
+     */
+    private function positionedInlineFontStyleSpansForJoinedText(
+        string $joinedText,
+        array $runs
+    ): array {
+        $joinedText = $this->positionedCellText($joinedText);
+        if ($joinedText === '') {
+            return [];
+        }
+
+        $spans = [];
+        $cursor = 0;
+        foreach ($runs as $run) {
+            $part = $this->positionedCellText((string) ($run['text'] ?? ''));
+            if ($part === '') {
+                continue;
+            }
+            $partStart = strpos($joinedText, $part, $cursor);
+            if ($partStart === false) {
+                return [];
+            }
+            foreach ($this->positionedRunInlineFontStyleSpans($run) as $span) {
+                $spans[] = array_replace($span, [
+                    'start' => $partStart + (int) $span['start'],
+                    'end' => $partStart + (int) $span['end'],
+                ]);
+            }
+            $cursor = $partStart + strlen($part);
+        }
+
+        return $this->normalizedPositionedInlineFontStyleSpans($joinedText, $spans);
+    }
+
+    /**
+     * @param array{runs:list<array<string,mixed>>} $row
+     * @param list<array{sourceIndex:int,sourceStart:int,sourceEnd:int}> $exactSourceRanges
+     * @return array<string,mixed>|null
+     */
+    private function positionedProseRowInlineFontStyleProof(
+        array $row,
+        string $line,
+        array $exactSourceRanges
+    ): ?array {
+        $line = $this->positionedCellText($line);
+        $spans = $this->positionedInlineFontStyleSpansForJoinedText(
+            $line,
+            $row['runs']
+        );
+        if ($spans === []) {
+            return null;
+        }
+
+        // A producer commonly switches back to its regular font for terminal
+        // punctuation. Bind that punctuation to the preceding styled word
+        // only when it is immediately followed by whitespace or line end.
+        foreach ($spans as &$span) {
+            $end = (int) $span['end'];
+            if ($end >= strlen($line)) {
+                continue;
+            }
+            if (preg_match('/^[.!?,;:\x{2026}]+(?=\s|$)/u', substr($line, $end), $match) === 1) {
+                $span['end'] = $end + strlen($match[0]);
+            }
+        }
+        unset($span);
+        $spans = $this->normalizedPositionedInlineFontStyleSpans($line, $spans);
+        if ($spans === [] || $exactSourceRanges === []) {
+            return null;
+        }
+
+        $proof = [
+            'version' => 2,
+            'method' => 'positioned-font-resource-base-font-exact-source',
+            'sourceSha256' => $this->sourceSha256,
+            'text' => $line,
+            'textDigest' => hash('sha256', $line),
+            'projectionDigest' => hash(
+                'sha256',
+                $this->pdfSourceOccurrenceComparableText($line)
+            ),
+            'exactSourceRanges' => $exactSourceRanges,
+            'spans' => $spans,
+        ];
+        $proof['proofDigest'] = hash(
+            'sha256',
+            json_encode($proof, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: ''
+        );
+
+        return $proof;
+    }
+
+    /**
+     * Resolve positioned range indexes to immutable source occurrence IDs
+     * while the complete line inventory is still live. Only whole,
+     * consecutive occurrences can cross the prose merge boundary into an AST
+     * style identity; partial or reordered ranges remain unstyled.
+     *
+     * @param list<array<string,mixed>> $proofCandidates
+     * @param list<array<string,mixed>> $lineItems
+     * @return list<array<string,mixed>>
+     */
+    private function pdfInlineFontStyleProofCandidatesWithSourceIdentity(
+        array $proofCandidates,
+        array $lineItems
+    ): array {
+        $resolved = [];
+        foreach ($proofCandidates as $proof) {
+            $ranges = is_array($proof['exactSourceRanges'] ?? null)
+                && array_is_list($proof['exactSourceRanges'])
+                    ? $proof['exactSourceRanges']
+                    : [];
+            $text = is_string($proof['text'] ?? null) ? $proof['text'] : '';
+            if (($proof['version'] ?? null) !== 2
+                || ($proof['method'] ?? null)
+                    !== 'positioned-font-resource-base-font-exact-source'
+                || ($proof['sourceSha256'] ?? null) !== $this->sourceSha256
+                || $ranges === []
+                || $text === '') {
+                continue;
+            }
+            $projection = '';
+            $sourceOccurrenceIds = [];
+            $globalSourceIndexes = [];
+            $previousSourceIndex = null;
+            $previousEnd = null;
+            $valid = true;
+            foreach ($ranges as $range) {
+                $sourceIndex = $range['sourceIndex'] ?? null;
+                $sourceStart = $range['sourceStart'] ?? null;
+                $sourceEnd = $range['sourceEnd'] ?? null;
+                $item = is_int($sourceIndex) ? ($lineItems[$sourceIndex] ?? null) : null;
+                $sourceText = is_array($item)
+                    ? $this->pdfSourceOccurrenceComparableText(
+                        (string) ($item['text'] ?? '')
+                    )
+                    : '';
+                if (!is_int($sourceIndex)
+                    || !is_int($sourceStart)
+                    || !is_int($sourceEnd)
+                    || !is_array($item)
+                    || $sourceText === ''
+                    || $sourceStart < 0
+                    || $sourceEnd <= $sourceStart
+                    || $sourceEnd > strlen($sourceText)
+                    || ($previousSourceIndex === $sourceIndex
+                        && $sourceStart !== $previousEnd)
+                    || ($previousSourceIndex !== null
+                        && $previousSourceIndex !== $sourceIndex
+                        && ($sourceIndex !== $previousSourceIndex + 1
+                            || $sourceStart !== 0
+                            || $previousEnd !== strlen($this->pdfSourceOccurrenceComparableText(
+                                (string) ($lineItems[$previousSourceIndex]['text'] ?? '')
+                            ))))) {
+                    $valid = false;
+                    break;
+                }
+                if ($previousSourceIndex !== $sourceIndex) {
+                    $sourceId = is_string($item['id'] ?? null) ? $item['id'] : '';
+                    $globalSourceIndex = is_int($item['sourcePdfGlobalSourceIndex'] ?? null)
+                        ? $item['sourcePdfGlobalSourceIndex']
+                        : $sourceIndex;
+                    if ($sourceId === ''
+                        || ($globalSourceIndexes !== []
+                            && $globalSourceIndex !== $globalSourceIndexes[array_key_last(
+                                $globalSourceIndexes
+                            )] + 1)) {
+                        $valid = false;
+                        break;
+                    }
+                    $sourceOccurrenceIds[] = $sourceId;
+                    $globalSourceIndexes[] = $globalSourceIndex;
+                }
+                $projection .= substr($sourceText, $sourceStart, $sourceEnd - $sourceStart);
+                $previousSourceIndex = $sourceIndex;
+                $previousEnd = $sourceEnd;
+            }
+            if (!$valid
+                || $previousSourceIndex === null
+                || $previousEnd !== strlen($this->pdfSourceOccurrenceComparableText(
+                    (string) ($lineItems[$previousSourceIndex]['text'] ?? '')
+                ))
+                || !hash_equals(
+                    $projection,
+                    $this->pdfSourceOccurrenceComparableText($text)
+                )) {
+                continue;
+            }
+            $proof['sourceOccurrenceIds'] = $sourceOccurrenceIds;
+            $proof['globalSourceIndexes'] = $globalSourceIndexes;
+            $proof['projectionDigest'] = hash('sha256', $projection);
+            unset($proof['proofDigest']);
+            $proof['proofDigest'] = hash('sha256', json_encode(
+                $proof,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            ) ?: '');
+            $resolved[] = $proof;
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $layouts
+     * @param list<array<string,mixed>> $lineItems
+     * @return list<array<string,mixed>>
+     */
+    private function pdfSourceLayoutsWithResolvedInlineFontStyleProofs(
+        array $layouts,
+        array $lineItems
+    ): array {
+        foreach ($layouts as &$layout) {
+            $candidate = is_array($layout['sourcePdfInlineFontStyleProof'] ?? null)
+                ? $layout['sourcePdfInlineFontStyleProof']
+                : null;
+            if ($candidate === null) {
+                continue;
+            }
+            $resolved = $this->pdfInlineFontStyleProofCandidatesWithSourceIdentity(
+                [$candidate],
+                $lineItems
+            );
+            if (count($resolved) === 1) {
+                $layout['sourcePdfInlineFontStyleProof'] = $resolved[0];
+            } else {
+                unset($layout['sourcePdfInlineFontStyleProof']);
+            }
+        }
+        unset($layout);
+
+        return $layouts;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $spans
+     * @return list<array<string,mixed>>
+     */
+    private function normalizedPositionedInlineFontStyleSpans(
+        string $text,
+        array $spans
+    ): array {
+        $length = strlen($text);
+        $normalized = [];
+        foreach ($spans as $span) {
+            $start = $span['start'] ?? null;
+            $end = $span['end'] ?? null;
+            $bold = ($span['bold'] ?? false) === true;
+            $italic = ($span['italic'] ?? false) === true;
+            if (!is_int($start)
+                || !is_int($end)
+                || $start < 0
+                || $end <= $start
+                || $end > $length
+                || (!$bold && !$italic)) {
+                return [];
+            }
+            $resources = array_values(array_unique(array_filter(
+                is_array($span['fontResources'] ?? null) ? $span['fontResources'] : [],
+                static fn (mixed $value): bool => is_string($value) && $value !== ''
+            )));
+            $baseFonts = array_values(array_unique(array_filter(
+                is_array($span['baseFonts'] ?? null) ? $span['baseFonts'] : [],
+                static fn (mixed $value): bool => is_string($value) && $value !== ''
+            )));
+            if ($resources === [] || $baseFonts === []) {
+                return [];
+            }
+            $normalized[] = [
+                'start' => $start,
+                'end' => $end,
+                'bold' => $bold,
+                'italic' => $italic,
+                'fontResources' => $resources,
+                'baseFonts' => $baseFonts,
+            ];
+        }
+        usort(
+            $normalized,
+            static fn (array $left, array $right): int => ($left['start'] <=> $right['start'])
+                ?: ($left['end'] <=> $right['end'])
+        );
+
+        $merged = [];
+        foreach ($normalized as $span) {
+            $lastIndex = array_key_last($merged);
+            if ($lastIndex === null) {
+                $merged[] = $span;
+                continue;
+            }
+            $last = $merged[$lastIndex];
+            if ($span['start'] < $last['end']) {
+                return [];
+            }
+            $between = substr($text, $last['end'], $span['start'] - $last['end']);
+            if ($span['bold'] === $last['bold']
+                && $span['italic'] === $last['italic']
+                && preg_match('/^\s*$/u', $between) === 1) {
+                $merged[$lastIndex]['end'] = $span['end'];
+                $merged[$lastIndex]['fontResources'] = array_values(array_unique(array_merge(
+                    $last['fontResources'],
+                    $span['fontResources']
+                )));
+                $merged[$lastIndex]['baseFonts'] = array_values(array_unique(array_merge(
+                    $last['baseFonts'],
+                    $span['baseFonts']
+                )));
+                continue;
+            }
+            $merged[] = $span;
+        }
+
+        return $merged;
     }
 
     /**
@@ -45038,11 +54744,12 @@ final class PdfReader
             return [false, trim($match[1]), null];
         }
         if (preg_match('/^\s*(\d+)([.)])\s+(.+)$/u', $line, $match)) {
-            // A four-digit value followed by a period is ordinarily a year
-            // starting prose, not an ordered-list marker. Genuine high-
-            // ordinal lists are recovered by listItemAt() only when an
-            // adjacent sibling proves the numeric sequence.
-            if (strlen($match[1]) === 4 && $match[2] === '.') {
+            // A four-digit value followed by either conventional list
+            // delimiter is ordinarily a citation year starting prose, not an
+            // ordered-list marker. Genuine high-ordinal lists are recovered
+            // by listItemAt() only when an adjacent sibling proves the
+            // numeric sequence.
+            if (strlen($match[1]) === 4) {
                 return null;
             }
 
@@ -45064,7 +54771,7 @@ final class PdfReader
             return $item;
         }
 
-        $candidate = $this->ambiguousFourDigitPeriodListItem($line);
+        $candidate = $this->ambiguousFourDigitListItem($line);
         if ($candidate === null) {
             return null;
         }
@@ -45073,7 +54780,7 @@ final class PdfReader
             if ($siblingIndex < 0) {
                 continue;
             }
-            $sibling = $this->ambiguousFourDigitPeriodListItem($lines[$siblingIndex] ?? '');
+            $sibling = $this->ambiguousFourDigitListItem($lines[$siblingIndex] ?? '');
             if ($sibling !== null && $sibling[2] === $expected) {
                 return $candidate;
             }
@@ -45083,9 +54790,9 @@ final class PdfReader
     }
 
     /** @return array{true, string, int}|null */
-    private function ambiguousFourDigitPeriodListItem(string $line): ?array
+    private function ambiguousFourDigitListItem(string $line): ?array
     {
-        if (preg_match('/^\s*(\d{4})\.\s+(.+)$/u', $line, $match) !== 1) {
+        if (preg_match('/^\s*(\d{4})[.)]\s+(.+)$/u', $line, $match) !== 1) {
             return null;
         }
 
@@ -45105,7 +54812,7 @@ final class PdfReader
         }
 
         if ($this->listItemAt($lines, $index) !== null
-            && $this->ambiguousFourDigitPeriodListItem($line) !== null) {
+            && $this->ambiguousFourDigitListItem($line) !== null) {
             return false;
         }
 
@@ -45312,6 +55019,348 @@ final class PdfReader
         // pattern before promoting a line to a heading. This keeps wrapped
         // sentence fragments out of the document outline.
         return $this->repairedLineLooksLikeSectionLabel($line);
+    }
+
+    /**
+     * Apply only one-to-one, byte-exact positioned-font receipts. Text
+     * changed by semantic repair, duplicated source text, or competing layout
+     * candidates is deliberately left unstyled.
+     *
+     * @param list<AstNode> $blocks
+     * @param list<array<string,mixed>> $proofCandidates
+     * @return list<AstNode>
+     */
+    private function blocksWithPdfInlineFontStyles(
+        array $blocks,
+        array $proofCandidates
+    ): array {
+        $proofsByIdentity = [];
+        $seenDigests = [];
+        foreach ($proofCandidates as $candidate) {
+            $proof = $this->validatedPdfInlineFontStyleProof($candidate);
+            if ($proof === null || isset($seenDigests[$proof['proofDigest']])) {
+                continue;
+            }
+            $seenDigests[$proof['proofDigest']] = true;
+            $identity = $this->pdfInlineFontStyleSourceIdentityKey($proof);
+            if ($identity !== null) {
+                $proofsByIdentity[$identity][] = $proof;
+            }
+        }
+        foreach ($proofsByIdentity as $identity => $proofs) {
+            if (count($proofs) !== 1) {
+                unset($proofsByIdentity[$identity]);
+            }
+        }
+        $targetNodeIdsByIdentity = [];
+        $collectTargets = function (array $nodes) use (
+            &$collectTargets,
+            &$targetNodeIdsByIdentity,
+            $proofsByIdentity
+        ): void {
+            foreach ($nodes as $node) {
+                if (in_array($node->type, ['paragraph', 'heading', 'plain'], true)) {
+                    $text = $node->attr('text');
+                    $span = $node->attr('sourcePdfExactMergedLineSpan');
+                    $identity = is_string($text) && is_array($span)
+                        && $this->repairedPdfMergedLineHasExactWholeSourceSpan($text, $span)
+                            ? $this->pdfInlineFontStyleSourceIdentityKey($span)
+                            : null;
+                    $proof = is_string($identity)
+                        ? ($proofsByIdentity[$identity][0] ?? null)
+                        : null;
+                    if (is_array($proof)
+                        && hash_equals((string) $proof['text'], $text)
+                        && hash_equals(
+                            (string) $proof['projectionDigest'],
+                            hash('sha256', $this->pdfSourceOccurrenceComparableText($text))
+                        )) {
+                        $targetNodeIdsByIdentity[$identity][] = spl_object_id($node);
+                    }
+                }
+                if ($node->children !== []) {
+                    $collectTargets($node->children);
+                }
+            }
+        };
+        $collectTargets($blocks);
+        $proofsByNodeId = [];
+        foreach ($proofsByIdentity as $identity => $proofs) {
+            $nodeIds = $targetNodeIdsByIdentity[$identity] ?? [];
+            if (count($nodeIds) === 1) {
+                $proofsByNodeId[$nodeIds[0]] = $proofs[0];
+            }
+        }
+
+        return $this->pdfAstNodesWithInlineFontStyleProofs($blocks, $proofsByNodeId);
+    }
+
+    /** @return array<string,mixed>|null */
+    private function validatedPdfInlineFontStyleProof(array $proof): ?array
+    {
+        $text = $proof['text'] ?? null;
+        $digest = $proof['proofDigest'] ?? null;
+        if (($proof['version'] ?? null) !== 2
+            || ($proof['method'] ?? null)
+                !== 'positioned-font-resource-base-font-exact-source'
+            || ($proof['sourceSha256'] ?? null) !== $this->sourceSha256
+            || !is_string($text)
+            || $text === ''
+            || ($proof['textDigest'] ?? null) !== hash('sha256', $text)
+            || ($proof['projectionDigest'] ?? null) !== hash(
+                'sha256',
+                $this->pdfSourceOccurrenceComparableText($text)
+            )
+            || !is_array($proof['exactSourceRanges'] ?? null)
+            || !array_is_list($proof['exactSourceRanges'])
+            || $proof['exactSourceRanges'] === []
+            || !is_array($proof['sourceOccurrenceIds'] ?? null)
+            || !array_is_list($proof['sourceOccurrenceIds'])
+            || $proof['sourceOccurrenceIds'] === []
+            || count(array_unique($proof['sourceOccurrenceIds'], SORT_STRING))
+                !== count($proof['sourceOccurrenceIds'])
+            || !is_array($proof['globalSourceIndexes'] ?? null)
+            || !array_is_list($proof['globalSourceIndexes'])
+            || count($proof['globalSourceIndexes'])
+                !== count($proof['sourceOccurrenceIds'])
+            || !is_array($proof['spans'] ?? null)
+            || !is_string($digest)
+            || preg_match('/^[a-f0-9]{64}$/D', $digest) !== 1) {
+            return null;
+        }
+        foreach ($proof['sourceOccurrenceIds'] as $sourceId) {
+            if (!is_string($sourceId) || $sourceId === '') {
+                return null;
+            }
+        }
+        $rangeSourceIndexes = [];
+        $rangeBytes = 0;
+        $previousRange = null;
+        foreach ($proof['exactSourceRanges'] as $range) {
+            if (!is_array($range)
+                || !is_int($range['sourceIndex'] ?? null)
+                || !is_int($range['sourceStart'] ?? null)
+                || !is_int($range['sourceEnd'] ?? null)
+                || $range['sourceIndex'] < 0
+                || $range['sourceStart'] < 0
+                || $range['sourceEnd'] <= $range['sourceStart']
+                || ($previousRange !== null
+                    && ($range['sourceIndex'] < $previousRange['sourceIndex']
+                        || ($range['sourceIndex'] === $previousRange['sourceIndex']
+                            && $range['sourceStart'] !== $previousRange['sourceEnd'])))) {
+                return null;
+            }
+            $rangeSourceIndexes[$range['sourceIndex']] = true;
+            $rangeBytes += $range['sourceEnd'] - $range['sourceStart'];
+            $previousRange = $range;
+        }
+        if ($rangeBytes !== strlen($this->pdfSourceOccurrenceComparableText($text))
+            || count($rangeSourceIndexes) !== count($proof['sourceOccurrenceIds'])) {
+            return null;
+        }
+        $previousGlobalIndex = null;
+        foreach ($proof['globalSourceIndexes'] as $globalSourceIndex) {
+            if (!is_int($globalSourceIndex)
+                || $globalSourceIndex < 0
+                || ($previousGlobalIndex !== null
+                    && $globalSourceIndex !== $previousGlobalIndex + 1)) {
+                return null;
+            }
+            $previousGlobalIndex = $globalSourceIndex;
+        }
+        $digestPayload = $proof;
+        unset($digestPayload['proofDigest']);
+        if (!hash_equals(
+            $digest,
+            hash(
+                'sha256',
+                json_encode($digestPayload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: ''
+            )
+        )) {
+            return null;
+        }
+        $spans = $this->normalizedPositionedInlineFontStyleSpans($text, $proof['spans']);
+        if ($spans === []) {
+            return null;
+        }
+        $proof['spans'] = $spans;
+
+        return $proof;
+    }
+
+    /** @param array<string,mixed> $identity */
+    private function pdfInlineFontStyleSourceIdentityKey(array $identity): ?string
+    {
+        $sourceSha256 = $identity['sourceSha256'] ?? null;
+        $sourceOccurrenceIds = $identity['sourceOccurrenceIds'] ?? null;
+        $globalSourceIndexes = $identity['globalSourceIndexes'] ?? null;
+        $projectionDigest = $identity['projectionDigest'] ?? null;
+        if (!is_string($sourceSha256)
+            || !hash_equals($this->sourceSha256, $sourceSha256)
+            || !is_array($sourceOccurrenceIds)
+            || !array_is_list($sourceOccurrenceIds)
+            || $sourceOccurrenceIds === []
+            || !is_array($globalSourceIndexes)
+            || !array_is_list($globalSourceIndexes)
+            || count($globalSourceIndexes) !== count($sourceOccurrenceIds)
+            || !is_string($projectionDigest)
+            || preg_match('/^[a-f0-9]{64}$/D', $projectionDigest) !== 1) {
+            return null;
+        }
+        $encoded = json_encode([
+            'sourceSha256' => $sourceSha256,
+            'sourceOccurrenceIds' => $sourceOccurrenceIds,
+            'globalSourceIndexes' => $globalSourceIndexes,
+            'projectionDigest' => $projectionDigest,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        return is_string($encoded) ? hash('sha256', $encoded) : null;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param array<int,array<string,mixed>> $proofsByNodeId
+     * @return list<AstNode>
+     */
+    private function pdfAstNodesWithInlineFontStyleProofs(
+        array $nodes,
+        array $proofsByNodeId
+    ): array {
+        $styled = [];
+        foreach ($nodes as $node) {
+            $text = in_array($node->type, ['paragraph', 'heading', 'plain'], true)
+                ? $node->attr('text')
+                : null;
+            $proof = $proofsByNodeId[spl_object_id($node)] ?? null;
+            $attrs = $node->baseAttrs();
+            unset($attrs['sourcePdfExactMergedLineSpan']);
+            if (is_array($proof)
+                && $this->pdfAstInlineText($node->children) === $text) {
+                $offset = 0;
+                $children = $this->pdfAstInlineNodesWithFontStyleSpans(
+                    $node->children,
+                    $proof['spans'],
+                    $offset
+                );
+                if ($offset === strlen($text)) {
+                    $styled[] = new AstNode(
+                        $node->type,
+                        $attrs,
+                        $children,
+                        $node->attributeResolver()
+                    );
+                    continue;
+                }
+            }
+
+            $children = $node->children === []
+                ? []
+                : $this->pdfAstNodesWithInlineFontStyleProofs(
+                    $node->children,
+                    $proofsByNodeId
+                );
+            $styled[] = new AstNode(
+                    $node->type,
+                    $attrs,
+                    $children,
+                    $node->attributeResolver()
+                );
+        }
+
+        return $styled;
+    }
+
+    /** @param list<AstNode> $nodes */
+    private function pdfAstInlineText(array $nodes): string
+    {
+        $text = '';
+        foreach ($nodes as $node) {
+            if ($node->type === 'text') {
+                $text .= (string) $node->attr('text', '');
+                continue;
+            }
+            $text .= $this->pdfAstInlineText($node->children);
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param list<array<string,mixed>> $spans
+     * @return list<AstNode>
+     */
+    private function pdfAstInlineNodesWithFontStyleSpans(
+        array $nodes,
+        array $spans,
+        int &$offset,
+        bool $insideBold = false,
+        bool $insideItalic = false
+    ): array {
+        $styled = [];
+        foreach ($nodes as $node) {
+            if ($node->type !== 'text') {
+                $children = $this->pdfAstInlineNodesWithFontStyleSpans(
+                    $node->children,
+                    $spans,
+                    $offset,
+                    $insideBold || $node->type === 'strong',
+                    $insideItalic || $node->type === 'emph'
+                );
+                $styled[] = new AstNode(
+                    $node->type,
+                    $node->baseAttrs(),
+                    $children,
+                    $node->attributeResolver()
+                );
+                continue;
+            }
+
+            $leafText = (string) $node->attr('text', '');
+            $leafStart = $offset;
+            $leafEnd = $leafStart + strlen($leafText);
+            $cuts = [$leafStart, $leafEnd];
+            foreach ($spans as $span) {
+                $start = (int) $span['start'];
+                $end = (int) $span['end'];
+                if ($start > $leafStart && $start < $leafEnd) {
+                    $cuts[] = $start;
+                }
+                if ($end > $leafStart && $end < $leafEnd) {
+                    $cuts[] = $end;
+                }
+            }
+            $cuts = array_values(array_unique($cuts));
+            sort($cuts, SORT_NUMERIC);
+            for ($cutIndex = 0, $cutCount = count($cuts) - 1; $cutIndex < $cutCount; $cutIndex++) {
+                $start = $cuts[$cutIndex];
+                $end = $cuts[$cutIndex + 1];
+                if ($end <= $start) {
+                    continue;
+                }
+                $piece = substr($leafText, $start - $leafStart, $end - $start);
+                $bold = false;
+                $italic = false;
+                foreach ($spans as $span) {
+                    if ($start >= (int) $span['start'] && $end <= (int) $span['end']) {
+                        $bold = ($span['bold'] ?? false) === true;
+                        $italic = ($span['italic'] ?? false) === true;
+                        break;
+                    }
+                }
+                $pieceNode = new AstNode('text', ['text' => $piece]);
+                if ($italic && !$insideItalic) {
+                    $pieceNode = new AstNode('emph', [], [$pieceNode]);
+                }
+                if ($bold && !$insideBold) {
+                    $pieceNode = new AstNode('strong', [], [$pieceNode]);
+                }
+                $styled[] = $pieceNode;
+            }
+            $offset = $leafEnd;
+        }
+
+        return $styled;
     }
 
     private function paragraph(string $text, array $attrs = []): AstNode

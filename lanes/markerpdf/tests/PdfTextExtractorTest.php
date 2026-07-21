@@ -2949,6 +2949,37 @@ return [
         $t->true($runs[0]['x1'] < $runs[0]['textX1']);
         $t->true($runs[0]['y1'] > $runs[2]['y1']);
     },
+    'retains subset BaseFont provenance on positioned text runs' => static function (TestRunner $t): void {
+        $content = 'BT /FR 12 Tf 72 720 Td (Plain ) Tj '
+            . '/FB 12 Tf (Bold ) Tj '
+            . '/FI 12 Tf (Italic ) Tj '
+            . '/FBI 12 Tf (Both) Tj ET';
+        $toUnicode = "begincmap\n"
+            . "1 begincodespacerange\n<00> <FF>\nendcodespacerange\n"
+            . "1 beginbfrange\n<00> <FF> <0000>\nendbfrange\n"
+            . "endcmap";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            . "/Resources << /Font << /FR 4 0 R /FB 5 0 R /FI 6 0 R /FBI 7 0 R >> >> "
+            . "/Contents 8 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /AAAAAA+HelveticaNeue /Encoding /WinAnsiEncoding /ToUnicode 9 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /BBBBBB+HelveticaNeue-Bold /Encoding /WinAnsiEncoding /ToUnicode 9 0 R >>\nendobj\n"
+            . "6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /CCCCCC+HelveticaNeue-Italic /Encoding /WinAnsiEncoding /ToUnicode 9 0 R >>\nendobj\n"
+            . "7 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /DDDDDD+HelveticaNeue-BoldItalic /Encoding /WinAnsiEncoding /ToUnicode 9 0 R >>\nendobj\n"
+            . "8 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n%%EOF";
+
+        $runs = (new PdfTextExtractor())->extractPositionedTextRuns($pdf);
+
+        $t->same(['FR', 'FB', 'FI', 'FBI'], array_column($runs, 'fontResource'));
+        $t->same(
+            ['HelveticaNeue', 'HelveticaNeue-Bold', 'HelveticaNeue-Italic', 'HelveticaNeue-BoldItalic'],
+            array_column($runs, 'baseFont')
+        );
+        $t->same(['Plain ', 'Bold ', 'Italic ', 'Both'], array_column($runs, 'text'));
+    },
     'extracts filled rectangles with non-white fill colors' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = 'q /DeviceRGB cs 0.9647058823529412 0.9686274509803922 0.9803921568627451 scn 70 714 230 18 re f Q '
             . 'q 0.85 g 320 714 80 18 re f Q q 1 1 1 rg 10 10 20 20 re f Q';
@@ -8152,6 +8183,55 @@ return [
         $t->true(!str_contains($plainText, '?1GI1EA'));
         $t->true(!str_contains($plainText, 'Ignored Alternate Text'));
         $t->true(!str_contains($plainText, 'Ignored Expanded Text'));
+    },
+    'keeps mapped caption children after a grouped StructElem Alt prefix' => static function (TestRunner $t): void {
+        $content = "BT /Ffallback 12 Tf 72 720 Td "
+            . "/Span << /MCID 0 >> BDC <3F> Tj EMC ET "
+            . "BT /Fmapped 12 Tf 72 700 Td "
+            . "/Span << /MCID 1 >> BDC (Caption child remains visible) Tj EMC ET";
+        $prefix = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 7 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n";
+        $page = static fn (bool $withParentTree): string => "3 0 obj\n"
+            . "<< /Type /Page /Parent 2 0 R"
+            . ($withParentTree ? " /StructParents 0" : '')
+            . " /Resources << /Font << /Ffallback 4 0 R /Fmapped 6 0 R >> >> /Contents 5 0 R >>\n"
+            . "endobj\n";
+        $common = "4 0 obj\n"
+            . "<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+CustomSubset /Encoding /WinAnsiEncoding >>\n"
+            . "endobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "6 0 obj\n"
+            . "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\n"
+            . "endobj\n";
+        $parentTreePdf = $prefix
+            . $page(true)
+            . $common
+            . "7 0 obj\n<< /Type /StructTreeRoot /ParentTree 8 0 R >>\nendobj\n"
+            . "8 0 obj\n<< /Nums [ 0 [ 9 0 R 9 0 R ] ] >>\nendobj\n"
+            . "9 0 obj\n"
+            . "<< /Type /StructElem /S /Figure /Alt (Figure 1:) "
+            . "/K [ << /Type /MCR /MCID 0 >> << /Type /MCR /MCID 1 >> ] >>\n"
+            . "endobj\n%%EOF";
+        $rootKidPdf = $prefix
+            . $page(false)
+            . $common
+            . "7 0 obj\n<< /Type /StructTreeRoot /K 9 0 R >>\nendobj\n"
+            . "9 0 obj\n"
+            . "<< /Type /StructElem /S /Figure /Pg 3 0 R /Alt (Figure 1:) "
+            . "/K [ << /Type /MCR /Pg 3 0 R /MCID 0 >> "
+            . "<< /Type /MCR /Pg 3 0 R /MCID 1 >> ] >>\n"
+            . "endobj\n%%EOF";
+
+        foreach (['StructTreeRoot K' => $rootKidPdf, 'ParentTree' => $parentTreePdf] as $path => $pdf) {
+            $extractor = new PdfTextExtractor();
+            $t->same(
+                ['Figure 1:', 'Caption child remains visible'],
+                $extractor->extractTextLines($pdf),
+                "{$path} grouped Alt fallback must not suppress its mapped caption child."
+            );
+            $t->contains('Caption child remains visible', $extractor->extractPlainText($pdf));
+        }
     },
     'uses indirect StructElem replacement strings before custom glyph suppression' => static function (TestRunner $t): void {
         $content = "BT /F1 12 Tf 72 720 Td "

@@ -116,6 +116,16 @@ final class PdfFormulaSemanticProcessor implements PdfSemanticRecordProcessor
         $this->regionCount = 0;
         $processed = [];
         for ($index = 0, $count = count($records); $index < $count;) {
+            $inlineFormula = $this->inlineFormulaProseAt($records, $index);
+            if ($inlineFormula !== null) {
+                $processed[] = [
+                    'text' => $inlineFormula['text'],
+                    'layout' => $inlineFormula['layout'],
+                ];
+                $index += $inlineFormula['consumed'];
+                continue;
+            }
+
             $formula = $this->formulaAt($records, $index);
             if ($formula === null) {
                 $processed[] = $records[$index];
@@ -134,6 +144,447 @@ final class PdfFormulaSemanticProcessor implements PdfSemanticRecordProcessor
         }
 
         return $processed;
+    }
+
+    /**
+     * Reassemble source-order atoms which geometry proves occupy one inline
+     * formula row inside prose. Unlike a display formula, the result keeps no
+     * formula region role, so the ordinary prose merger can retain it inside
+     * its surrounding sentence.
+     *
+     * Every carrier must expose a validated whole-occurrence or inline-marker
+     * union proof. Their exact ranges must be consecutive, their compact text
+     * must account for the complete range inventory, and their bboxes must
+     * remain on one visual row. This deliberately excludes positioned rows
+     * whose source ranges interleave scripts with a baseline carrier: joining
+     * those records in array order would change the source character order.
+     *
+     * @param list<array{text:string,layout:array<string,mixed>|null}> $records
+     * @return array{text:string,layout:array<string,mixed>,consumed:int}|null
+     */
+    private function inlineFormulaProseAt(array $records, int $start): ?array
+    {
+        if (!$this->hasNearbyInlineFormulaScript($records, $start)) {
+            return null;
+        }
+        $first = $this->validatedExactInlineCarrier($records[$start] ?? null);
+        if ($first === null) {
+            return null;
+        }
+
+        $parts = [(string) $records[$start]['text']];
+        $layouts = [$first['layout']];
+        $ranges = $first['ranges'];
+        $sourceIds = $first['sourceIds'];
+        $lastSourceIndex = $first['sourceIndexes'][array_key_last($first['sourceIndexes'])];
+        $maximum = min(count($records), $start + 24);
+        for ($end = $start + 1; $end < $maximum; $end++) {
+            $carrier = $this->validatedExactInlineCarrier($records[$end] ?? null);
+            if ($carrier === null
+                || $carrier['page'] !== $first['page']
+                || $carrier['stream'] !== $first['stream']
+                || $carrier['sourceIndexes'][0] !== $lastSourceIndex + 1
+                || !$this->sameInlineFormulaVisualRow(
+                    $layouts[0],
+                    $layouts[array_key_last($layouts)],
+                    $carrier['layout']
+                )) {
+                break;
+            }
+            $parts[] = (string) $records[$end]['text'];
+            $layouts[] = $carrier['layout'];
+            array_push($ranges, ...$carrier['ranges']);
+            array_push($sourceIds, ...$carrier['sourceIds']);
+            $lastSourceIndex = $carrier['sourceIndexes'][array_key_last($carrier['sourceIndexes'])];
+        }
+
+        if (count($parts) < 3 || !$this->looksLikeInlineFormulaProse($parts, $layouts)) {
+            return null;
+        }
+        $text = $this->joinInlineFormulaProseParts($parts, $layouts);
+        $sourceText = implode('', $parts);
+        if ($this->compact($text) === ''
+            || !hash_equals($this->compact($sourceText), $this->compact($text))) {
+            return null;
+        }
+
+        return [
+            'text' => $text,
+            'layout' => $this->mergedInlineFormulaProseLayout(
+                $text,
+                $layouts,
+                $ranges,
+                array_values(array_unique($sourceIds)),
+                $first['page'],
+                $first['stream']
+            ),
+            'consumed' => count($parts),
+        ];
+    }
+
+    /** @param list<array{text:string,layout:array<string,mixed>|null}> $records */
+    private function hasNearbyInlineFormulaScript(array $records, int $start): bool
+    {
+        $firstLayout = is_array($records[$start]['layout'] ?? null)
+            ? $records[$start]['layout']
+            : null;
+        if (!$this->hasGeometry($firstLayout)) {
+            return false;
+        }
+        $mainFont = max(1.0, (float) $firstLayout['fontSize']);
+        for ($index = $start + 1; $index <= $start + 2; $index++) {
+            $layout = is_array($records[$index]['layout'] ?? null)
+                ? $records[$index]['layout']
+                : null;
+            $text = is_string($records[$index]['text'] ?? null)
+                ? $records[$index]['text']
+                : '';
+            if ($this->hasGeometry($layout)
+                && (int) $layout['page'] === (int) $firstLayout['page']
+                && $this->inlineFormulaPartIsScript($text, $layout, $firstLayout, $mainFont)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{text:string,layout:array<string,mixed>|null}|null $record
+     * @return array{
+     *   layout:array<string,mixed>,
+     *   ranges:list<array{sourceIndex:int,sourceStart:int,sourceEnd:int}>,
+     *   sourceIndexes:list<int>,
+     *   sourceIds:list<string>,
+     *   page:int,
+     *   stream:int
+     * }|null
+     */
+    private function validatedExactInlineCarrier(?array $record): ?array
+    {
+        $layout = is_array($record['layout'] ?? null) ? $record['layout'] : null;
+        $text = is_string($record['text'] ?? null) ? $record['text'] : '';
+        $projection = $this->compact($text);
+        if ($projection === ''
+            || !$this->hasGeometry($layout)
+            || ($layout['code'] ?? false) === true
+            || !is_int($layout['sourceStream'] ?? null)
+            || $layout['sourceStream'] < 1) {
+            return null;
+        }
+
+        $sourceRanges = $layout['sourcePdfExactSourceRanges'] ?? null;
+        if (!is_array($sourceRanges) || !array_is_list($sourceRanges) || $sourceRanges === []) {
+            return null;
+        }
+        $ranges = [];
+        $sourceIndexes = [];
+        $coveredBytes = 0;
+        $previousSourceIndex = null;
+        foreach ($sourceRanges as $range) {
+            if (!is_array($range)
+                || array_keys($range) !== ['sourceIndex', 'sourceStart', 'sourceEnd']
+                || !is_int($range['sourceIndex'] ?? null)
+                || !is_int($range['sourceStart'] ?? null)
+                || !is_int($range['sourceEnd'] ?? null)
+                || $range['sourceIndex'] < 0
+                || $range['sourceStart'] !== 0
+                || $range['sourceEnd'] <= 0
+                || ($previousSourceIndex !== null
+                    && $range['sourceIndex'] !== $previousSourceIndex + 1)) {
+                return null;
+            }
+            $ranges[] = $range;
+            $sourceIndexes[] = $range['sourceIndex'];
+            $coveredBytes += $range['sourceEnd'];
+            $previousSourceIndex = $range['sourceIndex'];
+        }
+        if ($coveredBytes !== strlen($projection)) {
+            return null;
+        }
+
+        $sourceIds = [];
+        if (count($ranges) === 1) {
+            $proof = is_array($layout['sourcePdfWholeExactSourceOccurrenceProof'] ?? null)
+                ? $layout['sourcePdfWholeExactSourceOccurrenceProof']
+                : null;
+            if (!is_array($proof)
+                || ($proof['version'] ?? null) !== 1
+                || ($proof['method'] ?? null) !== 'source-inventory-whole-source-occurrence'
+                || ($proof['page'] ?? null) !== (int) $layout['page']
+                || ($proof['stream'] ?? null) !== $layout['sourceStream']
+                || ($proof['globalSourceIndex'] ?? null) !== $sourceIndexes[0]
+                || ($proof['exactRange'] ?? null) !== $ranges[0]
+                || !is_string($proof['sourceOccurrenceId'] ?? null)
+                || $proof['sourceOccurrenceId'] === ''
+                || !is_string($proof['projectionDigest'] ?? null)
+                || !hash_equals($proof['projectionDigest'], hash('sha256', $projection))
+                || !$this->exactProofDigestMatches($proof)) {
+                return null;
+            }
+            $sourceIds[] = $proof['sourceOccurrenceId'];
+        } else {
+            $proof = is_array($layout['sourcePdfInlineMarkerExactSourceUnionProof'] ?? null)
+                ? $layout['sourcePdfInlineMarkerExactSourceUnionProof']
+                : null;
+            $layoutSourceIndexes = is_array($layout['sourcePdfGlobalSourceIndexes'] ?? null)
+                ? array_values($layout['sourcePdfGlobalSourceIndexes'])
+                : [];
+            $layoutSourceIds = is_array($layout['sourcePdfSourceIds'] ?? null)
+                ? array_values($layout['sourcePdfSourceIds'])
+                : [];
+            if (!is_array($proof)
+                || ($proof['version'] ?? null) !== 1
+                || ($proof['method'] ?? null) !== 'exact-source-inline-marker-union'
+                || ($proof['page'] ?? null) !== (int) $layout['page']
+                || ($proof['layoutStream'] ?? null) !== $layout['sourceStream']
+                || ($proof['ranges'] ?? null) !== $ranges
+                || $layoutSourceIndexes !== $sourceIndexes
+                || count($layoutSourceIds) !== count($ranges)
+                || count($layoutSourceIds) !== count(array_unique($layoutSourceIds))
+                || !is_string($proof['projectionDigest'] ?? null)
+                || !hash_equals($proof['projectionDigest'], hash('sha256', $projection))
+                || !$this->exactProofDigestMatches($proof)) {
+                return null;
+            }
+            $sourceIds = $layoutSourceIds;
+        }
+
+        return [
+            'layout' => $layout,
+            'ranges' => $ranges,
+            'sourceIndexes' => $sourceIndexes,
+            'sourceIds' => $sourceIds,
+            'page' => (int) $layout['page'],
+            'stream' => $layout['sourceStream'],
+        ];
+    }
+
+    /** @param array<string,mixed> $proof */
+    private function exactProofDigestMatches(array $proof): bool
+    {
+        $digest = $proof['proofDigest'] ?? null;
+        if (!is_string($digest) || preg_match('/^[a-f0-9]{64}$/D', $digest) !== 1) {
+            return false;
+        }
+        $payload = $proof;
+        unset($payload['proofDigest']);
+
+        return hash_equals($digest, hash('sha256', json_encode(
+            $payload,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        ) ?: ''));
+    }
+
+    /** @param array<string,mixed> $first @param array<string,mixed> $previous @param array<string,mixed> $candidate */
+    private function sameInlineFormulaVisualRow(
+        array $first,
+        array $previous,
+        array $candidate
+    ): bool {
+        $largestFont = max(
+            1.0,
+            (float) $first['fontSize'],
+            (float) $previous['fontSize'],
+            (float) $candidate['fontSize']
+        );
+        $firstCenter = ((float) $first['y1'] + (float) $first['y2']) / 2.0;
+        $candidateCenter = ((float) $candidate['y1'] + (float) $candidate['y2']) / 2.0;
+        if (abs($candidateCenter - $firstCenter) > max(8.0, $largestFont * 0.95)) {
+            return false;
+        }
+
+        return (float) $candidate['x1']
+            >= (float) $previous['x1'] - max(8.0, $largestFont * 0.8);
+    }
+
+    /** @param list<string> $parts @param list<array<string,mixed>> $layouts */
+    private function looksLikeInlineFormulaProse(array $parts, array $layouts): bool
+    {
+        $text = implode('', $parts);
+        $wordCount = preg_match_all('/\p{Ll}{4,}/u', $text, $unused);
+        if ($wordCount === false || $wordCount < 2) {
+            return false;
+        }
+        $mainFont = max(array_map(
+            static fn (array $layout): float => max(1.0, (float) $layout['fontSize']),
+            $layouts
+        ));
+        $scriptIndexes = [];
+        for ($index = 1, $count = count($parts) - 1; $index < $count; $index++) {
+            if ($this->inlineFormulaPartIsScript(
+                $parts[$index],
+                $layouts[$index],
+                $layouts[0],
+                $mainFont
+            )) {
+                $scriptIndexes[] = $index;
+            }
+        }
+        if ($scriptIndexes === []) {
+            return false;
+        }
+
+        $notation = preg_match(
+            '/(?:\p{L}\([^)]{1,4}\)|[|=+\x{2026}]|\x{00B7}{3}|\.{3})/u',
+            $text
+        ) === 1;
+        $subscriptedSymbolBeforeProse = false;
+        foreach ($scriptIndexes as $scriptIndex) {
+            $previous = rtrim($parts[$scriptIndex - 1]);
+            $following = ltrim($parts[$scriptIndex + 1]);
+            if (preg_match('/\b\p{L}(?:\([^)]{1,4}\))?$/u', $previous) === 1
+                && preg_match('/^\p{Ll}{3,}(?:\b|\s)/u', $following) === 1) {
+                $subscriptedSymbolBeforeProse = true;
+                break;
+            }
+        }
+
+        return $notation || $subscriptedSymbolBeforeProse;
+    }
+
+    /** @param array<string,mixed> $layout @param array<string,mixed> $baselineLayout */
+    private function inlineFormulaPartIsScript(
+        string $text,
+        array $layout,
+        array $baselineLayout,
+        float $mainFont
+    ): bool {
+        $compact = $this->compact($text);
+        if ($compact === '' || $this->textLength($compact) > 4) {
+            return false;
+        }
+        $center = ((float) $layout['y1'] + (float) $layout['y2']) / 2.0;
+        $baselineCenter = ((float) $baselineLayout['y1'] + (float) $baselineLayout['y2']) / 2.0;
+
+        return (float) $layout['fontSize'] <= $mainFont * 0.86
+            && abs($center - $baselineCenter) >= max(0.8, $mainFont * 0.08);
+    }
+
+    /** @param list<string> $parts @param list<array<string,mixed>> $layouts */
+    private function joinInlineFormulaProseParts(array $parts, array $layouts): string
+    {
+        $text = trim($parts[0]);
+        $mainFont = max(array_map(
+            static fn (array $layout): float => max(1.0, (float) $layout['fontSize']),
+            $layouts
+        ));
+        for ($index = 1, $count = count($parts); $index < $count; $index++) {
+            $left = rtrim($parts[$index - 1]);
+            $right = ltrim($parts[$index]);
+            $separator = '';
+            $leftIsScript = $this->inlineFormulaPartIsScript(
+                $parts[$index - 1],
+                $layouts[$index - 1],
+                $layouts[0],
+                $mainFont
+            );
+            if ($leftIsScript
+                && preg_match('/^\p{Ll}{3,}(?:\b|\s)/u', $right) === 1) {
+                $separator = ' ';
+            } else {
+                $gap = (float) $layouts[$index]['x1'] - (float) $layouts[$index - 1]['x2'];
+                $smallerFont = min(
+                    (float) $layouts[$index - 1]['fontSize'],
+                    (float) $layouts[$index]['fontSize']
+                );
+                if ($gap > max(2.25, $smallerFont * 0.22)
+                    && preg_match('/[\p{L}\p{N}]$/u', $left) === 1
+                    && preg_match('/^[\p{L}\p{N}]/u', $right) === 1) {
+                    $separator = ' ';
+                }
+            }
+            $text .= $separator . $right;
+        }
+
+        return trim($text);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $layouts
+     * @param list<array{sourceIndex:int,sourceStart:int,sourceEnd:int}> $ranges
+     * @param list<string> $sourceIds
+     * @return array<string,mixed>
+     */
+    private function mergedInlineFormulaProseLayout(
+        string $text,
+        array $layouts,
+        array $ranges,
+        array $sourceIds,
+        int $page,
+        int $stream
+    ): array {
+        $layout = $layouts[0];
+        foreach ($layouts as $candidate) {
+            $layout['x1'] = min((float) $layout['x1'], (float) $candidate['x1']);
+            $layout['y1'] = min((float) $layout['y1'], (float) $candidate['y1']);
+            $layout['x2'] = max((float) $layout['x2'], (float) $candidate['x2']);
+            $layout['y2'] = max((float) $layout['y2'], (float) $candidate['y2']);
+            $layout['fontSize'] = max((float) $layout['fontSize'], (float) $candidate['fontSize']);
+            foreach ([['textX1', 'min'], ['textY1', 'min'], ['textX2', 'max'], ['textY2', 'max']] as [$key, $operation]) {
+                if (is_numeric($layout[$key] ?? null) && is_numeric($candidate[$key] ?? null)) {
+                    $layout[$key] = $operation === 'min'
+                        ? min((float) $layout[$key], (float) $candidate[$key])
+                        : max((float) $layout[$key], (float) $candidate[$key]);
+                }
+            }
+        }
+        foreach ([
+            'id',
+            'positionedTextCandidate',
+            'sourceGeometry',
+            'sourceGeometryMethod',
+            'sourcePdfExactPositionedText',
+            'sourcePdfExactGeometryFallback',
+            'sourceUnmatchedFallback',
+            'sourcePdfGlobalSourceIndex',
+            'sourcePdfSourceIndex',
+            'sourcePdfSourceIndexEnd',
+            'sourcePdfSourceIndexes',
+            'sourcePdfWholeExactSourceOccurrenceProof',
+            'sourcePdfInlineMarkerCount',
+            'sourcePdfInlineMarkerExactSourceUnionProof',
+            'sourceVerifiedBoundarySeparators',
+        ] as $staleKey) {
+            unset($layout[$staleKey]);
+        }
+
+        $sourceIndexes = array_column($ranges, 'sourceIndex');
+        $layout['text'] = $text;
+        $layout['page'] = $page;
+        $layout['sourceStream'] = $stream;
+        $layout['sourceOrderStart'] = $sourceIndexes[0];
+        $layout['sourceOrderEnd'] = $sourceIndexes[array_key_last($sourceIndexes)];
+        $layout['sourcePdfGlobalSourceIndexes'] = $sourceIndexes;
+        $layout['sourcePdfExactSourceRanges'] = $ranges;
+        $layout['sourcePdfStreams'] = [$stream];
+        if ($sourceIds !== []) {
+            $layout['sourcePdfSourceIds'] = $sourceIds;
+        }
+        $layout['sourcePdfProtectedSemanticContent'] = true;
+        $layout['sourcePdfInlineFormulaProse'] = true;
+        $proof = [
+            'version' => 1,
+            'method' => 'exact-source-inline-formula-prose-union',
+            'page' => $page,
+            'stream' => $stream,
+            'sourceIndexes' => $sourceIndexes,
+            'ranges' => $ranges,
+            'projectionDigest' => hash('sha256', $this->compact($text)),
+            'geometry' => [
+                'x1' => $layout['x1'],
+                'y1' => $layout['y1'],
+                'x2' => $layout['x2'],
+                'y2' => $layout['y2'],
+            ],
+        ];
+        $proof['proofDigest'] = hash('sha256', json_encode(
+            $proof,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        ) ?: '');
+        $layout['sourcePdfInlineFormulaExactSourceUnionProof'] = $proof;
+
+        return $layout;
     }
 
     /**

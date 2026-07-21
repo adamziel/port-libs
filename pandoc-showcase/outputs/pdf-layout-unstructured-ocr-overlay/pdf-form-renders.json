@@ -26,5 +26,25 @@
             "precedingText": null,
             "followingText": "Source: https://www.industrydocuments.ucsf.edu/docs/mjgl0226"
         }
+    ],
+    "prerenderVersion": 1,
+    "prerenderRendererSchema": "port-libs-pdfjs-static-preview-v1",
+    "prerenderedSourceDigest": "b625840a3c5289843752a129670d1fbfbb5554f2c0d1de4a457be5e7f91f1ca3",
+    "prerenderedAssets": [
+        {
+            "path": "outputs/pdf-layout-unstructured-ocr-overlay/media/pdf/image-10.jpg",
+            "mimeType": "image/jpeg",
+            "byteLength": 473015,
+            "width": 1254,
+            "height": 1638,
+            "sha256": "e8b8a39b5555411b4bad93be27ad73ec5000694603b86131351863db4f74156a"
+        }
+    ],
+    "prerenderedRequestCoverage": [
+        {
+            "requestId": "pdf-page-raster-b07100a1a4ace15fd8be9afcb1d8c31f",
+            "assetPath": "outputs/pdf-layout-unstructured-ocr-overlay/media/pdf/image-10.jpg",
+            "placement": "existing-page-image"
+        }
     ]
 }

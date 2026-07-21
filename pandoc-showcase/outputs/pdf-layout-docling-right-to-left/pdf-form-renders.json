@@ -26,5 +26,25 @@
             "precedingText": null,
             "followingText": null
         }
+    ],
+    "prerenderVersion": 1,
+    "prerenderRendererSchema": "port-libs-pdfjs-static-preview-v1",
+    "prerenderedSourceDigest": "ef18b5eb3345ca75a60aaa96cfd0f1b96b16e8a4c76263e9b5ecfc6002287e8f",
+    "prerenderedAssets": [
+        {
+            "path": "outputs/pdf-layout-docling-right-to-left/pdf-preview-e48110041b0b1a35f724ca8d.png",
+            "mimeType": "image/png",
+            "byteLength": 215397,
+            "width": 1224,
+            "height": 1584,
+            "sha256": "b6265c7e2f94f129894f33f92c04fe38859f8006a246e7b9d427c20f1d224598"
+        }
+    ],
+    "prerenderedRequestCoverage": [
+        {
+            "requestId": "pdf-page-raster-0915105e3982913a88411966ec862bcc",
+            "assetPath": "outputs/pdf-layout-docling-right-to-left/pdf-preview-e48110041b0b1a35f724ca8d.png",
+            "placement": "page-gallery"
+        }
     ]
 }

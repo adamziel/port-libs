@@ -21,21 +21,21 @@
       "baseline": {"sources": ["pandoc-showcase/outputs/pdf-quickbooks-invoice-template/pdfkit-reference.json", "pandoc-showcase/outputs/pdf-quickbooks-invoice-template/wordpress-blocks.html", "pandoc-showcase/outputs/pdf-quickbooks-invoice-template/pdf-form-renders.json"], "asOf": "2026-07-16"},
       "reason": null,
       "expected": {
-        "headings": [{"text": "Invoice template", "level": 1, "occurrences": 1}, {"text": "Description", "level": 1, "occurrences": 2}, {"text": "Total AUD", "level": 2, "occurrences": 2}],
+        "headings": [{"text": "Invoice template", "level": 1, "occurrences": 1}, {"text": "Tax Invoice", "level": 2, "occurrences": 1}, {"text": "Invoice", "level": 2, "occurrences": 1}],
         "paragraphs": [{"text": "These invoice templates can be used to bill your clients in order to collect payment.", "occurrences": 1}, {"text": "Start a free 30-day QuickBooks Online trial today at www.quickbooks.intuit.com/au/", "occurrences": 1}, {"text": "Regards,", "occurrences": 2}],
         "listStarts": [],
-        "tableHeaders": [{"tableIndex": 0, "cells": ["Enter company name", "Phone (02) 9999-9999"]}, {"tableIndex": 1, "cells": ["Bill to", "Ship to", "Details"]}],
+        "tableHeaders": [{"tableIndex": 0, "cells": ["Enter company name", "Phone (02) 9999-9999"]}, {"tableIndex": 1, "cells": ["Bill to", "Ship to", "Details"]}, {"tableIndex": 2, "cells": ["Description", "Qty/Hrs", "Rate", "Amount"]}, {"tableIndex": 5, "cells": ["Description", "Qty/Hrs", "Rate", "Amount"]}],
         "tableCells": [{"tableIndex": 0, "text": "ABN 123456789", "occurrences": 1}, {"tableIndex": 1, "text": "Due date: dd/mm/yyyy", "occurrences": 1}, {"tableIndex": 2, "text": "Enter your product or service description", "occurrences": 2}],
         "spans": [{"tableIndex": 0, "text": "Enter company name", "rowspan": 1, "colspan": 1, "occurrences": 1}],
-        "order": [{"sequence": [{"kind": "heading", "text": "Invoice template"}, {"kind": "paragraph", "text": "These invoice templates can be used to bill your clients in order to collect payment."}, {"kind": "table_cell", "text": "Enter company name"}, {"kind": "heading", "text": "Description"}, {"kind": "table_cell", "text": "Enter your product or service description"}, {"kind": "paragraph", "text": "Regards,"}]}],
+        "order": [{"sequence": [{"kind": "heading", "text": "Invoice template"}, {"kind": "paragraph", "text": "These invoice templates can be used to bill your clients in order to collect payment."}, {"kind": "heading", "text": "Tax Invoice"}, {"kind": "table_cell", "text": "Enter company name"}, {"kind": "table_cell", "text": "Description"}, {"kind": "table_cell", "text": "Enter your product or service description"}, {"kind": "paragraph", "text": "Regards,"}]}],
         "links": [{"text": "at www.quickbooks.intuit.com/au/", "url": "http://www.quickbooks.intuit.com/au/", "occurrences": 1}],
         "pageCoverage": {"pageCount": 3, "processedPages": [1, 2, 3]},
         "mediaOccurrences": [{"id": "pdf-image-p2-n1-o24", "page": 2, "object": 24, "disposition": "intentional_omission"}, {"id": "pdf-image-p2-n2-o26", "page": 2, "object": 26, "disposition": "intentional_omission"}, {"id": "pdf-image-p2-n3-o28", "page": 2, "object": 28, "disposition": "resolved"}, {"id": "pdf-image-p3-n1-o26", "page": 3, "object": 26, "disposition": "intentional_omission"}, {"id": "pdf-image-p3-n2-o34", "page": 3, "object": 34, "disposition": "resolved"}],
         "unresolvedDispositions": []
       },
       "forbidden": {
-        "headings": [{"text": "Tax nvoice", "level": 1}],
-        "paragraphs": [{"text": "Taxinvoice"}],
+        "headings": [{"text": "Tax nvoice", "level": 1}, {"text": "Description", "level": 1}, {"text": "Qty/Hrs", "level": 2}, {"text": "Rate", "level": 2}, {"text": "Amount", "level": 2}, {"text": "Total AUD", "level": 2}, {"text": "Enter company name Street address City State, postcode", "level": 1}, {"text": "Phone (02) 9999-9999", "level": 2}],
+        "paragraphs": [{"text": "Taxinvoice"}, {"text": "Tax nvoice"}],
         "listStarts": [{"text": "Invoice#12345", "ordered": false}],
         "tableHeaders": [{"tableIndex": 0, "cells": ["Phone (02) 9999-9999", "Enter company name"]}],
         "tableCells": [{"tableIndex": 1, "text": "Invoice#12345"}],
@@ -46,7 +46,7 @@
         "mediaOccurrences": [{"id": "pdf-image-p2-n3-o28", "page": 2, "object": 28, "disposition": "unresolved"}],
         "unresolvedDispositions": [{"domain": "source"}, {"domain": "media"}]
       },
-      "exactCounts": {"headings": 14, "paragraphs": 14, "listStarts": 0, "tables": 7, "links": 1, "mediaOccurrences": 5, "unresolvedSourceDispositions": 0, "unresolvedMediaDispositions": 0}
+      "exactCounts": {"headings": 3, "paragraphs": 13, "listStarts": 0, "tables": 7, "links": 1, "mediaOccurrences": 5, "unresolvedSourceDispositions": 0, "unresolvedMediaDispositions": 0}
     }
   },
   {
@@ -432,13 +432,13 @@
       "baseline": {"sources": ["pandoc-showcase/outputs/pdf-tabula-spreadsheet-no-frame/pdfkit-reference.json", "pandoc-showcase/outputs/pdf-tabula-spreadsheet-no-frame/wordpress-blocks.html"], "asOf": "2026-07-16"},
       "reason": null,
       "expected": {
-        "headings": [{"text": "Table 1 BRAZIL", "level": 1, "occurrences": 1}, {"text": "PLANTED AREA ESTIMATE", "level": 2, "occurrences": 1}],
-        "paragraphs": [{"text": "2011/2012 AND 2012/2013 CROPS (In 1000 ha)", "occurrences": 1}, {"text": "Followup of the Brazilian Grain Crops 2012/2013 Ninth Assessment– Jun/2013", "occurrences": 1}],
-        "listStarts": [{"text": "YIELD ESTIMATE (184.30 million tons) The estimated yield is of 184.30 million tons, 10.9% higher than in 2011/12, when it reached 166.17 million tons (Table 2). This outcome represents an increment of 18.13 million tons due, mostly to soybeans and corn second crop that present increase in yield of 22.4% and 11.5%, respectively.", "ordered": true, "occurrences": 1}],
+        "headings": [{"text": "Table 1 BRAZIL", "level": 1, "occurrences": 1}, {"text": "PLANTED AREA ESTIMATE", "level": 2, "occurrences": 1}, {"text": "3. YIELD ESTIMATE (184.30 million tons)", "level": 2, "occurrences": 1}],
+        "paragraphs": [{"text": "2011/2012 AND 2012/2013 CROPS (In 1000 ha)", "occurrences": 1}, {"text": "The estimated yield is of 184.30 million tons, 10.9% higher than in 2011/12, when it reached 166.17 million tons (Table 2). This outcome represents an increment of 18.13 million tons due, mostly to soybeans and corn second crop that present increase in yield of 22.4% and 11.5%, respectively.", "occurrences": 1}],
+        "listStarts": [],
         "tableHeaders": [{"tableIndex": 0, "cells": ["", "HARVEST", "", "", "VARIATION", ""]}],
         "tableCells": [{"tableIndex": 0, "text": "COTTON", "occurrences": 1}, {"tableIndex": 0, "text": "1.393,4", "occurrences": 1}, {"tableIndex": 0, "text": "(498,5)", "occurrences": 1}],
         "spans": [{"tableIndex": 0, "text": "HARVEST", "rowspan": 1, "colspan": 1, "occurrences": 1}],
-        "order": [{"sequence": [{"kind": "heading", "text": "Table 1 BRAZIL"}, {"kind": "heading", "text": "PLANTED AREA ESTIMATE"}, {"kind": "paragraph", "text": "2011/2012 AND 2012/2013 CROPS (In 1000 ha)"}, {"kind": "table_cell", "text": "HARVEST"}, {"kind": "table_cell", "text": "VARIATION"}, {"kind": "table_cell", "text": "COTTON"}, {"kind": "table_cell", "text": "1.393,4"}, {"kind": "table_cell", "text": "(498,5)"}, {"kind": "list_start", "text": "YIELD ESTIMATE (184.30 million tons) The estimated yield is of 184.30 million tons, 10.9% higher than in 2011/12, when it reached 166.17 million tons (Table 2). This outcome represents an increment of 18.13 million tons due, mostly to soybeans and corn second crop that present increase in yield of 22.4% and 11.5%, respectively."}]}],
+        "order": [{"sequence": [{"kind": "heading", "text": "Table 1 BRAZIL"}, {"kind": "heading", "text": "PLANTED AREA ESTIMATE"}, {"kind": "paragraph", "text": "2011/2012 AND 2012/2013 CROPS (In 1000 ha)"}, {"kind": "table_cell", "text": "HARVEST"}, {"kind": "table_cell", "text": "VARIATION"}, {"kind": "table_cell", "text": "COTTON"}, {"kind": "table_cell", "text": "1.393,4"}, {"kind": "table_cell", "text": "(498,5)"}, {"kind": "heading", "text": "3. YIELD ESTIMATE (184.30 million tons)"}, {"kind": "paragraph", "text": "The estimated yield is of 184.30 million tons, 10.9% higher than in 2011/12, when it reached 166.17 million tons (Table 2). This outcome represents an increment of 18.13 million tons due, mostly to soybeans and corn second crop that present increase in yield of 22.4% and 11.5%, respectively."}]}],
         "links": [],
         "pageCoverage": {"pageCount": 1, "processedPages": [1]},
         "mediaOccurrences": [],
@@ -446,8 +446,8 @@
       },
       "forbidden": {
         "headings": [{"text": "Table1BRAZIL", "level": 1}],
-        "paragraphs": [{"text": "2011/2012AND2012/2013CROPS"}],
-        "listStarts": [{"text": "YIELDESTIMATE", "ordered": true}],
+        "paragraphs": [{"text": "2011/2012AND2012/2013CROPS"}, {"text": "Followup of the Brazilian Grain Crops 2012/2013 Ninth Assessment– Jun/2013"}, {"text": "6"}],
+        "listStarts": [{"text": "YIELDESTIMATE", "ordered": true}, {"text": "YIELD ESTIMATE (184.30 million tons) The estimated yield is of 184.30 million tons, 10.9% higher than in 2011/12, when it reached 166.17 million tons (Table 2). This outcome represents an increment of 18.13 million tons due, mostly to soybeans and corn second crop that present increase in yield of 22.4% and 11.5%, respectively.", "ordered": true}],
         "tableHeaders": [{"tableIndex": 0, "cells": ["VARIATION", "HARVEST"]}],
         "tableCells": [{"tableIndex": 0, "text": "1.393,4886,7"}],
         "spans": [{"tableIndex": 0, "text": "HARVEST", "rowspan": 2, "colspan": 1}],
@@ -457,7 +457,7 @@
         "mediaOccurrences": [{"id": "pdf-image-p1-n1-o1", "page": 1, "object": 1, "disposition": "resolved"}],
         "unresolvedDispositions": [{"domain": "source"}, {"domain": "media"}]
       },
-      "exactCounts": {"headings": 2, "paragraphs": 3, "listStarts": 1, "tables": 1, "links": 0, "mediaOccurrences": 0, "unresolvedSourceDispositions": 0, "unresolvedMediaDispositions": 0}
+      "exactCounts": {"headings": 3, "paragraphs": 2, "listStarts": 0, "tables": 1, "links": 0, "mediaOccurrences": 0, "unresolvedSourceDispositions": 0, "unresolvedMediaDispositions": 0}
     }
   },
   {

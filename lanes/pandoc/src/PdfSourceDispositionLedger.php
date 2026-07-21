@@ -442,6 +442,7 @@ final class PdfSourceDispositionLedger
                         $currentOrderProofSegment,
                         $orderAccountingText,
                         $id,
+                        $page,
                         $orderScope
                     );
                 }
@@ -1641,6 +1642,23 @@ final class PdfSourceDispositionLedger
                         'text' => '',
                         'units' => [],
                         'failureReason' => 'mapped-order-proof-is-not-identical-across-scope',
+                    ];
+                }
+            }
+            $declaredPages = is_array($proof['sourcePages'] ?? null)
+                ? array_values($proof['sourcePages'])
+                : [];
+            if ($declaredPages !== []) {
+                $actualPages = array_values(array_unique(array_map(
+                    static fn (array $scopeRecord): int => (int) ($scopeRecord['page'] ?? 0),
+                    $scopeRecords
+                ), SORT_NUMERIC));
+                sort($actualPages, SORT_NUMERIC);
+                if ($actualPages !== $declaredPages) {
+                    return [
+                        'text' => '',
+                        'units' => [],
+                        'failureReason' => 'mapped-order-proof-pages-do-not-match-scope',
                     ];
                 }
             }
@@ -4243,7 +4261,7 @@ final class PdfSourceDispositionLedger
      * occurrence set and expected emitted projection here. Until then the
      * fallback proof below is explicitly only region-bounded.
      *
-     * @return array{scopeId:string,sourceOccurrenceIds:list<string>,emittedTextProjection:string,emittedSourceOccurrenceIds?:list<string>,emittedSourceRanges?:list<array{sourceOccurrenceId:string,sourceStart:int,sourceEnd:int}>}|null
+     * @return array{scopeId:string,sourceOccurrenceIds:list<string>,emittedTextProjection:string,sourcePages?:list<int>,emittedSourceOccurrenceIds?:list<string>,emittedSourceRanges?:list<array{sourceOccurrenceId:string,sourceStart:int,sourceEnd:int}>}|null
      */
     private static function normalizedExplicitOrderProof(mixed $value, string $id): ?array
     {
@@ -4266,6 +4284,27 @@ final class PdfSourceDispositionLedger
         }
         if ($scopeId === '' || $projection === null || $sourceIds === [] || !isset($sourceIds[$id])) {
             throw new InvalidArgumentException('PDF source occurrence ' . $id . ' has an incomplete order proof.');
+        }
+
+        $sourcePages = null;
+        if (array_key_exists('sourcePages', $value)) {
+            $sourcePages = [];
+            foreach (is_array($value['sourcePages'] ?? null) ? $value['sourcePages'] : [] as $page) {
+                if (!is_int($page) || $page < 1 || isset($sourcePages[$page])) {
+                    throw new InvalidArgumentException(
+                        'PDF source occurrence ' . $id . ' has an invalid cross-page order-proof page set.'
+                    );
+                }
+                $sourcePages[$page] = true;
+            }
+            $declaredPages = array_keys($sourcePages);
+            $sortedPages = $declaredPages;
+            sort($sortedPages, SORT_NUMERIC);
+            if (count($declaredPages) < 2 || $declaredPages !== $sortedPages) {
+                throw new InvalidArgumentException(
+                    'PDF source occurrence ' . $id . ' has a non-canonical cross-page order-proof page set.'
+                );
+            }
         }
 
         $emittedSourceIds = null;
@@ -4342,6 +4381,9 @@ final class PdfSourceDispositionLedger
             'sourceOccurrenceIds' => array_keys($sourceIds),
             'emittedTextProjection' => $projection,
         ];
+        if (is_array($sourcePages)) {
+            $proof['sourcePages'] = array_keys($sourcePages);
+        }
         if (is_array($emittedSourceIds)) {
             $proof['emittedSourceOccurrenceIds'] = array_keys($emittedSourceIds);
         }
@@ -4414,9 +4456,22 @@ final class PdfSourceDispositionLedger
                     is_string($proofJson) ? $proofJson : serialize($orderProof)
                 );
             }
+            $sourcePages = is_array($orderProof['sourcePages'] ?? null)
+                ? array_values($orderProof['sourcePages'])
+                : [];
+            if ($sourcePages !== [] && !in_array($page, $sourcePages, true)) {
+                return null;
+            }
+            // Ordinary exact scopes remain page-local. A producer may name a
+            // canonical set of two or more pages only when one contiguous
+            // source-occurrence permutation genuinely crosses that boundary;
+            // the complete page set is revalidated when the segment closes.
+            $scopeDomain = $sourcePages === []
+                ? (string) $page
+                : 'pages:' . implode(',', $sourcePages);
             $scopeKey = hash(
                 'sha256',
-                $page . "\0" . $orderProof['scopeId'] . "\0" . $proofKey
+                $scopeDomain . "\0" . $orderProof['scopeId'] . "\0" . $proofKey
             );
         }
 
@@ -4467,6 +4522,7 @@ final class PdfSourceDispositionLedger
         ?array &$current,
         string $text,
         string $sourceOccurrenceId,
+        int $sourcePage,
         ?array $scope
     ): void {
         $kind = $scope === null ? 'exact' : $scope['mode'];
@@ -4490,11 +4546,13 @@ final class PdfSourceDispositionLedger
                 'digestContext' => null,
                 'characters' => [],
                 'sourceOccurrenceIds' => [],
+                'sourcePages' => [],
                 'orderProof' => $scope['orderProof'] ?? null,
             ];
         }
         $current['bytes'] += self::updateSignificantCharacterInventory($current['characters'], $text);
         $current['sourceOccurrenceIds'][] = $sourceOccurrenceId;
+        $current['sourcePages'][$sourcePage] = true;
     }
 
     /**
@@ -4512,8 +4570,14 @@ final class PdfSourceDispositionLedger
             ksort($current['characters']);
             if ($current['kind'] === 'mapped-occurrence-exact') {
                 $proof = $current['orderProof'];
+                $actualPages = array_keys($current['sourcePages']);
+                sort($actualPages, SORT_NUMERIC);
+                $declaredPages = is_array($proof['sourcePages'] ?? null)
+                    ? array_values($proof['sourcePages'])
+                    : [];
                 if (!is_array($proof)
-                    || $proof['sourceOccurrenceIds'] !== $current['sourceOccurrenceIds']) {
+                    || $proof['sourceOccurrenceIds'] !== $current['sourceOccurrenceIds']
+                    || ($declaredPages !== [] && $declaredPages !== $actualPages)) {
                     $current['invalidReason'] = 'mapped-order-proof-source-occurrences-do-not-match-scope';
                 } else {
                     $expectedSummary = self::significantCharacterSummary([$proof['emittedTextProjection']]);
@@ -4535,7 +4599,7 @@ final class PdfSourceDispositionLedger
                 }
             }
         }
-        unset($current['digestContext'], $current['orderProof']);
+        unset($current['digestContext'], $current['orderProof'], $current['sourcePages']);
         $segments[] = $current;
         $current = null;
     }

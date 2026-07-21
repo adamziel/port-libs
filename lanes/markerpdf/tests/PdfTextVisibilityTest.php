@@ -256,6 +256,66 @@ return [
         $t->same(true, $visibility['complete'] ?? null);
     },
 
+    'recovers a proven terminal overflow suffix only in logical line text' => static function (
+        TestRunner $t
+    ) use ($pdfWithPage): void {
+        $resources = '<< /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >>';
+        $content = 'BT /F1 10 Tf '
+            . '1 0 0 1 340 70 Tm [(visible ) (boundary ) (overflow ) (tail)] TJ '
+            . '1 0 0 1 10 58 Tm (continues inside) Tj ET';
+        $pdf = $pdfWithPage(
+            $content,
+            $resources,
+            '',
+            '',
+            '/MediaBox [0 0 400 100] /CropBox [0 0 400 100]'
+        );
+        $extractor = new PdfTextExtractor();
+
+        $t->same(
+            ['visible boundary overflow tail', 'continues inside'],
+            $extractor->extractTextLines($pdf)
+        );
+        $visibleRuns = implode('', array_map(
+            static fn (array|string $run): string => is_array($run) ? $run['text'] : $run,
+            $extractor->extractTextRuns($pdf)
+        ));
+        $positionedRuns = implode('', array_column($extractor->extractPositionedTextRuns($pdf), 'text'));
+        $t->true(!str_contains($visibleRuns, 'overflow'));
+        $t->true(!str_contains($positionedRuns, 'overflow'));
+
+        $visibility = $extractor->diagnostics($pdf)['textVisibility'];
+        $t->same(2, $visibility['suppressedOutsidePageRuns'] ?? null);
+        $t->same(true, $visibility['complete'] ?? null);
+    },
+
+    'fails closed when overflow lacks same-font contiguous line continuation proof' => static function (
+        TestRunner $t
+    ) use ($pdfWithPage): void {
+        $resources = '<< /Font << '
+            . '/F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> '
+            . '/F2 << /Type /Font /Subtype /Type1 /BaseFont /Times-Roman >> '
+            . '>> >>';
+        $differentFontContent = 'BT /F1 10 Tf '
+            . '1 0 0 1 340 70 Tm [(visible ) (boundary ) (SECRET-FONT)] TJ '
+            . '/F2 10 Tf 1 0 0 1 10 58 Tm (different font) Tj ET';
+        $discontinuousContent = 'BT /F1 10 Tf '
+            . '1 0 0 1 340 70 Tm [(visible ) (boundary ) -5000 (SECRET-GAP)] TJ '
+            . '1 0 0 1 10 58 Tm (matching continuation) Tj ET';
+
+        foreach ([$differentFontContent, $discontinuousContent] as $content) {
+            $pdf = $pdfWithPage(
+                $content,
+                $resources,
+                '',
+                '',
+                '/MediaBox [0 0 400 100] /CropBox [0 0 400 100]'
+            );
+            $lines = implode("\n", (new PdfTextExtractor())->extractTextLines($pdf));
+            $t->true(!str_contains($lines, 'SECRET-'));
+        }
+    },
+
     'clips rotated text by its oriented ink bounds at the effective CropBox' => static function (
         TestRunner $t
     ) use ($pdfWithPage, $extractedTexts): void {
