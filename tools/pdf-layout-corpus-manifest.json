@@ -32,10 +32,10 @@
       "minTextBytes": 1500,
       "minParagraphs": 4,
       "maxSingleGlyphParagraphs": 0,
-      "requiredText": ["Dense Passage Retrieval for Open-Domain Question Answering", "Vladimir Karpukhin", "sewoncs.washington.edu", "Abstract"],
+      "requiredText": ["Dense Passage Retrieval for Open-Domain Question Answering", "Vladimir Karpukhin", "{vladk, barlaso, plewis, ledell, edunov, scottyih}@fb.com", "sewon@cs.washington.edu", "danqic@cs.princeton.edu", "Abstract"],
       "orderedText": ["Dense Passage Retrieval for Open-Domain Question Answering", "Vladimir Karpukhin", "Abstract", "Open-domain question answering relies", "1 Introduction"]
     },
-    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["Dense Passage Retrieval for Open-Domain Question Answering", "sewoncs.washington.edu"], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
+    "verification": {"forbidControlCharacters": true, "forbidReplacementCharacter": true, "exactSignificantText": ["Dense Passage Retrieval for Open-Domain Question Answering", "{vladk, barlaso, plewis, ledell, edunov, scottyih}@fb.com", "sewon@cs.washington.edu", "danqic@cs.princeton.edu"], "media": {"requireExplicitDisposition": true, "maxBroken": 0, "maxUnresolved": 0}}
   },
   {
     "id": "unstructured-lists",
@@ -172,7 +172,7 @@
     "url": "https://raw.githubusercontent.com/opendatalab/MinerU/master/demo/pdfs/small_ocr.pdf",
     "source": "opendatalab/MinerU demo/pdfs/small_ocr.pdf",
     "filename": "small_ocr.pdf",
-    "notes": "Eight-page MinerU scan with no usable painted native text. The fully decoded source is classified unsupported_no_text with OCR outside scope; all eight pages receive browser raster requests, and the absent static page representations must never become a successful empty editable import.",
+    "notes": "Eight-page MinerU scan with no usable painted native text. The fully decoded source is classified unsupported_no_text with OCR outside scope; all eight pages retain publication raster request identities that must resolve to build-produced assets without becoming a successful empty editable import.",
     "artifact": {"pinStatus": "checked-in", "bytes": 453816, "sha256": "c48baa1997e719d414061bea6ca197ce36f1c47341837fbfbc976bbb1d226998", "localPath": "pandoc-showcase/samples/pdf-layout-mineru-small-ocr-small_ocr.pdf"},
     "provenance": {"sourceType": "upstream-demo-fixture", "project": "MinerU", "upstreamPath": "demo/pdfs/small_ocr.pdf"},
     "license": {"status": "verified-project-license", "spdx": "LicenseRef-MinerU-Open-Source-License", "reference": "https://github.com/opendatalab/MinerU/blob/master/LICENSE.md"},

@@ -36,5 +36,30 @@
             "followingText": null,
             "label": "PDF figure on page 1"
         }
+    ],
+    "prerenderVersion": 1,
+    "prerenderRendererSchema": "port-libs-pdfjs-static-preview-v1",
+    "prerenderedSourceDigest": "521355f37dabc74dcdc0629a67349b36068036e73272b7c7c699563e80b89d2a",
+    "prerenderedAssets": [
+        {
+            "path": "outputs/pdf-layout-docling-table-picture-boundary/pdf-preview-d0c916d4db89fac2fc4e23a0.png",
+            "mimeType": "image/png",
+            "byteLength": 445783,
+            "width": 2452,
+            "height": 1588,
+            "sha256": "8e9c1c9d5c30a226aea52dd4fc79be57dbc6778c4ab8256abe4b801fbebad437"
+        }
+    ],
+    "prerenderedRequestCoverage": [
+        {
+            "requestId": "form-1c0889814d8a15ade5312ae442e3",
+            "assetPath": "outputs/pdf-layout-docling-table-picture-boundary/pdf-preview-d0c916d4db89fac2fc4e23a0.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-dbae4bfd7c39908525bf2f1ccdc8",
+            "assetPath": "outputs/pdf-layout-docling-table-picture-boundary/pdf-preview-d0c916d4db89fac2fc4e23a0.png",
+            "placement": "page-gallery"
+        }
     ]
 }

@@ -142,6 +142,13 @@ final class PdfFrontMatterSemanticProcessor implements PdfSemanticRecordProcesso
                 continue;
             }
 
+            $titleContinuationIndexes = $this->titleContinuationIndexes(
+                $records,
+                $pageIndexes,
+                $titleIndex,
+                $headingIndex
+            );
+
             $titleOrder = $this->sourceOrder($records[$titleIndex]);
             $frontIndexes = array_values(array_filter(
                 $pageIndexes,
@@ -159,7 +166,7 @@ final class PdfFrontMatterSemanticProcessor implements PdfSemanticRecordProcesso
             $roles = [];
             foreach ($frontIndexes as $index) {
                 $order = $this->sourceOrder($records[$index]);
-                if ($index === $titleIndex) {
+                if ($index === $titleIndex || in_array($index, $titleContinuationIndexes, true)) {
                     $roles[$index] = 'title';
                 } elseif ($index === $summaryHeadingIndex) {
                     $roles[$index] = 'summary-heading';
@@ -169,11 +176,75 @@ final class PdfFrontMatterSemanticProcessor implements PdfSemanticRecordProcesso
                     $roles[$index] = 'credits';
                 }
             }
+            foreach ($titleContinuationIndexes as $index) {
+                $roles[$index] = 'title';
+            }
 
             return ['sectionOrder' => $headingOrder, 'roles' => $roles];
         }
 
         return null;
+    }
+
+    /**
+     * A centered display title can be painted as several independent source
+     * records. Recover only a tight same-font vertical stack so a later
+     * stream-ordered body label cannot be mistaken for a title continuation.
+     *
+     * @param list<array{text:string,layout:array<string,mixed>|null}> $records
+     * @param list<int> $pageIndexes
+     * @return list<int>
+     */
+    private function titleContinuationIndexes(
+        array $records,
+        array $pageIndexes,
+        int $titleIndex,
+        int $sectionHeadingIndex
+    ): array {
+        $title = $records[$titleIndex];
+        $titleLayout = $title['layout'];
+        $font = max(1.0, (float) $titleLayout['fontSize']);
+        $centerX = ((float) $titleLayout['x1'] + (float) $titleLayout['x2']) / 2.0;
+        $previousY = (float) $titleLayout['y1'];
+        $continuations = [];
+
+        while (true) {
+            $best = null;
+            $bestGap = INF;
+            foreach ($pageIndexes as $index) {
+                if ($index === $titleIndex
+                    || $index === $sectionHeadingIndex
+                    || in_array($index, $continuations, true)) {
+                    continue;
+                }
+                $candidate = $records[$index];
+                $layout = $candidate['layout'];
+                $text = trim($candidate['text']);
+                $candidateFont = max(1.0, (float) $layout['fontSize']);
+                $candidateCenterX = ((float) $layout['x1'] + (float) $layout['x2']) / 2.0;
+                $gap = $previousY - (float) $layout['y1'];
+                if ($text === ''
+                    || $this->wordCount($text) > 10
+                    || $this->textLength($text) > 96
+                    || $gap <= 0.0
+                    || $gap > $font * 1.65
+                    || abs($candidateFont - $font) > max(0.75, $font * 0.30)
+                    || abs($candidateCenterX - $centerX) > $font * 1.5) {
+                    continue;
+                }
+                if ($gap < $bestGap) {
+                    $best = $index;
+                    $bestGap = $gap;
+                }
+            }
+            if ($best === null) {
+                break;
+            }
+            $continuations[] = $best;
+            $previousY = (float) $records[$best]['layout']['y1'];
+        }
+
+        return $continuations;
     }
 
     /**
@@ -227,7 +298,25 @@ final class PdfFrontMatterSemanticProcessor implements PdfSemanticRecordProcesso
         if ($front === []) {
             return $records;
         }
-        usort($front, fn (array $left, array $right): int => $this->sourceOrder($left) <=> $this->sourceOrder($right));
+        usort($front, function (array $left, array $right): int {
+            $leftRole = $left['layout']['sourcePdfFrontMatterRole'] ?? null;
+            $rightRole = $right['layout']['sourcePdfFrontMatterRole'] ?? null;
+            $roleRank = [
+                'title' => 0,
+                'credits' => 1,
+                'summary-heading' => 2,
+                'summary-body' => 3,
+            ];
+            $rankComparison = ($roleRank[$leftRole] ?? 4) <=> ($roleRank[$rightRole] ?? 4);
+            if ($rankComparison !== 0) {
+                return $rankComparison;
+            }
+            if ($leftRole === 'title') {
+                return (float) $right['layout']['y1'] <=> (float) $left['layout']['y1'];
+            }
+
+            return $this->sourceOrder($left) <=> $this->sourceOrder($right);
+        });
 
         $insertAt = count($remaining);
         $page = (int) $front[0]['layout']['page'];

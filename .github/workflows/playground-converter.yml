@@ -9,6 +9,9 @@ on:
       - 'pandoc-showcase/playground-converter.*'
       - 'pandoc-showcase/examples.*'
       - 'pandoc-showcase/examples-index.json'
+      - 'pandoc-showcase/manifest.json'
+      - 'pandoc-showcase/outputs/**/pdf-form-renders.json'
+      - 'pandoc-showcase/outputs/**/pdf-preview-*.png'
       - 'pandoc-showcase/pdf-layout-*'
       - 'pandoc-showcase/pdf-jbig2-rasterizer.mjs'
       - 'pandoc-showcase/vendor/pdfjs-jbig2/**'
@@ -20,10 +23,12 @@ on:
       - 'pandoc-showcase/vendor/pdfjs/**'
       - 'pandoc-showcase/playground/**'
       - 'tools/build-pandoc-showcase.php'
+      - 'tools/prerender-showcase-pdf-assets.mjs'
       - 'tools/pdf-layout-corpus-manifest.json'
       - 'tools/pdf-corpus-table-manifest.json'
       - 'tools/pdf-corpus-manifest-policy.mjs'
       - 'tools/e2e-pdf-layout-corpus.mjs'
+      - 'tools/e2e-showcase-pdf-forms.mjs'
       - 'tools/e2e-playground-import.mjs'
       - 'tools/browser-memory-monitor.mjs'
       - 'tools/check-browser-memory-monitor.mjs'
@@ -54,6 +59,9 @@ on:
       - 'pandoc-showcase/playground-converter.*'
       - 'pandoc-showcase/examples.*'
       - 'pandoc-showcase/examples-index.json'
+      - 'pandoc-showcase/manifest.json'
+      - 'pandoc-showcase/outputs/**/pdf-form-renders.json'
+      - 'pandoc-showcase/outputs/**/pdf-preview-*.png'
       - 'pandoc-showcase/pdf-layout-*'
       - 'pandoc-showcase/pdf-jbig2-rasterizer.mjs'
       - 'pandoc-showcase/vendor/pdfjs-jbig2/**'
@@ -65,10 +73,12 @@ on:
       - 'pandoc-showcase/vendor/pdfjs/**'
       - 'pandoc-showcase/playground/**'
       - 'tools/build-pandoc-showcase.php'
+      - 'tools/prerender-showcase-pdf-assets.mjs'
       - 'tools/pdf-layout-corpus-manifest.json'
       - 'tools/pdf-corpus-table-manifest.json'
       - 'tools/pdf-corpus-manifest-policy.mjs'
       - 'tools/e2e-pdf-layout-corpus.mjs'
+      - 'tools/e2e-showcase-pdf-forms.mjs'
       - 'tools/e2e-playground-import.mjs'
       - 'tools/browser-memory-monitor.mjs'
       - 'tools/check-browser-memory-monitor.mjs'
@@ -136,6 +146,7 @@ jobs:
           php -l lanes/markerpdf/tests/PdfFormXObjectPlacementTest.php
           php -l lanes/markerpdf/tests/PdfLaterPaintRiskEvidenceTest.php
           php -l lanes/markerpdf/tests/PdfPageFactsTest.php
+          php -l lanes/markerpdf/tests/PdfPositionedTextProvenanceTest.php
           php -l lanes/markerpdf/tests/PdfTextVisibilityTest.php
           php -l lanes/markerpdf/tests/PdfTextVisibilityPageSummaryTest.php
           php -l lanes/pandoc/src/BibtexCslParser.php
@@ -173,6 +184,7 @@ jobs:
           php -l lanes/pandoc/tests/PdfRegionAwareLayoutTest.php
           php -l lanes/pandoc/tests/PdfReaderTest.php
           php -l lanes/pandoc/tests/PdfSemanticRecordPipelineTest.php
+          php -l lanes/pandoc/tests/PdfTablePictureBoundaryRepairTest.php
           php -l lanes/pandoc/tests/PdfTextFidelityLedgerTest.php
           php -l lanes/pandoc/tests/PdfSourceDispositionLedgerTest.php
           php -l lanes/pandoc/tests/PdfProtectedTableLayoutTest.php
@@ -197,11 +209,13 @@ jobs:
           node --check tools/decode-pdf-jpx-media.mjs
           node --check tools/decode-pdf-raster-media.mjs
           node --check tools/e2e-pdf-layout-corpus.mjs
+          node --check tools/e2e-showcase-pdf-forms.mjs
           node --check tools/e2e-playground-import.mjs
           node --check tools/browser-memory-monitor.mjs
           node --check tools/check-browser-memory-monitor.mjs
           node --check tools/check-pdf-layout-reviewer.mjs
           node --check tools/check-pdf-form-rasterizer.mjs
+          node --check tools/prerender-showcase-pdf-assets.mjs
           node --check tools/check-import-job-session.mjs
           node tools/check-playground-converter-ui.js
           node tools/check-pdfjs-facts-provider.mjs
@@ -211,13 +225,27 @@ jobs:
           php tools/build-pandoc-showcase.php --build-examples-page
           node tools/check-showcase-examples-page.js
           node tools/check-pdf-layout-reviewer.mjs
-          git diff --exit-code -- pandoc-showcase/examples.html pandoc-showcase/examples.css pandoc-showcase/examples.js pandoc-showcase/examples-index.json pandoc-showcase/pdf-layout-corpus.html pandoc-showcase/pdf-layout-review.css pandoc-showcase/pdf-layout-review.js
+          generated_showcase_changes="$(git status --porcelain=v1 --untracked-files=all -- \
+            pandoc-showcase/examples.html \
+            pandoc-showcase/examples.css \
+            pandoc-showcase/examples.js \
+            pandoc-showcase/examples-index.json \
+            pandoc-showcase/manifest.json \
+            pandoc-showcase/pdf-layout-corpus.html \
+            pandoc-showcase/pdf-layout-review.css \
+            pandoc-showcase/pdf-layout-review.js \
+            ':(glob)pandoc-showcase/outputs/*/pdf-form-renders.json' \
+            ':(glob)pandoc-showcase/outputs/*/pdf-preview-*.png')"
+          if [ -n "$generated_showcase_changes" ]; then
+            printf '%s\n' 'Generated showcase outputs are stale or uncommitted:' "$generated_showcase_changes" >&2
+            exit 1
+          fi
           node tools/check-pdf-jbig2-rasterizer.mjs
           node tools/check-pdf-jpx-rasterizer.mjs
 
       - name: Run converter tests
         run: |
-          php tools/run-tests.php \
+          php tools/run-tests.php --isolate \
             lanes/markerpdf/tests/BrowserPdfFactsProviderTest.php \
             lanes/markerpdf/tests/PdfDecodeParmsTest.php \
             lanes/markerpdf/tests/PdfDocumentFactsMergerTest.php \
@@ -227,11 +255,16 @@ jobs:
             lanes/markerpdf/tests/PdfFormXObjectPlacementTest.php \
             lanes/markerpdf/tests/PdfLaterPaintRiskEvidenceTest.php \
             lanes/markerpdf/tests/PdfPageFactsTest.php \
+            lanes/markerpdf/tests/PdfPositionedTextProvenanceTest.php \
             lanes/markerpdf/tests/PdfTextVisibilityTest.php \
             lanes/markerpdf/tests/PdfTextVisibilityPageSummaryTest.php \
             lanes/markerpdf/tests/PdfResourceLimitDiagnosticsTest.php \
             lanes/markerpdf/tests/PdfVisualOccurrenceInventoryTest.php \
             lanes/pandoc/tests/BibtexCslProcessorTest.php \
+            lanes/pandoc/tests/APdfMisorderedDiacriticBoundaryRepairLazyTest.php \
+            lanes/pandoc/tests/AWordPressAdvancedTableRendererLazyTest.php \
+            lanes/pandoc/tests/AWordPressExtendedNodeRendererLazyTest.php \
+            lanes/pandoc/tests/AWordPressInlineRendererLazyTest.php \
             lanes/pandoc/tests/EpubReaderTest.php \
             lanes/pandoc/tests/EpubXmlEncodingAndProcessingInstructionRecoveryTest.php \
             lanes/pandoc/tests/JiraReaderHardeningTest.php \
@@ -242,6 +275,9 @@ jobs:
             lanes/pandoc/tests/PdfFrontMatterSemanticProcessorTest.php \
             lanes/pandoc/tests/PdfInlineMarkerSemanticProcessorTest.php \
             lanes/pandoc/tests/PandocImportMemoryBudgetTest.php \
+            lanes/pandoc/tests/PdfAnchorImagePlacementLazyTest.php \
+            lanes/pandoc/tests/PdfArtifactMediaAnchorProofBuilderLazyTest.php \
+            lanes/pandoc/tests/PdfGrandCanyonContentTokenBudgetTest.php \
             lanes/pandoc/tests/PdfImportCompletenessTest.php \
             lanes/pandoc/tests/PdfKoreanListTargetDeferralTest.php \
             lanes/pandoc/tests/PdfReaderDocumentFactsTest.php \
@@ -249,6 +285,8 @@ jobs:
             lanes/pandoc/tests/PdfRegionAwareLayoutTest.php \
             lanes/pandoc/tests/PdfReaderTest.php \
             lanes/pandoc/tests/PdfSemanticRecordPipelineTest.php \
+            lanes/pandoc/tests/PdfSourceBindingValidatorTest.php \
+            lanes/pandoc/tests/PdfTablePictureBoundaryRepairTest.php \
             lanes/pandoc/tests/PdfTextFidelityLedgerTest.php \
             lanes/pandoc/tests/PdfSourceDispositionLedgerTest.php \
             lanes/pandoc/tests/PdfProtectedTableLayoutTest.php \
@@ -371,6 +409,9 @@ jobs:
             --url http://127.0.0.1:4174/examples.html \
             --review-url http://127.0.0.1:4174/pdf-layout-corpus.html \
             --output artifacts/pdf-layout-screenshots
+          run_with_fresh_chrome showcase-pdf-forms node tools/e2e-showcase-pdf-forms.mjs \
+            --url http://127.0.0.1:4174/examples.html \
+            --all-audited
           run_with_fresh_chrome muir node tools/e2e-playground-import.mjs \
             --file "$PWD/pandoc-showcase/samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf" \
             --pdf-output-mode pages \

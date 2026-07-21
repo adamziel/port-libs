@@ -84,7 +84,7 @@ try {
         $zip,
         $root . '/lanes/pandoc/src',
         'port-libs-playground-converter/lanes/pandoc/src',
-        static fn (SplFileInfo $file, string $relative): bool => !is_distribution_only_audit_source($relative)
+        static fn (SplFileInfo $file, string $relative): bool => !is_distribution_only_source($relative)
     );
     add_tree_to_zip($zip, $root . '/lanes/markerpdf/src', 'port-libs-playground-converter/lanes/markerpdf/src');
     add_tree_to_zip($zip, $sourceAssets, 'port-libs-playground-converter/assets');
@@ -370,18 +370,31 @@ function plugin_distribution_path(string $path): string
 }
 
 /**
- * These are upstream-parity/audit reports or external-engine planning code,
- * not import readers/writers. Retaining them in source control is useful, but
- * loading them in a production import plugin only makes the install ZIP exceed
- * PHP's usual upload limit.
+ * These are upstream-parity/audit reports, external-engine planning code, or
+ * package-output writers. The Playground plugin only reads uploads and emits
+ * WordPress blocks, so none are reachable in its production import path.
+ * Retaining them in source control is useful, but packaging them only makes
+ * the install ZIP exceed PHP's usual upload limit.
  */
-function is_distribution_only_audit_source(string $relative): bool
+function is_distribution_only_source(string $relative): bool
 {
     static $files = [
         // This handoff plans pdflatex/Typst/etc. processes for server-side PDF
         // generation. The WordPress plugin imports documents and has no
         // external-engine execution path or runtime reference to this class.
         'PdfEngineHandoff.php',
+        // The importer always calls PandocConverter::write(..., 'wordpress').
+        // Binary package writers are output-only and cannot be selected by a
+        // Playground import job.
+        'DocxWriter.php',
+        'EpubWriter.php',
+        'PptxWriter.php',
+        'HtmlWriter.php',
+        'JsonWriter.php',
+        'NativeWriter.php',
+        'OpmlWriter.php',
+        'PandocJsonWriter.php',
+        'PlainWriter.php',
         'UpstreamRunnerDependencyAudit.php',
         'EpubNativeAstPackageComparisonHarness.php',
         'PptxUpstreamReaderEvidence.php',

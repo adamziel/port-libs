@@ -3154,6 +3154,106 @@ $exactSideTableContinuationFixture = static function (float $continuationY = 568
 };
 
 return [
+    'keeps exact form row tail repair unloaded for ordinary non form data' => static function (TestRunner $t): void {
+        $helperClass = 'PortLibs\\Pandoc\\PdfExactFormRowTailRepair';
+        $t->same(false, class_exists($helperClass, false));
+
+        $reader = new PdfReader();
+        $decorate = (function (array $layouts, array $sourceItems): array {
+            return $this->pdfSourceLayoutsWithExactFormTailOccurrenceProofs(
+                $layouts,
+                $sourceItems
+            );
+        })->bindTo($reader, PdfReader::class);
+        $reorder = (function (array $lines, array $layouts, array $sourceItems): array {
+            return $this->pdfRepairSourceInProvenFormRowBundleOrder(
+                $lines,
+                $layouts,
+                $sourceItems
+            );
+        })->bindTo($reader, PdfReader::class);
+        $coalesce = (function (array $records): array {
+            return $this->coalesceProvenPdfFormTailRecords($records);
+        })->bindTo($reader, PdfReader::class);
+
+        $lines = [
+            'An ordinary paragraph remains in source order.',
+            'Another ordinary paragraph remains separate.',
+        ];
+        $layouts = [
+            ['text' => $lines[0], 'page' => 1, 'sourceStream' => 1],
+            ['text' => $lines[1], 'page' => 1, 'sourceStream' => 1],
+        ];
+        $sourceItems = [
+            ['text' => $lines[0], 'page' => 1, 'stream' => 1],
+            ['text' => $lines[1], 'page' => 1, 'stream' => 1],
+        ];
+        $records = [
+            ['text' => $lines[0], 'layout' => $layouts[0]],
+            ['text' => $lines[1], 'layout' => $layouts[1]],
+        ];
+
+        $t->same($layouts, $decorate($layouts, $sourceItems));
+        $t->same([
+            'lines' => $lines,
+            'layouts' => $layouts,
+            'geometryPageNumbers' => [],
+        ], $reorder($lines, $layouts, $sourceItems));
+        $t->same($records, $coalesce($records));
+        $t->same(false, class_exists($helperClass, false));
+    },
+    'keeps nested caution repair unloaded without a substantive exact window' => static function (TestRunner $t): void {
+        $helperClass = 'PortLibs\\Pandoc\\PdfNestedCautionCalloutRepair';
+        $t->same(false, class_exists($helperClass, false));
+
+        $reader = new PdfReader();
+        $detect = (function (array $items): array {
+            $this->sourceSha256 = str_repeat('0', 64);
+
+            return $this->sourcePdfExactNestedCautionCalloutProofs($items);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $layouts, array $sourceItems): array {
+            return $this->pdfRepairSourceInProvenNestedCautionCalloutOrder(
+                array_column($layouts, 'text'),
+                $layouts,
+                $sourceItems
+            );
+        })->bindTo($reader, PdfReader::class);
+        $sourceItem = static function (int $index, string $text): array {
+            return [
+                'id' => 'ordinary-exact-source-' . $index,
+                'page' => 1,
+                'stream' => 1,
+                'text' => $text,
+                'sourceGeometry' => [
+                    'page' => 1,
+                    'stream' => 1,
+                    'x1' => 72.0,
+                    'y1' => 720.0 - ($index * 14.0),
+                    'x2' => 180.0,
+                    'y2' => 732.0 - ($index * 14.0),
+                    'orientation' => 'horizontal',
+                ],
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            ];
+        };
+        $sourceItems = [];
+        foreach (['◆', '?', 'NOTICE', 'Short row', 'Also short.'] as $index => $text) {
+            $sourceItems[] = $sourceItem($index, $text);
+        }
+        $layouts = array_map(
+            static fn (array $item): array => ['text' => $item['text']],
+            $sourceItems
+        );
+
+        $t->same([], $detect($sourceItems));
+        $t->same([
+            'lines' => array_column($layouts, 'text'),
+            'layouts' => $layouts,
+            'geometryPageNumbers' => [],
+        ], $repair($layouts, $sourceItems));
+        $t->same(false, class_exists($helperClass, false));
+    },
     'imports large pdfs in bounded text only mode when requested' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent('BT /F1 12 Tf 72 720 Td (Fast mode text) Tj ET');
 
@@ -7724,11 +7824,13 @@ return [
             array $candidateLayouts,
             array $finalOutputPageProofs
         ): array {
+            $presentationLayouts = [];
+
             return $this->explicitPdfSourceDispositions(
                 $items,
                 $blocks,
                 [],
-                [],
+                $presentationLayouts,
                 $finalOutputPageProofs,
                 null,
                 $candidateLayouts
@@ -8725,12 +8827,13 @@ return [
             array $dispositions
         ): array {
             $this->sourceOrderProofDiagnostics = [];
+            $geometryOrderLayouts = [];
             $result = $this->pdfDispositionsWithExactGeometryPageOrderProofs(
                 $items,
                 $blocks,
                 $dispositions,
                 [1],
-                []
+                $geometryOrderLayouts
             );
 
             return [$result, $this->sourceOrderProofDiagnostics];
@@ -8939,10 +9042,11 @@ return [
             array $selectedGeometryPages = [1]
         ): array {
             $this->sourceOrderProofDiagnostics = [];
+            $dispositions = [];
             $result = $this->pdfDispositionsWithExactGeometryPageOrderProofs(
                 $items,
                 $blocks,
-                [],
+                $dispositions,
                 $selectedGeometryPages,
                 $layouts,
                 $pageProofs
@@ -9169,10 +9273,11 @@ return [
             array $pageProofs
         ): array {
             $this->sourceOrderProofDiagnostics = [];
+            $dispositions = [];
             $result = $this->pdfDispositionsWithExactGeometryPageOrderProofs(
                 $items,
                 $blocks,
-                [],
+                $dispositions,
                 [1],
                 $layouts,
                 $pageProofs
@@ -9344,6 +9449,143 @@ return [
         }
         $t->contains('<p>Intervening prose remains a paragraph.</p>', $wordpress);
     },
+    'repairs only aligned front matter email peers with author and delimiter evidence' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sourceSha256): void {
+            $this->sourceSha256 = $sourceSha256;
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $records): array {
+            return $this->repairPdfAffiliationEmailDelimiterRecords($records);
+        })->bindTo($reader, PdfReader::class);
+        $remember = (function (
+            array $record,
+            string $sourceText,
+            string $outputText,
+            array $proof
+        ): void {
+            $this->rememberPdfSemanticEmailDelimiterRepair(
+                $record,
+                $sourceText,
+                $outputText,
+                $proof
+            );
+        })->bindTo($reader, PdfReader::class);
+        $dispositionsFor = (function (
+            array $sourceItems,
+            array $blocks
+        ): array {
+            return $this->pdfDispositionsWithSemanticEmailDelimiterRepairs(
+                $sourceItems,
+                $blocks,
+                []
+            );
+        })->bindTo($reader, PdfReader::class);
+        $t->true($setSourceSha256 instanceof \Closure);
+        $t->true($repair instanceof \Closure);
+        $t->true($remember instanceof \Closure);
+        $t->true($dispositionsFor instanceof \Closure);
+        $setSourceSha256(hash('sha256', 'synthetic aligned affiliation email proof'));
+
+        $layout = static fn (float $x1, float $y1, int $order): array => [
+            'page' => 1,
+            'sourceStream' => 1,
+            'x1' => $x1,
+            'y1' => $y1,
+            'x2' => $x1 + 170.0,
+            'y2' => $y1 + 12.0,
+            'fontSize' => 12.0,
+            'sourceOrderStart' => $order,
+            'sourceOrderEnd' => $order,
+            'sourcePdfFrontMatter' => true,
+            'sourcePdfFrontMatterRole' => 'credits',
+        ];
+        $records = [
+            ['text' => 'Sewon Min†, Danqi Chen‡', 'layout' => $layout(100.0, 720.0, 1)],
+            ['text' => '{alpha, beta}example.com', 'layout' => $layout(100.0, 700.0, 2)],
+            ['text' => 'sewoncs.washington.edu', 'layout' => $layout(210.0, 680.0, 3)],
+            ['text' => 'danqiccs.princeton.edu', 'layout' => $layout(210.0, 666.0, 4)],
+        ];
+        $repaired = $repair($records);
+        $t->same('{alpha, beta}@example.com', $repaired[1]['text']);
+        $t->same('sewon@cs.washington.edu', $repaired[2]['text']);
+        $t->same('danqic@cs.princeton.edu', $repaired[3]['text']);
+        $t->same(
+            'aligned-front-matter-mailboxes-with-shared-dns-label',
+            $repaired[2]['layout']['sourcePdfSemanticEmailDelimiterRepair']['method'] ?? null
+        );
+        $t->same(
+            $repaired[2]['layout']['sourcePdfSemanticEmailDelimiterRepair']['proofDigest'] ?? null,
+            $repaired[3]['layout']['sourcePdfSemanticEmailDelimiterRepair']['proofDigest'] ?? null
+        );
+
+        $single = $repair(array_slice($records, 0, 3));
+        $t->same('sewoncs.washington.edu', $single[2]['text']);
+
+        $misaligned = $records;
+        $misaligned[3]['layout']['x1'] += 40.0;
+        $misaligned[3]['layout']['x2'] += 40.0;
+        $misaligned = $repair($misaligned);
+        $t->same('sewoncs.washington.edu', $misaligned[2]['text']);
+        $t->same('danqiccs.princeton.edu', $misaligned[3]['text']);
+
+        $unproved = $records;
+        $unproved[0]['text'] = 'Unrelated Credits†, Another Person‡';
+        $unproved = $repair($unproved);
+        $t->same('sewoncs.washington.edu', $unproved[2]['text']);
+        $t->same('danqiccs.princeton.edu', $unproved[3]['text']);
+
+        $geometry = [
+            'page' => 1,
+            'stream' => 1,
+            'x1' => 210.0,
+            'y1' => 680.0,
+            'x2' => 350.0,
+            'y2' => 692.0,
+            'orientation' => 'horizontal',
+        ];
+        $sourceItem = [
+            'id' => 'synthetic-email-source',
+            'page' => 1,
+            'stream' => 1,
+            'text' => 'nameexample.edu',
+            'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            'sourceGeometry' => $geometry,
+        ];
+        $recordLayout = $sourceItem + [
+            'sourcePdfExactSourceRanges' => [[
+                'sourceIndex' => 0,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen('nameexample.edu'),
+            ]],
+            'fontSize' => 12.0,
+        ];
+        $remember(
+            ['text' => 'name@example.edu', 'layout' => $recordLayout],
+            'nameexample.edu',
+            'name@example.edu',
+            ['proofDigest' => str_repeat('b', 64)]
+        );
+        $emailBlocks = [new AstNode('paragraph', [], [
+            new AstNode('text', ['text' => 'name@example.edu']),
+        ])];
+        $emailDispositions = $dispositionsFor([$sourceItem], $emailBlocks);
+        $t->same(
+            'boundary-repair',
+            $emailDispositions['synthetic-email-source']['disposition'] ?? null
+        );
+        $t->same(
+            'name@example.edu',
+            $emailDispositions['synthetic-email-source']['textProjection'] ?? null
+        );
+        $t->same(
+            'exact-semantic-email-delimiter-insertion',
+            $emailDispositions['synthetic-email-source']['evidence']['method'] ?? null
+        );
+
+        $tamperedSource = $sourceItem;
+        $tamperedSource['text'] = 'nameXexample.edu';
+        $t->same([], $dispositionsFor([$tamperedSource], $emailBlocks));
+    },
     'keeps isolated four digit years in PDF prose while retaining proven high ordinal lists' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $blocksFromLines = (function (array $lines): array {
@@ -9369,10 +9611,21 @@ return [
         $t->same(2, count($highOrdinalList[0]->children));
 
         $closingParenthesis = $blocksFromLines([
-            '2026) A closing-parenthesis marker remains unambiguous.',
+            '2026) A closing-parenthesis year remains prose without sequence evidence.',
         ]);
-        $t->same('ordered_list', $closingParenthesis[0]->type);
-        $t->same(2026, $closingParenthesis[0]->attr('start'));
+        $t->same('paragraph', $closingParenthesis[0]->type);
+        $t->same(
+            '2026) A closing-parenthesis year remains prose without sequence evidence.',
+            $closingParenthesis[0]->attr('text')
+        );
+
+        $closingParenthesisSequence = $blocksFromLines([
+            '2026) High ordinal item retained by adjacent sequence evidence.',
+            '2027) Next high ordinal item retained by adjacent sequence evidence.',
+        ]);
+        $t->same('ordered_list', $closingParenthesisSequence[0]->type);
+        $t->same(2026, $closingParenthesisSequence[0]->attr('start'));
+        $t->same(2, count($closingParenthesisSequence[0]->children));
     },
     'keeps explicit pdf list markers as repaired prose block boundaries' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
@@ -12932,6 +13185,720 @@ return [
         $t->same('paragraph', $blocks[1]->type);
         $t->same('heading', $blocks[2]->type);
         $t->same('paragraph', $blocks[3]->type);
+    },
+    'marks only signed geometryless recurring first-slot ordinal headers as layout labels' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $markLabels = (function (array &$items): void {
+            $this->sourceSha256 = str_repeat('a', 64);
+            $this->markSourcePdfLayoutLabelOccurrences($items);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($markLabels instanceof \Closure);
+
+        $items = [[
+            'id' => 'theatre-running-header-1',
+            'page' => 2,
+            'stream' => 9,
+            'text' => 'Script formatting example p.1',
+            'sourcePdfGlobalSourceIndex' => 0,
+        ], [
+            'id' => 'theatre-running-companion-1',
+            'page' => 2,
+            'stream' => 9,
+            'text' => '© Australian Script Centre 2004',
+            'sourcePdfGlobalSourceIndex' => 1,
+        ], [
+            'id' => 'theatre-section-title',
+            'page' => 2,
+            'stream' => 9,
+            'text' => 'SCRIPT FORMAT EXAMPLE',
+            'sourcePdfGlobalSourceIndex' => 2,
+        ], [
+            'id' => 'theatre-body',
+            'page' => 2,
+            'stream' => 9,
+            'text' => 'A substantive script instruction remains editable.',
+            'sourcePdfGlobalSourceIndex' => 3,
+        ], [
+            'id' => 'theatre-running-header-2',
+            'page' => 3,
+            'stream' => 10,
+            'text' => 'Script formatting example p.2',
+            'sourcePdfGlobalSourceIndex' => 35,
+        ], [
+            'id' => 'theatre-running-companion-2',
+            'page' => 3,
+            'stream' => 10,
+            'text' => '© Australian Script Centre 2004',
+            'sourcePdfGlobalSourceIndex' => 36,
+        ], [
+            'id' => 'theatre-act-title',
+            'page' => 3,
+            'stream' => 10,
+            'text' => 'ACT ONE',
+            'sourcePdfGlobalSourceIndex' => 37,
+        ]];
+        $markLabels($items);
+
+        foreach ([0, 4] as $index) {
+            $t->same(
+                true,
+                $items[$index]['sourcePdfLayoutLabel'] ?? null,
+                "Geometryless recurring header {$index} should be a layout label."
+            );
+        }
+        foreach ([1, 2, 3, 5, 6] as $index) {
+            $t->same(
+                null,
+                $items[$index]['sourcePdfLayoutLabel'] ?? null,
+                "Non-header source occurrence {$index} must remain outline-eligible."
+            );
+        }
+
+        $proof = $items[0]['sourcePdfSourceOrderRunningHeaderProof'] ?? null;
+        $t->true(is_array($proof));
+        $t->same(
+            'recurring-first-source-slot-terminal-ordinal-with-companion',
+            $proof['method'] ?? null
+        );
+        $t->same(str_repeat('a', 64), $proof['sourceSha256'] ?? null);
+        $t->same([0, 35], array_column($proof['peers'] ?? [], 'sourceGlobalIndex'));
+        $t->same([1, 2], array_column($proof['peers'] ?? [], 'ordinal'));
+        $t->same(
+            $proof,
+            $items[4]['sourcePdfSourceOrderRunningHeaderProof'] ?? null,
+            'Both peers must carry the same source-bound group proof.'
+        );
+        $proofIdentity = $proof;
+        unset($proofIdentity['proofDigest']);
+        $encodedProofIdentity = json_encode(
+            $proofIdentity,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+        );
+        $t->same(
+            hash(
+                'sha256',
+                is_string($encodedProofIdentity)
+                    ? $encodedProofIdentity
+                    : serialize($proofIdentity)
+            ),
+            $proof['proofDigest'] ?? null,
+            'The running-header proof digest must cover the complete source identity.'
+        );
+
+        $differentCompanions = [[
+            'page' => 4,
+            'stream' => 20,
+            'text' => 'Production formatting reference q:7',
+        ], [
+            'page' => 4,
+            'stream' => 20,
+            'text' => 'First page companion line',
+        ], [
+            'page' => 5,
+            'stream' => 21,
+            'text' => 'Production formatting reference q:8',
+        ], [
+            'page' => 5,
+            'stream' => 21,
+            'text' => 'Different second page companion line',
+        ]];
+        $markLabels($differentCompanions);
+        foreach ($differentCompanions as $item) {
+            $t->same(
+                null,
+                $item['sourcePdfLayoutLabel'] ?? null,
+                'Sequential label text without an exact recurring companion is not enough.'
+            );
+        }
+
+        $notFirstOnPage = [[
+            'page' => 6,
+            'stream' => 30,
+            'text' => 'Substantive preface text',
+        ], [
+            'page' => 6,
+            'stream' => 30,
+            'text' => 'Production formatting reference q:9',
+        ], [
+            'page' => 6,
+            'stream' => 30,
+            'text' => 'Recurring companion statement',
+        ], [
+            'page' => 7,
+            'stream' => 31,
+            'text' => 'Substantive preface text',
+        ], [
+            'page' => 7,
+            'stream' => 31,
+            'text' => 'Production formatting reference q:10',
+        ], [
+            'page' => 7,
+            'stream' => 31,
+            'text' => 'Recurring companion statement',
+        ]];
+        $markLabels($notFirstOnPage);
+        foreach ($notFirstOnPage as $item) {
+            $t->same(
+                null,
+                $item['sourcePdfLayoutLabel'] ?? null,
+                'A recurring tagged ordinal outside the first source slot is not a running header.'
+            );
+        }
+
+        $skippedOrdinal = [[
+            'page' => 8,
+            'stream' => 40,
+            'text' => 'Production formatting reference q:11',
+        ], [
+            'page' => 8,
+            'stream' => 40,
+            'text' => 'Recurring companion statement',
+        ], [
+            'page' => 9,
+            'stream' => 41,
+            'text' => 'Production formatting reference q:13',
+        ], [
+            'page' => 9,
+            'stream' => 41,
+            'text' => 'Recurring companion statement',
+        ]];
+        $markLabels($skippedOrdinal);
+        foreach ($skippedOrdinal as $item) {
+            $t->same(
+                null,
+                $item['sourcePdfLayoutLabel'] ?? null,
+                'Ordinals must advance in exact lockstep with consecutive physical pages.'
+            );
+        }
+
+        $ordinaryNumberedHeadings = [[
+            'page' => 10,
+            'stream' => 50,
+            'text' => 'Operational planning chapter 1',
+        ], [
+            'page' => 10,
+            'stream' => 50,
+            'text' => 'Recurring companion statement',
+        ], [
+            'page' => 11,
+            'stream' => 51,
+            'text' => 'Operational planning chapter 2',
+        ], [
+            'page' => 11,
+            'stream' => 51,
+            'text' => 'Recurring companion statement',
+        ]];
+        $markLabels($ordinaryNumberedHeadings);
+        foreach ($ordinaryNumberedHeadings as $item) {
+            $t->same(
+                null,
+                $item['sourcePdfLayoutLabel'] ?? null,
+                'Ordinary numbered headings without a short tagged ordinal stay outline-eligible.'
+            );
+        }
+    },
+    'marks only signed exact scattered source-label clusters before lower captions as layout labels' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $markLabels = (function (array &$items): void {
+            $this->sourceSha256 = str_repeat('b', 64);
+            $this->markSourcePdfLayoutLabelOccurrences($items);
+        })->bindTo($reader, PdfReader::class);
+        $markLabelsWithoutSourceHash = (function (array &$items): void {
+            $this->sourceSha256 = '';
+            $this->markSourcePdfLayoutLabelOccurrences($items);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, false, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($markLabels instanceof \Closure);
+        $t->true($markLabelsWithoutSourceHash instanceof \Closure);
+        $t->true($repair instanceof \Closure);
+        $t->true($blocksFromLines instanceof \Closure);
+
+        $item = static function (
+            int $index,
+            string $text,
+            float $x1,
+            float $y1,
+            float $x2,
+            float $y2
+        ): array {
+            return [
+                'id' => 'spatial-source-' . $index,
+                'page' => 1,
+                'stream' => 4,
+                'text' => $text,
+                'sourcePdfGlobalSourceIndex' => $index,
+                'sourceGeometry' => [
+                    'page' => 1,
+                    'stream' => 4,
+                    'x1' => $x1,
+                    'y1' => $y1,
+                    'x2' => $x2,
+                    'y2' => $y2,
+                    'orientation' => 'horizontal',
+                ],
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            ];
+        };
+        $items = [
+            $item(0, 'Primary Assembly', 70.0, 700.0, 190.0, 720.0),
+            $item(1, 'The assembly introduction remains ordinary prose.', 70.0, 676.0, 390.0, 688.0),
+            $item(2, 'Upper latch', 477.0, 91.0, 533.0, 101.0),
+            $item(3, 'Lower latch', 472.0, 232.0, 537.0, 242.0),
+            $item(4, 'Outer case', 455.0, 332.0, 489.0, 342.0),
+            $item(5, 'Threaded core', 433.0, 187.0, 499.0, 197.0),
+            $item(6, 'Locking shoulder', 447.0, 211.0, 510.0, 221.0),
+            $item(7, 'Key slot', 423.0, 100.0, 454.0, 110.0),
+            $item(8, 'Left anchor', 100.0, 177.0, 163.0, 187.0),
+            $item(9, 'First insert', 90.0, 85.0, 132.0, 95.0),
+            $item(10, 'Second insert', 160.0, 85.0, 210.0, 95.0),
+            $item(11, 'Third insert', 235.0, 85.0, 292.0, 95.0),
+            $item(12, 'Right anchor', 215.0, 177.0, 280.0, 187.0),
+            $item(13, 'Figure 12. Left assembly overview.', 70.0, 61.0, 220.0, 73.0),
+            $item(14, 'Figure 13. Right assembly overview.', 319.0, 63.0, 500.0, 75.0),
+        ];
+        $markLabels($items);
+
+        $labelIndexes = range(2, 12);
+        foreach ($labelIndexes as $index) {
+            $t->same(
+                true,
+                $items[$index]['sourcePdfLayoutLabel'] ?? null,
+                "Scattered callout source occurrence {$index} should be a layout label."
+            );
+        }
+        foreach ([0, 1, 13, 14] as $index) {
+            $t->same(
+                null,
+                $items[$index]['sourcePdfLayoutLabel'] ?? null,
+                "Prose heading/body/caption occurrence {$index} must stay outline-eligible."
+            );
+        }
+
+        $proof = $items[2]['sourcePdfSpatialLabelClusterProof'] ?? null;
+        $t->true(is_array($proof));
+        $t->same('exact-source-spatial-label-cluster-before-caption', $proof['method'] ?? null);
+        $t->same(str_repeat('b', 64), $proof['sourceSha256'] ?? null);
+        $t->same(range(2, 12), array_column($proof['members'] ?? [], 'sourceGlobalIndex'));
+        $t->same([13, 14], array_column($proof['captionAnchors'] ?? [], 'sourceGlobalIndex'));
+        $t->same(6, $proof['spatialEvidence']['verticalDirectionChanges'] ?? null);
+        foreach ($labelIndexes as $index) {
+            $t->same(
+                $proof,
+                $items[$index]['sourcePdfSpatialLabelClusterProof'] ?? null,
+                'Every callout peer must carry the same source-bound cluster proof.'
+            );
+        }
+        $proofIdentity = $proof;
+        unset($proofIdentity['proofDigest']);
+        $encodedProofIdentity = json_encode(
+            $proofIdentity,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+        );
+        $t->same(
+            hash('sha256', is_string($encodedProofIdentity) ? $encodedProofIdentity : serialize($proofIdentity)),
+            $proof['proofDigest'] ?? null,
+            'The spatial-label proof digest must cover the complete source identity.'
+        );
+
+        $layouts = array_map(static function (array $source): array {
+            $geometry = $source['sourceGeometry'];
+
+            return [
+                'page' => 1,
+                'x1' => $geometry['x1'],
+                'y1' => $geometry['y1'],
+                'x2' => $geometry['x2'],
+                'y2' => $geometry['y2'],
+                'fontSize' => max(8.0, ($geometry['y2'] - $geometry['y1']) * 0.8),
+                'sourcePdfLayoutLabel' => ($source['sourcePdfLayoutLabel'] ?? false) === true,
+                'forceBlockBreakBefore' => true,
+            ];
+        }, $items);
+        $blocksByText = [];
+        foreach ($blocksFromLines($repair(array_column($items, 'text'), $layouts)) as $block) {
+            $text = (string) $block->attr('text', '');
+            if ($text !== '') {
+                $blocksByText[$text] = $block;
+            }
+        }
+        $t->same('heading', $blocksByText['Primary Assembly']->type ?? null);
+        foreach ($labelIndexes as $index) {
+            $text = $items[$index]['text'];
+            $t->same('paragraph', $blocksByText[$text]->type ?? null);
+            $t->same('layout-label', $blocksByText[$text]->attr('sourceRole') ?? null);
+        }
+        foreach ([13, 14] as $index) {
+            $t->same('paragraph', $blocksByText[$items[$index]['text']]->type ?? null);
+        }
+
+        $unsigned = array_map(static fn (array $source): array => $source, array_slice($items, 0));
+        foreach ($unsigned as &$source) {
+            unset($source['sourcePdfLayoutLabel'], $source['sourcePdfSpatialLabelClusterProof']);
+        }
+        unset($source);
+        $markLabelsWithoutSourceHash($unsigned);
+        foreach ($labelIndexes as $index) {
+            $t->same(
+                null,
+                $unsigned[$index]['sourcePdfLayoutLabel'] ?? null,
+                'Spatial resemblance without a valid source hash must stay outline-eligible.'
+            );
+            $t->same(
+                null,
+                $unsigned[$index]['sourcePdfSpatialLabelClusterProof'] ?? null,
+                'Spatial resemblance without a valid source hash cannot authorize a role.'
+            );
+        }
+
+        $inexact = array_map(static fn (array $source): array => $source, $unsigned);
+        $inexact[7]['sourceGeometryMethod'] = 'inferred-neighbor';
+        $markLabels($inexact);
+        foreach ($labelIndexes as $index) {
+            $t->same(
+                null,
+                $inexact[$index]['sourcePdfLayoutLabel'] ?? null,
+                'An inexact occurrence cannot authorize either half of the apparent cluster.'
+            );
+            $t->same(
+                null,
+                $inexact[$index]['sourcePdfSpatialLabelClusterProof'] ?? null,
+                'One inexact middle occurrence must break both undersized source runs.'
+            );
+        }
+
+        $monotonic = array_map(static fn (array $source): array => $source, $unsigned);
+        foreach ($labelIndexes as $offset => $index) {
+            $monotonic[$index]['sourceGeometry']['y1'] = 330.0 - $offset * 20.0;
+            $monotonic[$index]['sourceGeometry']['y2'] = 340.0 - $offset * 20.0;
+        }
+        $markLabels($monotonic);
+        foreach ($labelIndexes as $index) {
+            $t->same(
+                null,
+                $monotonic[$index]['sourcePdfLayoutLabel'] ?? null,
+                'A monotonic compact lane must stay eligible for ordinary document structure.'
+            );
+            $t->same(
+                null,
+                $monotonic[$index]['sourcePdfSpatialLabelClusterProof'] ?? null,
+                'A monotonic compact prose/list lane is not a scattered diagram region.'
+            );
+        }
+
+        $captionAbove = array_map(static fn (array $source): array => $source, $unsigned);
+        foreach ([13, 14] as $index) {
+            $captionAbove[$index]['sourceGeometry']['y1'] += 380.0;
+            $captionAbove[$index]['sourceGeometry']['y2'] += 380.0;
+        }
+        $markLabels($captionAbove);
+        foreach ($labelIndexes as $index) {
+            $t->same(
+                null,
+                $captionAbove[$index]['sourcePdfLayoutLabel'] ?? null,
+                'An upper sentence cannot authorize a diagram-label role.'
+            );
+            $t->same(
+                null,
+                $captionAbove[$index]['sourcePdfSpatialLabelClusterProof'] ?? null,
+                'A complete following sentence above the region is not a lower caption anchor.'
+            );
+        }
+
+        $prominentPeer = array_map(static fn (array $source): array => $source, $unsigned);
+        $prominentPeer[7]['sourceGeometry']['y2'] += 12.0;
+        $markLabels($prominentPeer);
+        foreach ($labelIndexes as $index) {
+            $t->same(
+                null,
+                $prominentPeer[$index]['sourcePdfLayoutLabel'] ?? null,
+                'Mixed-height display text must stay eligible for the outline.'
+            );
+            $t->same(
+                null,
+                $prominentPeer[$index]['sourcePdfSpatialLabelClusterProof'] ?? null,
+                'A mixed-height run containing prominent display text lacks uniform callout geometry.'
+            );
+        }
+    },
+    'folds only signed exact nested-symbol callouts into one source-bound warning paragraph' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $detect = (function (array $items, string $sourceSha256): array {
+            $this->sourceSha256 = $sourceSha256;
+
+            return $this->sourcePdfExactNestedCautionCalloutProofs($items);
+        })->bindTo($reader, PdfReader::class);
+        $markLabels = (function (array &$items, string $sourceSha256): void {
+            $this->sourceSha256 = $sourceSha256;
+            $this->markSourcePdfLayoutLabelOccurrences($items);
+        })->bindTo($reader, PdfReader::class);
+        $fold = (function (array $layouts, array $sourceItems): array {
+            return $this->pdfRepairSourceInProvenNestedCautionCalloutOrder(
+                array_column($layouts, 'text'),
+                $layouts,
+                $sourceItems
+            );
+        })->bindTo($reader, PdfReader::class);
+        $stampWholeProofs = (function (array $layouts, array $sourceItems): array {
+            return $this->pdfSourceLayoutsWithWholeExactOccurrenceProofs(
+                $layouts,
+                $sourceItems
+            );
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, true, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $explicitDispositions = (function (array $items, array $blocks): array {
+            return $this->explicitPdfSourceDispositions($items, $blocks);
+        })->bindTo($reader, PdfReader::class);
+        foreach ([
+            $detect,
+            $markLabels,
+            $fold,
+            $stampWholeProofs,
+            $repair,
+            $blocksFromLines,
+            $explicitDispositions,
+        ] as $closure) {
+            $t->true($closure instanceof \Closure);
+        }
+
+        $sourceSha256 = str_repeat('6', 64);
+        $sourceItem = static function (
+            int $index,
+            string $text,
+            float $x1,
+            float $y1,
+            float $x2,
+            float $y2
+        ): array {
+            return [
+                'id' => 'nested-callout-source-' . $index,
+                'page' => 3,
+                'stream' => 7,
+                'text' => $text,
+                'sourceGeometry' => [
+                    'page' => 3,
+                    'stream' => 7,
+                    'x1' => $x1,
+                    'y1' => $y1,
+                    'x2' => $x2,
+                    'y2' => $y2,
+                    'orientation' => 'horizontal',
+                ],
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+            ];
+        };
+        $source = [
+            $sourceItem(0, 'Preceding instructions remain separate.', 72.0, 462.0, 310.0, 474.0),
+            $sourceItem(1, '◆', 100.0, 400.0, 140.0, 440.0),
+            $sourceItem(2, '?', 113.0, 408.0, 127.0, 430.0),
+            $sourceItem(3, 'NOTICE', 108.0, 401.0, 134.0, 408.0),
+            $sourceItem(4, 'Shared equipment must remain assigned to one operator', 139.0, 425.0, 408.0, 437.0),
+            $sourceItem(5, 'while every transfer is recorded in the inspection log', 139.3, 414.0, 414.0, 426.0),
+            $sourceItem(6, 'Complete the inspection before use.', 139.1, 403.0, 340.0, 415.0),
+            $sourceItem(7, 'Following instructions begin a new paragraph.', 72.0, 374.0, 326.0, 386.0),
+        ];
+        $proofs = $detect($source, $sourceSha256);
+        $t->same(1, count($proofs));
+        $proof = $proofs[0] ?? null;
+        $t->true(is_array($proof));
+        $t->same('exact-source-nested-symbol-label-right-lane-warning', $proof['method'] ?? null);
+        $t->same($sourceSha256, $proof['sourceSha256'] ?? null);
+        $t->same([1, 2], array_column($proof['iconAtoms'] ?? [], 'sourceIndex'));
+        $t->same(3, $proof['label']['sourceIndex'] ?? null);
+        $t->same([4, 5, 6], array_column($proof['proseRows'] ?? [], 'sourceIndex'));
+        $t->same(
+            hash('sha256', 'NOTICESharedequipmentmustremainassignedtooneoperatorwhileeverytransferisrecordedintheinspectionlogCompletetheinspectionbeforeuse.'),
+            $proof['retainedProjectionDigest'] ?? null
+        );
+        $proofIdentity = $proof;
+        unset($proofIdentity['proofDigest']);
+        $encodedProofIdentity = json_encode(
+            $proofIdentity,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+        );
+        $t->same(
+            hash('sha256', is_string($encodedProofIdentity) ? $encodedProofIdentity : serialize($proofIdentity)),
+            $proof['proofDigest'] ?? null
+        );
+
+        $markLabels($source, $sourceSha256);
+        foreach ([1 => 'decorative-symbol', 2 => 'decorative-punctuation'] as $index => $role) {
+            $t->same($role, $source[$index]['sourcePdfNestedCautionCalloutRole'] ?? null);
+            $t->same($proof, $source[$index]['sourcePdfNestedCautionCalloutProof'] ?? null);
+        }
+        $t->same('label', $source[3]['sourcePdfNestedCautionCalloutRole'] ?? null);
+        $t->same(true, $source[3]['sourcePdfLayoutLabel'] ?? null);
+        foreach ([4, 5, 6] as $index) {
+            $t->same('prose-row', $source[$index]['sourcePdfNestedCautionCalloutRole'] ?? null);
+            $t->same($proof, $source[$index]['sourcePdfNestedCautionCalloutProof'] ?? null);
+        }
+
+        $significant = static fn (string $text): string => preg_replace('/\\s+/u', '', $text) ?? '';
+        $range = static function (array $source, int $index) use ($significant): array {
+            return [
+                'sourceIndex' => $index,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen($significant($source[$index]['text'])),
+            ];
+        };
+        $layout = static function (
+            string $text,
+            array $ranges,
+            float $x1,
+            float $y1,
+            float $x2,
+            float $y2
+        ): array {
+            return [
+                'text' => $text,
+                'page' => 3,
+                'sourceStream' => 7,
+                'x1' => $x1,
+                'y1' => $y1,
+                'x2' => $x2,
+                'y2' => $y2,
+                'fontSize' => max(6.0, $y2 - $y1),
+                'sourcePdfExactSourceRanges' => $ranges,
+                'sourcePdfExactPositionedText' => true,
+                'sourcePdfPageExactInventoryPreserved' => true,
+            ];
+        };
+        // Mirror the real failure mode: geometry first combines both icon
+        // atoms with a prose row, restores duplicate standalone atoms, and
+        // moves the nested label away from its visual prose lane.
+        $layouts = [
+            $layout($source[0]['text'], [$range($source, 0)], 72.0, 462.0, 310.0, 474.0),
+            $layout($source[4]['text'], [$range($source, 4)], 139.0, 425.0, 408.0, 437.0),
+            $layout('◆? ' . $source[5]['text'], [
+                $range($source, 1),
+                $range($source, 2),
+                $range($source, 5),
+            ], 100.0, 400.0, 414.0, 440.0),
+            $layout('?', [$range($source, 2)], 113.0, 408.0, 127.0, 430.0),
+            $layout('◆', [$range($source, 1)], 100.0, 400.0, 140.0, 440.0),
+            $layout($source[6]['text'], [$range($source, 6)], 139.1, 403.0, 340.0, 415.0),
+            $layout($source[3]['text'], [$range($source, 3)], 108.0, 401.0, 134.0, 408.0),
+            $layout($source[7]['text'], [$range($source, 7)], 72.0, 374.0, 326.0, 386.0),
+        ];
+        $folded = $fold($layouts, $source);
+        $warning = implode(' ', array_column(array_slice($source, 3, 4), 'text'));
+        $t->same([
+            $source[0]['text'],
+            $warning,
+            $source[7]['text'],
+        ], $folded['lines'] ?? null);
+        $t->same([3, 4, 5, 6], array_column(
+            $folded['layouts'][1]['sourcePdfExactSourceRanges'] ?? [],
+            'sourceIndex'
+        ));
+        $t->same(
+            $proof,
+            $folded['layouts'][1]['sourcePdfNestedCautionCalloutProof'] ?? null
+        );
+        $t->same(true, $folded['layouts'][1]['sourcePdfLayoutLabel'] ?? null);
+        $t->same(true, $folded['layouts'][2]['forceBlockBreakBefore'] ?? null);
+
+        $folded['layouts'] = $stampWholeProofs($folded['layouts'], $source);
+        $t->same(
+            [3, 4, 5, 6],
+            array_column(
+                $folded['layouts'][1]['sourcePdfWholeExactOccurrenceProof']['occurrences'] ?? [],
+                'sourceIndex'
+            ),
+            'The folded warning must retain one exact whole-occurrence union proof.'
+        );
+        $repaired = $repair($folded['lines'], $folded['layouts']);
+        $blocks = $blocksFromLines($repaired);
+        $t->same([
+            $source[0]['text'],
+            $warning,
+            $source[7]['text'],
+        ], array_map(
+            static fn (AstNode $block): string => (string) $block->attr('text', ''),
+            $blocks
+        ));
+        $warningBlocks = array_values(array_filter(
+            $blocks,
+            static fn (AstNode $block): bool => $block->attr('text') === $warning
+        ));
+        $t->same(1, count($warningBlocks));
+        $t->same('paragraph', $warningBlocks[0]->type ?? null);
+
+        $dispositions = $explicitDispositions($source, $blocks);
+        foreach ([1 => 'decorative-symbol', 2 => 'decorative-punctuation'] as $index => $role) {
+            $id = $source[$index]['id'];
+            $t->same('artifact', $dispositions[$id]['disposition'] ?? null);
+            $t->same(
+                'signed-exact-nested-symbol-callout-icon-atom',
+                $dispositions[$id]['evidence']['method'] ?? null
+            );
+            $t->same($role, $dispositions[$id]['evidence']['atomRole'] ?? null);
+            $t->same(
+                $proof['proofDigest'],
+                $dispositions[$id]['evidence']['calloutProof']['proofDigest'] ?? null
+            );
+        }
+        $binding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            $blocks,
+            $dispositions,
+            ['sourceSha256' => $sourceSha256]
+        );
+        $t->same(true, $binding['complete']);
+        $t->same(null, $binding['failureReason']);
+        foreach ([1, 2] as $index) {
+            $mapping = $binding['explicitDispositions'][$source[$index]['id']]['sourceMapping'] ?? [];
+            $t->same('disposition', $mapping['status'] ?? null);
+            $t->same('explicit-disposition', $mapping['mappingMode'] ?? null);
+        }
+        $warningDestinationIds = [];
+        foreach ([3, 4, 5, 6] as $index) {
+            $mapping = $binding['explicitDispositions'][$source[$index]['id']]['sourceMapping'] ?? [];
+            $t->same('output', $mapping['status'] ?? null);
+            $t->same('exact-sequence', $mapping['mappingMode'] ?? null);
+            $warningDestinationIds[] = $mapping['destinationNodeIds'][0] ?? null;
+        }
+        $t->same(1, count(array_unique($warningDestinationIds)));
+
+        $negativeCases = [];
+        $invalidHash = $source;
+        $negativeCases['unsigned source'] = [$invalidHash, ''];
+        $inexact = $source;
+        $inexact[2]['sourceGeometryMethod'] = 'inferred-neighbor';
+        $negativeCases['inexact punctuation'] = [$inexact, $sourceSha256];
+        $outside = $source;
+        $outside[2]['sourceGeometry']['x1'] += 52.0;
+        $outside[2]['sourceGeometry']['x2'] += 52.0;
+        $negativeCases['non-nested punctuation'] = [$outside, $sourceSha256];
+        $sentenceLabel = $source;
+        $sentenceLabel[3]['text'] = 'Notice';
+        $negativeCases['sentence-case label'] = [$sentenceLabel, $sourceSha256];
+        $unstableLane = $source;
+        $unstableLane[5]['sourceGeometry']['x1'] += 42.0;
+        $negativeCases['unstable prose lane'] = [$unstableLane, $sourceSha256];
+        $unfinished = $source;
+        $unfinished[6]['text'] = rtrim($unfinished[6]['text'], '.');
+        $negativeCases['unfinished prose'] = [$unfinished, $sourceSha256];
+        foreach ($negativeCases as $name => [$candidate, $sha256]) {
+            foreach ($candidate as &$item) {
+                unset(
+                    $item['sourcePdfNestedCautionCalloutRole'],
+                    $item['sourcePdfNestedCautionCalloutProof'],
+                    $item['sourcePdfLayoutLabel']
+                );
+            }
+            unset($item);
+            $t->same([], $detect($candidate, $sha256), $name);
+        }
     },
     'demotes geometry-proven form labels without demoting prominent short headings' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -19018,6 +19985,258 @@ return [
         $t->contains('<th>Product</th><th>Qty</th><th>Rate</th><th>Total</th>', $blocks);
         $t->contains('<td>Alpha</td><td>2</td><td>$3.00</td><td>$6.00</td>', $blocks);
     },
+    'requires signed table adjacency before demoting positioned headings to layout labels' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $proofMethod = new ReflectionMethod($reader, 'positionedPdfTableAdjacentLayoutRoleProofs');
+        $applyMethod = new ReflectionMethod($reader, 'positionedPdfBlocksWithAcceptedTablePageRoles');
+        $run = static function (string $text, float $x, float $y, float $fontSize = 10.0): array {
+            $width = max(8.0, strlen($text) * $fontSize * 0.45);
+
+            return [
+                'page' => 1,
+                'text' => $text,
+                'x1' => $x,
+                'y1' => $y - ($fontSize / 2.0),
+                'x2' => $x + $width,
+                'y2' => $y + ($fontSize / 2.0),
+                'textX1' => $x,
+                'textY1' => $y,
+                'textX2' => $x + $width,
+                'textY2' => $y,
+                'fontSize' => $fontSize,
+            ];
+        };
+        $row = static fn (float $center, array $runs): array => [
+            'center' => $center,
+            'runs' => $runs,
+        ];
+        $rows = [
+            $row(300.0, [$run('Description', 10.0, 300.0), $run('Quantity', 110.0, 300.0), $run('Amount', 210.0, 300.0)]),
+            $row(260.0, [$run('Service', 10.0, 260.0), $run('2', 110.0, 260.0), $run('$20', 210.0, 260.0)]),
+            $row(240.0, [$run('Hosting', 10.0, 240.0), $run('1', 110.0, 240.0), $run('$10', 210.0, 240.0)]),
+            $row(210.0, [$run('Regards', 10.0, 210.0), $run('Total', 110.0, 210.0, 16.0), $run('$30', 210.0, 210.0, 16.0)]),
+        ];
+        $segments = [[
+            'start' => 1,
+            'end' => 2,
+            'rows' => [['Service', '2', '$20'], ['Hosting', '1', '$10']],
+        ]];
+        $proofs = $proofMethod->invoke($reader, $rows, $segments, 10.0, 1);
+
+        foreach (['description', 'quantity', 'amount'] as $key) {
+            $t->same('column-header-label', $proofs[$key][0]['role'] ?? null);
+        }
+        $t->same('summary-label', $proofs['total'][0]['role'] ?? null);
+        $t->true(!isset($proofs['regards']), 'A different-font sign-off must not borrow the numeric total peer proof.');
+
+        $heading = static fn (array $proof): AstNode => new AstNode(
+            'heading',
+            ['level' => 2, 'text' => 'Description', 'sourcePdfTableLayoutRoleProof' => $proof],
+            [new AstNode('text', ['text' => 'Description'])]
+        );
+        $accepted = $applyMethod->invoke($reader, 1, [$heading($proofs['description'][0])], [1 => true]);
+        $t->same('paragraph', $accepted[0]->type);
+
+        $forged = $proofs['description'][0];
+        $forged['matchedColumnCount']++;
+        $rejected = $applyMethod->invoke($reader, 1, [$heading($forged)], [1 => true]);
+        $t->same('heading', $rejected[0]->type, 'Mutating signed adjacency evidence must invalidate the demotion.');
+
+        $twoColumnRows = $rows;
+        $twoColumnRows[0]['runs'] = array_slice($twoColumnRows[0]['runs'], 0, 2);
+        $negative = $proofMethod->invoke($reader, $twoColumnRows, $segments, 10.0, 1);
+        $t->true(!isset($negative['description'], $negative['quantity']), 'Two coincident labels are insufficient column-header evidence.');
+    },
+    'requires three-row rigid table homology before classifying a rejected form band' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $remember = new ReflectionMethod($reader, 'rememberPositionedPdfTableBandHomologyTemplates');
+        $match = new ReflectionMethod($reader, 'positionedPdfRejectedTableBandHomologyProofs');
+        $run = static function (string $text, float $x, float $y): array {
+            $width = max(8.0, strlen($text) * 4.5);
+
+            return [
+                'page' => 1,
+                'text' => $text,
+                'x1' => $x,
+                'y1' => $y - 5.0,
+                'x2' => $x + $width,
+                'y2' => $y + 5.0,
+                'textX1' => $x,
+                'textY1' => $y,
+                'textX2' => $x + $width,
+                'textY2' => $y,
+                'fontSize' => 10.0,
+            ];
+        };
+        $row = static fn (float $center, array $runs): array => ['center' => $center, 'runs' => $runs];
+        $templateRows = [
+            $row(400.0, [$run('Company', 20.0, 400.0), $run('Phone', 220.0, 400.0)]),
+            $row(380.0, [$run('Street', 20.0, 380.0), $run('Email', 220.0, 380.0)]),
+            $row(360.0, [$run('City', 20.0, 360.0), $run('Website', 220.0, 360.0)]),
+            $row(340.0, [$run('State', 20.0, 340.0), $run('Identifier', 220.0, 340.0)]),
+        ];
+        $remember->invoke($reader, $templateRows, [[
+            'start' => 0,
+            'end' => 3,
+            'rows' => [['Company', 'Phone'], ['Street', 'Email'], ['City', 'Website'], ['State', 'Identifier']],
+        ]], 10.0, 1);
+
+        $candidateRows = [
+            $row(405.0, [$run('Company', 24.0, 405.0), $run('Phone', 224.0, 405.0)]),
+            $row(385.0, [$run('Street', 24.0, 385.0), $run('Email', 224.0, 385.0)]),
+            $row(365.0, [$run('City', 24.0, 365.0), $run('Website', 224.0, 365.0)]),
+            $row(345.0, [$run('State', 24.0, 345.0)]),
+        ];
+        $proofs = $match->invoke($reader, $candidateRows, [], 10.0, 2);
+        $t->same('homologous-table-label', $proofs['company'][0]['role'] ?? null);
+        $t->same(7, $proofs['company'][0]['matchedCellCount'] ?? null);
+        $t->same('homologous-table-label', $proofs['companystreetcitystate'][0]['role'] ?? null);
+
+        $candidateRows[2]['runs'] = [$run('Different', 24.0, 365.0), $run('Values', 224.0, 365.0)];
+        $candidateRows[3]['runs'] = [$run('Another', 24.0, 345.0)];
+        $negative = $match->invoke($reader, $candidateRows, [], 10.0, 2);
+        $t->same([], $negative, 'Only two matching rows must not establish cross-page table homology.');
+    },
+    'repairs a display token only from one unique same-font accepted title peer' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = new ReflectionMethod($reader, 'positionedPdfDisplayHeadingLeadingTokenRepair');
+        $displayProof = ['fontSize' => 30.0, 'proofDigest' => str_repeat('a', 64)];
+        $references = [[
+            'page' => 2,
+            'token' => 'Report',
+            'tokenKey' => 'report',
+            'fontSize' => 30.0,
+            'displayProofDigest' => str_repeat('b', 64),
+        ]];
+
+        $restored = $repair->invoke($reader, 'Annual eport', $displayProof, $references, 1);
+        $t->same('Annual Report', $restored['text'] ?? null);
+        $t->same('R', $restored['insertedText'] ?? null);
+
+        $ambiguous = $references;
+        $ambiguous[] = [
+            'page' => 3,
+            'token' => 'Xeport',
+            'tokenKey' => 'xeport',
+            'fontSize' => 30.0,
+            'displayProofDigest' => str_repeat('c', 64),
+        ];
+        $t->same(null, $repair->invoke($reader, 'Annual eport', $displayProof, $ambiguous, 1));
+        $references[0]['fontSize'] = 20.0;
+        $t->same(null, $repair->invoke($reader, 'Annual eport', $displayProof, $references, 1));
+    },
+    'requires a signed mirrored translation and unique prose counterpart before removing compact map pairs' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $sourceItem = static function (
+            string $id,
+            string $text,
+            int $page,
+            int $stream,
+            float $x1,
+            float $y1,
+            float $x2,
+            float $y2
+        ): array {
+            return [
+                'id' => $id,
+                'text' => $text,
+                'page' => $page,
+                'stream' => $stream,
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                'sourceGeometry' => [
+                    'page' => $page,
+                    'stream' => $stream,
+                    'orientation' => 'horizontal',
+                    'x1' => $x1,
+                    'y1' => $y1,
+                    'x2' => $x2,
+                    'y2' => $y2,
+                ],
+            ];
+        };
+        $items = [
+            $sourceItem('full-prose', 'Vehicles longer than 22 feet (6.7 m) prohibited on the road', 1, 1, 40.0, 100.0, 360.0, 112.0),
+            $sourceItem('label-east', 'prohibited.', 2, 2, 460.0, 982.0, 494.0, 990.0),
+            $sourceItem('measure-east', '6.7', 2, 2, 484.0, 989.0, 496.0, 997.0),
+            $sourceItem('measure-west', '6.7', 2, 2, 142.0, 895.0, 154.0, 903.0),
+            $sourceItem('label-west', 'prohibited.', 2, 2, 118.0, 888.0, 152.0, 896.0),
+        ];
+        $items[1]['sourceGeometry']['orientation'] = 'rotated-359';
+        $items[4]['sourceGeometry']['orientation'] = 'rotated-359';
+        $runs = [];
+        foreach (array_slice($items, 1, null, true) as $sourceIndex => $item) {
+            $geometry = $item['sourceGeometry'];
+            $projection = preg_replace('/\s+/u', '', $item['text']) ?? '';
+            $runs[$sourceIndex] = [[
+                'page' => $item['page'],
+                'stream' => $item['stream'],
+                'text' => $item['text'],
+                'x1' => $geometry['x1'],
+                'y1' => $geometry['y1'],
+                'x2' => $geometry['x2'],
+                'y2' => $geometry['y2'],
+                'textX1' => $geometry['x1'],
+                'textY1' => $geometry['y1'],
+                'textX2' => $geometry['x2'],
+                'textY2' => $geometry['y2'],
+                'fontSize' => 8.0,
+                'fontResource' => 'F1',
+                'baseFont' => 'MapItalic',
+                'sourcePdfExactSourceIndex' => $sourceIndex,
+                'sourcePdfExactSourceStart' => 0,
+                'sourcePdfExactSourceEnd' => strlen($projection),
+            ]];
+        }
+        $mark = (function (array $sourceItems, array $positionedRuns): array {
+            $this->sourceSha256 = str_repeat('d', 64);
+            $this->markSourcePdfMirroredDuplicateMapPairArtifacts(
+                $sourceItems,
+                $positionedRuns
+            );
+
+            return $sourceItems;
+        })->bindTo($reader, PdfReader::class);
+        $remove = (function (array $blocks, array $sourceItems): array {
+            return $this->pdfBlocksWithoutProvenMirroredDuplicateMapPairs(
+                $blocks,
+                $sourceItems
+            );
+        })->bindTo($reader, PdfReader::class);
+        $t->true($mark instanceof \Closure && $remove instanceof \Closure);
+
+        $marked = $mark($items, $runs);
+        foreach ([1, 2, 3, 4] as $sourceIndex) {
+            $t->same(
+                'mirrored-duplicate-map-pair-artifact',
+                $marked[$sourceIndex]['sourcePdfMirroredMapPairArtifactRole'] ?? null
+            );
+        }
+        $paragraph = new AstNode('paragraph', ['text' => 'prohibited. 6.7']);
+        $removed = $remove([$paragraph], $marked);
+        $t->same(1, $removed['removedCount']);
+        $t->same([], $removed['blocks']);
+
+        $tampered = $marked;
+        foreach ([1, 2, 3, 4] as $sourceIndex) {
+            $tampered[$sourceIndex]['sourcePdfMirroredMapPairArtifactEvidence']['translationX'] += 1.0;
+        }
+        $t->same(0, $remove([$paragraph], $tampered)['removedCount'], 'Mutating signed translation evidence must invalidate removal.');
+
+        $brokenRuns = $runs;
+        $brokenRuns[3][0]['x1'] += 24.0;
+        $brokenRuns[3][0]['x2'] += 24.0;
+        $t->true(
+            !isset($mark($items, $brokenRuns)[1]['sourcePdfMirroredMapPairArtifactRole']),
+            'Non-congruent pairs must not be classified as duplicate map labels.'
+        );
+
+        $shortCounterpart = $items;
+        $shortCounterpart[0]['text'] = '6.7 m prohibited.';
+        $t->true(
+            !isset($mark($shortCounterpart, $runs)[1]['sourcePdfMirroredMapPairArtifactRole']),
+            'A compact repetition must not substitute for a unique full prose counterpart.'
+        );
+    },
     'splits positioned pdf tables at section breaks instead of one sparse table' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
@@ -21445,5 +22664,218 @@ return [
         $t->true(!str_contains($blocks, 'stuvwxyz'));
         $t->true(!str_contains($blocks, '?PKEA'));
         $t->true(!str_contains($blocks, '?1GI1EA'));
+    },
+    'binds repeated inline font styling to exact source identities across chunks' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $apply = new ReflectionMethod($reader, 'blocksWithPdfInlineFontStyles');
+        $t->true($setSourceSha256 instanceof Closure);
+        $sourceSha256 = hash('sha256', 'inline-style-chunk-identity');
+        $setSourceSha256($sourceSha256);
+        $text = 'Repeated styled line.';
+        $projection = 'Repeatedstyledline.';
+
+        $signed = static function (array $payload): array {
+            $payload['proofDigest'] = hash('sha256', json_encode(
+                $payload,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            ) ?: '');
+
+            return $payload;
+        };
+        $identity = static fn (string $id, int $index): array => $signed([
+            'version' => 1,
+            'method' => 'exact-consecutive-whole-source-merged-line',
+            'sourceSha256' => $sourceSha256,
+            'sourceOccurrenceIds' => [$id],
+            'globalSourceIndexes' => [$index],
+            'projectionDigest' => hash('sha256', $projection),
+        ]);
+        $proof = static fn (string $id, int $index): array => $signed([
+            'version' => 2,
+            'method' => 'positioned-font-resource-base-font-exact-source',
+            'sourceSha256' => $sourceSha256,
+            'text' => $text,
+            'textDigest' => hash('sha256', $text),
+            'projectionDigest' => hash('sha256', $projection),
+            'exactSourceRanges' => [[
+                'sourceIndex' => $index,
+                'sourceStart' => 0,
+                'sourceEnd' => strlen($projection),
+            ]],
+            'sourceOccurrenceIds' => [$id],
+            'globalSourceIndexes' => [$index],
+            'spans' => [[
+                'start' => 0,
+                'end' => strlen($text),
+                'bold' => true,
+                'italic' => false,
+                'fontResources' => ['Fbold'],
+                'baseFonts' => ['Subset+BodyBold'],
+            ]],
+        ]);
+        $paragraph = static fn (array $span): AstNode => new AstNode(
+            'paragraph',
+            [
+                'text' => $text,
+                'sourcePdfExactMergedLineSpan' => $span,
+            ],
+            [new AstNode('text', ['text' => $text])]
+        );
+        $firstIdentity = $identity('line-style-first', 4);
+        $secondIdentity = $identity('line-style-second', 19);
+        $firstProof = $proof('line-style-first', 4);
+        $secondProof = $proof('line-style-second', 19);
+
+        $whole = $apply->invoke(
+            $reader,
+            [$paragraph($firstIdentity), $paragraph($secondIdentity)],
+            [$firstProof, $secondProof]
+        );
+        $firstChunk = $apply->invoke($reader, [$paragraph($firstIdentity)], [$firstProof]);
+        $secondChunk = $apply->invoke($reader, [$paragraph($secondIdentity)], [$secondProof]);
+        $t->same('strong', $whole[0]->children[0]->type ?? null);
+        $t->same('strong', $whole[1]->children[0]->type ?? null);
+        $t->same('strong', $firstChunk[0]->children[0]->type ?? null);
+        $t->same('strong', $secondChunk[0]->children[0]->type ?? null);
+        $t->same(null, $whole[0]->attr('sourcePdfExactMergedLineSpan'));
+
+        $tampered = $firstProof;
+        $tampered['globalSourceIndexes'] = [5];
+        $rejected = $apply->invoke($reader, [$paragraph($firstIdentity)], [$tampered]);
+        $t->same('text', $rejected[0]->children[0]->type ?? null);
+
+        $ambiguous = $apply->invoke(
+            $reader,
+            [$paragraph($firstIdentity), $paragraph($firstIdentity)],
+            [$firstProof]
+        );
+        $t->same('text', $ambiguous[0]->children[0]->type ?? null);
+        $t->same('text', $ambiguous[1]->children[0]->type ?? null);
+    },
+    'signs only an exact adjacent overprinted PDF resource URL as an artifact' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $mark = new ReflectionMethod($reader, 'markSourcePdfOverprintedDuplicateArtifacts');
+        $matches = new ReflectionMethod($reader, 'sourcePdfOverprintedDuplicateArtifactProofMatchesSourceItems');
+        $t->true($setSourceSha256 instanceof Closure);
+        $setSourceSha256(hash('sha256', 'overprinted-resource-url'));
+        $item = static function (string $id, int $index, float $x1, float $y1): array {
+            $projection = 'www.nps.gov/goga';
+
+            return [
+                'id' => $id,
+                'text' => $projection,
+                'page' => 1,
+                'stream' => 3,
+                'sourcePdfGlobalSourceIndex' => $index,
+                'sourceGeometryMethod' => 'exact-page-stream-character-offset',
+                'sourceGeometry' => [
+                    'page' => 1,
+                    'stream' => 3,
+                    'orientation' => 'horizontal',
+                    'x1' => $x1,
+                    'y1' => $y1,
+                    'x2' => $x1 + 92.0,
+                    'y2' => $y1 + 10.0,
+                    'fontSize' => 10.0,
+                ],
+            ];
+        };
+        $items = [
+            $item('line-url-retained', 11, 420.0, 22.0),
+            $item('line-url-overprint', 12, 420.3, 22.1),
+        ];
+        $mark->invokeArgs($reader, [&$items]);
+        $proof = $items[1]['sourcePdfOverprintedDuplicateArtifactEvidence'] ?? null;
+        $t->true(is_array($proof));
+        $t->same('exact-adjacent-overprinted-source-occurrences', $proof['method'] ?? null);
+        $t->same(null, $items[0]['sourcePdfOverprintedDuplicateArtifactEvidence'] ?? null);
+        $t->same(true, $matches->invoke($reader, $proof, $items));
+
+        $tampered = $proof;
+        $tampered['artifact']['bounds']['x1'] += 8.0;
+        $t->same(false, $matches->invoke($reader, $tampered, $items));
+
+        $separate = [
+            $item('line-url-first-place', 21, 20.0, 30.0),
+            $item('line-url-second-place', 22, 320.0, 30.0),
+        ];
+        $mark->invokeArgs($reader, [&$separate]);
+        $t->same(null, $separate[1]['sourcePdfOverprintedDuplicateArtifactEvidence'] ?? null);
+    },
+    'filters only positioned chart cipher runs with exact signed source coverage' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $setSourceSha256 = (function (string $sha256): void {
+            $this->sourceSha256 = $sha256;
+        })->bindTo($reader, PdfReader::class);
+        $mark = new ReflectionMethod($reader, 'markSourcePdfChartCipherArtifacts');
+        $filter = new ReflectionMethod(
+            $reader,
+            'positionedPdfRunsWithoutProvenChartCipherArtifacts'
+        );
+        $layoutMatches = new ReflectionMethod(
+            $reader,
+            'sourcePdfChartCipherLayoutIsProvenArtifact'
+        );
+        $t->true($setSourceSha256 instanceof Closure);
+        $setSourceSha256(hash('sha256', 'positioned-chart-cipher-coverage'));
+        $texts = [
+            '!"#',
+            '$!"#',
+            '%!"#',
+            '&!"#',
+            'KA>29:92>#',
+            '/8A>98FG8E#',
+            'AB>12:34<#',
+            'CD>56:78=#',
+            'Readable heading',
+            'EF>90:12>#',
+        ];
+        $sourceItems = array_map(
+            static fn (string $text, int $index): array => [
+                'id' => 'source-' . $index,
+                'text' => $text,
+                'page' => 1,
+                'stream' => $index === 9 ? 2 : 1,
+                'sourcePdfGlobalSourceIndex' => $index,
+            ],
+            $texts,
+            array_keys($texts)
+        );
+        $mark->invokeArgs($reader, [&$sourceItems]);
+        $exactLayout = $sourceItems[0];
+        unset($exactLayout['sourcePdfChartCipherArtifactEvidence']);
+        $t->same(true, $layoutMatches->invoke($reader, $exactLayout, $texts[0]));
+        $t->same(false, $layoutMatches->invoke($reader, $exactLayout, $texts[0] . 'X'));
+        $t->same(false, $layoutMatches->invoke($reader, $sourceItems[9], $texts[9]));
+        $run = static fn (string $tag, string $text, array $ranges): array => [
+            'tag' => $tag,
+            'text' => $text,
+            'page' => 1,
+            'stream' => 1,
+            'sourcePdfExactSourceRanges' => $ranges,
+        ];
+        $fullRange = static fn (int $index): array => [
+            'sourceIndex' => $index,
+            'sourceStart' => 0,
+            'sourceEnd' => strlen(preg_replace('/\s+/u', '', $texts[$index]) ?? ''),
+        ];
+        $runs = [
+            $run('proven-single', $texts[4], [$fullRange(4)]),
+            $run('proven-composite', $texts[0] . $texts[1], [
+                $fullRange(0),
+                $fullRange(1),
+            ]),
+            $run('tampered', $texts[7] . 'X', [$fullRange(7)]),
+            $run('unproven-lookalike', $texts[9], [$fullRange(9)]),
+        ];
+
+        $filtered = $filter->invoke($reader, $runs, $sourceItems);
+        $t->same(['tampered', 'unproven-lookalike'], array_column($filtered, 'tag'));
     },
 ];

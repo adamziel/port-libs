@@ -104,5 +104,90 @@
             "followingText": "www.nps.gov/goga",
             "label": "PDF figure on page 4"
         }
+    ],
+    "prerenderVersion": 1,
+    "prerenderRendererSchema": "port-libs-pdfjs-static-preview-v1",
+    "prerenderedSourceDigest": "2b26cb04863de4dc8214987b9d2d2f320e0af82675d863b939664813fb24397d",
+    "prerenderedAssets": [
+        {
+            "path": "outputs/pdf-muir-beach-brochure/pdf-preview-3e8820e336ab65536b93a1b8.png",
+            "mimeType": "image/png",
+            "byteLength": 189791,
+            "width": 506,
+            "height": 171,
+            "sha256": "0455b97ad056feac527542dee8acc545703a9fd74bd9771176f7611d88434689"
+        },
+        {
+            "path": "outputs/pdf-muir-beach-brochure/pdf-preview-ed767f1c2909ea41ca70d668.png",
+            "mimeType": "image/png",
+            "byteLength": 186060,
+            "width": 395,
+            "height": 220,
+            "sha256": "7c6fe204092d638ce19d3bbc99b42d53df1b246710f3edc68b8bf28ac6d49afe"
+        },
+        {
+            "path": "outputs/pdf-muir-beach-brochure/pdf-preview-6f6d7037e179da36b047b08b.png",
+            "mimeType": "image/png",
+            "byteLength": 450144,
+            "width": 888,
+            "height": 555,
+            "sha256": "481a34ccf64c68c2fc7fe6a49f1e1a26bbe5d276279f726c00c3a89e571084ad"
+        },
+        {
+            "path": "outputs/pdf-muir-beach-brochure/pdf-preview-4f1a4135700e60d44ba9258e.png",
+            "mimeType": "image/png",
+            "byteLength": 18104,
+            "width": 125,
+            "height": 116,
+            "sha256": "b68badc45b923e404837958f9f90e68644014140a5cc4a85d7c7d04ea7c87416"
+        },
+        {
+            "path": "outputs/pdf-muir-beach-brochure/pdf-preview-7b99ca05132d630853880d01.png",
+            "mimeType": "image/png",
+            "byteLength": 8846,
+            "width": 97,
+            "height": 89,
+            "sha256": "892fafbebf9f5619ba6d560755031937825f63da0fdc23859abb772e279754de"
+        },
+        {
+            "path": "outputs/pdf-muir-beach-brochure/pdf-preview-102287ff3b5b3222bd3907ce.png",
+            "mimeType": "image/png",
+            "byteLength": 180584,
+            "width": 395,
+            "height": 228,
+            "sha256": "982a75f9b681c7096e06884094ad6b35d86011a9a49a0096187c9d0b477d38d9"
+        }
+    ],
+    "prerenderedRequestCoverage": [
+        {
+            "requestId": "form-1cd17c0a5b9abeae56d8545fbd55",
+            "assetPath": "outputs/pdf-muir-beach-brochure/pdf-preview-3e8820e336ab65536b93a1b8.png",
+            "placement": "before-anchor"
+        },
+        {
+            "requestId": "form-14e865c566337c44272fda1e2950",
+            "assetPath": "outputs/pdf-muir-beach-brochure/pdf-preview-ed767f1c2909ea41ca70d668.png",
+            "placement": "before-anchor"
+        },
+        {
+            "requestId": "form-12a88119c312896dbc6806054fbb",
+            "assetPath": "outputs/pdf-muir-beach-brochure/pdf-preview-6f6d7037e179da36b047b08b.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-56a97125b3a59cd6aa6214cb6548",
+            "assetPath": "outputs/pdf-muir-beach-brochure/pdf-preview-4f1a4135700e60d44ba9258e.png",
+            "placement": "before-anchor"
+        },
+        {
+            "requestId": "form-26e69c5844a92d4a10db66e0afe4",
+            "assetPath": "outputs/pdf-muir-beach-brochure/pdf-preview-7b99ca05132d630853880d01.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-6b699dbe97ec2c86f0ce2dab5f8c",
+            "assetPath": "outputs/pdf-muir-beach-brochure/pdf-preview-102287ff3b5b3222bd3907ce.png",
+            "placement": "before-anchor"
+        }
     ]
 }

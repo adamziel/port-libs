@@ -19,15 +19,15 @@
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p class="pdf-front-matter">{vladk, barlaso, plewis, ledell, edunov, scottyih}fb.com</p>
+<p class="pdf-front-matter">{vladk, barlaso, plewis, ledell, edunov, scottyih}@fb.com</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p class="pdf-front-matter">sewoncs.washington.edu</p>
+<p class="pdf-front-matter">sewon@cs.washington.edu</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p class="pdf-front-matter">danqiccs.princeton.edu</p>
+<p class="pdf-front-matter">danqic@cs.princeton.edu</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->
@@ -46,12 +46,8 @@
 <p>Open-domain question answering (QA) (Voorhees,</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:list {"ordered":true,"start":1999} -->
-<ol start="1999"><li>is a task that answers factoid questions using a large collection of documents. While early QA systems are often complicated and consist of multiple components (Ferrucci(2012); Moldovan et al.(2003), inter alia), the advances of reading comprehension models suggest a much simplified two-stage framework: (1) a context retriever first selects a small subset of passages where some of them contain the answer to the question, and then (2) a machine reader can thoroughly exam- ine the retrieved contexts and identify the correct answer (Chen et al., 2017). Although reducing open-domain QA to machine reading is a very rea- sonable strategy, a huge performance degradation is often observed in <a href="#pdf-page-1">practice2,</a> indicating the needs of improving retrieval. arXiv: 2004.04906v3 [cs. CL] 30 Sep 2020 Retrieval in open-domain QA is usually implemented using TF-IDF or BM25 (Robertson and Zaragoza, 2009), which matches keywords efficiently with an inverted index and can be seen as representing the question and context in high- dimensional, sparse vectors (with weighting). Con- versely, the dense, latent semantic encoding is complementary to sparse representations by design. For example, synonyms or paraphrases that consist of completely different tokens may still be mapped to vectors close to each other. Consider the question “Who is the bad guy in lord of the rings? ”, which can be answered from the context “Sala Baker is best known for portraying the villain Sauron in the Lord of the Rings trilogy.” A term-based system would have difficulty retrieving such a context, while a dense retrieval system would be able to better match “bad guy” with “villain” and fetch the correct context. Dense encodings are also learnable by adjusting the embedding functions, which pro- vides additional flexibility to have a task-specific representation. With special in-memory data struc- tures and indexing schemes, retrieval can be done efficiently using maximum inner product search (MIPS) algorithms (e.g., Shrivastava and Li(2014);</li></ol>
-<!-- /wp:list -->
-
 <!-- wp:paragraph -->
-<p>Guo et al.(2016)).</p>
+<p>1999) is a task that answers factoid questions using a large collection of documents. While early QA systems are often complicated and consist of multiple components (Ferrucci(2012); Moldovan et al.(2003), inter alia), the advances of reading comprehension models suggest a much simplified two-stage framework: (1) a context retriever first selects a small subset of passages where some of them contain the answer to the question, and then (2) a machine reader can thoroughly exam- ine the retrieved contexts and identify the correct answer (Chen et al., 2017). Although reducing open-domain QA to machine reading is a very rea- sonable strategy, a huge performance degradation is often observed in <a href="#pdf-page-1">practice2,</a> indicating the needs of improving retrieval. arXiv: 2004.04906v3 [cs. CL] 30 Sep 2020 Retrieval in open-domain QA is usually implemented using TF-IDF or BM25 (Robertson and Zaragoza, 2009), which matches keywords efficiently with an inverted index and can be seen as representing the question and context in high- dimensional, sparse vectors (with weighting). Con- versely, the dense, latent semantic encoding is complementary to sparse representations by design. For example, synonyms or paraphrases that consist of completely different tokens may still be mapped to vectors close to each other. Consider the question “Who is the bad guy in lord of the rings? ”, which can be answered from the context “Sala Baker is best known for portraying the villain Sauron in the Lord of the Rings trilogy.” A term-based system would have difficulty retrieving such a context, while a dense retrieval system would be able to better match “bad guy” with “villain” and fetch the correct context. Dense encodings are also learnable by adjusting the embedding functions, which pro- vides additional flexibility to have a task-specific representation. With special in-memory data struc- tures and indexing schemes, retrieval can be done efficiently using maximum inner product search (MIPS) algorithms (e.g., Shrivastava and Li(2014); Guo et al.(2016)).</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -63,15 +59,7 @@
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>QA datasets, it also suffers from two weaknesses. First, ICT pretraining is computationally intensive and it is not completely clear that regular sentences are good surrogates of questions in the objective function. Second, because the context encoder is not fine-tuned using pairs of questions and answers, the corresponding representations could be subop- timal. In this paper, we address the question: can we train a better dense embedding model using only pairs of questions and passages (or answers), with- out additional pretraining? By leveraging the now standard BERT pretrained model (Devlin et al.,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:list {"ordered":true,"start":2019} -->
-<ol start="2019"><li>and a dual-encoder architecture (Bromley et al., 1994), we focus on developing the right training scheme using a relatively small number of question and passage pairs. Through a series of careful ablation studies, our final solution is surprisingly simple: the embedding is optimized for maximizing inner products of the question and relevant passage vectors, with an objective compar- ing all pairs of questions and passages in a batch.</li></ol>
-<!-- /wp:list -->
-
-<!-- wp:paragraph -->
-<p>Our Dense Passage Retriever (DPR) is exceptionally strong. It not only outperforms BM25 by a large margin (65.2% vs. 42.9% in Top-5 accuracy), but also results in a substantial improvement on the end-to-end QA accuracy compared to ORQA (41.5% vs. 33.3%) in the open Natural Questions setting (Lee et al., 2019; Kwiatkowski et al., 2019). Our contributions are twofold. First, we demon- strate that with the proper training setup, simply fine-tuning the question and passage encoders on existing question-passage pairs is sufficient to greatly outperform BM25. Our empirical results also suggest that additional pretraining may not be needed. Second, we verify that, in the context of open-domain question answering, a higher retrieval precision indeed translates to a higher end-to-end QA accuracy. By applying a modern reader model to the top retrieved passages, we achieve compara- ble or better results on multiple QA datasets in the open-retrieval setting, compared to several, much complicated systems.</p>
+<p>QA datasets, it also suffers from two weaknesses. First, ICT pretraining is computationally intensive and it is not completely clear that regular sentences are good surrogates of questions in the objective function. Second, because the context encoder is not fine-tuned using pairs of questions and answers, the corresponding representations could be subop- timal. In this paper, we address the question: can we train a better dense embedding model using only pairs of questions and passages (or answers), with- out additional pretraining? By leveraging the now standard BERT pretrained model (Devlin et al., 2019) and a dual-encoder architecture (Bromley et al., 1994), we focus on developing the right training scheme using a relatively small number of question and passage pairs. Through a series of careful ablation studies, our final solution is surprisingly simple: the embedding is optimized for maximizing inner products of the question and relevant passage vectors, with an objective compar- ing all pairs of questions and passages in a batch. Our Dense Passage Retriever (DPR) is exceptionally strong. It not only outperforms BM25 by a large margin (65.2% vs. 42.9% in Top-5 accuracy), but also results in a substantial improvement on the end-to-end QA accuracy compared to ORQA (41.5% vs. 33.3%) in the open Natural Questions setting (Lee et al., 2019; Kwiatkowski et al., 2019). Our contributions are twofold. First, we demon- strate that with the proper training setup, simply fine-tuning the question and passage encoders on existing question-passage pairs is sufficient to greatly outperform BM25. Our empirical results also suggest that additional pretraining may not be needed. Second, we verify that, in the context of open-domain question answering, a higher retrieval precision indeed translates to a higher end-to-end QA accuracy. By applying a modern reader model to the top retrieved passages, we achieve compara- ble or better results on multiple QA datasets in the open-retrieval setting, compared to several, much complicated systems.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -79,43 +67,11 @@
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>the extractive QA setting, in which the answer is restricted to a span appearing in one or more passages in the corpus. Assume that our collection contains D documents, d1, d2, ···, dD. We first split each of the documents into text passages of equal lengths as the basic retrieval units3 and get M total passages in our corpus C = {p1, p2, ..., pM }, where each passage pi can be viewed as a sequence of tokens w(i) 1, w(i) 2</p>
+<p>the extractive QA setting, in which the answer is restricted to a span appearing in one or more passages in the corpus. Assume that our collection contains D documents, d1, d2, ···, dD. We first split each of the documents into text passages of equal lengths as the basic retrieval units3 and get M total passages in our corpus C = {p1, p2, ..., pM }, where each passage pi can be viewed as a sequence of tokens w(i)1, w(i)2, ···, w(i)|pi|. Given a question q, the task is to find a span w(i)s, w(i)s+1, ···, w(i)e from one of the passages pi that can answer the question. Notice that to cover a wide variety of domains, the corpus size can easily range from millions of documents (e.g., Wikipedia) to billions (e.g., the Web). As a result, any open-domain QA system needs to include an efficient retriever component that can select a small set of relevant texts, before applying the reader to extract the answer (Chen et al., 2017).4 Formally speaking, a retriever R : (q, C)→ C</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>, ···, w(i)</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>|p i|. Given a question q, the task is to find a span w(i) s, w(i) s+1</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>, ···, w(i)</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>e from one of the passages p</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>i that can answer the question.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>Notice that to cover a wide variety of domains, the corpus size can easily range from millions of documents (e.g., Wikipedia) to billions (e.g., the Web). As a result, any open-domain QA system needs to include an efficient retriever component that can select a small set of relevant texts, before applying the reader to extract the answer (Chen et al., 2017).4 Formally speaking, a retriever R : (q, C)→ C</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>F is a function that takes as input a question q and a corpus C and returns a much smaller filter set of texts C F ⊂ C, where |C</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>F |=k|C|. For a fixed k, a retriever can be evaluated in isolation on top-k retrieval accuracy, which is the fraction of questions for which C</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>F contains a span that answers the question. 3 Dense Passage Retriever (DPR) We focus our research in this work on improving the retrieval component in open-domain QA. Given a collection of M text passages, the goal of our dense passage retriever (DPR) is to index all the passages in a low-dimensional and continuous space, such that it can retrieve efficiently the top k passages relevant to the input question for the reader at run-time. Note that M can be very large (e.g., 21 million passages in our experiments, described in Section4.1) and k is usually small, such</p>
+<p>F is a function that takes as input a question q and a corpus C and returns a much smaller filter set of texts CF⊂ C, where |CF|=k|C|. For a fixed k, a retriever can be evaluated in isolation on top-k retrieval accuracy, which is the fraction of questions for which CF contains a span that answers the question. 3 Dense Passage Retriever (DPR) We focus our research in this work on improving the retrieval component in open-domain QA. Given a collection of M text passages, the goal of our dense passage retriever (DPR) is to index all the passages in a low-dimensional and continuous space, such that it can retrieve efficiently the top k passages relevant to the input question for the reader at run-time. Note that M can be very large (e.g., 21 million passages in our experiments, described in Section4.1) and k is usually small, such</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->

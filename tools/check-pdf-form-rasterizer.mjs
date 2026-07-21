@@ -9,10 +9,40 @@ import {
   renderPdfPageRasterRequests,
   renderPdfPageRasterRequestsIncrementally,
 } from '../pandoc-showcase/pdfjs-form-rasterizer.mjs';
+import {
+  fetchJsonWithRetry,
+  pdfPreviewRequestBounds,
+} from './prerender-showcase-pdf-assets.mjs';
 
 if (!globalThis.crypto) {
   globalThis.crypto = webcrypto;
 }
+
+let devToolsFetchAttempts = 0;
+const recoveredDevToolsPayload = await fetchJsonWithRetry(
+  'http://127.0.0.1/devtools-test',
+  'synthetic DevTools endpoint',
+  {
+    retryDelayMs: 0,
+    timeoutMs: 100,
+    fetchImpl: async () => {
+      devToolsFetchAttempts += 1;
+      if (devToolsFetchAttempts === 1) throw new TypeError('fetch failed');
+      return { ok: true, json: async () => ({ webSocketDebuggerUrl: 'ws://recovered' }) };
+    },
+  },
+);
+assert.deepEqual(recoveredDevToolsPayload, { webSocketDebuggerUrl: 'ws://recovered' });
+assert.equal(devToolsFetchAttempts, 2, 'A transient DevTools fetch failure must be retried.');
+
+assert.deepEqual(
+  pdfPreviewRequestBounds({
+    method: 'pdfjs-whole-page-raster',
+    pageBox: [0, 0, 1188, 1116],
+  }),
+  { x1: 0, y1: 0, x2: 1188, y2: 1116 },
+  'A whole-page request must expose its page box to Grand Canyon composite coverage.',
+);
 
 const canvases = [];
 let canvasBlobBytes = () => new Uint8Array([1, 2, 3]);
@@ -122,6 +152,76 @@ const collected = await renderPdfFormRequests({ ...options, requests: requests.s
 assert.equal(collected.length, 1, 'The compatibility wrapper must still collect results for bounded static previews.');
 assert.equal(collected[0].bytes.length, 3);
 assert.equal(destroyedDocuments, 2);
+
+// Red-first Grand Canyon regression: cropScale must reserve the two-pixel
+// padding on all four edges in both dimensions. The old area-only subtraction
+// chose a scale whose padded 1188 x 1116 canvas was slightly above 2.1M pixels
+// and rejected the page composite after doing the scale calculation.
+let grandCanyonViewportScale = 0;
+let grandCanyonRenderCalls = 0;
+const grandCanyonPdfjsModule = {
+  AnnotationMode: { DISABLE: 0 },
+  getDocument({ data }) {
+    assert(data instanceof Uint8Array);
+    return {
+      promise: Promise.resolve({
+        numPages: 2,
+        async getPage(pageNumber) {
+          assert.equal(pageNumber, 1);
+          return {
+            getViewport({ scale }) {
+              grandCanyonViewportScale = scale;
+              return {
+                convertToViewportRectangle([x1, y1, x2, y2]) {
+                  return [x1 * scale, y1 * scale, x2 * scale, y2 * scale];
+                },
+              };
+            },
+            render() {
+              grandCanyonRenderCalls += 1;
+              return { promise: Promise.resolve() };
+            },
+            cleanup() {},
+          };
+        },
+        async destroy() {},
+      }),
+    };
+  },
+};
+const grandCanyonPixelBudget = 2_100_000;
+const previousCanvasBlobBytes = canvasBlobBytes;
+canvasBlobBytes = (canvas) => pngBytes(canvas.width, canvas.height);
+let grandCanyonComposite;
+try {
+  [grandCanyonComposite] = await renderPdfFormRequests({
+    filesByPath: new Map([['grand-canyon.pdf', new TextEncoder().encode('%PDF Grand Canyon fixture')]]),
+    requests: [{
+      id: 'grand-canyon-page-1-composite',
+      path: 'grand-canyon.pdf',
+      page: 1,
+      bbox: { x1: 0, y1: 0, x2: 1188, y2: 1116 },
+    }],
+    pdfjs: {},
+    pdfjsModule: grandCanyonPdfjsModule,
+    maxPixels: grandCanyonPixelBudget,
+    maxTotalPixels: grandCanyonPixelBudget,
+  });
+} finally {
+  canvasBlobBytes = previousCanvasBlobBytes;
+}
+assert.equal(
+  grandCanyonComposite?.error,
+  undefined,
+  'Grand Canyon 1188x1116 composite must scale within the 2.1M-pixel budget after four-edge padding.',
+);
+assert(grandCanyonComposite?.bytes instanceof Uint8Array, 'Grand Canyon composite must return PNG bytes.');
+assert.equal(grandCanyonComposite?.mimeType, 'image/png');
+assert.deepEqual(Array.from(grandCanyonComposite.bytes.slice(0, 8)), [137, 80, 78, 71, 13, 10, 26, 10]);
+assert(grandCanyonViewportScale > 0 && grandCanyonViewportScale < 2, 'Grand Canyon composite must use a positive budget-aware scale.');
+assert.equal(grandCanyonRenderCalls, 1, 'Grand Canyon composite must paint exactly once.');
+assert(grandCanyonComposite.width * grandCanyonComposite.height <= grandCanyonPixelBudget,
+  'Grand Canyon padded composite canvas must remain within the advertised pixel budget.');
 
 const renderCallsBeforeExhaustedBudget = renderCalls;
 const exhausted = await renderPdfFormRequests({

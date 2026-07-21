@@ -16,8 +16,28 @@
             "object": 21,
             "paintOrder": 1,
             "precedingText": "Start a free 30-day QuickBooks Online trial today at www.quickbooks.intuit.com/au/",
-            "followingText": "All information and forms are provided \u201cas is\u201d without any warranty of any kind, express, implied or otherwise, including as to their legal effect and",
+            "followingText": "All information and forms are provided “as is” without any warranty of any kind, express, implied or otherwise, including as to their legal effect and",
             "label": "PDF figure on page 1"
+        }
+    ],
+    "prerenderVersion": 1,
+    "prerenderRendererSchema": "port-libs-pdfjs-static-preview-v1",
+    "prerenderedSourceDigest": "45e58072b8a78af14350f68e013d731260c69998486894b8e6473d808991812d",
+    "prerenderedAssets": [
+        {
+            "path": "outputs/pdf-quickbooks-invoice-template/pdf-preview-e88f94904bba31bb25e970c1.png",
+            "mimeType": "image/png",
+            "byteLength": 2732,
+            "width": 211,
+            "height": 48,
+            "sha256": "e67ccaee88750b29d7ccc2bbda170cc4c3469f2ab6a65588b4a64fd265ae171e"
+        }
+    ],
+    "prerenderedRequestCoverage": [
+        {
+            "requestId": "form-881980cf3ee9d17c80704a80d312",
+            "assetPath": "outputs/pdf-quickbooks-invoice-template/pdf-preview-e88f94904bba31bb25e970c1.png",
+            "placement": "before-anchor"
         }
     ]
 }

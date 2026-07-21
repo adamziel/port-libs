@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\PdfReader;
+use PortLibs\Pandoc\PdfSourceDispositionLedger;
 use PortLibs\Pandoc\PdfTextFidelityLedger;
 
 return [
@@ -90,6 +91,138 @@ return [
         $t->same(5, $streamed['sourceTokenCount']);
     },
 
+    'pdf fidelity ledger reconciles adjacency records across packed chunk boundaries' => static function (
+        TestRunner $t
+    ): void {
+        $sourceTokens = [];
+        for ($index = 0; $index <= 1300; $index++) {
+            $sourceTokens[] = sprintf('token%04d', $index);
+        }
+        $emittedTokens = $sourceTokens;
+        [$emittedTokens[1023], $emittedTokens[1024]] = [
+            $emittedTokens[1024],
+            $emittedTokens[1023],
+        ];
+
+        $ledger = PdfTextFidelityLedger::fromText(
+            implode(' ', $sourceTokens),
+            implode(' ', $emittedTokens)
+        );
+
+        $t->same(1300, $ledger['sourceTokenAdjacencyCount']);
+        $t->same(3, $ledger['unresolvedTokenAdjacencyCount']);
+        $t->same(1297 / 1300, $ledger['tokenAdjacencyCoverage']);
+        $t->same(true, $ledger['sourceAccounted']);
+        $t->same(false, $ledger['exactProjection']);
+    },
+
+    'pdf source ledger requires an exact canonical page set for a cross-page occurrence permutation' => static function (TestRunner $t): void {
+        $geometry = static fn (int $page, float $x1): array => [
+            'page' => $page,
+            'stream' => 1,
+            'x1' => $x1,
+            'y1' => 100.0,
+            'x2' => $x1 + 20.0,
+            'y2' => 112.0,
+            'orientation' => 'horizontal',
+        ];
+        $source = [
+            ['id' => 'cross-page-a', 'page' => 1, 'stream' => 1, 'text' => 'Alpha', 'sourceGeometry' => $geometry(1, 10.0)],
+            ['id' => 'cross-page-b', 'page' => 1, 'stream' => 1, 'text' => 'Beta', 'sourceGeometry' => $geometry(1, 40.0)],
+            ['id' => 'cross-page-c', 'page' => 2, 'stream' => 1, 'text' => 'Gamma', 'sourceGeometry' => $geometry(2, 10.0)],
+        ];
+        $output = [new AstNode('paragraph', [], [
+            new AstNode('text', ['text' => 'Gamma Alpha Beta']),
+        ])];
+        $proof = [
+            'scopeId' => 'exact-cross-page-scope',
+            'sourceOccurrenceIds' => array_column($source, 'id'),
+            'emittedTextProjection' => 'GammaAlphaBeta',
+            'sourcePages' => [1, 2],
+            'emittedSourceOccurrenceIds' => [
+                'cross-page-c',
+                'cross-page-a',
+                'cross-page-b',
+            ],
+        ];
+        $dispositions = [];
+        foreach ($source as $item) {
+            $bounds = [
+                'x1' => (float) $item['sourceGeometry']['x1'],
+                'y1' => (float) $item['sourceGeometry']['y1'],
+                'x2' => (float) $item['sourceGeometry']['x2'],
+                'y2' => (float) $item['sourceGeometry']['y2'],
+            ];
+            $dispositions[$item['id']] = [
+                'disposition' => 'emitted',
+                'reason' => 'Synthetic exact cross-page occurrence permutation.',
+                'evidence' => [
+                    'hypothesis' => 'cross-page-open-list-continuation-order',
+                    'bounds' => $bounds,
+                    'sourceBounds' => $bounds,
+                    'featureDigest' => str_repeat('a', 64),
+                ],
+                'textProjection' => $item['text'],
+                'allowOrderChange' => true,
+                'orderProof' => $proof,
+            ];
+        }
+
+        $binding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            $output,
+            $dispositions
+        );
+        $t->same(true, $binding['complete']);
+        $t->same(null, $binding['failureReason']);
+        $ledger = PdfSourceDispositionLedger::fromSourceLineItems(
+            $source,
+            $binding['blocks'],
+            $binding['explicitDispositions']
+        );
+        $t->same(true, $ledger['orderedSignificantCharactersPreserved']);
+        $t->same('mapped-occurrence-exact', $ledger['orderProofStrength']);
+        $t->same(3, $ledger['evidencedOrderChangeOccurrenceCount']);
+        $t->same(1, $ledger['evidencedOrderChangeScopeCount']);
+        $t->same(0, $ledger['rejectedOrderChangeOccurrenceCount']);
+
+        $pageLocal = $dispositions;
+        foreach ($pageLocal as &$disposition) {
+            unset($disposition['orderProof']['sourcePages']);
+        }
+        unset($disposition);
+        $pageLocalBinding = PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+            $source,
+            $output,
+            $pageLocal
+        );
+        $t->same(true, $pageLocalBinding['complete']);
+        $pageLocalLedger = PdfSourceDispositionLedger::fromSourceLineItems(
+            $source,
+            $pageLocalBinding['blocks'],
+            $pageLocalBinding['explicitDispositions']
+        );
+        $t->same(false, $pageLocalLedger['orderedSignificantCharactersPreserved']);
+        $t->same(
+            'mapped-order-proof-source-occurrences-do-not-match-scope',
+            $pageLocalLedger['orderProofFailureReason']
+        );
+
+        $nonCanonical = $dispositions;
+        foreach ($nonCanonical as &$disposition) {
+            $disposition['orderProof']['sourcePages'] = [2, 1];
+        }
+        unset($disposition);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => PdfSourceDispositionLedger::bindSourceLineItemsToOutput(
+                $source,
+                $output,
+                $nonCanonical
+            )
+        );
+    },
+
     'pdf reader exposes semantic fidelity separately from stream completeness' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Complete source sentence.) Tj ET';
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Length " . strlen($content) . ">>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
@@ -151,8 +284,9 @@ return [
         $t->true($meta['pdfFrontMatterRecords'] >= 20);
         $t->contains('Dense Passage Retrieval for Open-Domain Question Answering', $plain);
         $t->contains('Vladimir Karpukhin', $plain);
-        $t->contains('sewoncs.washington.edu', $plain);
-        $t->contains('danqiccs.princeton.edu', $plain);
+        $t->contains('sewon@cs.washington.edu', $plain);
+        $t->contains('danqic@cs.princeton.edu', $plain);
+        $t->contains('{vladk, barlaso, plewis, ledell, edunov, scottyih}@fb.com', $plain);
         $t->contains('Abstract', $plain);
         $t->contains('benchmarks.1', $plain);
         $t->contains(

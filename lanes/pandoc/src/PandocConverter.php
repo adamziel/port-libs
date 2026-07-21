@@ -24,8 +24,14 @@ final class PandocConverter
     /**
      * @param array<string, mixed> $options
      */
-    public static function read(string $bytes, string $format, array $options = []): AstNode
+    public static function read(
+        string $bytes,
+        string $format,
+        array $options = [],
+        ?string $outputFormat = null
+    ): AstNode
     {
+        $options = self::readerOptionsForOutputPreparation($format, $outputFormat, $options);
         $requestedFormat = self::normalizeFormat($format);
         $canonical = self::canonicalInputFormat($requestedFormat);
         $entry = self::inputSupport($canonical);
@@ -59,8 +65,14 @@ final class PandocConverter
     /**
      * @param array<string, mixed> $options
      */
-    public static function readFile(string $path, string $format, array $options = []): AstNode
+    public static function readFile(
+        string $path,
+        string $format,
+        array $options = [],
+        ?string $outputFormat = null
+    ): AstNode
     {
+        $options = self::readerOptionsForOutputPreparation($format, $outputFormat, $options);
         if (self::canonicalInputFormat($format) === 'epub') {
             if (!isset($options['sourcePath'])) {
                 $options['sourcePath'] = $path;
@@ -77,7 +89,24 @@ final class PandocConverter
             $options['sourcePath'] = $path;
         }
 
-        return self::read($bytes, $format, $options);
+        $requestedFormat = self::normalizeFormat($format);
+        $canonical = self::canonicalInputFormat($requestedFormat);
+        if ($canonical === 'pdf') {
+            $entry = self::inputSupport($canonical);
+            $readerOptions = self::readerOptionsForRequestedFormat(
+                $entry['implementation'],
+                $requestedFormat,
+                $options
+            );
+            $reader = self::reader($entry['implementation'], $canonical, $readerOptions);
+            if (!$reader instanceof PdfReader) {
+                throw new \LogicException('The registered PDF reader must be a PdfReader.');
+            }
+
+            return $reader->readOwned($bytes);
+        }
+
+        return self::read($bytes, $format, $options, $outputFormat);
     }
 
     /**
@@ -122,7 +151,7 @@ final class PandocConverter
         $readerOptions = isset($options['readerOptions']) && is_array($options['readerOptions']) ? $options['readerOptions'] : [];
         $writerOptions = isset($options['writerOptions']) && is_array($options['writerOptions']) ? $options['writerOptions'] : [];
 
-        return self::write(self::read($bytes, $from, $readerOptions), $to, $writerOptions);
+        return self::write(self::read($bytes, $from, $readerOptions, $to), $to, $writerOptions);
     }
 
     /**
@@ -153,7 +182,7 @@ final class PandocConverter
             return;
         }
 
-        self::writeTo(self::read($bytes, $from, $readerOptions), $to, $sink, $writerOptions);
+        self::writeTo(self::read($bytes, $from, $readerOptions, $to), $to, $sink, $writerOptions);
     }
 
     /**
@@ -177,7 +206,7 @@ final class PandocConverter
             $readerOptions['pdfCollectImagePlacements'] = true;
         }
 
-        $document = self::read($bytes, $from, $readerOptions);
+        $document = self::read($bytes, $from, $readerOptions, $to);
         $entries = [];
         $diagnostics = [];
         if ($extractOptions !== null) {
@@ -285,7 +314,7 @@ final class PandocConverter
                 $readerOptions['sourcePath'] = $path;
             }
 
-            return self::write(self::readFile($path, $from, $readerOptions), $to, $writerOptions);
+            return self::write(self::readFile($path, $from, $readerOptions, $to), $to, $writerOptions);
         }
 
         $bytes = file_get_contents($path);
@@ -347,7 +376,7 @@ final class PandocConverter
                 $readerOptions['sourcePath'] = $path;
             }
             $extractOptions = self::extractMediaOptions($options);
-            $document = self::readFile($path, $from, $readerOptions);
+            $document = self::readFile($path, $from, $readerOptions, $to);
             $entries = [];
             $diagnostics = [];
             if ($extractOptions !== null) {
@@ -433,6 +462,28 @@ final class PandocConverter
     private static function normalizeFormat(string $format): string
     {
         return strtolower(trim($format));
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private static function readerOptionsForOutputPreparation(
+        string $inputFormat,
+        ?string $outputFormat,
+        array $options
+    ): array {
+        if ($outputFormat !== null
+            && self::canonicalInputFormat($inputFormat) === 'pdf'
+            && self::canonicalOutputFormat($outputFormat) === 'wordpress') {
+            // PdfReader calls this preload at its low-water checkpoint between
+            // geometry passes. Compiling the only large TraceMonkey writer
+            // helper there avoids a new Zend allocator arena after the AST is
+            // retained, while standalone reads remain completely unchanged.
+            $options['__pdfMemoryCheckpointPreloadClass'] = WordPressNestedBlockRenderer::class;
+        }
+
+        return $options;
     }
 
     /**

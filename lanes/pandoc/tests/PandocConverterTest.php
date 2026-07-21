@@ -93,6 +93,28 @@ function pandoc_png_raster_fixture(int $width, int $height): string
         . pack('N', 0);
 }
 
+function pandoc_indexed_png_raster_fixture(int $width, int $height, bool $uniform): string
+{
+    $chunk = static function (string $type, string $data): string {
+        return pack('N', strlen($data)) . $type . $data
+            . pack('N', crc32($type . $data));
+    };
+    $pixels = str_repeat("\0", $width * $height);
+    if (!$uniform && $pixels !== '') {
+        $pixels[strlen($pixels) - 1] = "\1";
+    }
+    $scanlines = '';
+    for ($row = 0; $row < $height; $row++) {
+        $scanlines .= "\0" . substr($pixels, $row * $width, $width);
+    }
+
+    return "\x89PNG\r\n\x1a\n"
+        . $chunk('IHDR', pack('NNCCCCC', $width, $height, 8, 3, 0, 0, 0))
+        . $chunk('PLTE', "\x99\xee\xee\x11\x22\x33")
+        . $chunk('IDAT', gzcompress($scanlines, 9))
+        . $chunk('IEND', '');
+}
+
 /**
  * @param array<int, string> $extraObjects
  */
@@ -1174,6 +1196,51 @@ return [
         $t->same('media/pdf/image-7.png', $result['media'][0]['path'] ?? null);
         $t->contains('src="media/pdf/image-7.png"', $result['output']);
         $t->true(in_array('extract-media-pdf-image-raster-loaded:7:important', $result['diagnostics'], true));
+    },
+    'omits only a completely uniform supplemental PDF raster in important-image mode' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
+            . "q 146 0 0 68 72 580 cm /A Do Q\n"
+            . "BT /F1 12 Tf 72 480 Td (After) Tj ET";
+        $jpx = str_repeat('J', 8500);
+        $image = '<< /Type /XObject /Subtype /Image /Width 146 /Height 68 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode /Length '
+            . strlen($jpx) . ">>\nstream\n" . $jpx . "\nendstream";
+        $pdf = pandoc_single_page_layout_fixture($content, '/A 7 0 R', [7 => $image]);
+        $convert = static fn (string $png): array => PandocConverter::convertWithMedia(
+            $pdf,
+            'pdf',
+            'wordpress',
+            [
+                'extractMedia' => [
+                    'destination' => 'media',
+                    'imageMode' => 'important',
+                    'pdfRasterImages' => [[
+                        'object' => '7',
+                        'contents' => $png,
+                        'mimeType' => 'image/png',
+                        'width' => 146,
+                        'height' => 68,
+                    ]],
+                ],
+            ]
+        );
+
+        $uniform = $convert(pandoc_indexed_png_raster_fixture(146, 68, true));
+        $t->same([], $uniform['media']);
+        $t->true(!str_contains($uniform['output'], '<img'));
+        $t->true(in_array(
+            'extract-media-pdf-image-uniform-raster-filler:7',
+            $uniform['diagnostics'],
+            true
+        ));
+
+        $nonuniform = $convert(pandoc_indexed_png_raster_fixture(146, 68, false));
+        $t->same(1, count($nonuniform['media']));
+        $t->contains('src="media/pdf/image-7.png"', $nonuniform['output']);
+        $t->true(in_array(
+            'extract-media-pdf-image-raster-loaded:7:important',
+            $nonuniform['diagnostics'],
+            true
+        ));
     },
     'retains JPEG 2000 PDF media behind a placeholder when no raster decoder is available' => static function (TestRunner $t): void {
         $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"

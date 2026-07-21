@@ -3,6 +3,54 @@
     "samplePath": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
     "requests": [
         {
+            "version": 1,
+            "method": "pdfjs-whole-page-raster",
+            "sourceSha256": "e3092e0cbe1f62eb92463160f1dc39d5accb495d23904a4c94ca5a3a059d8b11",
+            "page": 1,
+            "pageObject": 572,
+            "pageBox": [
+                0,
+                0,
+                1188,
+                1116
+            ],
+            "pageBoxSource": "CropBox",
+            "pageRotation": 0,
+            "width": 2376,
+            "height": 2232,
+            "mimeType": "image/png",
+            "id": "pdf-page-raster-4d8893323d1671f97c945bf044813dd5",
+            "requestDigest": "4d8893323d1671f97c945bf044813dd538ed35460f2a1af6f19a58f0f74c20d1",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "label": "PDF page 1",
+            "precedingText": null,
+            "followingText": null
+        },
+        {
+            "version": 1,
+            "method": "pdfjs-whole-page-raster",
+            "sourceSha256": "e3092e0cbe1f62eb92463160f1dc39d5accb495d23904a4c94ca5a3a059d8b11",
+            "page": 2,
+            "pageObject": 1,
+            "pageBox": [
+                0,
+                0,
+                1188,
+                1116
+            ],
+            "pageBoxSource": "CropBox",
+            "pageRotation": 0,
+            "width": 2376,
+            "height": 2232,
+            "mimeType": "image/png",
+            "id": "pdf-page-raster-fa04cf140b337e60c3780bb0511d61eb",
+            "requestDigest": "fa04cf140b337e60c3780bb0511d61eb7ee9960d6e7bc212539a747f66c3d26d",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "label": "PDF page 2",
+            "precedingText": null,
+            "followingText": null
+        },
+        {
             "id": "form-2df4390184e21c2bf1a1cd50b27f",
             "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
             "page": 1,
@@ -239,6 +287,109 @@
             "precedingText": null,
             "followingText": "Stock use",
             "label": "PDF figure on page 2"
+        }
+    ],
+    "prerenderVersion": 1,
+    "prerenderRendererSchema": "port-libs-pdfjs-static-preview-v1",
+    "prerenderedSourceDigest": "59c7de1d3678dde4e068aeea3c565c4f875db5d629818dd06c69c32a0798e835",
+    "prerenderedAssets": [
+        {
+            "path": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-8464da08b8d339cf8daba0de.png",
+            "mimeType": "image/png",
+            "byteLength": 3162835,
+            "width": 2376,
+            "height": 2232,
+            "sha256": "b67625e4ad02c7d1f061de95be53c4aa89245e77d3bb520dd93cf5bd192b26df"
+        },
+        {
+            "path": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-3a614c1c90e39224e41468d4.png",
+            "mimeType": "image/png",
+            "byteLength": 3456636,
+            "width": 2376,
+            "height": 2232,
+            "sha256": "ca35099fc761c346fd658338b2ab2a39c3296ecb948444963ff4fcd4dc163173"
+        }
+    ],
+    "prerenderedRequestCoverage": [
+        {
+            "requestId": "pdf-page-raster-4d8893323d1671f97c945bf044813dd5",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-8464da08b8d339cf8daba0de.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "pdf-page-raster-fa04cf140b337e60c3780bb0511d61eb",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-3a614c1c90e39224e41468d4.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-2df4390184e21c2bf1a1cd50b27f",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-8464da08b8d339cf8daba0de.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-6d164ecdad1833c9869d31f38559",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-3a614c1c90e39224e41468d4.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-e4c1b3e2e6f67a9923e49efe2645",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-3a614c1c90e39224e41468d4.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-3e77b4b9b204d52d5444417361ce",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-3a614c1c90e39224e41468d4.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-aa6c55db9098c6dfa82f7aa26fae",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-3a614c1c90e39224e41468d4.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-c88f9219cc8c7b7bf7211de27411",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-3a614c1c90e39224e41468d4.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-9bc1c104a23723d8828e7b9f04fd",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-3a614c1c90e39224e41468d4.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-13df22b812d7227ea1c592b2d29d",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-3a614c1c90e39224e41468d4.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-9cf099ae697a1daedab3052ba40b",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-3a614c1c90e39224e41468d4.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-212da34c1da45634c59e0e124f07",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-3a614c1c90e39224e41468d4.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-d7734bfb6359bf15a0bf025fdcbc",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-3a614c1c90e39224e41468d4.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-46f162503629d2419704687e8205",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-3a614c1c90e39224e41468d4.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-ad2b2278dbbcc8382f5873857afb",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-3a614c1c90e39224e41468d4.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-a5a17eb94da925210482a73b3992",
+            "assetPath": "outputs/pdf-grand-canyon-north-rim-map/pdf-preview-3a614c1c90e39224e41468d4.png",
+            "placement": "page-gallery"
         }
     ]
 }

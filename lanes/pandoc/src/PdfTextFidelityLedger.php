@@ -22,6 +22,8 @@ namespace PortLibs\Pandoc;
 final class PdfTextFidelityLedger
 {
     private const SAMPLE_LIMIT = 32;
+    private const ADJACENCY_DIGEST_BYTES = 32;
+    private const ADJACENCY_CHUNK_BYTES = 32768;
 
     /**
      * @param list<array{text:string, page?:int, stream?:int}|string> $sourceLineItems
@@ -69,12 +71,19 @@ final class PdfTextFidelityLedger
         $emitted = self::reconcileChunksAgainstSourceInventory($emittedChunks, $source);
         $unresolvedTokens = $source['tokenCounts'];
         $addedTokens = $emitted['addedTokenCounts'];
-        $unresolvedAdjacencies = $source['adjacencyCounts'];
         $sourceTokenCount = $source['tokenCount'];
         $emittedTokenCount = $emitted['tokenCount'];
         $unresolvedTokenCount = array_sum($unresolvedTokens);
         $sourceAdjacencyCount = max(0, $sourceTokenCount - 1);
-        $unresolvedAdjacencyCount = array_sum($unresolvedAdjacencies);
+        $sourceAdjacencyDigestChunks = $source['adjacencyDigestChunks'];
+        $emittedAdjacencyDigestChunks = $emitted['adjacencyDigestChunks'];
+        unset($source['adjacencyDigestChunks'], $emitted['adjacencyDigestChunks']);
+        $unresolvedAdjacencyCount = self::packedRecordLeftDifferenceCount(
+            $sourceAdjacencyDigestChunks,
+            $emittedAdjacencyDigestChunks,
+            self::ADJACENCY_DIGEST_BYTES
+        );
+        unset($sourceAdjacencyDigestChunks, $emittedAdjacencyDigestChunks);
         $unresolvedTokenSample = self::sampleCounts($unresolvedTokens);
         $addedTokenSample = self::sampleCounts($addedTokens);
         $unresolvedCharacters = $source['characterCounts'];
@@ -91,7 +100,7 @@ final class PdfTextFidelityLedger
         $exactProjection = $sourceAccounted
             && $addedTokens === []
             && $addedCharacters === []
-            && $unresolvedAdjacencies === [];
+            && $unresolvedAdjacencyCount === 0;
         unset($source, $emitted);
         // Empty PHP hash tables retain their bucket allocation. None of the
         // complete residual maps is public, so release them after scalarizing
@@ -100,7 +109,6 @@ final class PdfTextFidelityLedger
         unset(
             $unresolvedTokens,
             $addedTokens,
-            $unresolvedAdjacencies,
             $unresolvedCharacters,
             $addedCharacters
         );
@@ -166,12 +174,13 @@ final class PdfTextFidelityLedger
 
     /**
      * @param iterable<string> $chunks
-     * @return array{tokenCounts:array<string,int>,adjacencyCounts:array<string,int>,tokenCount:int,tokenDigest:string,characterCounts:array<string,int>,characterCount:int}
+     * @return array{tokenCounts:array<string,int>,adjacencyDigestChunks:list<string>,tokenCount:int,tokenDigest:string,characterCounts:array<string,int>,characterCount:int}
      */
     private static function inventoryFromChunks(iterable $chunks): array
     {
         $tokenCounts = [];
-        $adjacencyCounts = [];
+        $adjacencyDigestChunks = [];
+        $adjacencyDigestBuffer = '';
         $tokenCount = 0;
         $previousToken = null;
         $tokenHash = hash_init('sha256');
@@ -185,8 +194,15 @@ final class PdfTextFidelityLedger
             foreach (self::tokensFromNormalizedText($normalized) as $token) {
                 $tokenCounts[$token] = ($tokenCounts[$token] ?? 0) + 1;
                 if ($previousToken !== null) {
-                    $adjacency = $previousToken . "\0" . $token;
-                    $adjacencyCounts[$adjacency] = ($adjacencyCounts[$adjacency] ?? 0) + 1;
+                    $adjacencyDigestBuffer .= hash(
+                        'sha256',
+                        $previousToken . "\0" . $token,
+                        true
+                    );
+                    if (strlen($adjacencyDigestBuffer) >= self::ADJACENCY_CHUNK_BYTES) {
+                        $adjacencyDigestChunks[] = $adjacencyDigestBuffer;
+                        $adjacencyDigestBuffer = '';
+                    }
                     hash_update($tokenHash, "\0");
                 }
                 hash_update($tokenHash, $token);
@@ -200,9 +216,13 @@ final class PdfTextFidelityLedger
             }
         }
 
+        if ($adjacencyDigestBuffer !== '') {
+            $adjacencyDigestChunks[] = $adjacencyDigestBuffer;
+        }
+
         return [
             'tokenCounts' => $tokenCounts,
-            'adjacencyCounts' => $adjacencyCounts,
+            'adjacencyDigestChunks' => $adjacencyDigestChunks,
             'tokenCount' => $tokenCount,
             'tokenDigest' => hash_final($tokenHash),
             'characterCounts' => $characterCounts,
@@ -219,8 +239,8 @@ final class PdfTextFidelityLedger
      * only genuinely added token/character counts need separate storage.
      *
      * @param iterable<string> $chunks
-     * @param array{tokenCounts:array<string,int>,adjacencyCounts:array<string,int>,tokenCount:int,tokenDigest:string,characterCounts:array<string,int>,characterCount:int} $source
-     * @return array{addedTokenCounts:array<string,int>,tokenCount:int,tokenDigest:string,addedCharacterCounts:array<string,int>,characterCount:int}
+     * @param array{tokenCounts:array<string,int>,adjacencyDigestChunks:list<string>,tokenCount:int,tokenDigest:string,characterCounts:array<string,int>,characterCount:int} $source
+     * @return array{addedTokenCounts:array<string,int>,adjacencyDigestChunks:list<string>,tokenCount:int,tokenDigest:string,addedCharacterCounts:array<string,int>,characterCount:int}
      */
     private static function reconcileChunksAgainstSourceInventory(iterable $chunks, array &$source): array
     {
@@ -228,6 +248,8 @@ final class PdfTextFidelityLedger
         $tokenCount = 0;
         $previousToken = null;
         $tokenHash = hash_init('sha256');
+        $adjacencyDigestChunks = [];
+        $adjacencyDigestBuffer = '';
         $addedCharacterCounts = [];
         $characterCount = 0;
         foreach ($chunks as $chunk) {
@@ -245,12 +267,14 @@ final class PdfTextFidelityLedger
                     $addedTokenCounts[$token] = ($addedTokenCounts[$token] ?? 0) + 1;
                 }
                 if ($previousToken !== null) {
-                    $adjacency = $previousToken . "\0" . $token;
-                    $availableAdjacencyCount = $source['adjacencyCounts'][$adjacency] ?? 0;
-                    if ($availableAdjacencyCount > 1) {
-                        $source['adjacencyCounts'][$adjacency] = $availableAdjacencyCount - 1;
-                    } elseif ($availableAdjacencyCount === 1) {
-                        unset($source['adjacencyCounts'][$adjacency]);
+                    $adjacencyDigestBuffer .= hash(
+                        'sha256',
+                        $previousToken . "\0" . $token,
+                        true
+                    );
+                    if (strlen($adjacencyDigestBuffer) >= self::ADJACENCY_CHUNK_BYTES) {
+                        $adjacencyDigestChunks[] = $adjacencyDigestBuffer;
+                        $adjacencyDigestBuffer = '';
                     }
                     hash_update($tokenHash, "\0");
                 }
@@ -275,8 +299,13 @@ final class PdfTextFidelityLedger
             }
         }
 
+        if ($adjacencyDigestBuffer !== '') {
+            $adjacencyDigestChunks[] = $adjacencyDigestBuffer;
+        }
+
         return [
             'addedTokenCounts' => $addedTokenCounts,
+            'adjacencyDigestChunks' => $adjacencyDigestChunks,
             'tokenCount' => $tokenCount,
             'tokenDigest' => hash_final($tokenHash),
             'addedCharacterCounts' => $addedCharacterCounts,
@@ -284,16 +313,187 @@ final class PdfTextFidelityLedger
         ];
     }
 
-    /** @return list<string> */
-    private static function tokensFromNormalizedText(string $text): array
-    {
-        $matched = preg_match_all(
-            "/[\p{L}\p{M}\p{N}]+(?:['\x{2019}][\p{L}\p{M}\p{N}]+)*/u",
-            $text,
-            $matches
-        );
+    /**
+     * Count the multiset records present on the left after consuming equal
+     * records from the right. Fixed-width digests avoid one PHP hash bucket
+     * and one variable-length key allocation per token adjacency.
+     */
+    private static function packedRecordLeftDifferenceCount(
+        array &$left,
+        array &$right,
+        int $width
+    ): int {
+        if ($width < 1) {
+            throw new \LogicException('Packed fidelity records had an invalid width.');
+        }
+        foreach ([$left, $right] as $chunks) {
+            foreach ($chunks as $chunk) {
+                if (!is_string($chunk) || strlen($chunk) % $width !== 0) {
+                    throw new \LogicException('Packed fidelity records had an invalid width.');
+                }
+            }
+        }
+        self::sortFixedWidthRecordChunks($left, $width);
+        self::sortFixedWidthRecordChunks($right, $width);
+        $leftRecords = self::fixedWidthRecords($left, $width);
+        $rightRecords = self::fixedWidthRecords($right, $width);
+        $leftRecords->rewind();
+        $rightRecords->rewind();
+        $unresolved = 0;
+        while ($leftRecords->valid() && $rightRecords->valid()) {
+            $leftRecord = $leftRecords->current();
+            $rightRecord = $rightRecords->current();
+            $comparison = strcmp($leftRecord, $rightRecord);
+            if ($comparison === 0) {
+                $leftRecords->next();
+                $rightRecords->next();
+            } elseif ($comparison < 0) {
+                $unresolved++;
+                $leftRecords->next();
+            } else {
+                $rightRecords->next();
+            }
+        }
+        while ($leftRecords->valid()) {
+            $unresolved++;
+            $leftRecords->next();
+        }
 
-        return $matched === false ? [] : array_values($matches[0]);
+        return $unresolved;
+    }
+
+    /**
+     * @param list<string> $chunks
+     */
+    private static function sortFixedWidthRecordChunks(array &$chunks, int $width): void
+    {
+        foreach ($chunks as &$chunk) {
+            $records = str_split($chunk, $width);
+            sort($records, SORT_STRING);
+            $chunk = implode('', $records);
+            unset($records);
+        }
+        unset($chunk);
+    }
+
+    /** @param list<string> $chunks @return \Generator<int,string> */
+    private static function fixedWidthRecords(array &$chunks, int $width): \Generator
+    {
+        /** @var list<array{record:string,chunk:int,offset:int}> $heap */
+        $heap = [];
+        foreach ($chunks as $chunkIndex => $chunk) {
+            if ($chunk === '') {
+                continue;
+            }
+            self::pushFixedWidthRecord($heap, [
+                'record' => substr($chunk, 0, $width),
+                'chunk' => $chunkIndex,
+                'offset' => 0,
+            ]);
+        }
+        while ($heap !== []) {
+            $entry = self::popFixedWidthRecord($heap);
+            yield $entry['record'];
+            $nextOffset = $entry['offset'] + $width;
+            $chunk = $chunks[$entry['chunk']];
+            if ($nextOffset < strlen($chunk)) {
+                self::pushFixedWidthRecord($heap, [
+                    'record' => substr($chunk, $nextOffset, $width),
+                    'chunk' => $entry['chunk'],
+                    'offset' => $nextOffset,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * @param list<array{record:string,chunk:int,offset:int}> $heap
+     * @param array{record:string,chunk:int,offset:int} $entry
+     */
+    private static function pushFixedWidthRecord(array &$heap, array $entry): void
+    {
+        $heap[] = $entry;
+        $index = count($heap) - 1;
+        while ($index > 0) {
+            $parent = intdiv($index - 1, 2);
+            if (!self::fixedWidthRecordPrecedes($heap[$index], $heap[$parent])) {
+                break;
+            }
+            [$heap[$parent], $heap[$index]] = [$heap[$index], $heap[$parent]];
+            $index = $parent;
+        }
+    }
+
+    /**
+     * @param list<array{record:string,chunk:int,offset:int}> $heap
+     * @return array{record:string,chunk:int,offset:int}
+     */
+    private static function popFixedWidthRecord(array &$heap): array
+    {
+        $first = $heap[0];
+        $last = array_pop($heap);
+        if ($heap === []) {
+            return $first;
+        }
+        $heap[0] = $last;
+        $index = 0;
+        $count = count($heap);
+        while (true) {
+            $left = $index * 2 + 1;
+            if ($left >= $count) {
+                break;
+            }
+            $right = $left + 1;
+            $next = $right < $count
+                && self::fixedWidthRecordPrecedes($heap[$right], $heap[$left])
+                ? $right
+                : $left;
+            if (!self::fixedWidthRecordPrecedes($heap[$next], $heap[$index])) {
+                break;
+            }
+            [$heap[$index], $heap[$next]] = [$heap[$next], $heap[$index]];
+            $index = $next;
+        }
+
+        return $first;
+    }
+
+    /**
+     * @param array{record:string,chunk:int,offset:int} $left
+     * @param array{record:string,chunk:int,offset:int} $right
+     */
+    private static function fixedWidthRecordPrecedes(array $left, array $right): bool
+    {
+        $comparison = strcmp($left['record'], $right['record']);
+
+        return $comparison < 0
+            || ($comparison === 0 && $left['chunk'] < $right['chunk']);
+    }
+
+    /** @return iterable<string> */
+    private static function tokensFromNormalizedText(string $text): iterable
+    {
+        $offset = 0;
+        $length = strlen($text);
+        while ($offset < $length) {
+            $matched = preg_match(
+                "/[\p{L}\p{M}\p{N}]+(?:['\x{2019}][\p{L}\p{M}\p{N}]+)*/u",
+                $text,
+                $match,
+                PREG_OFFSET_CAPTURE,
+                $offset
+            );
+            if ($matched !== 1) {
+                return;
+            }
+            $token = is_string($match[0][0] ?? null) ? $match[0][0] : '';
+            $tokenOffset = is_int($match[0][1] ?? null) ? $match[0][1] : $offset;
+            if ($token === '') {
+                return;
+            }
+            yield $token;
+            $offset = $tokenOffset + strlen($token);
+        }
     }
 
     /**

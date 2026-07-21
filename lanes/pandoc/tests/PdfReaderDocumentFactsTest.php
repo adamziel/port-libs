@@ -400,6 +400,23 @@ $topLevelPdfAstTypes = static function (AstNode $document): array {
 };
 
 $tests = [
+    'empty tagged facts do not load the tagged structure importer' => static function (
+        TestRunner $t
+    ) use ($readerFactsPdf): void {
+        $importerClass = 'PortLibs\\Pandoc\\PdfTaggedStructureImporter';
+        $t->same(false, class_exists($importerClass, false));
+
+        $pdf = $readerFactsPdf();
+        $facts = (new NativePdfFactsProvider())->extract($pdf);
+        $structure = $facts->structure();
+        $t->same([], $structure['taggedStructureBlocks'] ?? []);
+        $t->same([], $structure['taggedTables'] ?? []);
+        $t->same([], $structure['taggedStructureItems'] ?? []);
+
+        (new PdfReader(['pdfDocumentFacts' => $facts]))->read($pdf);
+
+        $t->same(false, class_exists($importerClass, false));
+    },
     'runs one unchanged document semantic pass from merged durable page facts' => static function (
         TestRunner $t
     ) use ($readerFactsPdf): void {

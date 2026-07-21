@@ -194,5 +194,116 @@
             "precedingText": null,
             "followingText": null
         }
+    ],
+    "prerenderVersion": 1,
+    "prerenderRendererSchema": "port-libs-pdfjs-static-preview-v1",
+    "prerenderedSourceDigest": "51111d311b34c416c770ee6e1256a2eafa50176ab79162ce7c9a167a3133bfe8",
+    "prerenderedAssets": [
+        {
+            "path": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-1e1002931bf6098d57ea00a1.png",
+            "mimeType": "image/png",
+            "byteLength": 412857,
+            "width": 2451,
+            "height": 3600,
+            "sha256": "d57c82de57bfc5092e98a788e334d0de20e941f986e654fbb87e599c3fc67418"
+        },
+        {
+            "path": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-95319985133c145dce9e98b3.png",
+            "mimeType": "image/png",
+            "byteLength": 358751,
+            "width": 2451,
+            "height": 3600,
+            "sha256": "60d3a9cbbab68877830286828dc72fc696581f678bf74055e89d8d72d24172c5"
+        },
+        {
+            "path": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-a21fa43f7fc1ece733848a6e.png",
+            "mimeType": "image/png",
+            "byteLength": 386569,
+            "width": 2451,
+            "height": 3600,
+            "sha256": "18e8f3ab384a3a2523c526142522b92bda5e659485b2de73fc051e617d870ffd"
+        },
+        {
+            "path": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-9d9207cf207615f7dc52213d.png",
+            "mimeType": "image/png",
+            "byteLength": 381270,
+            "width": 2451,
+            "height": 3600,
+            "sha256": "4d0e8e6bdc7fe65bfa2688f0f060a9945a9d42205345db17f8de9de2b0544842"
+        },
+        {
+            "path": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-c5855de2be6369515f0954d7.png",
+            "mimeType": "image/png",
+            "byteLength": 405690,
+            "width": 2451,
+            "height": 3600,
+            "sha256": "e5c51dc7762fb28977ccb88c72f319a2dba8f370770546db486b167296252424"
+        },
+        {
+            "path": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-3918fdc1498e3867a8828157.png",
+            "mimeType": "image/png",
+            "byteLength": 352023,
+            "width": 2451,
+            "height": 3600,
+            "sha256": "9ab1f47d9f6003a8732263291b80c584bb0c21a0498e42f3e11a01db9552b1d8"
+        },
+        {
+            "path": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-9a214460c170a313060e811d.png",
+            "mimeType": "image/png",
+            "byteLength": 370836,
+            "width": 2451,
+            "height": 3600,
+            "sha256": "c96b7213d593b90c3879594c5000410c094ed1eac52604155414d312b62e132a"
+        },
+        {
+            "path": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-496b184c218191bb3adcb23a.png",
+            "mimeType": "image/png",
+            "byteLength": 406477,
+            "width": 2451,
+            "height": 3600,
+            "sha256": "5e6c86137e58a8d58fa02bc3ffd093659d5778a3368780e42a8c4bbc15201bd3"
+        }
+    ],
+    "prerenderedRequestCoverage": [
+        {
+            "requestId": "pdf-page-raster-f11600329676ad3ea1d0ac2aba6e9b7c",
+            "assetPath": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-1e1002931bf6098d57ea00a1.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "pdf-page-raster-cf34bdd18d902d9ee75746013cefdc8e",
+            "assetPath": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-95319985133c145dce9e98b3.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "pdf-page-raster-bc6cb9d0a9bc6b14184ea82c45536316",
+            "assetPath": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-a21fa43f7fc1ece733848a6e.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "pdf-page-raster-f7b9584cccb84c854c38cf67ea40113f",
+            "assetPath": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-9d9207cf207615f7dc52213d.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "pdf-page-raster-0a0cd39aa47126a4f8758d8ed24adf39",
+            "assetPath": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-c5855de2be6369515f0954d7.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "pdf-page-raster-63e75156fee07b8b71cffc8e72f025bf",
+            "assetPath": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-3918fdc1498e3867a8828157.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "pdf-page-raster-c6db8340ab8ee26aa09c16eff5631741",
+            "assetPath": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-9a214460c170a313060e811d.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "pdf-page-raster-956b418fc78be004f4d4ca1bcec917a9",
+            "assetPath": "outputs/pdf-layout-mineru-small-ocr/pdf-preview-496b184c218191bb3adcb23a.png",
+            "placement": "page-gallery"
+        }
     ]
 }

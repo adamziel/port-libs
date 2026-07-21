@@ -118,7 +118,7 @@
             "object": 198,
             "paintOrder": 1,
             "precedingText": null,
-            "followingText": "Figure 10. Speedup vs. a baseline JavaScript interpreter (SpiderMonkey) for our trace-based JIT compiler, Apple\u2019s SquirrelFish Extreme",
+            "followingText": "Figure 10. Speedup vs. a baseline JavaScript interpreter (SpiderMonkey) for our trace-based JIT compiler, Apple’s SquirrelFish Extreme",
             "label": "PDF figure on page 11"
         },
         {
@@ -137,6 +137,117 @@
             "precedingText": null,
             "followingText": "Figure 12. Fraction of time spent on major VM activities. The",
             "label": "PDF figure on page 13"
+        }
+    ],
+    "prerenderVersion": 1,
+    "prerenderRendererSchema": "port-libs-pdfjs-static-preview-v1",
+    "prerenderedSourceDigest": "49040808c5ceed24c015552703c8ad336b2f1ab80b9213adc30e322f963d0e86",
+    "prerenderedAssets": [
+        {
+            "path": "outputs/pdf-tracemonkey/pdf-preview-831a96eb99bba19c2ba1fbc7.png",
+            "mimeType": "image/png",
+            "byteLength": 53369,
+            "width": 483,
+            "height": 378,
+            "sha256": "ef6211d233643bff3520de4bccad4b46d5dc1413c8f6de9b282752fdd3195900"
+        },
+        {
+            "path": "outputs/pdf-tracemonkey/pdf-preview-100ca5f72ffc76975b3150fa.png",
+            "mimeType": "image/png",
+            "byteLength": 11691,
+            "width": 196,
+            "height": 277,
+            "sha256": "dcd0ea5d1d87c40baee6246d3029dcdc3c6cff10babbd6c0af779d91d1cfe962"
+        },
+        {
+            "path": "outputs/pdf-tracemonkey/pdf-preview-4aa9277043aa26858ed9c11d.png",
+            "mimeType": "image/png",
+            "byteLength": 18896,
+            "width": 340,
+            "height": 380,
+            "sha256": "3884a8c213fb9877ffe506b12568454acfbde585ac7c86aa47ee410f24c218fe"
+        },
+        {
+            "path": "outputs/pdf-tracemonkey/pdf-preview-d4cc3d7b3c4880e0cae93013.png",
+            "mimeType": "image/png",
+            "byteLength": 17321,
+            "width": 324,
+            "height": 282,
+            "sha256": "e3a57f3cf6895acfe34cad147b93bd489d2697bc320272d088935445aae3841a"
+        },
+        {
+            "path": "outputs/pdf-tracemonkey/pdf-preview-5f6f270d74fea68716dbb096.png",
+            "mimeType": "image/png",
+            "byteLength": 11672,
+            "width": 220,
+            "height": 245,
+            "sha256": "662b1729a9d5af50bb8b0942522f6090472e1d8c3940b94fa2549b375a9e854e"
+        },
+        {
+            "path": "outputs/pdf-tracemonkey/pdf-preview-7994a3babdbde384997fcb34.png",
+            "mimeType": "image/png",
+            "byteLength": 43460,
+            "width": 494,
+            "height": 431,
+            "sha256": "da7c0cbd241ef98c7c620ca49a75111df56a54eb8608449e43ef0444fc58073a"
+        },
+        {
+            "path": "outputs/pdf-tracemonkey/pdf-preview-d5695e51a6889eec513b30c1.png",
+            "mimeType": "image/png",
+            "byteLength": 107165,
+            "width": 1061,
+            "height": 554,
+            "sha256": "c5a78a547ac7f02d90daf5fb15efc639cebd64f7973f39976fe016a9bd710b7f"
+        },
+        {
+            "path": "outputs/pdf-tracemonkey/pdf-preview-f156bfb08947ddff1730e014.png",
+            "mimeType": "image/png",
+            "byteLength": 56082,
+            "width": 495,
+            "height": 432,
+            "sha256": "9e3d1bde3e2f66f4eb27464aa63b8e73f2ec468d9976c7d1b91d30e633228fcf"
+        }
+    ],
+    "prerenderedRequestCoverage": [
+        {
+            "requestId": "form-b8d2f013fa55c0161b7567e23d36",
+            "assetPath": "outputs/pdf-tracemonkey/pdf-preview-831a96eb99bba19c2ba1fbc7.png",
+            "placement": "before-anchor"
+        },
+        {
+            "requestId": "form-78e9ab7d02c9d5b378d311bf4e4e",
+            "assetPath": "outputs/pdf-tracemonkey/pdf-preview-100ca5f72ffc76975b3150fa.png",
+            "placement": "before-anchor"
+        },
+        {
+            "requestId": "form-c7e8d51e6ddf38f2428c7e69841d",
+            "assetPath": "outputs/pdf-tracemonkey/pdf-preview-4aa9277043aa26858ed9c11d.png",
+            "placement": "before-anchor"
+        },
+        {
+            "requestId": "form-b2d4046a47b3c973875bd3a272f8",
+            "assetPath": "outputs/pdf-tracemonkey/pdf-preview-d4cc3d7b3c4880e0cae93013.png",
+            "placement": "before-anchor"
+        },
+        {
+            "requestId": "form-d6e43b73f5bb51eddd0654216a37",
+            "assetPath": "outputs/pdf-tracemonkey/pdf-preview-5f6f270d74fea68716dbb096.png",
+            "placement": "before-anchor"
+        },
+        {
+            "requestId": "form-20a3f28f6a060f3ba98e1496d1d5",
+            "assetPath": "outputs/pdf-tracemonkey/pdf-preview-7994a3babdbde384997fcb34.png",
+            "placement": "before-anchor"
+        },
+        {
+            "requestId": "form-0db364117e69670cb17a2b72f0d7",
+            "assetPath": "outputs/pdf-tracemonkey/pdf-preview-d5695e51a6889eec513b30c1.png",
+            "placement": "before-anchor"
+        },
+        {
+            "requestId": "form-bca19a7c7b426280dc9cf37634fc",
+            "assetPath": "outputs/pdf-tracemonkey/pdf-preview-f156bfb08947ddff1730e014.png",
+            "placement": "before-anchor"
         }
     ]
 }

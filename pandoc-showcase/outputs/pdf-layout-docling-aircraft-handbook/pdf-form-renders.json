@@ -155,5 +155,129 @@
             "followingText": null,
             "label": "PDF figure on page 1"
         }
+    ],
+    "prerenderVersion": 1,
+    "prerenderRendererSchema": "port-libs-pdfjs-static-preview-v1",
+    "prerenderedSourceDigest": "be2d17e20ea96606a0388b199b4bba14d126def0c0216909a53794d40faaf8e0",
+    "prerenderedAssets": [
+        {
+            "path": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-ca924095addf385f60caadff.png",
+            "mimeType": "image/png",
+            "byteLength": 78584,
+            "width": 425,
+            "height": 279,
+            "sha256": "0f3274d873d7ea2158ccdc40b23a12e8363a656870bc7e419d83c5eb1b0ab2ba"
+        },
+        {
+            "path": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-2c0aac979d9fc0b70efc4c72.png",
+            "mimeType": "image/png",
+            "byteLength": 43999,
+            "width": 425,
+            "height": 231,
+            "sha256": "a3dc6c7ae97e500b8914832415867be636b42d1e4856f6acdd8c24519fee67d7"
+        },
+        {
+            "path": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-a8aa16778fa21b9e8c7d0407.png",
+            "mimeType": "image/png",
+            "byteLength": 34484,
+            "width": 425,
+            "height": 229,
+            "sha256": "522881367bc89f255dee8c42cf25e33bd5ac87130a9608df0afe30d9a3484b13"
+        },
+        {
+            "path": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-db7a93c442d0b15c32e4da59.png",
+            "mimeType": "image/png",
+            "byteLength": 18063,
+            "width": 141,
+            "height": 147,
+            "sha256": "85637121610181cd358c1c103cc36eac2c6fa3e978c22ef4212985f1e04c09f8"
+        },
+        {
+            "path": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-3555cf20ce696bd995bf0dfb.png",
+            "mimeType": "image/png",
+            "byteLength": 26563,
+            "width": 235,
+            "height": 133,
+            "sha256": "9e79b88abf7893d90f620175ce3e23e6ffc472f32fcd8f3eda4576c2e4a8465c"
+        },
+        {
+            "path": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-f63577fbaa0e95576a5cbcde.png",
+            "mimeType": "image/png",
+            "byteLength": 19769,
+            "width": 265,
+            "height": 135,
+            "sha256": "af7fee3d6a004f0e4603c5e4c01085dfe35b59c8802a4e0ec5a79b6146addb30"
+        },
+        {
+            "path": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-c94aea98850433cb5178c5dc.png",
+            "mimeType": "image/png",
+            "byteLength": 15375,
+            "width": 281,
+            "height": 133,
+            "sha256": "ec1bdd32425b7f2e5c7e4882d92572c1804dec6b04ac6a3f964400b851f85ac4"
+        },
+        {
+            "path": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-35778e9877ca68bdfc133c7a.png",
+            "mimeType": "image/png",
+            "byteLength": 14081,
+            "width": 149,
+            "height": 117,
+            "sha256": "d6a37d635a31cd482d822b5e12f409df0439194bc790c9de70bdd73d9b4d49d1"
+        },
+        {
+            "path": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-92259019fae3dd2c8c993a6b.png",
+            "mimeType": "image/png",
+            "byteLength": 22837,
+            "width": 253,
+            "height": 143,
+            "sha256": "b9a94af34e6e26081135fb26f46f3f8a926cd41ddbd969b62ecc17666d7d2ed3"
+        }
+    ],
+    "prerenderedRequestCoverage": [
+        {
+            "requestId": "form-268373371e3a28f29270f4752182",
+            "assetPath": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-ca924095addf385f60caadff.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-fb29bfb2bf2562a9c638b770ed33",
+            "assetPath": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-2c0aac979d9fc0b70efc4c72.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-eaec3df79fb82bae4b1a9b98cfd9",
+            "assetPath": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-a8aa16778fa21b9e8c7d0407.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-1d5b26b98ebc98627d61dffb0e11",
+            "assetPath": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-db7a93c442d0b15c32e4da59.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-f843b466cc20a8df06e6d82dab6c",
+            "assetPath": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-3555cf20ce696bd995bf0dfb.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-9c9c06e6790199a6836727b79bd8",
+            "assetPath": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-f63577fbaa0e95576a5cbcde.png",
+            "placement": "before-anchor"
+        },
+        {
+            "requestId": "form-38ee5aebff08ea6a0d2023b54a22",
+            "assetPath": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-c94aea98850433cb5178c5dc.png",
+            "placement": "before-anchor"
+        },
+        {
+            "requestId": "form-87f190ca193578a1c3ea78eea47f",
+            "assetPath": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-35778e9877ca68bdfc133c7a.png",
+            "placement": "page-gallery"
+        },
+        {
+            "requestId": "form-57943a723f5c74b8a9c804f6856b",
+            "assetPath": "outputs/pdf-layout-docling-aircraft-handbook/pdf-preview-92259019fae3dd2c8c993a6b.png",
+            "placement": "page-gallery"
+        }
     ]
 }

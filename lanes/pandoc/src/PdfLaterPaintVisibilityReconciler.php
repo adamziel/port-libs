@@ -43,7 +43,7 @@ final class PdfLaterPaintVisibilityReconciler
     ): array {
         $rawComplete = ($visibility['complete'] ?? false) === true;
         if ($rawComplete) {
-            return self::result(true, true, false, 0, [], [], null);
+            return PdfRawCompleteVisibilityReconciliation::result();
         }
         if (!self::isDigest($sourceSha256)) {
             return self::result(false, false, false, 0, [], [], 'invalid-source-digest');

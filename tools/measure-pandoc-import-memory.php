@@ -129,12 +129,12 @@ if ($streamOutput === 'on') {
     $afterInputUsed = memory_get_usage();
     $afterInput = memory_get_usage(true);
     $afterInputAt = hrtime(true);
-    $document = PandocConverter::read($bytes, $from, $readerOptions);
+    $document = PandocConverter::read($bytes, $from, $readerOptions, $to);
 } else {
     $afterInputUsed = memory_get_usage();
     $afterInput = memory_get_usage(true);
     $afterInputAt = hrtime(true);
-    $document = PandocConverter::readFile($input, $from, $readerOptions);
+    $document = PandocConverter::readFile($input, $from, $readerOptions, $to);
 }
 
 if ($streamOutput === 'off') {

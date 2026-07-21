@@ -17550,7 +17550,7 @@
             "pdfFormRenders": {
                 "ok": true,
                 "path": "outputs/pdf-layout-unstructured-ocr-overlay/pdf-form-renders.json",
-                "bytes": 1081,
+                "bytes": 1917,
                 "count": 1
             },
             "externalReference": {
@@ -18028,7 +18028,7 @@
             "pdfFormRenders": {
                 "ok": true,
                 "path": "outputs/pdf-layout-docling-right-to-left/pdf-form-renders.json",
-                "bytes": 1011,
+                "bytes": 1869,
                 "count": 1
             },
             "externalReference": {
@@ -18593,7 +18593,7 @@
             "pdfFormRenders": {
                 "ok": true,
                 "path": "outputs/pdf-layout-docling-aircraft-handbook/pdf-form-renders.json",
-                "bytes": 5344,
+                "bytes": 10826,
                 "count": 9
             },
             "externalReference": {
@@ -18831,7 +18831,7 @@
             "pdfFormRenders": {
                 "ok": true,
                 "path": "outputs/pdf-layout-docling-table-picture-boundary/pdf-form-renders.json",
-                "bytes": 1264,
+                "bytes": 2367,
                 "count": 2
             },
             "externalReference": {
@@ -20839,7 +20839,7 @@
             "pdfFormRenders": {
                 "ok": true,
                 "path": "outputs/pdf-layout-mineru-small-ocr/pdf-form-renders.json",
-                "bytes": 7129,
+                "bytes": 12030,
                 "count": 8
             },
             "externalReference": {
@@ -20983,7 +20983,7 @@
             "pdfFormRenders": {
                 "ok": true,
                 "path": "outputs/pdf-layout-vdl-theatre-script/pdf-form-renders.json",
-                "bytes": 1057,
+                "bytes": 1910,
                 "count": 1
             },
             "externalReference": {
@@ -22219,7 +22219,7 @@
             "pdfFormRenders": {
                 "ok": true,
                 "path": "outputs/pdf-tracemonkey/pdf-form-renders.json",
-                "bytes": 5162,
+                "bytes": 9734,
                 "count": 8
             },
             "externalReference": {
@@ -23189,8 +23189,8 @@
             "pdfFormRenders": {
                 "ok": true,
                 "path": "outputs/pdf-grand-canyon-north-rim-map/pdf-form-renders.json",
-                "bytes": 8274,
-                "count": 14
+                "bytes": 14749,
+                "count": 16
             },
             "externalReference": {
                 "ok": true,
@@ -23913,7 +23913,7 @@
             "pdfFormRenders": {
                 "ok": true,
                 "path": "outputs/pdf-archive-motograph-book/pdf-form-renders.json",
-                "bytes": 54399,
+                "bytes": 81707,
                 "count": 46
             },
             "externalReference": {
@@ -24328,7 +24328,7 @@
             "pdfFormRenders": {
                 "ok": true,
                 "path": "outputs/pdf-muir-beach-brochure/pdf-form-renders.json",
-                "bytes": 3721,
+                "bytes": 7313,
                 "count": 6
             },
             "externalReference": {
@@ -24665,7 +24665,7 @@
             "pdfFormRenders": {
                 "ok": true,
                 "path": "outputs/pdf-quickbooks-invoice-template/pdf-form-renders.json",
-                "bytes": 986,
+                "bytes": 1817,
                 "count": 1
             },
             "externalReference": {

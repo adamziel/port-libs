@@ -136,6 +136,17 @@ try {
             throw new RuntimeException("The production plugin ZIP is missing {$name}.");
         }
     }
+    foreach ([
+        'port-libs-playground-converter/lanes/pandoc/src/DocxWriter.php',
+        'port-libs-playground-converter/lanes/pandoc/src/EpubWriter.php',
+        'port-libs-playground-converter/lanes/pandoc/src/PptxWriter.php',
+    ] as $outputOnlyWriter) {
+        if (isset($actualEntries[$outputOnlyWriter])) {
+            throw new RuntimeException(
+                "The WordPress import distribution carries unused package writer {$outputOnlyWriter}."
+            );
+        }
+    }
     if (!is_string($pluginContents)) {
         throw new RuntimeException('The production plugin PHP could not be inspected.');
     }

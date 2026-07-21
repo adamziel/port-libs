@@ -78,13 +78,72 @@ if (($argv[1] ?? '') === '--build-examples-page') {
         exit(1);
     }
 
+    showcase_publish_pdf_preview_assets($siteDir);
+    $records = showcase_refresh_pdf_render_plan_records($manifest['records'], $siteDir);
+    $manifest['records'] = $records;
+    $manifestJson = json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if (!is_string($manifestJson)
+        || file_put_contents($manifestPath, $manifestJson) === false) {
+        throw new RuntimeException("Unable to refresh generated showcase manifest {$manifestPath}.");
+    }
     showcase_write_examples_page(
         $siteDir,
-        $manifest['records'],
+        $records,
         (string) ($manifest['generatedAt'] ?? gmdate('c'))
     );
     echo "Generated lightweight pandoc-showcase examples page.\n";
     exit(0);
+}
+
+function showcase_publish_pdf_preview_assets(string $siteDir): void
+{
+    $result = run_process([
+        'node',
+        __DIR__ . '/prerender-showcase-pdf-assets.mjs',
+        '--site',
+        $siteDir,
+    ], 900);
+    if ($result['exitCode'] !== 0) {
+        $detail = trim((string) ($result['stderr'] ?? ''));
+        if ($detail === '') {
+            $detail = trim((string) ($result['stdout'] ?? ''));
+        }
+        throw new RuntimeException('Unable to publish static PDF preview assets: ' . $detail);
+    }
+    $output = trim((string) ($result['stdout'] ?? ''));
+    if ($output !== '') {
+        fwrite(STDOUT, $output . PHP_EOL);
+    }
+}
+
+/**
+ * Refresh file-size and request-count metadata after the publisher enriches
+ * each render plan.
+ *
+ * @param list<array<string,mixed>> $records
+ * @return list<array<string,mixed>>
+ */
+function showcase_refresh_pdf_render_plan_records(array $records, string $siteDir): array
+{
+    foreach ($records as &$record) {
+        $renders = is_array($record['pdfFormRenders'] ?? null) ? $record['pdfFormRenders'] : null;
+        $relativePath = ltrim((string) ($renders['path'] ?? ''), '/');
+        if ($renders === null || ($renders['ok'] ?? false) !== true || $relativePath === '') {
+            continue;
+        }
+        $absolutePath = $siteDir . '/' . $relativePath;
+        if (is_file($absolutePath)) {
+            $payload = json_decode((string) file_get_contents($absolutePath), true);
+            if (!is_array($payload) || !is_array($payload['requests'] ?? null)) {
+                throw new RuntimeException("Unable to read PDF render requests from {$absolutePath}.");
+            }
+            $record['pdfFormRenders']['bytes'] = (int) filesize($absolutePath);
+            $record['pdfFormRenders']['count'] = count($payload['requests']);
+        }
+    }
+    unset($record);
+
+    return $records;
 }
 
 function raise_memory_limit(string $minimum): void
@@ -4875,10 +4934,13 @@ function showcase_examples_wordpress_preview_view(
         // boundary inspectable beside the original PDF in the public reviewer.
         if ($unsupportedNoText) {
             $pageLabel = $pageCount === 1 ? '1 fully decoded source page has' : $pageCount . ' fully decoded source pages have';
+            $previewLabel = $pageCount === 1
+                ? 'A published original-page preview is included below for visual review.'
+                : $pageCount . ' published original-page previews are included below for visual review.';
             $statusBody = '<main class="pandoc-pdf-import-status" data-pandoc-pdf-preview-status="unsupported_no_text">'
                 . '<h1>PDF has no editable native text</h1><p>' . h($pageLabel)
-                . ' no usable painted text. OCR is outside this importer, and no static original-page representation was produced.</p>'
-                . '<p>No editable WordPress import was generated. The browser-assisted path can render the exact source pages for review.</p>'
+                . ' no usable painted text. OCR is outside this importer.</p>'
+                . '<p>No editable WordPress import was generated. ' . h($previewLabel) . '</p>'
                 . '</main>';
             $previewTitle = 'PDF import status: no editable native text';
         } else {
@@ -5906,6 +5968,7 @@ function showcase_examples_javascript(): string
 {
     return <<<'JS'
 import {
+  PDF_STATIC_PREVIEW_RENDERER_SCHEMA,
   pdfFormRendererResourceSnapshot,
   renderPdfFormRequests,
   renderPdfFormRequestsIncrementally,
@@ -5927,7 +5990,7 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'verified-pdf-import-20260716';
+const playgroundPluginBuild = 'verified-pdf-prerender-20260720';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 const playgroundPdfRasterByteLimit = 24_000_000;
@@ -5938,14 +6001,6 @@ const playgroundPdfPageTotalImageByteLimit = 64 * 1024 * 1024;
 const pdfPageRasterMethod = 'pdfjs-whole-page-raster';
 const ownFileStatusPollIntervalMs = 1_000;
 const ownFileAdvanceRecoveryAttempts = 3;
-// The static example browser runs on the visitor's device, including phones.
-// Keep optional PDF visual enrichment deliberately smaller than the importer handoff:
-// it is an optional preview, never a reason to exhaust the browser.
-const staticPdfPreviewMaxSourceBytes = 4_000_000;
-const staticPdfPreviewMaxRequests = 8;
-const staticPdfPreviewMaxPixels = 2_100_000;
-const staticPdfPreviewMaxTotalPixels = 8_400_000;
-const staticPdfPreviewMaxImageBytes = 8_000_000;
 
 const examplePicker = document.getElementById('example-picker');
 const previousButton = document.getElementById('previous-example');
@@ -6269,70 +6324,6 @@ async function fetchStaticPreviewText(path, label, signal) {
   return { text, url: response.url || staticPreviewUrl(path) };
 }
 
-function staticPdfSourceLimitError() {
-  const error = new Error('This PDF exceeds the static preview size limit.');
-  error.code = 'static-pdf-source-limit';
-  return error;
-}
-
-function staticPdfSourceLimitExceeded(error) {
-  return error && typeof error === 'object' && error.code === 'static-pdf-source-limit';
-}
-
-async function fetchStaticPdfSource(samplePath, manifestUrl, signal) {
-  const candidates = [
-    staticPreviewUrl(samplePath),
-    new URL(samplePath, manifestUrl).href,
-  ].filter((candidate, index, all) => candidate && all.indexOf(candidate) === index);
-  let failure = null;
-  for (const url of candidates) {
-    try {
-      throwIfStaticPdfPreviewAborted(signal);
-      const response = await fetch(url, { cache: 'no-store', signal });
-      throwIfStaticPdfPreviewAborted(signal);
-      if (!response.ok) {
-        throw new Error('The original PDF could not be loaded (' + response.status + ').');
-      }
-      const announcedBytes = Number(response.headers.get('content-length'));
-      if (Number.isFinite(announcedBytes) && announcedBytes > staticPdfPreviewMaxSourceBytes) {
-        throw staticPdfSourceLimitError();
-      }
-
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      throwIfStaticPdfPreviewAborted(signal);
-      if (bytes.byteLength > staticPdfPreviewMaxSourceBytes) {
-        throw staticPdfSourceLimitError();
-      }
-      return bytes;
-    } catch (error) {
-      if (signal?.aborted) {
-        throw staticPdfPreviewAbortError(signal);
-      }
-      if (staticPdfSourceLimitExceeded(error)) {
-        throw error;
-      }
-      failure = error;
-    }
-  }
-
-  throw failure || new Error('The original PDF could not be loaded.');
-}
-
-function staticPdfFilesByPath(requests, samplePath, bytes) {
-  const files = new Map();
-  if (samplePath) {
-    files.set(samplePath, bytes);
-  }
-  for (const request of requests) {
-    const path = String(request?.path || '');
-    if (path) {
-      files.set(path, bytes);
-    }
-  }
-
-  return files;
-}
-
 function rewriteStaticPreviewMediaUrls(previewDocument, viewUrl) {
   for (const element of previewDocument.querySelectorAll('img[src], source[src], video[src], audio[src], track[src], object[data]')) {
     const attribute = element.hasAttribute('data') ? 'data' : 'src';
@@ -6387,53 +6378,121 @@ function staticPdfTextAnchor(previewDocument, request) {
   return null;
 }
 
-function staticPdfFormFigure(previewDocument, request, rendered, ordinal) {
-  const figure = previewDocument.createElement('figure');
-  figure.className = 'pandoc-pdf-form-figure wp-block-image';
-  figure.dataset.pdfFormRequest = String(request?.id || ordinal + 1);
-  if (Number.isInteger(request?.object)) {
-    figure.dataset.pdfFormObject = String(request.object);
+function publishedPdfPreviewGroups(manifest) {
+  const requests = Array.isArray(manifest?.requests) ? manifest.requests : [];
+  const assets = Array.isArray(manifest?.prerenderedAssets) ? manifest.prerenderedAssets : [];
+  const coverage = Array.isArray(manifest?.prerenderedRequestCoverage)
+    ? manifest.prerenderedRequestCoverage
+    : [];
+  if (manifest?.prerenderVersion !== 1
+    || manifest?.prerenderRendererSchema !== PDF_STATIC_PREVIEW_RENDERER_SCHEMA
+    || requests.length === 0 || assets.length === 0
+    || coverage.length !== requests.length) {
+    throw new Error('The PDF publication manifest has incomplete static asset coverage.');
   }
-  const label = String(request?.alt || request?.label || request?.title || '').trim();
-  const fallbackLabel = request?.method === pdfPageRasterMethod
-    ? 'PDF page image ' + (ordinal + 1)
-    : 'PDF figure ' + (ordinal + 1);
-  if (rendered?.bytes instanceof Uint8Array) {
-    const image = previewDocument.createElement('img');
-    image.alt = label || fallbackLabel;
-    image.dataset.pandocPdfFormRendered = 'true';
-    image.decoding = 'async';
-    const mimeType = String(rendered.mimeType || 'image/png');
-    image.src = 'data:' + mimeType + ';base64,' + base64FromBytes(rendered.bytes);
-    figure.append(image);
-  } else {
-    figure.classList.add('pandoc-pdf-form-placeholder');
-    const message = previewDocument.createElement('p');
-    const detail = String(rendered?.error || '').replace(/\s+/g, ' ').trim().slice(0, 240);
-    message.textContent = (label || fallbackLabel) + ' could not be rendered in this browser'
-      + (detail ? ': ' + detail : '.');
-    figure.append(message);
+  const requestsById = new Map(requests.map((request) => [String(request?.id || ''), request]));
+  const assetsByPath = new Map(assets.map((asset) => [String(asset?.path || ''), asset]));
+  if (requestsById.has('') || requestsById.size !== requests.length
+    || assetsByPath.has('') || assetsByPath.size !== assets.length) {
+    throw new Error('The PDF publication manifest contains blank or duplicate identities.');
   }
-  const caption = String(request?.caption || request?.label || '').trim();
-  if (caption) {
-    const figcaption = previewDocument.createElement('figcaption');
-    figcaption.textContent = caption;
-    figure.append(figcaption);
+  const groupsByPath = new Map(assets.map((asset) => [String(asset.path), { asset, coverage: [], requests: [] }]));
+  const coveredIds = new Set();
+  for (const item of coverage) {
+    const requestId = String(item?.requestId || '');
+    const assetPath = String(item?.assetPath || '');
+    const request = requestsById.get(requestId);
+    const group = groupsByPath.get(assetPath);
+    if (!request || !group || coveredIds.has(requestId)
+      || !['before-anchor', 'after-anchor', 'page-gallery', 'existing-page-image'].includes(String(item?.placement || ''))) {
+      throw new Error('The PDF publication manifest has invalid request coverage.');
+    }
+    coveredIds.add(requestId);
+    group.coverage.push(item);
+    group.requests.push(request);
   }
+  const groups = [...groupsByPath.values()];
+  if (coveredIds.size !== requests.length || groups.some((group) => group.coverage.length === 0)) {
+    throw new Error('The PDF publication manifest does not cover every request and asset exactly.');
+  }
+  return groups;
+}
 
+function decoratePublishedPdfFigure(figure, image, group) {
+  const requestIds = group.coverage.map((item) => String(item.requestId));
+  const request = group.requests[0] || {};
+  figure.classList.add('pandoc-pdf-form-figure', 'wp-block-image');
+  figure.dataset.pdfFormRequestIds = requestIds.join(' ');
+  if (requestIds.length === 1) figure.dataset.pdfFormRequest = requestIds[0];
+  if (Number.isInteger(request.object)) figure.dataset.pdfFormObject = String(request.object);
+  image.dataset.pandocPdfFormRendered = 'true';
+  image.decoding = 'async';
+  image.loading = group.coverage.every((item) => item.placement === 'page-gallery') ? 'lazy' : 'eager';
+  if (!image.alt) image.alt = String(request.alt || request.label || 'Published PDF preview image');
+  if (Number.isInteger(group.asset.width) && group.asset.width > 0) image.width = group.asset.width;
+  if (Number.isInteger(group.asset.height) && group.asset.height > 0) image.height = group.asset.height;
+}
+
+function existingPublishedPdfFigure(previewDocument, group) {
+  const expectedUrl = staticPreviewUrl(group.asset.path);
+  const image = Array.from(previewDocument.querySelectorAll('img[src]')).find((candidate) => {
+    try {
+      return new URL(candidate.src, window.location.href).href === expectedUrl;
+    } catch {
+      return false;
+    }
+  });
+  if (!image) throw new Error('The PDF publication manifest references a missing existing page image.');
+  let figure = image.closest('figure');
+  if (!figure) {
+    figure = previewDocument.createElement('figure');
+    const wrapper = image.parentElement;
+    if (wrapper && wrapper.childElementCount === 1 && wrapper.parentNode) {
+      wrapper.replaceWith(figure);
+    } else {
+      image.before(figure);
+    }
+    figure.append(image);
+  }
+  decoratePublishedPdfFigure(figure, image, group);
   return figure;
 }
 
-function injectStaticPdfFormFigures(previewDocument, requests, rendered) {
-  const requestsById = new Map(requests.map((request) => [String(request?.id || ''), request]));
+function publishedPdfTextAnchor(previewDocument, request, placement) {
+  const candidates = Array.from(previewDocument.body?.querySelectorAll('p, li, figcaption, h1, h2, h3, h4, h5, h6, pre, td, th') || []);
+  const text = placement === 'before-anchor'
+    ? normalizedPdfTextAnchor(request?.followingText || request?.anchorAfter)
+    : normalizedPdfTextAnchor(request?.precedingText || request?.anchorBefore);
+  const anchor = staticPdfUniqueTextAnchor(candidates, text);
+  return anchor ? { ...anchor, position: placement === 'before-anchor' ? 'before' : 'after' } : null;
+}
+
+function publishedPdfFigure(previewDocument, group) {
+  const figure = previewDocument.createElement('figure');
+  const image = previewDocument.createElement('img');
+  image.src = staticPreviewUrl(group.asset.path);
+  decoratePublishedPdfFigure(figure, image, group);
+  figure.append(image);
+  return figure;
+}
+
+function injectPublishedPdfFigures(previewDocument, groups) {
   const insertionPoints = new Map();
   const body = previewDocument.body || previewDocument.documentElement;
   let successful = 0;
-  let failed = 0;
-  rendered.forEach((item, ordinal) => {
-    const request = requestsById.get(String(item?.requestId || '')) || requests[ordinal] || {};
-    const figure = staticPdfFormFigure(previewDocument, request, item, ordinal);
-    const anchor = staticPdfTextAnchor(previewDocument, request);
+  for (const group of groups) {
+    const existing = group.coverage.every((item) => item.placement === 'existing-page-image');
+    if (existing) {
+      existingPublishedPdfFigure(previewDocument, group);
+      successful += 1;
+      continue;
+    }
+    const figure = publishedPdfFigure(previewDocument, group);
+    const placementItem = group.coverage.find((item) => item.placement === 'before-anchor')
+      || group.coverage.find((item) => item.placement === 'after-anchor');
+    const requestIndex = placementItem ? group.coverage.indexOf(placementItem) : -1;
+    const request = requestIndex >= 0 ? group.requests[requestIndex] : null;
+    const anchor = placementItem ? publishedPdfTextAnchor(previewDocument, request, placementItem.placement) : null;
     const insertionPoint = anchor?.position === 'after' ? insertionPoints.get(anchor.element) || anchor.element : null;
     if (anchor?.position === 'before' && anchor.element.parentNode) {
       anchor.element.before(figure);
@@ -6441,16 +6500,12 @@ function injectStaticPdfFormFigures(previewDocument, requests, rendered) {
       insertionPoint.after(figure);
       insertionPoints.set(anchor.element, figure);
     } else {
+      figure.classList.add('pandoc-pdf-page-gallery-item');
       body.append(figure);
     }
-    if (item?.bytes instanceof Uint8Array) {
-      successful += 1;
-    } else {
-      failed += 1;
-    }
-  });
-
-  return { successful, failed };
+    successful += 1;
+  }
+  return { successful, failed: 0 };
 }
 
 function addStaticPdfFormStyles(previewDocument) {
@@ -6459,46 +6514,8 @@ function addStaticPdfFormStyles(previewDocument) {
   }
   const style = previewDocument.createElement('style');
   style.id = 'pandoc-pdf-form-preview-styles';
-  style.textContent = '.pandoc-pdf-form-figure{margin:1.25em 0}.pandoc-pdf-form-figure img{display:block;max-width:100%;height:auto}.pandoc-pdf-form-figure figcaption{margin-top:.45em;color:#4b5563;font-size:.9em}.pandoc-pdf-form-placeholder{padding:1em;border:1px dashed #aeb9c7;color:#4b5563}.pandoc-pdf-form-placeholder p{margin:0}';
+  style.textContent = '.pandoc-pdf-form-figure{margin:1.25em 0}.pandoc-pdf-form-figure img{display:block;max-width:100%;height:auto}.pandoc-pdf-page-gallery-item{content-visibility:auto;contain-intrinsic-size:auto 800px}';
   (previewDocument.head || previewDocument.documentElement).append(style);
-}
-
-function staticPdfFormPlaceholderResults(requests, message) {
-  return requests.map((request) => ({
-    requestId: String(request?.id || ''),
-    error: message,
-  }));
-}
-
-function staticPdfResultsInManifestOrder(requests, rendered) {
-  const resultsById = new Map();
-  for (const item of rendered || []) {
-    const requestId = String(item?.requestId || '');
-    if (!resultsById.has(requestId)) resultsById.set(requestId, []);
-    resultsById.get(requestId).push(item);
-  }
-  return requests.map((request) => {
-    const requestId = String(request?.id || '');
-    const queue = resultsById.get(requestId) || [];
-    return queue.shift() || {
-      requestId,
-      error: 'This PDF figure/page image did not return a browser render result.',
-    };
-  });
-}
-
-function staticPdfFormRequestPlan(requests) {
-  const renderable = requests.slice(0, staticPdfPreviewMaxRequests);
-  const skipped = staticPdfFormPlaceholderResults(
-    requests.slice(staticPdfPreviewMaxRequests),
-    'This static preview renders at most ' + staticPdfPreviewMaxRequests + ' PDF figures/page images to keep browser memory bounded.',
-  );
-  return { renderable, skipped };
-}
-
-function staticPdfSourceIsTooLarge(example) {
-  const sourceBytes = Number(example?.sampleSize);
-  return Number.isFinite(sourceBytes) && sourceBytes > staticPdfPreviewMaxSourceBytes;
 }
 
 async function buildStaticPdfFormPreview(example, view, reportProgress, signal) {
@@ -6514,86 +6531,13 @@ async function buildStaticPdfFormPreview(example, view, reportProgress, signal) 
   } catch {
     throw new Error('The PDF visual/page-image manifest is not valid JSON.');
   }
-  const requests = Array.isArray(manifest?.requests) ? manifest.requests : [];
-  const samplePath = String(manifest?.samplePath || example.samplePath || '').trim();
-  if (requests.length === 0 || !samplePath) {
-    throw new Error('The PDF visual/page-image manifest has no renderable source.');
-  }
-
-  const plan = staticPdfFormRequestPlan(requests);
-  let rendered = plan.skipped;
-  if (staticPdfSourceIsTooLarge(example)) {
-    rendered = staticPdfFormPlaceholderResults(
-      requests,
-      'This PDF exceeds the static preview size limit; its visual/page image is shown as a placeholder.',
-    );
-  } else {
-    try {
-      reportProgress('Opening the original PDF for its figures/page images…');
-      const sourceBytes = await fetchStaticPdfSource(samplePath, manifestOutput.url, signal);
-      const renderedRequests = [];
-      let remainingPixels = staticPdfPreviewMaxTotalPixels;
-      let remainingImageBytes = staticPdfPreviewMaxImageBytes;
-      for (const group of pdfRenderRequestGroups(plan.renderable)) {
-        const pageRaster = group.method === pdfPageRasterMethod;
-        const filesByPath = staticPdfFilesByPath(group.requests, samplePath, sourceBytes);
-        const renderOptions = {
-          ...(pageRaster
-            ? {
-              source: pdfPageRasterSource(filesByPath, group.requests),
-              requests: group.requests.map(pdfPageRasterRequestForRenderer),
-            }
-            : { filesByPath, requests: group.requests }),
-          pdfjs: playgroundPdfJsConfig(),
-          maxPixels: staticPdfPreviewMaxPixels,
-          maxTotalPixels: remainingPixels,
-          maxTotalImageBytes: remainingImageBytes,
-          signal,
-          onProgress({ completed, total, label }) {
-            reportProgress(total > 0 ? label + ' (' + completed + ' of ' + total + ')' : label);
-          },
-        };
-        const groupResults = pageRaster
-          ? await renderPdfPageRasterRequests(renderOptions)
-          : await renderPdfFormRequests(renderOptions);
-        for (const renderedItem of groupResults) {
-          const item = pdfRenderedMediaItem(renderedItem);
-          renderedRequests.push(item);
-          if (!item.error && item.bytes instanceof Uint8Array) {
-            const pixels = Math.max(0, Number(item.width) || 0) * Math.max(0, Number(item.height) || 0);
-            remainingPixels = Math.max(0, remainingPixels - pixels);
-            remainingImageBytes = Math.max(0, remainingImageBytes - item.bytes.byteLength);
-          }
-          if (item.budgetExhausted === 'pixels') remainingPixels = 0;
-          if (item.budgetExhausted === 'image-bytes') remainingImageBytes = 0;
-        }
-      }
-      throwIfStaticPdfPreviewAborted(signal);
-      rendered = staticPdfResultsInManifestOrder(
-        requests,
-        [...renderedRequests, ...plan.skipped],
-      );
-    } catch (error) {
-      if (signal?.aborted) {
-        throw staticPdfPreviewAbortError(signal);
-      }
-      if (!staticPdfSourceLimitExceeded(error)) {
-        throw error;
-      }
-      rendered = staticPdfFormPlaceholderResults(
-        requests,
-        'This PDF exceeds the static preview size limit; its visual/page image is shown as a placeholder.',
-      );
-    }
-  }
   throwIfStaticPdfPreviewAborted(signal);
+  reportProgress('Loading published PDF preview assets…');
+  const groups = publishedPdfPreviewGroups(manifest);
   const previewDocument = new DOMParser().parseFromString(staticOutput.text, 'text/html');
   rewriteStaticPreviewMediaUrls(previewDocument, staticOutput.url);
   addStaticPdfFormStyles(previewDocument);
-  const counts = injectStaticPdfFormFigures(previewDocument, requests, rendered);
-  if (counts.successful === 0 && counts.failed === 0) {
-    throw new Error('The PDF renderer returned no figure/page-image results.');
-  }
+  const counts = injectPublishedPdfFigures(previewDocument, groups);
 
   return {
     html: '<!doctype html>\n' + previewDocument.documentElement.outerHTML,
@@ -6671,8 +6615,7 @@ async function loadStaticPdfFormPreview(example, view, viewName, token) {
     }
     frame.dataset.previewMode = 'pdf-forms';
     frame.dataset.previewStatus = 'Loaded ' + example.label + ' with ' + preview.successful
-      + ' PDF figure/page image' + (preview.successful === 1 ? '' : 's')
-      + (preview.failed > 0 ? '; ' + preview.failed + ' figure/page-image placeholder' + (preview.failed === 1 ? ' is' : 's are') + ' shown.' : '.');
+      + ' published PDF preview image' + (preview.successful === 1 ? '' : 's') + '.';
     frame.removeAttribute('src');
     frame.srcdoc = preview.html;
   } catch (error) {
@@ -8506,6 +8449,12 @@ foreach ($samples as $sample) {
     $record['importQuality'] = showcase_record_import_quality($siteDir, $record);
     $records[] = $record;
 }
+
+// Static Pages must ship visual PDF coverage as ordinary same-origin image
+// files. Build these once after every request plan exists, then refresh the
+// manifest byte counts before serializing the public catalogue.
+showcase_publish_pdf_preview_assets($siteDir);
+$records = showcase_refresh_pdf_render_plan_records($records, $siteDir);
 
 $coveredFormats = array_values(array_unique(array_map(fn (array $record): string => $record['format'], $records)));
 sort($coveredFormats);

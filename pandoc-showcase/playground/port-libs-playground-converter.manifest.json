@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "archive": "port-libs-playground-converter.zip",
-    "archiveBytes": 8255591,
-    "archiveSha256": "ab2c74ad93a4e7a1e73f3c5737eaab25b2b3042a44163142eaa867248165ae8c",
+    "archiveBytes": 8308657,
+    "archiveSha256": "32ce23e3e3ebc91a344cd75ac4a90974f815120b5a4a3c8a5badbb8a315bbf8b",
     "entries": {
         "port-libs-playground-converter/assets/admin-importer.css": {
             "bytes": 1336,
             "sha256": "dfc2168890ebeedf285ea2a9fcf23eaada455668da3020da75bac72118d4455a"
         },
         "port-libs-playground-converter/assets/admin-importer.js": {
-            "bytes": 37257,
-            "sha256": "b991a7f9ab1e827c68d1a4e0fbed03275ab6272399e46a5dad53547127813998"
+            "bytes": 47388,
+            "sha256": "c26c15c8b85de80f0def925c7ae46a2226b0901f14af76e3176fa3d5988519b0"
         },
         "port-libs-playground-converter/assets/pdf-jbig2-rasterizer.js": {
             "bytes": 16482,
@@ -25,8 +25,8 @@
             "sha256": "d1082fb821dffaf54abd092931cc25d6349d2107836d5317c5ffee76dd2b3ef3"
         },
         "port-libs-playground-converter/assets/pdfjs-form-rasterizer.js": {
-            "bytes": 15589,
-            "sha256": "c68b8fd4553ad415bfc94b5d9655304c26ce52451d5ce9916193aeb44f7798ac"
+            "bytes": 39927,
+            "sha256": "eab2f21d3db08667abecee33ddbac11fada52a0c9becd67ec1b23367ee60cdec"
         },
         "port-libs-playground-converter/assets/vendor/pdfjs-jbig2/LICENSE_JBIG2": {
             "bytes": 12862,
@@ -752,10 +752,6 @@
             "bytes": 179,
             "sha256": "543923bead225732aba30976690ee89095a19628277b5863efecc2c728d5d7bf"
         },
-        "port-libs-playground-converter/assets/vendor/pdfjs/image_decoders/pdf.image_decoders.js": {
-            "bytes": 166667,
-            "sha256": "0911d27b869f67040f132dfc32fcfe12d285ee21c459b91da1e3bffd619964a2"
-        },
         "port-libs-playground-converter/assets/vendor/pdfjs/image_decoders/pdf.image_decoders.min.js": {
             "bytes": 61539,
             "sha256": "712c5d7bbce13e14dc054da7bf144f4c002c2112b316762a5b38e1ba23423c6f"
@@ -1053,8 +1049,8 @@
             "sha256": "cfb0aff78463e3f271d8418c03253ec8af5bdb000a61a717f1d3f11e6f7e4ea7"
         },
         "port-libs-playground-converter/lanes/markerpdf/src/PdfDocumentFactsMerger.php": {
-            "bytes": 4748,
-            "sha256": "3416a47f5034ec868753115dc50ba3ce12d60352660f61f47aafa01449cb3a0d"
+            "bytes": 14868,
+            "sha256": "f936418166e55240fdc7d57ff6aff3e9fa800bde5d59aa2397e144e19b0d66d2"
         },
         "port-libs-playground-converter/lanes/markerpdf/src/PdfDocumentLayoutProfile.php": {
             "bytes": 13879,
@@ -1129,8 +1125,8 @@
             "sha256": "81b00348822d7c657d5278b0f01cf2c5142f719db2a976c1aa4973af02fc102c"
         },
         "port-libs-playground-converter/lanes/markerpdf/src/PdfTextExtractor.php": {
-            "bytes": 530764,
-            "sha256": "c38142e5a235b7fffbcf74660b84b55d4f79e40c7cb312b3da8451f9a3d65a9e"
+            "bytes": 771972,
+            "sha256": "289f6357c1a0a6dc63470a0d4713ceca36c67a265dce36dd871c9a80ceedebe5"
         },
         "port-libs-playground-converter/lanes/markerpdf/src/PdfXrefFreeObjectMap.php": {
             "bytes": 46407,
@@ -2048,6 +2044,10 @@
             "bytes": 98375,
             "sha256": "fd8f2cc365b78dbf776da09e033a19f29142080f2b48974c33f0abed8fa1720f"
         },
+        "port-libs-playground-converter/lanes/pandoc/src/DelimitedTextUpstreamReaderEvidence.php": {
+            "bytes": 238870,
+            "sha256": "299d5ee81e6db7f753b1833c461f6bba7d9e04ae2693c27c817dddd193f71bff"
+        },
         "port-libs-playground-converter/lanes/pandoc/src/DocBookReader.php": {
             "bytes": 65468,
             "sha256": "133590b0001483463e4de72f053effd2292909b3252d2f42d483f2b24e79ea96"
@@ -2063,10 +2063,6 @@
         "port-libs-playground-converter/lanes/pandoc/src/DocxReader.php": {
             "bytes": 194522,
             "sha256": "680ad7dfbd2e7968cbb462b52423fe48ba17f979ee070ca915bcea26649d23ab"
-        },
-        "port-libs-playground-converter/lanes/pandoc/src/DocxWriter.php": {
-            "bytes": 120840,
-            "sha256": "57334e324ae79ef4893abab476cfd25663b341ba5467fb29c94f3f12d5ddd2b6"
         },
         "port-libs-playground-converter/lanes/pandoc/src/DokuWikiReader.php": {
             "bytes": 10932,
@@ -2100,10 +2096,6 @@
             "bytes": 104369,
             "sha256": "77058b18236b5c0dcf7b7fe4f87216fde05884c1dc7446b57725184de6268ad0"
         },
-        "port-libs-playground-converter/lanes/pandoc/src/EpubWriter.php": {
-            "bytes": 44150,
-            "sha256": "584de7dc281e876564c4b31c64c1ebccb0188e5b2f63bb27f5ccc7df1040bf5d"
-        },
         "port-libs-playground-converter/lanes/pandoc/src/EpubZipArchive.php": {
             "bytes": 6546,
             "sha256": "2ef53facc6865d0b2ee1511c5047b39f83fd471c6593a840a2f78c3a32a712cc"
@@ -2136,10 +2128,6 @@
             "bytes": 17583,
             "sha256": "6909e92d1ddceccad22524506d002c1f39262717c53f7cfe96a53147068d17ee"
         },
-        "port-libs-playground-converter/lanes/pandoc/src/HtmlWriter.php": {
-            "bytes": 54612,
-            "sha256": "d50330c1d610067f87d93eda037f27a216c4d87fe82ce92dad11d45e96d480f1"
-        },
         "port-libs-playground-converter/lanes/pandoc/src/IpynbReader.php": {
             "bytes": 60077,
             "sha256": "e8564594e147285666341ebcd896bcb3692d7daf02292cebbacaa297c8cd0c6d"
@@ -2155,10 +2143,6 @@
         "port-libs-playground-converter/lanes/pandoc/src/JsonReader.php": {
             "bytes": 29020,
             "sha256": "acafda81c2dec28c53eecc8bedd522e46e53299c3e2ff46fd942d20a23ebf16a"
-        },
-        "port-libs-playground-converter/lanes/pandoc/src/JsonWriter.php": {
-            "bytes": 24434,
-            "sha256": "3af95ff497c66a4629180b5656cbdd94c11e0923b9aaf589fb41fa396082b701"
         },
         "port-libs-playground-converter/lanes/pandoc/src/LatexReader.php": {
             "bytes": 97452,
@@ -2216,10 +2200,6 @@
             "bytes": 61118,
             "sha256": "a3fd51d760693c5e6560c3629fccd95942483a7fdfae7f0761c3bfafd7b6c542"
         },
-        "port-libs-playground-converter/lanes/pandoc/src/NativeWriter.php": {
-            "bytes": 53458,
-            "sha256": "c6978fc7eb69d138683d67f63160e7509d00b5e17da2b103df26620d110a2a53"
-        },
         "port-libs-playground-converter/lanes/pandoc/src/OdfPackageCrc32Inventory.php": {
             "bytes": 4998,
             "sha256": "26d50ef55984f73edf33c411b68bcf1ef7587a1be5e1d4ceda65d17a66c9320e"
@@ -2276,13 +2256,9 @@
             "bytes": 8091,
             "sha256": "4a93ba7faa9f79d5e4bbc35c381c856e6b654bb5557b01b0c4bd740360508a4e"
         },
-        "port-libs-playground-converter/lanes/pandoc/src/OpmlWriter.php": {
-            "bytes": 6616,
-            "sha256": "0e6325ddc3d45bada31325056549584b7d087d4550a5476719fa850fd4e6d2fd"
-        },
         "port-libs-playground-converter/lanes/pandoc/src/PandocConverter.php": {
-            "bytes": 17317,
-            "sha256": "22f529870521eb030218d49143a4fe62c73c993ebdefffcfe9128f275eed8101"
+            "bytes": 21249,
+            "sha256": "4befbe28fbd1d6c7b4ea203d04d972dc449c5d390d2e5378da73dfc80ab2b1b1"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PandocFormatRegistry.php": {
             "bytes": 49455,
@@ -2304,13 +2280,9 @@
             "bytes": 64927,
             "sha256": "d6f57a76908edfd1cd20004f971e6b543a3aa1a132701be1d0fe06633b11a21b"
         },
-        "port-libs-playground-converter/lanes/pandoc/src/PandocJsonWriter.php": {
-            "bytes": 67746,
-            "sha256": "db13979bc214591a30fb4240ac1e8b94c752206d1c8ef2f72db23f692d81a595"
-        },
         "port-libs-playground-converter/lanes/pandoc/src/PandocMediaExtractor.php": {
-            "bytes": 31568,
-            "sha256": "33d2a1717fd6f0bab395e6c73cac327248c290124bcf6506383515d74cdd065a"
+            "bytes": 134203,
+            "sha256": "5891a16be2f6e806d826ede49122635c77b9116040c42639bd193d8f94d41ec2"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PandocTemplate.php": {
             "bytes": 14876,
@@ -2320,57 +2292,133 @@
             "bytes": 645,
             "sha256": "2c41fa14820240876a9fa401c6bbe4202bbf9250df17ece2327b6278a1260126"
         },
-        "port-libs-playground-converter/lanes/pandoc/src/PdfEngineHandoff.php": {
-            "bytes": 1118525,
-            "sha256": "09f00642b44f22a1e7a59a9c21a525b608aa93523bd79d389faf2154c58a57a1"
+        "port-libs-playground-converter/lanes/pandoc/src/PdfClippedDisplayMediaAnchorProofBuilder.php": {
+            "bytes": 15383,
+            "sha256": "a9977259a8bd4f20d04eb346359fa8d4aeb0372825a24ee523f08e90cba1fc50"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfExactFormRowTailRepair.php": {
+            "bytes": 34614,
+            "sha256": "2e906999aa0dda550439a2e70172a1e2ddb48e76460e0c5f0bada1304e76002e"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfFacingFolioChoiceMatrixRepair.php": {
+            "bytes": 34697,
+            "sha256": "ff3ee2c91d945a6efbf2251170901402a3259b57c04ae0ea72e2e369f130224a"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfFormulaSemanticProcessor.php": {
-            "bytes": 6318,
-            "sha256": "14c6a0bc0591f5532ebb8821ae1c2bb006b9539f233e7a854f0cf41c351305ba"
+            "bytes": 19029,
+            "sha256": "28de419025d99d79825551d51ed505abb2fc44d69c5970f8427ce0a00e70880f"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfFrontMatterSemanticProcessor.php": {
-            "bytes": 7551,
-            "sha256": "e3920ad83649d5141b08710e31fc224cc6576d5e33ea7ae3d68adb322922b080"
+            "bytes": 9571,
+            "sha256": "5b3e3be49cd2bd653cbbedb33f3af76a3b03171cc7f0a56f0cafa91a02ade13d"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfImagePlacementAnchorer.php": {
+            "bytes": 12483,
+            "sha256": "596e7ec894f6cc20840f2ff7b9c368be8434c0e8a107061e5e357cf9de0623e4"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfInlineMarkerSemanticProcessor.php": {
-            "bytes": 3790,
-            "sha256": "b2c7e50b03df3d65d6af9808b32eaa95ad48c1d5ec43328b1fb570870286f073"
+            "bytes": 18218,
+            "sha256": "144411c86bc7d6fb7db11557c27c34e9e2a07fe3f0dae3072dbefee2a7e9d4a3"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfLanguageDirectionDecorator.php": {
+            "bytes": 2918,
+            "sha256": "2355811578cda5895d2cc4c64ab800b1077bb06f42f553dd13a873bc28170ca2"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfLaterPaintVisibilityReconciler.php": {
+            "bytes": 32388,
+            "sha256": "90f2f72dbdfe10459f5630b10e7b1cba269ab95cca050fee4e76897bd5f86ebb"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfMisorderedDiacriticBoundaryRepair.php": {
+            "bytes": 10456,
+            "sha256": "afa94846525e983a4fb77e6518d329def4f80a171d7f67ad896f39c9cc30ba91"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfNestedCautionCalloutRepair.php": {
+            "bytes": 19166,
+            "sha256": "62fde9071b9f6ddb9d356795e33dd5b09d6e3076103702becd0cb8ecc4065567"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfRawCompleteVisibilityReconciliation.php": {
+            "bytes": 683,
+            "sha256": "38610f4dbee02fd71976331464ad37de9c11f4507a46a379b004783ba50c9134"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfReader.php": {
-            "bytes": 615377,
-            "sha256": "4f6c317160521a7445463a5504c758f7aafa6561434201a819fa60be43eb0a5c"
+            "bytes": 1446001,
+            "sha256": "8a046ef4167170db6fb9c7dfe89a8b8d5871c94e9cd86e7e248b4466d48e3fda"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfSemanticChunkReconciler.php": {
-            "bytes": 14066,
-            "sha256": "d720aa05e5acd1139215bd6d9badc9bb572f34c22b0b1ac01c8f4f5d8a81c8f6"
+            "bytes": 34063,
+            "sha256": "c2fce48c9123360aaf22574603557904636872a180af13bda3c34466d8230735"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfSemanticRecordPipeline.php": {
-            "bytes": 2520,
-            "sha256": "04f1c71dfc207501e0e54ff044a60880306ce43abb4a4f0897ad2e865fe4110f"
+            "bytes": 3901,
+            "sha256": "a56edd920ebde9143dc4e4d7d2230f2f66509d6336fe3a0377bfc08b5b1c8a92"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfSemanticRecordProcessor.php": {
             "bytes": 180,
             "sha256": "4add671020b9489b047b757f795f03d3aae019b02099ee55995af45a037e7f90"
         },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSourceBindingValidator.php": {
+            "bytes": 29553,
+            "sha256": "04e80fa815bc642f0c6bf06bea8298cdc2acedffdbad62486f77074ec2544bb5"
+        },
         "port-libs-playground-converter/lanes/pandoc/src/PdfSourceDispositionLedger.php": {
-            "bytes": 11441,
-            "sha256": "8bbfd736e57acc0a9e5c73b77c4e74ce56f957184dabf22f1481c608b95d12d0"
+            "bytes": 21126,
+            "sha256": "fcd6d332eac399554e67277dff5a2908c945c5f79b3a49dcdec0e847ca76e58d"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSourceEdgeLedger.php": {
+            "bytes": 3793,
+            "sha256": "7266743252ef8e241a3ee40618c9a7f6755698eebf477498821ab950c345b0e3"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSourceOccurrenceLedger.php": {
+            "bytes": 22682,
+            "sha256": "e7c4f2852b11c766a575df74cf090f0c9b1a245ec13d822c7a75d2ae7398eb81"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSourceOrderProofLedger.php": {
+            "bytes": 17685,
+            "sha256": "ed2b90de8bcfe8c91c0a8a1a0192188eadb4569a16111cf0fb92e76afe84dfb8"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSourceOutputDecorator.php": {
+            "bytes": 15079,
+            "sha256": "47e4e2c105f7ba8bd37933eac4c1bfe947b58e87cc7748624820f5adb8ea1ace"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSourceProjectionBinding.php": {
+            "bytes": 19463,
+            "sha256": "86ec9752eb3885d85395a798702a944b7244b623e5ae42bce010241179d1abd0"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSourceSemanticBindingValidator.php": {
+            "bytes": 7021,
+            "sha256": "a5fa05fc1e99732114b448d5f3ef530ebab66317f917093814a15839162e4590"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSourceSemanticReceiptBindingValidator.php": {
+            "bytes": 31608,
+            "sha256": "da459750a3155b09ee9895e5fed46181009c055f43daee7534f5a04602ab803c"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSourceSemanticStructureFacts.php": {
+            "bytes": 13138,
+            "sha256": "35c2b698ee5b40edd6ba568f19a3801728c7eb69c39dcba4bad3e6bb3880616d"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSourceSemanticStructureMapping.php": {
+            "bytes": 7214,
+            "sha256": "954bae60aa333a4fa0d733950c01f896d0a50d6ce08d8563fb96e025df01d3d4"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSourceSemanticStructurePlan.php": {
+            "bytes": 5196,
+            "sha256": "178389476cf4c717739ac7f04f5fe5451c7fb51a8871b69bcb8cd86a663fc031"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfSourceTokenInterleavingValidator.php": {
+            "bytes": 2830,
+            "sha256": "e58786f9296ef5b14c71dcc1641b9ad7d77631128083e0e73f976a7b3faf3204"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/PdfTaggedStructureImporter.php": {
+            "bytes": 20650,
+            "sha256": "e521e7e1ccfa5bdb5cbb8f90d481626c5afd1d272dcb66963aa23debf37b4f5e"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PdfTextFidelityLedger.php": {
-            "bytes": 8173,
-            "sha256": "78454c3a69a11577405170b2b284ec09d6461a42a157510521e044a2d476a589"
-        },
-        "port-libs-playground-converter/lanes/pandoc/src/PlainWriter.php": {
-            "bytes": 25367,
-            "sha256": "a947088f52308e6284bd75087c64992e7a0f761d5529bad0b4943ea8eb2a5b97"
+            "bytes": 14309,
+            "sha256": "ca5fb6be2c49b63c502b6b3b5e45486c5f47861e8aad2a657c856f2024f3eae5"
         },
         "port-libs-playground-converter/lanes/pandoc/src/PptxReader.php": {
             "bytes": 167761,
             "sha256": "34c3474ed3fbb3df7af06ec96b1f85a02480fa284cee788174c00f27c6c3794d"
-        },
-        "port-libs-playground-converter/lanes/pandoc/src/PptxWriter.php": {
-            "bytes": 101725,
-            "sha256": "ae7d7f41b03d54b6d14a1e495ebe273183e3a1b0aef30f42caa2bdfdabbe0b13"
         },
         "port-libs-playground-converter/lanes/pandoc/src/RichPackageUnsupportedFormatRegistry.php": {
             "bytes": 21387,
@@ -2432,9 +2480,65 @@
             "bytes": 10245,
             "sha256": "e9fa40eeb472db2c8fa1982802c2957ff18b82aaf24a21749491b2b9d4eea847"
         },
+        "port-libs-playground-converter/lanes/pandoc/src/WordPressAdvancedTableRenderer.php": {
+            "bytes": 38842,
+            "sha256": "5cb9f24b36e8e7f981ce444c72be6dfce6cde3c33091791c52fde219022253e3"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/WordPressBlockAttributeRenderer.php": {
+            "bytes": 6676,
+            "sha256": "e8b9bd32e207d69d1d98bf74af389c9305fa41c2f6c4d4ae522d16f677d91115"
+        },
         "port-libs-playground-converter/lanes/pandoc/src/WordPressBlockWriter.php": {
-            "bytes": 138264,
-            "sha256": "b6be63eae17518a65e48e274a6b010a66333810f57c7d1adc780a197b44db401"
+            "bytes": 7746,
+            "sha256": "34900c91ed49e8abd658138d8e51ccc73b3c32849cf4494ab883c6d593651b28"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/WordPressCodeBlockRenderer.php": {
+            "bytes": 6542,
+            "sha256": "dbc8569be7cfdad0534eee0735e8f899d76959e41d73951e7c390e532d8ee2e9"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/WordPressDefinitionListRenderer.php": {
+            "bytes": 3942,
+            "sha256": "d740a6c1a671758c983b2ab592bc01302bf6fe0f2432e4dc09d6e26fec386a47"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/WordPressExtendedNodeRenderer.php": {
+            "bytes": 41379,
+            "sha256": "9bd6647738eaaa14c61b9d0fb75b4a296e6928e9f3fe06d99bc371aaf306c3c6"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/WordPressFootnoteRenderer.php": {
+            "bytes": 3290,
+            "sha256": "b643d0954409a49be1aad7ba3fd1fae25f8047e9666f1b49f2d30a63465e8a16"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/WordPressInlineRenderer.php": {
+            "bytes": 17858,
+            "sha256": "e653e4f364f4abaf0257d29621a380501340bc6f5baa564bd9b64b04e1638898"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/WordPressListRenderer.php": {
+            "bytes": 7637,
+            "sha256": "fb6b9c8c041d4cb60240a6f5f8453d3bb4b69992821db51b0750dcffdba85dfc"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/WordPressNestedBlockRenderer.php": {
+            "bytes": 11840,
+            "sha256": "0d65fa4afba2311187f56aa05c02321bca72bf22dbfbc3f26bedb4000319051d"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/WordPressPptxChartRenderer.php": {
+            "bytes": 3539,
+            "sha256": "d70cffdb5e7f8b4515c931fc30d92622e197c48406dc9b3e00f4b7d272b008cc"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/WordPressTableRenderer.php": {
+            "bytes": 4353,
+            "sha256": "9eb50f7a75251987069cced8faea1e8043538b9e741b4999838e4995940eb3f6"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/WordPressTopLevelBlockRenderer.php": {
+            "bytes": 2742,
+            "sha256": "3d06ccb4c4804df52d567fedda12b23189c5360698c0747232d79f2bc83b8a32"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/WordPressTopLevelCoreNodeRenderer.php": {
+            "bytes": 2824,
+            "sha256": "f30a4075dac85c46048dbb1df9d843ee4a5c232817ceaa2f596647b945821e97"
+        },
+        "port-libs-playground-converter/lanes/pandoc/src/WordPressTopLevelSpecialNodeRenderer.php": {
+            "bytes": 1007,
+            "sha256": "5b5dce0a27748dcf23f1704c004b3700f401590824490337d246f01655b1294e"
         },
         "port-libs-playground-converter/lanes/pandoc/src/XlsxReader.php": {
             "bytes": 152992,
@@ -2473,8 +2577,8 @@
             "sha256": "838d57ba51cb73c4e3322a3e0757ba79111373a42b138ca3b1b53d7750c923f2"
         },
         "port-libs-playground-converter/port-libs-playground-converter.php": {
-            "bytes": 314224,
-            "sha256": "1ef5e015f99adb279f9e1afadccf1f855f17a0b8abb60985f556093aa46f1887"
+            "bytes": 357035,
+            "sha256": "7d8bccfbbb4cf6c57180851f7520cb8c72412e7a4efdcfe7bcd79f7d226235c9"
         }
     }
 }

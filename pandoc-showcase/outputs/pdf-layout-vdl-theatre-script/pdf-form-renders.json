@@ -26,5 +26,25 @@
             "precedingText": null,
             "followingText": "Script formatting example p.1"
         }
+    ],
+    "prerenderVersion": 1,
+    "prerenderRendererSchema": "port-libs-pdfjs-static-preview-v1",
+    "prerenderedSourceDigest": "712b41958ce594e93b248606b481db8577179140e65fd7f8d33ef16a3569fe01",
+    "prerenderedAssets": [
+        {
+            "path": "outputs/pdf-layout-vdl-theatre-script/pdf-preview-59f2f105e32c28490521601f.png",
+            "mimeType": "image/png",
+            "byteLength": 171136,
+            "width": 1191,
+            "height": 1684,
+            "sha256": "b3b3ca1f2751b0d46ccae8647b44e87f9950b7fabb229f65b1c7f0a4a555fb61"
+        }
+    ],
+    "prerenderedRequestCoverage": [
+        {
+            "requestId": "pdf-page-raster-f15d3954327dd8d78c5d261b164a82da",
+            "assetPath": "outputs/pdf-layout-vdl-theatre-script/pdf-preview-59f2f105e32c28490521601f.png",
+            "placement": "before-anchor"
+        }
     ]
 }

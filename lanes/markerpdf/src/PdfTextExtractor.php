@@ -232,6 +232,9 @@ final class PdfTextExtractor
     /** @var array<string, array<string, int>> */
     private array $outsidePageBoxTextCountsCache = [];
 
+    /** @var array<string, array<int, array<int, array<string, mixed>>>> */
+    private array $logicalOverflowTextSegmentProofsCache = [];
+
     /** @var array<string, list<array<string, mixed>>> */
     private array $streamContextsCache = [];
 
@@ -6590,6 +6593,557 @@ final class PdfTextExtractor
         }
 
         $outsideCounts[$text]--;
+        return true;
+    }
+
+    /**
+     * Keep the visual inventory clipped to the page box while preserving a
+     * narrowly proven logical line suffix. Some producer-generated notice
+     * pages paint a line through the right edge and resume it on the next
+     * baseline. The overflow is useful source text, but it must not become a
+     * visible positioned run merely because its neighbours are visible.
+     *
+     * A recoverable suffix must be the terminal, source-contiguous part of a
+     * partially visible text-show operation. Its preceding segment must cross
+     * the page edge, every suffix segment must retain the same font, baseline,
+     * axis, and stream, and the immediately following operation must prove a
+     * normal same-font line continuation back inside the page. The character,
+     * segment, and geometric excursion limits keep this repair bounded.
+     *
+     * @param array<string, array{map:array<string,string>,codeSpaceRanges:list<array{start:int,end:int,width:int}>}> $fontToUnicodeMaps
+     * @param array<string, array{base:string,differences:array<int,string>,suppressUnmapped:bool}> $fontEncodings
+     * @param array<string,string> $propertyActualTexts
+     * @param array<int,string> $mcidActualTexts
+     * @param array<string,int> $propertyMcids
+     * @param array<string,array<string,mixed>> $extGStates
+     * @param array<string,bool|null> $optionalContentStates
+     * @param array{x1:float,y1:float,x2:float,y2:float}|null $pageVisibleBox
+     * @param list<array{start:int,end:int,stream:int}> $sourceStreamRanges
+     * @return array<int, array<int, array<string, mixed>>>
+     */
+    private function logicalOverflowTextSegmentProofs(
+        string $stream,
+        array $fontToUnicodeMaps,
+        array $fontEncodings,
+        array $propertyActualTexts,
+        array $mcidActualTexts,
+        array $propertyMcids,
+        array $extGStates,
+        array $optionalContentStates,
+        ?array $pageVisibleBox,
+        array $sourceStreamRanges
+    ): array {
+        if ($pageVisibleBox === null) {
+            return [];
+        }
+
+        $cacheContext = hash_init('sha256');
+        hash_update($cacheContext, $stream);
+        hash_update($cacheContext, "\0" . serialize([
+            $fontToUnicodeMaps,
+            $fontEncodings,
+            $propertyActualTexts,
+            $mcidActualTexts,
+            $propertyMcids,
+            $extGStates,
+            $optionalContentStates,
+            $pageVisibleBox,
+            $this->maxPositionedTextRuns(),
+            $sourceStreamRanges,
+        ]));
+        $cacheKey = hash_final($cacheContext);
+        if (array_key_exists($cacheKey, $this->logicalOverflowTextSegmentProofsCache)) {
+            return $this->logicalOverflowTextSegmentProofsCache[$cacheKey];
+        }
+
+        $positionedRuns = $this->positionedTextRunsFromContentStream(
+            $stream,
+            $fontToUnicodeMaps,
+            $fontEncodings,
+            $propertyActualTexts,
+            $mcidActualTexts,
+            $propertyMcids,
+            $this->maxPositionedTextRuns(),
+            $extGStates,
+            $optionalContentStates,
+            null,
+            $sourceStreamRanges,
+            true
+        );
+        $runsByOperation = [];
+        foreach ($positionedRuns as $run) {
+            $operation = $run['visibilityOperation'] ?? null;
+            if (!is_int($operation)) {
+                continue;
+            }
+            $run['logicalOverflowSegmentIndex'] = count($runsByOperation[$operation] ?? []);
+            $runsByOperation[$operation][] = $run;
+        }
+        if (count($runsByOperation) < 2) {
+            $this->logicalOverflowTextSegmentProofsCache[$cacheKey] = [];
+            return [];
+        }
+
+        ksort($runsByOperation, SORT_NUMERIC);
+        $operationRuns = array_values($runsByOperation);
+        $proofs = [];
+        for ($index = 0, $count = count($operationRuns) - 1; $index < $count; $index++) {
+            foreach ($this->logicalOverflowTextSuffixProofs(
+                $operationRuns[$index],
+                $operationRuns[$index + 1],
+                $pageVisibleBox
+            ) as $segmentProof) {
+                $operation = $segmentProof['operation'];
+                $segmentIndex = $segmentProof['segmentIndex'];
+                unset($segmentProof['operation'], $segmentProof['segmentIndex']);
+                $proofs[$operation][$segmentIndex] = $segmentProof;
+            }
+        }
+
+        $this->logicalOverflowTextSegmentProofsCache[$cacheKey] = $proofs;
+        return $proofs;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $runs
+     * @param list<array<string,mixed>> $nextRuns
+     * @param array{x1:float,y1:float,x2:float,y2:float} $pageVisibleBox
+     * @return list<array<string,mixed>>
+     */
+    private function logicalOverflowTextSuffixProofs(
+        array $runs,
+        array $nextRuns,
+        array $pageVisibleBox
+    ): array {
+        if (count($runs) < 2 || $nextRuns === []) {
+            return [];
+        }
+
+        $statuses = array_map(
+            fn (array $run): ?bool => $this->logicalOverflowTextRunPageBoxStatus($run, $pageVisibleBox),
+            $runs
+        );
+        $firstOutside = array_search(false, $statuses, true);
+        if (!is_int($firstOutside) || $firstOutside <= 0) {
+            return [];
+        }
+        for ($index = 0; $index < $firstOutside; $index++) {
+            if ($statuses[$index] !== true) {
+                return [];
+            }
+        }
+        for ($index = $firstOutside, $count = count($runs); $index < $count; $index++) {
+            if ($statuses[$index] !== false) {
+                return [];
+            }
+        }
+
+        $suffixCount = count($runs) - $firstOutside;
+        if ($suffixCount <= 0 || $suffixCount > 16) {
+            return [];
+        }
+        $suffixTextBytes = 0;
+        for ($index = $firstOutside, $count = count($runs); $index < $count; $index++) {
+            $text = $runs[$index]['text'] ?? null;
+            if (!is_string($text) || $text === '') {
+                return [];
+            }
+            $suffixTextBytes += strlen($text);
+        }
+        if ($suffixTextBytes > 192) {
+            return [];
+        }
+
+        $anchor = $runs[$firstOutside - 1];
+        if (!$this->logicalOverflowTextRunCrossesHorizontalPageExit($anchor, $pageVisibleBox)
+            || !$this->logicalOverflowTextRunsShareLineGeometry(
+                array_slice($runs, $firstOutside - 1),
+                $anchor
+            )
+            || !$this->logicalOverflowTextRunsAreContiguous(
+                array_slice($runs, $firstOutside - 1),
+                $anchor
+            )
+            || !$this->logicalOverflowTextSuffixExcursionIsBounded(
+                array_slice($runs, $firstOutside),
+                $anchor,
+                $pageVisibleBox
+            )
+            || !$this->logicalOverflowTextNextOperationContinuesLine(
+                $anchor,
+                $nextRuns,
+                $pageVisibleBox
+            )) {
+            return [];
+        }
+
+        $operation = $anchor['visibilityOperation'] ?? null;
+        if (!is_int($operation)) {
+            return [];
+        }
+
+        $proofs = [];
+        for ($index = $firstOutside, $count = count($runs); $index < $count; $index++) {
+            $run = $runs[$index];
+            $segmentIndex = $run['logicalOverflowSegmentIndex'] ?? null;
+            if (!is_int($segmentIndex)) {
+                return [];
+            }
+            $proofs[] = [
+                'operation' => $operation,
+                'segmentIndex' => $segmentIndex,
+                'text' => $run['text'],
+                'textX1' => $run['textX1'],
+                'textY1' => $run['textY1'],
+                'textX2' => $run['textX2'],
+                'textY2' => $run['textY2'],
+                'fontSize' => $run['fontSize'],
+                'fontResource' => is_string($run['visibilityFontResource'] ?? null)
+                    ? $run['visibilityFontResource']
+                    : null,
+                'wordBoundaryBefore' => (bool) ($run['wordBoundaryBefore'] ?? false),
+                'stream' => is_int($run['stream'] ?? null) ? $run['stream'] : null,
+            ];
+        }
+
+        return $proofs;
+    }
+
+    /**
+     * @param array<string,mixed> $run
+     * @param array{x1:float,y1:float,x2:float,y2:float} $pageVisibleBox
+     */
+    private function logicalOverflowTextRunPageBoxStatus(array $run, array $pageVisibleBox): ?bool
+    {
+        if (($run['visibilityInkKnown'] ?? false) !== true) {
+            return null;
+        }
+        $box = $run['visibilityBox'] ?? null;
+        if (!$this->logicalOverflowTextBoxIsFinite($box)) {
+            return null;
+        }
+
+        return $this->visibilityRectanglesIntersect($box, $pageVisibleBox);
+    }
+
+    /**
+     * @param array<string,mixed> $run
+     * @param array{x1:float,y1:float,x2:float,y2:float} $pageVisibleBox
+     */
+    private function logicalOverflowTextRunCrossesHorizontalPageExit(
+        array $run,
+        array $pageVisibleBox
+    ): bool {
+        $box = $run['visibilityBox'] ?? null;
+        $direction = $this->logicalOverflowTextHorizontalDirection($run);
+        if (!$this->logicalOverflowTextBoxIsFinite($box) || $direction === null) {
+            return false;
+        }
+
+        return $direction > 0
+            ? $box['x1'] < $pageVisibleBox['x2'] - 0.000001
+                && $box['x2'] > $pageVisibleBox['x2'] + 0.000001
+            : $box['x2'] > $pageVisibleBox['x1'] + 0.000001
+                && $box['x1'] < $pageVisibleBox['x1'] - 0.000001;
+    }
+
+    /** @param array<string,mixed> $run */
+    private function logicalOverflowTextHorizontalDirection(array $run): ?int
+    {
+        $axisX = $run['axisX'] ?? null;
+        $axisY = $run['axisY'] ?? null;
+        if ((!is_float($axisX) && !is_int($axisX))
+            || (!is_float($axisY) && !is_int($axisY))) {
+            return null;
+        }
+        $axisX = (float) $axisX;
+        $axisY = (float) $axisY;
+        if (!is_finite($axisX) || !is_finite($axisY)) {
+            return null;
+        }
+        $length = hypot($axisX, $axisY);
+        if ($length <= 0.000001 || abs($axisY / $length) > 0.02 || abs($axisX / $length) < 0.999) {
+            return null;
+        }
+
+        return $axisX > 0.0 ? 1 : -1;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $runs
+     * @param array<string,mixed> $anchor
+     */
+    private function logicalOverflowTextRunsShareLineGeometry(array $runs, array $anchor): bool
+    {
+        $fontSize = $anchor['fontSize'] ?? null;
+        $axisX = $anchor['axisX'] ?? null;
+        $axisY = $anchor['axisY'] ?? null;
+        $baselineX = $anchor['textX1'] ?? null;
+        $baselineY = $anchor['textY1'] ?? null;
+        if ((!is_float($fontSize) && !is_int($fontSize))
+            || (!is_float($axisX) && !is_int($axisX))
+            || (!is_float($axisY) && !is_int($axisY))
+            || (!is_float($baselineX) && !is_int($baselineX))
+            || (!is_float($baselineY) && !is_int($baselineY))) {
+            return false;
+        }
+        $fontSize = (float) $fontSize;
+        $axisX = (float) $axisX;
+        $axisY = (float) $axisY;
+        $axisLength = hypot($axisX, $axisY);
+        if (!is_finite($fontSize) || $fontSize <= 0.0 || $axisLength <= 0.000001) {
+            return false;
+        }
+        $unitX = $axisX / $axisLength;
+        $unitY = $axisY / $axisLength;
+        $fontTolerance = max(0.01, $fontSize * 0.02);
+        $baselineTolerance = max(0.1, $fontSize * 0.05);
+        $anchorStream = is_int($anchor['stream'] ?? null) ? $anchor['stream'] : null;
+        $anchorFontResource = is_string($anchor['visibilityFontResource'] ?? null)
+            ? $anchor['visibilityFontResource']
+            : null;
+
+        foreach ($runs as $run) {
+            foreach (['fontSize', 'axisX', 'axisY', 'textX1', 'textY1'] as $field) {
+                if (!is_float($run[$field] ?? null) && !is_int($run[$field] ?? null)) {
+                    return false;
+                }
+            }
+            $runFontSize = (float) $run['fontSize'];
+            $runAxisX = (float) $run['axisX'];
+            $runAxisY = (float) $run['axisY'];
+            $runAxisLength = hypot($runAxisX, $runAxisY);
+            if (!is_finite($runFontSize)
+                || abs($runFontSize - $fontSize) > $fontTolerance
+                || $runAxisLength <= 0.000001
+                || (($runAxisX / $runAxisLength) * $unitX)
+                    + (($runAxisY / $runAxisLength) * $unitY) < 0.9999
+                || abs(
+                    (((float) $run['textX1'] - (float) $baselineX) * -$unitY)
+                    + (((float) $run['textY1'] - (float) $baselineY) * $unitX)
+                ) > $baselineTolerance
+                || (is_string($run['visibilityFontResource'] ?? null)
+                    ? $run['visibilityFontResource']
+                    : null) !== $anchorFontResource
+                || (is_int($run['stream'] ?? null) ? $run['stream'] : null) !== $anchorStream) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $runs
+     * @param array<string,mixed> $anchor
+     */
+    private function logicalOverflowTextRunsAreContiguous(array $runs, array $anchor): bool
+    {
+        $fontSize = (float) ($anchor['fontSize'] ?? 0.0);
+        $axisX = (float) ($anchor['axisX'] ?? 0.0);
+        $axisY = (float) ($anchor['axisY'] ?? 0.0);
+        $axisLength = hypot($axisX, $axisY);
+        if ($fontSize <= 0.0 || $axisLength <= 0.000001) {
+            return false;
+        }
+        $unitX = $axisX / $axisLength;
+        $unitY = $axisY / $axisLength;
+        $minimumGap = -$fontSize * 0.5;
+        $maximumGap = $fontSize * 1.5;
+
+        for ($index = 1, $count = count($runs); $index < $count; $index++) {
+            $previous = $runs[$index - 1];
+            $current = $runs[$index];
+            foreach (['textX2', 'textY2'] as $field) {
+                if (!is_float($previous[$field] ?? null) && !is_int($previous[$field] ?? null)) {
+                    return false;
+                }
+            }
+            foreach (['textX1', 'textY1'] as $field) {
+                if (!is_float($current[$field] ?? null) && !is_int($current[$field] ?? null)) {
+                    return false;
+                }
+            }
+            $gap = (((float) $current['textX1'] - (float) $previous['textX2']) * $unitX)
+                + (((float) $current['textY1'] - (float) $previous['textY2']) * $unitY);
+            if (!is_finite($gap) || $gap < $minimumGap || $gap > $maximumGap) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $suffixRuns
+     * @param array<string,mixed> $anchor
+     * @param array{x1:float,y1:float,x2:float,y2:float} $pageVisibleBox
+     */
+    private function logicalOverflowTextSuffixExcursionIsBounded(
+        array $suffixRuns,
+        array $anchor,
+        array $pageVisibleBox
+    ): bool {
+        if ($suffixRuns === []) {
+            return false;
+        }
+        $direction = $this->logicalOverflowTextHorizontalDirection($anchor);
+        $fontSize = (float) ($anchor['fontSize'] ?? 0.0);
+        $pageWidth = $pageVisibleBox['x2'] - $pageVisibleBox['x1'];
+        if ($direction === null || $fontSize <= 0.0 || $pageWidth <= 0.0) {
+            return false;
+        }
+        $maximumExcursion = min($fontSize * 12.0, $pageWidth * 0.25);
+        $furthest = 0.0;
+        foreach ($suffixRuns as $run) {
+            $box = $run['visibilityBox'] ?? null;
+            if (!$this->logicalOverflowTextBoxIsFinite($box)) {
+                return false;
+            }
+            if ($direction > 0) {
+                if ($box['x1'] < $pageVisibleBox['x2'] - 0.000001) {
+                    return false;
+                }
+                $furthest = max($furthest, $box['x2'] - $pageVisibleBox['x2']);
+            } else {
+                if ($box['x2'] > $pageVisibleBox['x1'] + 0.000001) {
+                    return false;
+                }
+                $furthest = max($furthest, $pageVisibleBox['x1'] - $box['x1']);
+            }
+        }
+
+        return $furthest > 0.0 && $furthest <= $maximumExcursion + 0.000001;
+    }
+
+    /**
+     * @param array<string,mixed> $anchor
+     * @param list<array<string,mixed>> $nextRuns
+     * @param array{x1:float,y1:float,x2:float,y2:float} $pageVisibleBox
+     */
+    private function logicalOverflowTextNextOperationContinuesLine(
+        array $anchor,
+        array $nextRuns,
+        array $pageVisibleBox
+    ): bool {
+        $next = $nextRuns[0] ?? null;
+        if (!is_array($next)
+            || ($next['wordBoundaryBefore'] ?? false) !== true
+            || ($next['wordBoundarySource'] ?? null) !== 'line-break'
+            || $this->logicalOverflowTextRunPageBoxStatus($next, $pageVisibleBox) !== true) {
+            return false;
+        }
+
+        foreach (['fontSize', 'axisX', 'axisY', 'textX1', 'textY1'] as $field) {
+            if ((!is_float($anchor[$field] ?? null) && !is_int($anchor[$field] ?? null))
+                || (!is_float($next[$field] ?? null) && !is_int($next[$field] ?? null))) {
+                return false;
+            }
+        }
+        $fontSize = (float) $anchor['fontSize'];
+        $nextFontSize = (float) $next['fontSize'];
+        $axisX = (float) $anchor['axisX'];
+        $axisY = (float) $anchor['axisY'];
+        $nextAxisX = (float) $next['axisX'];
+        $nextAxisY = (float) $next['axisY'];
+        $axisLength = hypot($axisX, $axisY);
+        $nextAxisLength = hypot($nextAxisX, $nextAxisY);
+        if ($fontSize <= 0.0
+            || abs($nextFontSize - $fontSize) > max(0.01, $fontSize * 0.02)
+            || $axisLength <= 0.000001
+            || $nextAxisLength <= 0.000001
+            || (($axisX / $axisLength) * ($nextAxisX / $nextAxisLength))
+                + (($axisY / $axisLength) * ($nextAxisY / $nextAxisLength)) < 0.9999
+            || (is_string($next['visibilityFontResource'] ?? null)
+                ? $next['visibilityFontResource']
+                : null) !== (is_string($anchor['visibilityFontResource'] ?? null)
+                    ? $anchor['visibilityFontResource']
+                    : null)
+            || (is_int($next['stream'] ?? null) ? $next['stream'] : null)
+                !== (is_int($anchor['stream'] ?? null) ? $anchor['stream'] : null)) {
+            return false;
+        }
+        $unitX = $axisX / $axisLength;
+        $unitY = $axisY / $axisLength;
+        $baselineStep = abs(
+            (((float) $next['textX1'] - (float) $anchor['textX1']) * -$unitY)
+            + (((float) $next['textY1'] - (float) $anchor['textY1']) * $unitX)
+        );
+        if ($baselineStep < $fontSize * 0.75 || $baselineStep > $fontSize * 2.1) {
+            return false;
+        }
+
+        $direction = $this->logicalOverflowTextHorizontalDirection($anchor);
+        $nextBox = $next['visibilityBox'] ?? null;
+        $pageWidth = $pageVisibleBox['x2'] - $pageVisibleBox['x1'];
+        if ($direction === null || !$this->logicalOverflowTextBoxIsFinite($nextBox) || $pageWidth <= 0.0) {
+            return false;
+        }
+
+        return $direction > 0
+            ? $nextBox['x1'] <= $pageVisibleBox['x1'] + ($pageWidth * 0.5)
+            : $nextBox['x2'] >= $pageVisibleBox['x2'] - ($pageWidth * 0.5);
+    }
+
+    private function logicalOverflowTextBoxIsFinite(mixed $box): bool
+    {
+        if (!is_array($box)) {
+            return false;
+        }
+        foreach (['x1', 'y1', 'x2', 'y2'] as $field) {
+            if ((!is_float($box[$field] ?? null) && !is_int($box[$field] ?? null))
+                || !is_finite((float) $box[$field])) {
+                return false;
+            }
+        }
+
+        return $box['x1'] <= $box['x2'] && $box['y1'] <= $box['y2'];
+    }
+
+    /**
+     * Revalidate a precomputed source occurrence against the independent line
+     * parser before allowing an off-page segment into logical line text.
+     *
+     * @param array<string,mixed> $proof
+     * @param array<string,mixed> $segment
+     */
+    private function logicalOverflowTextSegmentProofMatches(
+        array $proof,
+        array $segment,
+        float $startX,
+        float $startY,
+        float $endX,
+        float $endY,
+        ?float $fontSize,
+        ?string $fontResource,
+        ?int $sourceStream
+    ): bool {
+        if (!is_string($proof['text'] ?? null)
+            || !is_string($segment['text'] ?? null)
+            || $proof['text'] !== $segment['text']
+            || (bool) ($proof['wordBoundaryBefore'] ?? false)
+                !== (bool) ($segment['wordBoundaryBefore'] ?? false)
+            || (is_int($proof['stream'] ?? null) ? $proof['stream'] : null) !== $sourceStream
+            || (is_string($proof['fontResource'] ?? null) ? $proof['fontResource'] : null)
+                !== $fontResource
+            || $fontSize === null
+            || (!is_float($proof['fontSize'] ?? null) && !is_int($proof['fontSize'] ?? null))) {
+            return false;
+        }
+        $expected = [
+            'textX1' => $startX,
+            'textY1' => $startY,
+            'textX2' => $endX,
+            'textY2' => $endY,
+            'fontSize' => $fontSize,
+        ];
+        foreach ($expected as $field => $actual) {
+            if ((!is_float($proof[$field] ?? null) && !is_int($proof[$field] ?? null))
+                || abs((float) $proof[$field] - $actual) > 0.0001) {
+                return false;
+            }
+        }
+
         return true;
     }
 
@@ -15285,7 +15839,10 @@ final class PdfTextExtractor
 
             $cmap = $this->toUnicodeMapForFontObject((int) $objectNumber, $objects);
             if ($cmap !== null && ($cmap['map'] !== [] || $cmap['codeSpaceRanges'] !== [])) {
-                $fontObjectMaps[$objectNumber] = $cmap;
+                $fontObjectMaps[$objectNumber] = array_replace(
+                    $cmap,
+                    $this->fontProvenanceFromObject($body, $objects)
+                );
             }
         }
 
@@ -15297,6 +15854,77 @@ final class PdfTextExtractor
         $this->fontObjectToUnicodeMapsCache[$cacheKey] = $fontObjectMaps;
 
         return $fontObjectMaps;
+    }
+
+    /**
+     * ToUnicode is a decoding source, but it also belongs to one concrete
+     * font object. Keep that immutable identity beside the map so Type0 fonts
+     * do not lose their family/subtype merely because they need no simple-font
+     * encoding fallback.
+     *
+     * @param array<int,string> $objects
+     * @return array{sourceBaseFont?:string,fontSubtype?:string,fontDescriptorFlags?:int,fontSymbolic?:bool}
+     */
+    private function fontProvenanceFromObject(string $objectBody, array $objects): array
+    {
+        $provenance = [];
+        $baseFont = $this->sourceBaseFontNameFromObject($objectBody);
+        if ($baseFont !== null) {
+            $provenance['sourceBaseFont'] = $baseFont;
+        }
+        if (preg_match('/\/Subtype\s*\/([A-Za-z0-9_.#+-]+)/', $objectBody, $match) === 1) {
+            $provenance['fontSubtype'] = $this->decodePdfName($match[1]);
+        }
+        $flags = $this->fontDescriptorFlagsFromObject($objectBody, $objects);
+        if ($flags !== null) {
+            $provenance['fontDescriptorFlags'] = $flags;
+            $provenance['fontSymbolic'] = ($flags & 4) !== 0;
+        }
+
+        return $provenance;
+    }
+
+    /**
+     * @param array<int,string> $objects
+     * @param array<int,true> $seen
+     */
+    private function fontDescriptorFlagsFromObject(
+        string $objectBody,
+        array $objects,
+        array $seen = []
+    ): ?int {
+        if (preg_match('/\/FontDescriptor\s+\d+\s+\d+\s+R\b/', $objectBody) === 1
+            && preg_match_all('/\/FontDescriptor\s+(\d+)\s+\d+\s+R\b/', $objectBody, $matches)) {
+            foreach ($matches[1] as $objectNumber) {
+                $objectNumber = (int) $objectNumber;
+                if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+                    continue;
+                }
+                $flags = $this->integerDictionaryValue($objects[$objectNumber], 'Flags');
+                if ($flags !== null) {
+                    return $flags;
+                }
+                $seen[$objectNumber] = true;
+            }
+        }
+        if (preg_match('/\/FontDescriptor\s*<<(.*?)>>/s', $objectBody, $match) === 1) {
+            $flags = $this->integerDictionaryValue($match[1], 'Flags');
+            if ($flags !== null) {
+                return $flags;
+            }
+        }
+        foreach ($this->descendantFontObjectNumbers($objectBody, $objects) as $objectNumber) {
+            if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+                continue;
+            }
+            $seen[$objectNumber] = true;
+            $flags = $this->fontDescriptorFlagsFromObject($objects[$objectNumber], $objects, $seen);
+            if ($flags !== null) {
+                return $flags;
+            }
+        }
+
+        return null;
     }
 
     private function isFontObjectBody(string $objectBody): bool
@@ -15550,11 +16178,17 @@ final class PdfTextExtractor
             return null;
         }
 
-        return [
+        $encoding = [
             'base' => $cidEncoding,
             'differences' => [],
             'suppressUnmapped' => true,
         ];
+        $sourceBaseFont = $this->sourceBaseFontNameFromObject($objectBody);
+        if ($sourceBaseFont !== null) {
+            $encoding['sourceBaseFont'] = $sourceBaseFont;
+        }
+
+        return $encoding;
     }
 
     /**
@@ -16459,8 +17093,14 @@ final class PdfTextExtractor
         }
 
         $texts = [];
+        $secondaryReplacementText = str_starts_with(
+            $replacementText,
+            self::STRUCT_FALLBACK_REPLACEMENT_PREFIX
+        )
+            ? self::STRUCT_FALLBACK_REPLACEMENT_PREFIX
+            : '';
         foreach ($mcids as $index => $mcid) {
-            $texts[$mcid] = $index === 0 ? $replacementText : '';
+            $texts[$mcid] = $index === 0 ? $replacementText : $secondaryReplacementText;
         }
 
         return $texts;
@@ -16962,8 +17602,14 @@ final class PdfTextExtractor
         }
 
         $texts = [];
+        $secondaryReplacementText = str_starts_with(
+            $replacementText,
+            self::STRUCT_FALLBACK_REPLACEMENT_PREFIX
+        )
+            ? self::STRUCT_FALLBACK_REPLACEMENT_PREFIX
+            : '';
         foreach ($mcids as $index => $mcid) {
-            $texts[$mcid] = $index === 0 ? $replacementText : '';
+            $texts[$mcid] = $index === 0 ? $replacementText : $secondaryReplacementText;
         }
 
         return $texts;
@@ -17820,6 +18466,10 @@ final class PdfTextExtractor
                     if ($outerBaseFont !== null) {
                         $encoding['baseFont'] = $outerBaseFont;
                     }
+                    $sourceBaseFont = $this->sourceBaseFontNameFromObject($objectBody);
+                    if ($sourceBaseFont !== null) {
+                        $encoding['sourceBaseFont'] = $sourceBaseFont;
+                    }
                     if ($this->isType3FontWithSafeDeclaredEncoding($objectBody, $encoding['base'])) {
                         $encoding['suppressUnmapped'] = false;
                     }
@@ -17913,6 +18563,10 @@ final class PdfTextExtractor
             if ($baseFont !== null) {
                 $encoding['baseFont'] = $baseFont;
             }
+            $sourceBaseFont = $this->sourceBaseFontNameFromObject($objectBody);
+            if ($sourceBaseFont !== null) {
+                $encoding['sourceBaseFont'] = $sourceBaseFont;
+            }
             $embeddedFontBounds = $this->embeddedTrueTypeFontBounds($objectBody, $objects);
             if ($embeddedFontBounds !== null) {
                 $encoding['embeddedFontBounds'] = $embeddedFontBounds;
@@ -17938,6 +18592,10 @@ final class PdfTextExtractor
         $baseFont = $this->baseFontNameFromObject($objectBody);
         if ($baseFont !== null) {
             $encoding['baseFont'] = $baseFont;
+        }
+        $sourceBaseFont = $this->sourceBaseFontNameFromObject($objectBody);
+        if ($sourceBaseFont !== null) {
+            $encoding['sourceBaseFont'] = $sourceBaseFont;
         }
         $embeddedFontBounds = $this->embeddedTrueTypeFontBounds($objectBody, $objects);
         if ($embeddedFontBounds !== null) {
@@ -18760,6 +19418,25 @@ final class PdfTextExtractor
         }
 
         return $this->normalizedBaseFontName($baseFont);
+    }
+
+    /**
+     * Preserve the exact font-family/style name as provenance without making
+     * a subset font eligible for Base-14 decoding or metric fallbacks. The
+     * decoding path deliberately rejects six-letter subset prefixes; visual
+     * consumers may still use the suffix to retain source emphasis.
+     */
+    private function sourceBaseFontNameFromObject(string $objectBody): ?string
+    {
+        if (preg_match('/\/BaseFont\s*\/([A-Za-z0-9_.#+-]+)/', $objectBody, $match) !== 1) {
+            return null;
+        }
+
+        $baseFont = $this->decodePdfName($match[1]);
+        $baseFont = preg_replace('/^[A-Z]{6}\+/', '', $baseFont) ?? $baseFont;
+        $baseFont = $this->normalizedBaseFontName($baseFont);
+
+        return $baseFont === '' ? null : $baseFont;
     }
 
     private function normalizedBaseFontName(string $baseFont): string
@@ -25624,6 +26301,19 @@ final class PdfTextExtractor
         $currentTransformationMatrix = $this->identityTransformationMatrix();
         $currentTransformationMatrixKnown = true;
         $inTextObject = false;
+        $textShowOperation = 0;
+        $logicalOverflowTextSegmentProofs = $this->logicalOverflowTextSegmentProofs(
+            $stream,
+            $fontToUnicodeMaps,
+            $fontEncodings,
+            $propertyActualTexts,
+            $mcidActualTexts,
+            $propertyMcids,
+            $extGStates,
+            $optionalContentStates,
+            $pageVisibleBox,
+            $sourceStreamRanges
+        );
 
         $onToken = $sourceStreamRanges === []
             ? null
@@ -25711,6 +26401,7 @@ final class PdfTextExtractor
             }
 
             if ($this->isTextShowingOperator($token)) {
+                $visibilityOperation = $textShowOperation++;
                 if (!$inTextObject) {
                     $operands = [];
                     $operandSourceStreams = [];
@@ -25850,7 +26541,7 @@ final class PdfTextExtractor
                             $wordSpacing,
                             $horizontalScale,
                             $axis
-                        ) as $segment) {
+                        ) as $segmentIndex => $segment) {
                             $segmentPaints = $paints;
                             if ($operandStartX !== null && $operandStartY !== null) {
                                 $segmentStartX = $operandStartX + ($segment['startOffset'] * $axis['x']);
@@ -25872,7 +26563,23 @@ final class PdfTextExtractor
                                 );
                             }
                             if ($segmentPaints === false) {
-                                continue;
+                                $logicalOverflowProof =
+                                    $logicalOverflowTextSegmentProofs[$visibilityOperation][$segmentIndex]
+                                    ?? null;
+                                if (!is_array($logicalOverflowProof)
+                                    || !$this->logicalOverflowTextSegmentProofMatches(
+                                        $logicalOverflowProof,
+                                        $segment,
+                                        $segmentStartX,
+                                        $segmentStartY,
+                                        $segmentEndX,
+                                        $segmentEndY,
+                                        $currentFontSize,
+                                        $currentFontResource,
+                                        $textSourceStream
+                                    )) {
+                                    continue;
+                                }
                             }
                             if ($segment['gapBefore'] !== null && $currentLine !== '') {
                                 $pendingPositionWordGap = $segment['wordBoundaryBefore'];
@@ -26289,6 +26996,8 @@ final class PdfTextExtractor
         $actualTextNested = [];
         /** @var list<bool|null> $actualTextPainted */
         $actualTextPainted = [];
+        /** @var list<bool> $actualTextPaintedWhitespaceOnly */
+        $actualTextPaintedWhitespaceOnly = [];
         /** @var list<array<string, mixed>|null> $actualTextPositionedLayouts */
         $actualTextPositionedLayouts = [];
         /** @var list<int|null> $actualTextSourceStreams */
@@ -26325,6 +27034,7 @@ final class PdfTextExtractor
                 $actualTextStack[] = $actualText;
                 $actualTextNested[] = false;
                 $actualTextPainted[] = false;
+                $actualTextPaintedWhitespaceOnly[] = true;
                 $actualTextPositionedLayouts[] = null;
                 $actualTextSourceStreams[] = $operandSourceStreams[count($operands) - 1]
                     ?? $currentTokenSourceStream;
@@ -26345,6 +27055,7 @@ final class PdfTextExtractor
                 $actualTextStack[] = null;
                 $actualTextNested[] = false;
                 $actualTextPainted[] = false;
+                $actualTextPaintedWhitespaceOnly[] = true;
                 $actualTextPositionedLayouts[] = null;
                 $actualTextSourceStreams[] = null;
                 $actualTextVisibilityOperationBoxes[] = [];
@@ -26387,6 +27098,18 @@ final class PdfTextExtractor
                             ? $actualTextLayout['wordBoundarySource']
                             : null
                     );
+                    $actualTextRun['textOrigin'] = 'actual-text-replacement';
+                    $actualTextRun['actualTextPaintedWhitespaceOnly'] =
+                        ($actualTextPaintedWhitespaceOnly[$actualTextIndex] ?? false) === true;
+                    if (($actualTextLayout['fontProvenanceComplete'] ?? false) === true) {
+                        $actualTextRun = $this->positionedTextRunWithFontProvenance(
+                            $actualTextRun,
+                            is_string($actualTextLayout['fontResource'] ?? null)
+                                ? $actualTextLayout['fontResource']
+                                : null,
+                            $actualTextLayout
+                        );
+                    }
                     $actualTextSourceStream = $actualTextLayout['sourceStream']
                         ?? ($actualTextSourceStreams[$actualTextIndex] ?? null);
                     if (is_int($actualTextSourceStream)) {
@@ -26418,6 +27141,7 @@ final class PdfTextExtractor
                 array_pop($actualTextStack);
                 array_pop($actualTextNested);
                 array_pop($actualTextPainted);
+                array_pop($actualTextPaintedWhitespaceOnly);
                 array_pop($actualTextPositionedLayouts);
                 array_pop($actualTextSourceStreams);
                 array_pop($actualTextVisibilityOperationBoxes);
@@ -26558,6 +27282,19 @@ final class PdfTextExtractor
                             $actualTextPainted[$activeActualTextIndex] ?? null,
                             $paints
                         );
+                        if ($paints !== false
+                            && $this->textShowingOperandHasGlyphBytes($operand)
+                        ) {
+                            $paintedText = $this->decodeTextOperandWithBoundaryEvidence(
+                                $operand,
+                                $toUnicodeMap,
+                                $fontEncoding
+                            );
+                            if ($paintedText === ''
+                                || preg_match('/\A\s+\z/u', $paintedText) !== 1) {
+                                $actualTextPaintedWhitespaceOnly[$activeActualTextIndex] = false;
+                            }
+                        }
                     }
                     if ($activeActualTextIndex !== null
                         && $paints !== false
@@ -26596,7 +27333,9 @@ final class PdfTextExtractor
                             $currentFontSize,
                             $axis,
                             $resolvedTextPositionBoundary,
-                            $resolvedTextPositionSource
+                            $resolvedTextPositionSource,
+                            $currentFontResource,
+                            $this->positionedFontProvenance($fontEncoding, $toUnicodeMap)
                         );
                         $actualTextPositionedLayouts[$activeActualTextIndex]['estimatedBoundsComplete'] =
                             $priorEstimatedBoundsComplete && $estimatedBoundsComplete;
@@ -26657,11 +27396,17 @@ final class PdfTextExtractor
                                     ? $resolvedTextPositionSource
                                     : $segment['wordBoundarySource']
                             );
+                            $segmentRun = $this->positionedTextRunWithFontProvenance(
+                                $segmentRun,
+                                $currentFontResource,
+                                $this->positionedFontProvenance($fontEncoding, $toUnicodeMap)
+                            );
                             if ($textSourceStream !== null) {
                                 $segmentRun['stream'] = $textSourceStream;
                             }
                             if ($includeVisibilityEvidence) {
                                 $segmentRun['visibilityOperation'] = $visibilityOperation;
+                                $segmentRun['visibilityFontResource'] = $currentFontResource;
                                 $segmentHasInk = ($segment['hasInk'] ?? true) === true;
                                 $segmentRun['visibilityInkKnown'] = !$segmentHasInk
                                     || $estimatedBoundsComplete;
@@ -27361,6 +28106,66 @@ final class PdfTextExtractor
         return $run;
     }
 
+    /**
+     * @param array<string,mixed> $run
+     * @param array{baseFont?:string,sourceBaseFont?:string,fontSubtype?:string,fontDescriptorFlags?:int,fontSymbolic?:bool}|null $fontProvenance
+     * @return array<string,mixed>
+     */
+    private function positionedTextRunWithFontProvenance(
+        array $run,
+        ?string $fontResource,
+        ?array $fontProvenance
+    ): array {
+        $baseFont = $fontProvenance['sourceBaseFont'] ?? $fontProvenance['baseFont'] ?? null;
+        if (!is_string($fontResource)
+            || $fontResource === ''
+            || !is_string($baseFont)
+            || $baseFont === '') {
+            return $run;
+        }
+
+        $run['fontResource'] = $fontResource;
+        $run['baseFont'] = $baseFont;
+        if (is_string($fontProvenance['fontSubtype'] ?? null)
+            && $fontProvenance['fontSubtype'] !== '') {
+            $run['fontSubtype'] = $fontProvenance['fontSubtype'];
+        }
+        if (is_int($fontProvenance['fontDescriptorFlags'] ?? null)) {
+            $run['fontDescriptorFlags'] = $fontProvenance['fontDescriptorFlags'];
+        }
+        if (is_bool($fontProvenance['fontSymbolic'] ?? null)) {
+            $run['fontSymbolic'] = $fontProvenance['fontSymbolic'];
+        }
+
+        return $run;
+    }
+
+    /**
+     * A Type0 font with a usable ToUnicode map commonly has no simple-font
+     * encoding record. Merge the two independent sources without letting the
+     * map override richer encoding metrics.
+     *
+     * @param array<string,mixed>|null $fontEncoding
+     * @param array<string,mixed>|null $toUnicodeMap
+     * @return array<string,mixed>|null
+     */
+    private function positionedFontProvenance(?array $fontEncoding, ?array $toUnicodeMap): ?array
+    {
+        $provenance = [];
+        foreach ([$toUnicodeMap, $fontEncoding] as $source) {
+            if (!is_array($source)) {
+                continue;
+            }
+            foreach (['baseFont', 'sourceBaseFont', 'fontSubtype', 'fontDescriptorFlags', 'fontSymbolic'] as $field) {
+                if (array_key_exists($field, $source)) {
+                    $provenance[$field] = $source[$field];
+                }
+            }
+        }
+
+        return $provenance === [] ? null : $provenance;
+    }
+
     private function normalizedTextRotation(float $rotation): float
     {
         $rotation = fmod($rotation, 360.0);
@@ -27538,14 +28343,16 @@ final class PdfTextExtractor
         ?float $fontSize,
         array $axis,
         bool $wordBoundaryBefore,
-        ?string $wordBoundarySource
+        ?string $wordBoundarySource,
+        ?string $fontResource,
+        ?array $fontProvenance
     ): array {
         $x1 = min($startX, $endX);
         $y1 = min($startY, $endY);
         $x2 = max($startX, $endX);
         $y2 = max($startY, $endY);
         if ($layout === null) {
-            return [
+            $expanded = [
                 'x1' => $x1,
                 'y1' => $y1,
                 'x2' => $x2,
@@ -27555,9 +28362,23 @@ final class PdfTextExtractor
                 'wordBoundaryBefore' => $wordBoundaryBefore,
                 'wordBoundarySource' => $wordBoundarySource,
             ];
+            $baseFont = $fontProvenance['sourceBaseFont'] ?? $fontProvenance['baseFont'] ?? null;
+            if ($fontResource !== null && $fontResource !== ''
+                && is_string($baseFont) && $baseFont !== '') {
+                $expanded['fontResource'] = $fontResource;
+                $expanded['baseFont'] = $baseFont;
+                foreach (['fontSubtype', 'fontDescriptorFlags', 'fontSymbolic'] as $field) {
+                    if (array_key_exists($field, $fontProvenance)) {
+                        $expanded[$field] = $fontProvenance[$field];
+                    }
+                }
+                $expanded['fontProvenanceComplete'] = true;
+            }
+
+            return $expanded;
         }
 
-        return [
+        $expanded = [
             'x1' => min((float) $layout['x1'], $x1),
             'y1' => min((float) $layout['y1'], $y1),
             'x2' => max((float) $layout['x2'], $x2),
@@ -27567,6 +28388,30 @@ final class PdfTextExtractor
             'wordBoundaryBefore' => (bool) ($layout['wordBoundaryBefore'] ?? false),
             'wordBoundarySource' => $layout['wordBoundarySource'] ?? $wordBoundarySource,
         ];
+        $baseFont = $fontProvenance['sourceBaseFont'] ?? $fontProvenance['baseFont'] ?? null;
+        if (($layout['fontProvenanceComplete'] ?? false) === true
+            && is_string($layout['fontResource'] ?? null)
+            && is_string($layout['baseFont'] ?? null)
+            && $fontResource !== null
+            && is_string($baseFont)
+            && hash_equals($layout['fontResource'], $fontResource)
+            && hash_equals($layout['baseFont'], $baseFont)) {
+            $expanded['fontResource'] = $fontResource;
+            $expanded['baseFont'] = $baseFont;
+            foreach (['fontSubtype', 'fontDescriptorFlags', 'fontSymbolic'] as $field) {
+                $old = $layout[$field] ?? null;
+                $new = $fontProvenance[$field] ?? null;
+                if ($old !== $new) {
+                    return $expanded;
+                }
+                if (array_key_exists($field, $layout)) {
+                    $expanded[$field] = $old;
+                }
+            }
+            $expanded['fontProvenanceComplete'] = true;
+        }
+
+        return $expanded;
     }
 
     /**
