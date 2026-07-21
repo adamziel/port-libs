@@ -243,6 +243,8 @@ assert(js.includes('The saved Playground database could not be reopened. Startin
 assert(importE2e.includes("argument === '--seed-invalid-playground-snapshot'")
   && importE2e.includes("Page.addScriptToEvaluateOnNewDocument")
   && importE2e.includes("port-libs.playground-import-site.v1")
+  && importE2e.includes(".replace(/[^A-Za-z0-9_./-]/g, '-')")
+  && importE2e.includes('The invalid persisted-site fixture was not seeded at the production-sanitized path.')
   && importE2e.includes("previous browser snapshot is preserved"), 'Expected release E2E to seed and verify the invalid persisted-site recovery path.');
 assert(playgroundWorkflow.includes('run_with_fresh_chrome sqlite-recovery')
   && playgroundWorkflow.includes('--seed-invalid-playground-snapshot'), 'Expected the converter workflow to exercise invalid SQLite snapshot recovery in a fresh Chrome process.');
