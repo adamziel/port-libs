@@ -344,15 +344,25 @@ async function main() {
       await page.call('Page.addScriptToEvaluateOnNewDocument', {
         source: `(() => {
           if (location.origin !== ${JSON.stringify(expectedOrigin)}) return;
+          const devicePath = \`port-libs/\${location.host}/playground-import-site-v1\`
+            .replace(/[^A-Za-z0-9_./-]/g, '-');
           localStorage.setItem('port-libs.playground-import-site.v1', JSON.stringify({
             version: 1,
-            devicePath: \`port-libs/\${location.host}/playground-import-site-v1\`,
+            devicePath,
           }));
         })();`,
       });
     }
     await page.call('Page.navigate', { url: testUrl });
     await waitForCondition(page, `Boolean(document.querySelector('#example-picker:not([disabled])'))`, options, 'the example catalogue to load');
+    if (options.seedInvalidPlaygroundSnapshot) {
+      const expectedDevicePath = `port-libs/${new URL(testUrl).host}/playground-import-site-v1`
+        .replace(/[^A-Za-z0-9_./-]/g, '-');
+      const seededRecord = await evaluate(page, `JSON.parse(localStorage.getItem('port-libs.playground-import-site.v1') || 'null')`);
+      if (seededRecord?.version !== 1 || seededRecord?.devicePath !== expectedDevicePath) {
+        throw new Error(`The invalid persisted-site fixture was not seeded at the production-sanitized path. Expected ${expectedDevicePath}; received ${JSON.stringify(seededRecord)}.`);
+      }
+    }
 
     let browserMemoryMetric = '';
     let initialBrowserMemoryBytes = 0;
