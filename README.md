@@ -16,6 +16,11 @@ Published progress:
 - Repository: <https://github.com/adamziel/port-libs>
 - Dashboard: <https://adamziel.github.io/port-libs/>
 
+Package documentation:
+
+- [Pandoc conversion package](lanes/pandoc/README.md): public API, architecture,
+  design decisions, integration boundaries, and focused evidence.
+
 Run the current PHP checks with:
 
 ```sh
