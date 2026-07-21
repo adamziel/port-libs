@@ -16554,6 +16554,43 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
     },
 
+    'rejects excessive entry counts before package materialization' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            ['name' => 'one.txt', 'data' => 'one', 'method' => 0],
+            ['name' => 'two.txt', 'data' => 'two', 'method' => 0],
+            ['name' => 'three.txt', 'data' => 'three', 'method' => 0],
+        ]);
+
+        $limited = ZipPackage::rawStrictImportPreflight($zip, null, null, null, 2);
+        $t->same(3, $limited['entryCount']);
+        $t->same(2, $limited['maxEntryCount']);
+        $t->same(false, $limited['canInstantiate']);
+        $t->same(false, $limited['isValid']);
+        $t->same(null, $limited['strictImport']);
+        $t->same(null, $limited['centralDirectoryInventory']);
+        $t->contains('entry-count-exceeds-limit', implode(',', $limited['diagnostics']));
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): ZipPackage => ZipPackage::fromString($zip, 2)
+        );
+
+        $boundary = ZipPackage::rawStrictImportPreflight($zip, null, null, null, 3);
+        $t->same(3, $boundary['maxEntryCount']);
+        $t->same(true, $boundary['canInstantiate']);
+        $t->same(true, $boundary['isValid']);
+        $t->same(3, $boundary['strictImport']['entryCount'] ?? null);
+        $t->same(3, count(ZipPackage::fromString($zip, 3)->entries()));
+
+        $t->throws(
+            \InvalidArgumentException::class,
+            static fn (): array => ZipPackage::rawStrictImportPreflight($zip, null, null, null, -1)
+        );
+        $t->throws(
+            \InvalidArgumentException::class,
+            static fn (): ZipPackage => ZipPackage::fromString($zip, -1)
+        );
+    },
+
     'summarizes central directory expansion ratio buckets before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
         $storedBytes = "stored central directory review\n";
         $highExpansionBytes = str_repeat('A', 5000);

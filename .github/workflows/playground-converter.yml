@@ -164,6 +164,7 @@ jobs:
           php -l lanes/pandoc/src/PdfTextFidelityLedger.php
           php -l lanes/pandoc/src/PdfSourceDispositionLedger.php
           php -l lanes/pandoc/src/PdfSemanticChunkReconciler.php
+          php -l lanes/pandoc/src/WordPressTopLevelCoreNodeRenderer.php
           php -l lanes/markerpdf/src/PdfDocumentLayoutProfile.php
           php -l lanes/pandoc/tests/BibtexCslProcessorTest.php
           php -l lanes/pandoc/tests/EpubReaderTest.php
@@ -194,6 +195,7 @@ jobs:
           php -l lanes/pandoc/tests/ShowcaseHaskellReferenceTimeoutTest.php
           php -l lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php
           php -l lanes/pandoc/tests/ShowcaseQualitySignatureTest.php
+          php -l lanes/pandoc/tests/WordPressBlockWriterCoreRoundTripTest.php
           php -l tools/build-pandoc-showcase.php
           php -l tools/generate-pdf-resource-fixture.php
           node --check pandoc-showcase/playground-converter.js
@@ -292,7 +294,8 @@ jobs:
             lanes/pandoc/tests/PdfProtectedTableLayoutTest.php \
             lanes/pandoc/tests/ShowcaseHaskellReferenceTimeoutTest.php \
             lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php \
-            lanes/pandoc/tests/ShowcaseQualitySignatureTest.php
+            lanes/pandoc/tests/ShowcaseQualitySignatureTest.php \
+            lanes/pandoc/tests/WordPressBlockWriterCoreRoundTripTest.php
 
       - name: Build plugin archive
         run: |

@@ -158,8 +158,12 @@ final class ZipPackage implements EpubArchive
     ) {
     }
 
-    public static function fromString(string $bytes): self
+    public static function fromString(string $bytes, ?int $maxEntryCount = null): self
     {
+        if ($maxEntryCount !== null && $maxEntryCount < 0) {
+            throw new \InvalidArgumentException('ZIP package maximum entry count must be non-negative');
+        }
+
         $archivePreflight = self::endOfCentralDirectoryPreflight($bytes);
         if (
             $archivePreflight['hasZip64EndOfCentralDirectory']
@@ -170,6 +174,11 @@ final class ZipPackage implements EpubArchive
 
         $eocdOffset = self::findEndOfCentralDirectory($bytes);
         $entryCount = self::readUInt16($bytes, $eocdOffset + 10);
+        if ($maxEntryCount !== null && $entryCount > $maxEntryCount) {
+            throw new \RuntimeException(
+                "ZIP package contains {$entryCount} entries, exceeding maximum entry count {$maxEntryCount}"
+            );
+        }
         $centralDirectorySize = self::readUInt32($bytes, $eocdOffset + 12);
         $centralDirectoryOffset = self::readUInt32($bytes, $eocdOffset + 16);
         $packageCommentLength = self::readUInt16($bytes, $eocdOffset + 20);
@@ -14085,6 +14094,7 @@ final class ZipPackage implements EpubArchive
      *     maxTotalUncompressedBytes:?int,
      *     maxExpansionRatio:?float,
      *     maxEntryUncompressedBytes:?int,
+     *     maxEntryCount:?int,
      *     archive:?array<string, mixed>,
      *     endOfCentralDirectoryTrailingBytes:array<string, mixed>,
      *     endOfCentralDirectoryOffset:array<string, mixed>,
@@ -14131,7 +14141,8 @@ final class ZipPackage implements EpubArchive
         string $bytes,
         ?int $maxTotalUncompressedBytes = null,
         ?float $maxExpansionRatio = null,
-        ?int $maxEntryUncompressedBytes = null
+        ?int $maxEntryUncompressedBytes = null,
+        ?int $maxEntryCount = null
     ): array {
         if ($maxTotalUncompressedBytes !== null && $maxTotalUncompressedBytes < 0) {
             throw new \InvalidArgumentException('ZIP package maximum total uncompressed size must be non-negative');
@@ -14139,6 +14150,10 @@ final class ZipPackage implements EpubArchive
 
         if ($maxExpansionRatio !== null && $maxExpansionRatio < 0.0) {
             throw new \InvalidArgumentException('ZIP package maximum expansion ratio must be non-negative');
+        }
+
+        if ($maxEntryCount !== null && $maxEntryCount < 0) {
+            throw new \InvalidArgumentException('ZIP package maximum entry count must be non-negative');
         }
 
         self::assertReadLimit($maxEntryUncompressedBytes, 'raw strict package import preflight');
@@ -14214,6 +14229,7 @@ final class ZipPackage implements EpubArchive
                 'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
                 'maxExpansionRatio' => $maxExpansionRatio,
                 'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
+                'maxEntryCount' => $maxEntryCount,
                 'archive' => null,
                 'endOfCentralDirectoryTrailingBytes' => $endOfCentralDirectoryTrailingBytes,
                 'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
@@ -14256,6 +14272,12 @@ final class ZipPackage implements EpubArchive
                 'strictImport' => null,
                 'preflightErrors' => $preflightErrors,
             ];
+        }
+
+        $entryCountExceedsLimit = $maxEntryCount !== null
+            && (int) $archive['totalEntryCount'] > $maxEntryCount;
+        if ($entryCountExceedsLimit) {
+            $addDiagnostic('entry-count-exceeds-limit');
         }
 
         if (!$archive['isArchiveLayoutSupported']) {
@@ -14304,7 +14326,7 @@ final class ZipPackage implements EpubArchive
         $canInstantiate = false;
         $instantiationError = null;
 
-        if (!$archive['requiresZip64']) {
+        if (!$archive['requiresZip64'] && !$entryCountExceedsLimit) {
             $splitArchive = $runPreflight(
                 'split-archive',
                 static fn (): array => self::splitArchivePreflight($bytes)
@@ -14635,21 +14657,25 @@ final class ZipPackage implements EpubArchive
             }
         }
 
-        try {
-            $package = self::fromString($bytes);
-            $canInstantiate = true;
-            $packageManifest = $package->packageManifestPreflight();
-            $strictImport = $package->strictImportPreflight(
-                $maxTotalUncompressedBytes,
-                $maxExpansionRatio,
-                $maxEntryUncompressedBytes
-            );
-            if (!$strictImport['isValid']) {
-                $addDiagnostics($strictImport['diagnostics']);
+        if ($entryCountExceedsLimit) {
+            $instantiationError = "ZIP package contains {$archive['totalEntryCount']} entries, exceeding maximum entry count {$maxEntryCount}";
+        } else {
+            try {
+                $package = self::fromString($bytes, $maxEntryCount);
+                $canInstantiate = true;
+                $packageManifest = $package->packageManifestPreflight();
+                $strictImport = $package->strictImportPreflight(
+                    $maxTotalUncompressedBytes,
+                    $maxExpansionRatio,
+                    $maxEntryUncompressedBytes
+                );
+                if (!$strictImport['isValid']) {
+                    $addDiagnostics($strictImport['diagnostics']);
+                }
+            } catch (\RuntimeException $exception) {
+                $instantiationError = $exception->getMessage();
+                $addDiagnostic('zip-package-instantiation-failed');
             }
-        } catch (\RuntimeException $exception) {
-            $instantiationError = $exception->getMessage();
-            $addDiagnostic('zip-package-instantiation-failed');
         }
 
         $entryCount = (int) (
@@ -14703,6 +14729,7 @@ final class ZipPackage implements EpubArchive
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'maxExpansionRatio' => $maxExpansionRatio,
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
+            'maxEntryCount' => $maxEntryCount,
             'archive' => $archive,
             'endOfCentralDirectoryTrailingBytes' => $endOfCentralDirectoryTrailingBytes,
             'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
