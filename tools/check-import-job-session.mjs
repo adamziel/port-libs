@@ -6,6 +6,7 @@ import {
   createImportJobSession,
   createPlaygroundPersistence,
   recoverImportMutation,
+  resetPlaygroundIframeForRetry,
   startPlaygroundWithSnapshotRecovery,
 } from '../pandoc-showcase/import-job-session.mjs';
 
@@ -195,19 +196,29 @@ assert.equal(restored.mounts[0].mountpoint, '/wordpress');
 assert.equal(restored.mounts[0].device.path, 'fixture/import-site');
 
 const startAttempts = [];
+const retryOrder = [];
 let recoveryNotice = null;
 const recoveredClient = await startPlaygroundWithSnapshotRecovery({
   persistence,
   options: baseOptions,
   async start(options) {
     startAttempts.push(options);
+    retryOrder.push(`start-${startAttempts.length}`);
     if (startAttempts.length === 1) {
       throw new Error('Error connecting to the SQLite database.');
     }
     return { site: 'fresh' };
   },
   onRecovery(recovery, error) {
+    retryOrder.push('recovery');
     recoveryNotice = { recovery, error };
+  },
+  async beforeRetry(recovery, error) {
+    assert.strictEqual(recovery, recoveryNotice.recovery);
+    assert.strictEqual(error, recoveryNotice.error);
+    retryOrder.push('reset-start');
+    await Promise.resolve();
+    retryOrder.push('reset-complete');
   },
 });
 assert.deepEqual(recoveredClient, { site: 'fresh' });
@@ -220,12 +231,40 @@ assert.deepEqual(recoveryNotice.recovery, {
   devicePath: 'fixture/import-site-recovery-1',
   generation: 1,
 });
+assert.deepEqual(retryOrder, [
+  'start-1',
+  'recovery',
+  'reset-start',
+  'reset-complete',
+  'start-2',
+], 'The failed Playground iframe must finish tearing down before the fresh-site retry starts.');
 assert.deepEqual(JSON.parse(persistenceStorage.getItem('playground')), {
   version: 2,
   state: 'fresh',
   devicePath: 'fixture/import-site-recovery-1',
   generation: 1,
 }, 'The old OPFS path must be retained while the retry targets a fresh generation.');
+
+const iframeListeners = new Map();
+let iframeSource = 'https://playground.wordpress.net/remote.html';
+const retryIframe = {
+  addEventListener(type, listener) {
+    iframeListeners.set(type, listener);
+  },
+  removeEventListener(type, listener) {
+    if (iframeListeners.get(type) === listener) iframeListeners.delete(type);
+  },
+  get src() {
+    return iframeSource;
+  },
+  set src(value) {
+    iframeSource = value;
+    queueMicrotask(() => iframeListeners.get('load')?.());
+  },
+};
+await resetPlaygroundIframeForRetry(retryIframe, { timeoutMs: 100 });
+assert.equal(retryIframe.src, 'about:blank');
+assert.equal(iframeListeners.has('load'), false, 'The retry teardown must remove its iframe listener.');
 
 const interruptedRecoveryPersistence = createPlaygroundPersistence({
   storage: persistenceStorage,

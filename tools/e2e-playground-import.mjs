@@ -35,6 +35,7 @@ const defaults = {
   pdfOutputMode: 'single',
   expectedPdfPages: 0,
   expectedImageCount: -1,
+  seedInvalidPlaygroundSnapshot: false,
 };
 
 function parseOptions(args) {
@@ -78,6 +79,8 @@ function parseOptions(args) {
     } else if (argument === '--expected-image-count') {
       options.expectedImageCount = Math.max(0, Number(value) || 0);
       index += 1;
+    } else if (argument === '--seed-invalid-playground-snapshot') {
+      options.seedInvalidPlaygroundSnapshot = true;
     } else {
       fail(`Unknown argument: ${argument}`);
     }
@@ -148,12 +151,14 @@ function attachObservationLog(page) {
   return observations;
 }
 
-function assertNoUnexpectedObservations(observations) {
+function assertNoUnexpectedObservations(observations, { seedInvalidPlaygroundSnapshot = false } = {}) {
+  const unexpected = (entries) => entries.filter((entry) => !(seedInvalidPlaygroundSnapshot
+    && /Error connecting to the SQLite database\./.test(String(entry))));
   const groups = [
-    ['console errors', observations.consoleErrors],
-    ['page errors', observations.pageErrors],
-    ['network failures', observations.networkFailures],
-    ['browser log errors', observations.browserLogErrors],
+    ['console errors', unexpected(observations.consoleErrors)],
+    ['page errors', unexpected(observations.pageErrors)],
+    ['network failures', unexpected(observations.networkFailures)],
+    ['browser log errors', unexpected(observations.browserLogErrors)],
   ].filter(([, entries]) => entries.length > 0);
   if (groups.length === 0) {
     return;
@@ -312,7 +317,7 @@ class CdpClient {
 async function main() {
   const options = parseOptions(process.argv.slice(2));
   if (!options.file) {
-    fail('Usage: node tools/e2e-playground-import.mjs --file /absolute/path/to/document [--pdf-output-mode single|pages] [--expected-pdf-pages N] [--expected-image-count N] [--url URL] [--chrome URL] [--chrome-pid PID] [--timeout-ms N] [--max-elapsed-ms N] [--max-browser-memory-mb N]');
+    fail('Usage: node tools/e2e-playground-import.mjs --file /absolute/path/to/document [--pdf-output-mode single|pages] [--expected-pdf-pages N] [--expected-image-count N] [--seed-invalid-playground-snapshot] [--url URL] [--chrome URL] [--chrome-pid PID] [--timeout-ms N] [--max-elapsed-ms N] [--max-browser-memory-mb N]');
   }
 
   const browser = await CdpClient.connect(await browserWebSocketUrl(options.chrome));
@@ -334,6 +339,18 @@ async function main() {
     ]);
 
     const testUrl = withTestMarker(options.url);
+    if (options.seedInvalidPlaygroundSnapshot) {
+      const expectedOrigin = new URL(testUrl).origin;
+      await page.call('Page.addScriptToEvaluateOnNewDocument', {
+        source: `(() => {
+          if (location.origin !== ${JSON.stringify(expectedOrigin)}) return;
+          localStorage.setItem('port-libs.playground-import-site.v1', JSON.stringify({
+            version: 1,
+            devicePath: \`port-libs/\${location.host}/playground-import-site-v1\`,
+          }));
+        })();`,
+      });
+    }
     await page.call('Page.navigate', { url: testUrl });
     await waitForCondition(page, `Boolean(document.querySelector('#example-picker:not([disabled])'))`, options, 'the example catalogue to load');
 
@@ -393,7 +410,7 @@ async function main() {
     let nextMemoryPollAt = 0;
     let recoveredToPages = false;
     while (Date.now() - startedAt < importDeadlineMs) {
-      assertNoUnexpectedObservations(observations);
+      assertNoUnexpectedObservations(observations, options);
       if (options.maxBrowserMemoryMb > 0 && Date.now() >= nextMemoryPollAt) {
         nextMemoryPollAt = Date.now() + 500;
         sampleBrowserMemory();
@@ -409,7 +426,7 @@ async function main() {
           disabled: Boolean(button?.disabled),
         };
       })()`);
-      assertNoUnexpectedObservations(observations);
+      assertNoUnexpectedObservations(observations, options);
       if (status.text && status.text !== lastStatus) {
         lastStatus = status.text;
         statusHistory.push({ atMs: Date.now() - startedAt, ...status });
@@ -486,6 +503,16 @@ async function main() {
             throw new Error('The PDF did not expose verified-draft and completion stages in the UI.');
           }
         }
+        if (options.seedInvalidPlaygroundSnapshot) {
+          const messages = statusHistory.map((entry) => entry.text).join('\n');
+          if (!messages.includes('previous browser snapshot is preserved')) {
+            throw new Error('The invalid persisted-site fixture did not expose the visible SQLite recovery stage.');
+          }
+          const persistenceRecord = await evaluate(page, `JSON.parse(localStorage.getItem('port-libs.playground-import-site.v1') || 'null')`);
+          if (persistenceRecord?.generation !== 1 || persistenceRecord?.state !== 'persisted') {
+            throw new Error(`The recovered Playground was not persisted as generation 1: ${JSON.stringify(persistenceRecord)}`);
+          }
+        }
         const elapsedMs = Date.now() - startedAt;
         if (options.maxElapsedMs > 0 && elapsedMs > options.maxElapsedMs) {
           throw new Error(`Import exceeded the ${formatElapsed(options.maxElapsedMs)} performance ceiling (${formatElapsed(elapsedMs)}).`);
@@ -527,7 +554,7 @@ async function main() {
           }
           postCompletionSettleElapsedMs = Date.now() - settleStartedAt;
         }
-        assertNoUnexpectedObservations(observations);
+        assertNoUnexpectedObservations(observations, options);
         const result = {
           ok: true,
           file: options.file,

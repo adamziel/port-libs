@@ -11,8 +11,9 @@ import {
   createImportJobSession,
   createPlaygroundPersistence,
   recoverImportMutation,
+  resetPlaygroundIframeForRetry,
   startPlaygroundWithSnapshotRecovery,
-} from './import-job-session.mjs?v=playground-snapshot-recovery-20260721';
+} from './import-job-session.mjs?v=playground-retry-teardown-20260721';
 
 const catalogUrl = 'examples-index.json';
 const viewLabels = {
@@ -777,6 +778,7 @@ async function startOwnFilePlayground() {
         setOwnFileBusy(true, message);
         setStatus(message, { visible: true });
       },
+      beforeRetry: () => resetPlaygroundIframeForRetry(frame),
     });
     await state.playgroundClient.isReady();
     try {
