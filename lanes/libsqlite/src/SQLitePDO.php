@@ -7,6 +7,7 @@ namespace PortLibs\LibSqlite;
 final class SQLitePDO extends \PDO
 {
     private const MAX_VARIABLE_NUMBER = 32766;
+    private const INSERT_CACHE_LIMIT = 256;
 
     /** @var array<string,list<array<string,mixed>>> */
     private array $tables = [];
@@ -19,6 +20,35 @@ final class SQLitePDO extends \PDO
 
     /** @var array<string,string|null> */
     private array $rowidAliases = [];
+
+    /**
+     * Integer-primary-key value to row offsets. The common unique-key case stores
+     * one integer; duplicate values retain every offset so the optimization does
+     * not change the polyfill's existing behavior.
+     *
+     * @var array<string,array<int,int|list<int>>>
+     */
+    private array $integerPrimaryKeyIndexes = [];
+
+    /** @var array<string,bool> */
+    private array $integerPrimaryKeyIndexComplete = [];
+
+    /** @var array<string,int> */
+    private array $integerPrimaryKeyMax = [];
+
+    /** @var array<string,array<string,mixed>> */
+    private array $insertStatementCache = [];
+
+    /** @var array<string,string> */
+    private array $validatedInsertSql = [];
+
+    /**
+     * @var array<string,array{
+     *     tableSql:string,
+     *     metadata:array<string,array{type:string,default:?string}>
+     * }>
+     */
+    private array $tableColumnMetadataCache = [];
 
     private ?string $filePath = null;
     private int $schemaCookie = 0;
@@ -93,6 +123,7 @@ final class SQLitePDO extends \PDO
         $this->rowidAliases = $state['rowidAliases'];
         $this->schemaCookie = $state['schemaCookie'];
         $this->fileChangeCounter = $state['fileChangeCounter'];
+        $this->rebuildIntegerPrimaryKeyIndexes();
     }
 
     public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): \PDOStatement|false
@@ -136,7 +167,12 @@ final class SQLitePDO extends \PDO
             return $this->handleConnectionFailure($exception, __METHOD__);
         }
 
-        return new SQLitePDOStatement($this, $query, $initialStatementErrorInfo);
+        return new SQLitePDOStatement(
+            $this,
+            $query,
+            $initialStatementErrorInfo,
+            $this->compilePreparedExecutionPlan($query),
+        );
     }
 
     public function quote(string $string, int $type = \PDO::PARAM_STR): string|false
@@ -346,6 +382,7 @@ final class SQLitePDO extends \PDO
             $this->fileChangeCounter,
         ] = $this->transactionSnapshot;
         $this->transactionSnapshot = null;
+        $this->rebuildIntegerPrimaryKeyIndexes();
 
         return true;
     }
@@ -354,7 +391,12 @@ final class SQLitePDO extends \PDO
      * @param array<int|string,mixed> $parameters
      * @return array{rows:list<array<string,mixed>>,changes:int}
      */
-    public function executeSql(string $sql, array $parameters, bool $validateParameterTokens = false): array
+    public function executeSql(
+        string $sql,
+        array $parameters,
+        bool $validateParameterTokens = false,
+        ?array $preparedExecutionPlan = null,
+    ): array
     {
         $sql = trim(rtrim(trim($sql), ';'));
         if ($sql === '') {
@@ -364,6 +406,14 @@ final class SQLitePDO extends \PDO
         try {
             if ($validateParameterTokens) {
                 $this->assertParameterTokensAreValid($sql);
+            }
+            if ($preparedExecutionPlan !== null) {
+                $preparedResult = $this->executePreparedExecutionPlan($preparedExecutionPlan, $parameters);
+                if ($preparedResult !== null) {
+                    $this->clearError();
+
+                    return $preparedResult;
+                }
             }
             if (preg_match('/^(?:select|values|with)\b/i', $sql) === 1) {
                 $result = ['rows' => SQLiteSelectSql::execute($sql, $this->tables, $parameters), 'changes' => 0];
@@ -593,8 +643,12 @@ final class SQLitePDO extends \PDO
 
     private function validateInsertPrepareSql(string $sql): void
     {
-        $statement = SQLiteInsertValuesSql::parse($sql);
+        $statement = $this->parsedInsertValuesSql($sql);
         $table = $statement['target'];
+        $schemaSignature = $this->insertSchemaSignature($table);
+        if ($schemaSignature !== null && ($this->validatedInsertSql[$sql] ?? null) === $schemaSignature) {
+            return;
+        }
         $this->assertWritableInsertTarget($table);
         $this->assertTable($table);
         $columns = $statement['columns'] ?? $this->columns[$table];
@@ -607,6 +661,31 @@ final class SQLitePDO extends \PDO
                 $this->assertPrepareScalarReferences($expression, []);
             }
         }
+        $this->validatedInsertSql[$sql] = $this->insertSchemaSignature($table)
+            ?? throw new \LogicException('SQLitePDO validated INSERT target lost its schema');
+    }
+
+    /** @return array<string,mixed> */
+    private function parsedInsertValuesSql(string $sql): array
+    {
+        if (array_key_exists($sql, $this->insertStatementCache)) {
+            return $this->insertStatementCache[$sql];
+        }
+        if (count($this->insertStatementCache) >= self::INSERT_CACHE_LIMIT) {
+            $oldestSql = array_key_first($this->insertStatementCache);
+            if (is_string($oldestSql)) {
+                unset($this->insertStatementCache[$oldestSql], $this->validatedInsertSql[$oldestSql]);
+            }
+        }
+
+        return $this->insertStatementCache[$sql] = SQLiteInsertValuesSql::parse($sql);
+    }
+
+    private function insertSchemaSignature(string $table): ?string
+    {
+        return array_key_exists($table, $this->tables)
+            ? ($this->tableSql[$table] ?? '')
+            : null;
     }
 
     private function validateCreateTablePrepareSql(string $sql): void
@@ -1177,6 +1256,7 @@ final class SQLitePDO extends \PDO
             $this->lastInsertId = $lastInsertId;
             $this->schemaCookie = $schemaCookie;
             $this->fileChangeCounter = $fileChangeCounter;
+            $this->rebuildIntegerPrimaryKeyIndexes();
 
             throw $exception;
         }
@@ -1234,6 +1314,8 @@ final class SQLitePDO extends \PDO
         $this->columns[$table] = $definition['columns'];
         $this->tableSql[$table] = $sql;
         $this->rowidAliases[$table] = $definition['rowidAlias'];
+        unset($this->tableColumnMetadataCache[$table]);
+        $this->rebuildIntegerPrimaryKeyIndex($table);
         $this->schemaCookie++;
     }
 
@@ -1260,7 +1342,7 @@ final class SQLitePDO extends \PDO
     /** @param array<int|string,mixed> $parameters */
     private function insertValues(string $sql, array $parameters): int
     {
-        $statement = SQLiteInsertValuesSql::parse($sql);
+        $statement = $this->parsedInsertValuesSql($sql);
         $table = $statement['target'];
         $this->assertWritableInsertTarget($table);
         $this->assertTable($table);
@@ -1293,6 +1375,7 @@ final class SQLitePDO extends \PDO
                 $row[$rowidColumn] = $this->nextRowId($table, $rowidColumn);
             }
             $this->tables[$table][] = $row;
+            $this->addIntegerPrimaryKeyIndexRow($table, array_key_last($this->tables[$table]), $row);
             $this->lastInsertId = is_int($row[$rowidColumn] ?? null) ? $row[$rowidColumn] : count($this->tables[$table]);
             $changes++;
         }
@@ -1325,11 +1408,20 @@ final class SQLitePDO extends \PDO
     private function tableColumnMetadata(string $table): array
     {
         $schema = $this->tableSql[$table] ?? '';
+        $cached = $this->tableColumnMetadataCache[$table] ?? null;
+        if (is_array($cached) && $cached['tableSql'] === $schema) {
+            return $cached['metadata'];
+        }
         if ($schema === '') {
             $metadata = [];
             foreach ($this->columns[$table] ?? [] as $column) {
                 $metadata[$column] = ['type' => '', 'default' => null];
             }
+
+            $this->tableColumnMetadataCache[$table] = [
+                'tableSql' => $schema,
+                'metadata' => $metadata,
+            ];
 
             return $metadata;
         }
@@ -1363,6 +1455,11 @@ final class SQLitePDO extends \PDO
         foreach ($this->columns[$table] ?? [] as $column) {
             $metadata[$column] ??= ['type' => '', 'default' => null];
         }
+
+        $this->tableColumnMetadataCache[$table] = [
+            'tableSql' => $schema,
+            'metadata' => $metadata,
+        ];
 
         return $metadata;
     }
@@ -1406,15 +1503,29 @@ final class SQLitePDO extends \PDO
             $assignments[$assignmentMatch[1]] = $assignmentMatch[2];
         }
         $this->assertColumns($table, array_keys($assignments), 'update');
-        $where = isset($match[3]) && trim($match[3]) !== ''
-            ? $this->rewriteUpdateWhereAnonymousParameters($match[3], array_values($assignments))
+        $wherePlan = isset($match[3]) && trim($match[3]) !== ''
+            ? $this->updateWhereParameterPlan($match[3], array_values($assignments))
             : null;
-        $indexes = $this->matchingIndexes($table, $where, $parameters);
+        $where = $wherePlan['sql'] ?? null;
+        $resolvedParameters = $this->whereParameters(
+            $parameters,
+            $wherePlan['namedPositions'] ?? [],
+        );
+        $indexes = $this->matchingIndexes(
+            $table,
+            $where,
+            $resolvedParameters,
+            $wherePlan['namedPositions'] ?? [],
+        );
         foreach ($indexes as $index) {
-            $parameterCursor = $this->parameterCursor($parameters);
+            $parameterCursor = $this->parameterCursor($resolvedParameters);
             foreach ($assignments as $column => $expression) {
                 $this->tables[$table][$index][$column] = $this->value($expression, $parameterCursor, $this->tables[$table][$index]);
             }
+        }
+        $rowidAlias = $this->rowidAliases[$table] ?? null;
+        if ($rowidAlias !== null && array_key_exists($rowidAlias, $assignments)) {
+            $this->rebuildIntegerPrimaryKeyIndex($table);
         }
 
         return count($indexes);
@@ -1428,9 +1539,21 @@ final class SQLitePDO extends \PDO
         }
         $table = $match[1];
         $this->assertTable($table);
-        $indexes = $this->matchingIndexes($table, $match[2] ?? null, $parameters);
+        $where = $match[2] ?? null;
+        $wherePlan = $where === null || trim($where) === ''
+            ? null
+            : $this->updateWhereParameterPlan($where, []);
+        $indexes = $this->matchingIndexes(
+            $table,
+            $wherePlan['sql'] ?? null,
+            $parameters,
+            $wherePlan['namedPositions'] ?? [],
+        );
         foreach (array_reverse($indexes) as $index) {
             array_splice($this->tables[$table], $index, 1);
+        }
+        if ($indexes !== []) {
+            $this->rebuildIntegerPrimaryKeyIndex($table);
         }
 
         return count($indexes);
@@ -1438,15 +1561,19 @@ final class SQLitePDO extends \PDO
 
     /**
      * @param list<string> $assignmentExpressions
+     * @return array{sql:string,namedPositions:array<string,int>}
      */
-    private function rewriteUpdateWhereAnonymousParameters(string $where, array $assignmentExpressions): string
+    private function updateWhereParameterPlan(string $where, array $assignmentExpressions): array
     {
         $state = ['next' => 1, 'named' => []];
         foreach ($assignmentExpressions as $expression) {
             $this->scanUpdateParameterSql($expression, $state, false);
         }
 
-        return $this->scanUpdateParameterSql($where, $state, true);
+        return [
+            'sql' => $this->scanUpdateParameterSql($where, $state, true),
+            'namedPositions' => $state['named'],
+        ];
     }
 
     /**
@@ -1455,22 +1582,46 @@ final class SQLitePDO extends \PDO
     private function scanUpdateParameterSql(string $sql, array &$state, bool $rewriteAnonymous): string
     {
         $result = '';
-        $quote = false;
+        $quote = null;
         $length = strlen($sql);
         for ($i = 0; $i < $length; $i++) {
             $char = $sql[$i];
-            if ($char === "'") {
+            if ($quote !== null) {
                 $result .= $char;
-                if ($quote && ($sql[$i + 1] ?? null) === "'") {
-                    $result .= "'";
+                if ($char === $quote && $quote !== ']' && ($sql[$i + 1] ?? null) === $quote) {
+                    $result .= $quote;
                     $i++;
                     continue;
                 }
-                $quote = !$quote;
+                if ($char === $quote) {
+                    $quote = null;
+                }
                 continue;
             }
-            if ($quote) {
+            if ($char === "'" || $char === '"' || $char === '`' || $char === '[') {
                 $result .= $char;
+                $quote = $char === '[' ? ']' : $char;
+                continue;
+            }
+            if ($char === '-' && ($sql[$i + 1] ?? null) === '-') {
+                $end = strpos($sql, "\n", $i + 2);
+                if ($end === false) {
+                    $result .= substr($sql, $i);
+                    break;
+                }
+                $result .= substr($sql, $i, $end - $i);
+                $i = $end - 1;
+                continue;
+            }
+            if ($char === '/' && ($sql[$i + 1] ?? null) === '*') {
+                $end = strpos($sql, '*/', $i + 2);
+                if ($end === false) {
+                    $result .= substr($sql, $i);
+                    break;
+                }
+                $end += 2;
+                $result .= substr($sql, $i, $end - $i);
+                $i = $end - 1;
                 continue;
             }
             if ($char === '?') {
@@ -1508,19 +1659,335 @@ final class SQLitePDO extends \PDO
         return $result;
     }
 
-    /** @param array<int|string,mixed> $parameters @return list<int> */
-    private function matchingIndexes(string $table, ?string $where, array $parameters): array
+    /**
+     * @param array<int|string,mixed> $parameters
+     * @param array<string,int> $namedParameterPositions
+     * @return list<int>
+     */
+    private function matchingIndexes(
+        string $table,
+        ?string $where,
+        array $parameters,
+        array $namedParameterPositions = [],
+    ): array
     {
         if ($where === null || trim($where) === '') {
             return array_keys($this->tables[$table]);
+        }
+        $whereParameters = $this->whereParameters($parameters, $namedParameterPositions);
+        $indexedMatches = $this->integerPrimaryKeyMatchingIndexes($table, $where, $whereParameters);
+        if ($indexedMatches !== null) {
+            return $indexedMatches;
         }
         $rows = [];
         foreach ($this->tables[$table] as $index => $row) {
             $rows[] = ['__sqlitepdo_index' => $index] + $row;
         }
-        $matches = SQLiteSelectSql::execute("SELECT __sqlitepdo_index FROM {$table} WHERE {$where}", [$table => $rows], $parameters);
+        $matches = SQLiteSelectSql::execute(
+            "SELECT __sqlitepdo_index FROM {$table} WHERE {$where}",
+            [$table => $rows],
+            $whereParameters,
+        );
 
         return array_map(static fn (array $row): int => (int) $row['__sqlitepdo_index'], $matches);
+    }
+
+    /**
+     * Preserve each named parameter's position in the complete UPDATE or DELETE
+     * before evaluating its assignment and standalone WHERE fragments. An
+     * omitted name remains NULL instead of accidentally consuming parameter 1.
+     *
+     * @param array<int|string,mixed> $parameters
+     * @param array<string,int> $namedParameterPositions
+     * @return array<int|string,mixed>
+     */
+    private function whereParameters(array $parameters, array $namedParameterPositions): array
+    {
+        $whereParameters = $parameters;
+        foreach ($namedParameterPositions as $token => $position) {
+            $bare = substr($token, 1);
+            $found = false;
+            foreach (array_unique([$token, $bare, ':' . $bare, '@' . $bare, '$' . $bare]) as $candidate) {
+                if (array_key_exists($candidate, $parameters)) {
+                    $whereParameters[$token] = $parameters[$candidate];
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) {
+                $whereParameters[$token] = array_key_exists($position, $parameters)
+                    ? $parameters[$position]
+                    : null;
+            }
+        }
+
+        return $whereParameters;
+    }
+
+    /**
+     * Compile only the shape whose semantics can be preserved without invoking
+     * the general SQL planner on every execution. All other SELECTs retain the
+     * existing path.
+     *
+     * @return array{
+     *     kind:string,
+     *     table:string,
+     *     rowidAlias:string,
+     *     columns:list<string>,
+     *     parameterToken:string,
+     *     tableSql:string
+     * }|null
+     */
+    private function compilePreparedExecutionPlan(string $sql): ?array
+    {
+        $sql = trim(rtrim(trim($sql), ';'));
+        if (preg_match(
+            '/^select\s+'
+            . '([A-Za-z_][A-Za-z0-9_]*(?:\s*,\s*[A-Za-z_][A-Za-z0-9_]*)*)'
+            . '\s+from\s+([A-Za-z_][A-Za-z0-9_]*)'
+            . '\s+where\s+([A-Za-z_][A-Za-z0-9_]*)'
+            . '\s*(?:=|==)\s*(\?|\?[1-9][0-9]*|:[A-Za-z_][A-Za-z0-9_]*)$/i',
+            $sql,
+            $match,
+        ) !== 1) {
+            return null;
+        }
+
+        $table = $match[2];
+        if (!array_key_exists($table, $this->tables)) {
+            return null;
+        }
+        $rowidAlias = $this->rowidAliases[$table] ?? null;
+        if ($rowidAlias === null || $match[3] !== $rowidAlias) {
+            return null;
+        }
+
+        $columns = preg_split('/\s*,\s*/', $match[1]);
+        if ($columns === false || $columns === [] || count($columns) !== count(array_unique($columns))) {
+            return null;
+        }
+        foreach ($columns as $column) {
+            if (!in_array($column, $this->columns[$table] ?? [], true)) {
+                return null;
+            }
+        }
+
+        return [
+            'kind' => 'integer-primary-key-select',
+            'table' => $table,
+            'rowidAlias' => $rowidAlias,
+            'columns' => array_values($columns),
+            'parameterToken' => $match[4],
+            'tableSql' => $this->tableSql[$table] ?? '',
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param array<int|string,mixed> $parameters
+     * @return array{rows:list<array<string,mixed>>,changes:int}|null
+     */
+    private function executePreparedExecutionPlan(array $plan, array $parameters): ?array
+    {
+        if (($plan['kind'] ?? null) !== 'integer-primary-key-select'
+            || !is_string($plan['table'] ?? null)
+            || !is_string($plan['rowidAlias'] ?? null)
+            || !is_array($plan['columns'] ?? null)
+            || !is_string($plan['parameterToken'] ?? null)
+            || !is_string($plan['tableSql'] ?? null)
+        ) {
+            return null;
+        }
+
+        $table = $plan['table'];
+        $rowidAlias = $plan['rowidAlias'];
+        if (!array_key_exists($table, $this->tables)
+            || ($this->rowidAliases[$table] ?? null) !== $rowidAlias
+            || ($this->tableSql[$table] ?? '') !== $plan['tableSql']
+            || !($this->integerPrimaryKeyIndexComplete[$table] ?? false)
+        ) {
+            return null;
+        }
+
+        $probe = $this->simpleParameterValue($plan['parameterToken'], $parameters, true);
+        if ($probe === null) {
+            return ['rows' => [], 'changes' => 0];
+        }
+        if (!is_int($probe)) {
+            return null;
+        }
+
+        $offsets = $this->integerPrimaryKeyOffsets($table, $probe);
+        $rows = [];
+        foreach ($offsets as $offset) {
+            $row = $this->tables[$table][$offset] ?? null;
+            if (!is_array($row) || ($row[$rowidAlias] ?? null) !== $probe) {
+                return null;
+            }
+            $projected = [];
+            foreach ($plan['columns'] as $column) {
+                if (!is_string($column) || !array_key_exists($column, $row)) {
+                    return null;
+                }
+                $projected[$column] = $row[$column];
+            }
+            $rows[] = $projected;
+        }
+
+        return ['rows' => $rows, 'changes' => 0];
+    }
+
+    /**
+     * @param array<int|string,mixed> $parameters
+     * @return list<int>|null
+     */
+    private function integerPrimaryKeyMatchingIndexes(string $table, string $where, array $parameters): ?array
+    {
+        if (!($this->integerPrimaryKeyIndexComplete[$table] ?? false)
+            || preg_match(
+                '/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:=|==)\s*'
+                . '(\?|\?[1-9][0-9]*|:[A-Za-z_][A-Za-z0-9_]*|-?(?:0|[1-9][0-9]*))\s*$/',
+                $where,
+                $match,
+            ) !== 1
+            || ($this->rowidAliases[$table] ?? null) !== $match[1]
+        ) {
+            return null;
+        }
+
+        $token = $match[2];
+        if (preg_match('/^-?(?:0|[1-9][0-9]*)$/', $token) === 1) {
+            $probe = filter_var($token, FILTER_VALIDATE_INT);
+            if ($probe === false) {
+                return null;
+            }
+        } else {
+            $probe = $this->simpleParameterValue($token, $parameters);
+            if ($probe === null) {
+                return [];
+            }
+            if (!is_int($probe)) {
+                return null;
+            }
+        }
+
+        $offsets = $this->integerPrimaryKeyOffsets($table, $probe);
+        $rowidAlias = $this->rowidAliases[$table];
+        foreach ($offsets as $offset) {
+            if (($this->tables[$table][$offset][$rowidAlias] ?? null) !== $probe) {
+                return null;
+            }
+        }
+
+        return $offsets;
+    }
+
+    /** @param array<int|string,mixed> $parameters */
+    private function simpleParameterValue(
+        string $token,
+        array $parameters,
+        bool $allowNamedPositionalFallback = false,
+    ): mixed
+    {
+        if ($token === '?') {
+            return array_key_exists(0, $parameters)
+                ? $parameters[0]
+                : ($parameters[1] ?? null);
+        }
+        if (preg_match('/^\?([1-9][0-9]*)$/', $token, $match) === 1) {
+            $index = (int) $match[1];
+            return $parameters[$index] ?? null;
+        }
+
+        $bare = substr($token, 1);
+        foreach (array_unique([$token, $bare, ':' . $bare, '@' . $bare, '$' . $bare]) as $candidate) {
+            if (array_key_exists($candidate, $parameters)) {
+                return $parameters[$candidate];
+            }
+        }
+        if ($allowNamedPositionalFallback) {
+            foreach ([1, 0] as $candidate) {
+                if (array_key_exists($candidate, $parameters)) {
+                    return $parameters[$candidate];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /** @return list<int> */
+    private function integerPrimaryKeyOffsets(string $table, int $rowid): array
+    {
+        if (!array_key_exists($rowid, $this->integerPrimaryKeyIndexes[$table] ?? [])) {
+            return [];
+        }
+        $entry = $this->integerPrimaryKeyIndexes[$table][$rowid];
+
+        return is_int($entry) ? [$entry] : array_values($entry);
+    }
+
+    private function rebuildIntegerPrimaryKeyIndexes(): void
+    {
+        $this->integerPrimaryKeyIndexes = [];
+        $this->integerPrimaryKeyIndexComplete = [];
+        $this->integerPrimaryKeyMax = [];
+        foreach (array_keys($this->tables) as $table) {
+            $this->rebuildIntegerPrimaryKeyIndex($table);
+        }
+    }
+
+    private function rebuildIntegerPrimaryKeyIndex(string $table): void
+    {
+        $rowidAlias = $this->rowidAliases[$table] ?? null;
+        if ($rowidAlias === null || !array_key_exists($table, $this->tables)) {
+            unset(
+                $this->integerPrimaryKeyIndexes[$table],
+                $this->integerPrimaryKeyIndexComplete[$table],
+                $this->integerPrimaryKeyMax[$table],
+            );
+
+            return;
+        }
+
+        $this->integerPrimaryKeyIndexes[$table] = [];
+        $this->integerPrimaryKeyIndexComplete[$table] = true;
+        $this->integerPrimaryKeyMax[$table] = 0;
+        foreach ($this->tables[$table] as $offset => $row) {
+            $this->addIntegerPrimaryKeyIndexRow($table, $offset, $row);
+        }
+    }
+
+    /** @param array<string,mixed> $row */
+    private function addIntegerPrimaryKeyIndexRow(string $table, int $offset, array $row): void
+    {
+        $rowidAlias = $this->rowidAliases[$table] ?? null;
+        if ($rowidAlias === null) {
+            return;
+        }
+        if (!array_key_exists($table, $this->integerPrimaryKeyIndexComplete)) {
+            $this->rebuildIntegerPrimaryKeyIndex($table);
+
+            return;
+        }
+
+        $rowid = $row[$rowidAlias] ?? null;
+        if (!is_int($rowid)) {
+            $this->integerPrimaryKeyIndexComplete[$table] = false;
+
+            return;
+        }
+
+        $existing = $this->integerPrimaryKeyIndexes[$table][$rowid] ?? null;
+        if ($existing === null) {
+            $this->integerPrimaryKeyIndexes[$table][$rowid] = $offset;
+        } elseif (is_int($existing)) {
+            $this->integerPrimaryKeyIndexes[$table][$rowid] = [$existing, $offset];
+        } else {
+            $existing[] = $offset;
+            $this->integerPrimaryKeyIndexes[$table][$rowid] = $existing;
+        }
+        $this->integerPrimaryKeyMax[$table] = max($this->integerPrimaryKeyMax[$table] ?? 0, $rowid);
     }
 
     private function assertTable(string $table): void
@@ -1546,6 +2013,12 @@ final class SQLitePDO extends \PDO
 
     private function nextRowId(string $table, string $column): int
     {
+        if (($this->rowidAliases[$table] ?? null) === $column
+            && ($this->integerPrimaryKeyIndexComplete[$table] ?? false)
+        ) {
+            return ($this->integerPrimaryKeyMax[$table] ?? 0) + 1;
+        }
+
         $max = 0;
         foreach ($this->tables[$table] as $row) {
             if (is_int($row[$column] ?? null)) {

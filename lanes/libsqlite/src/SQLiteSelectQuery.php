@@ -13,7 +13,11 @@ final class SQLiteSelectQuery
     public static function execute(array $plan): array
     {
         $rows = self::sourceRows($plan);
-        $rows = self::applyJoins($rows, $plan['joins'] ?? []);
+        $cartesianCountAll = self::cartesianCountAll($rows, $plan['joins'] ?? [], $plan);
+        $implicitAggregateApplied = $cartesianCountAll !== null;
+        $rows = $implicitAggregateApplied
+            ? [['countAll' => $cartesianCountAll]]
+            : self::applyJoins($rows, $plan['joins'] ?? []);
         $earlyLimitApplied = false;
 
         if (array_key_exists('where', $plan)) {
@@ -42,7 +46,7 @@ final class SQLiteSelectQuery
             $earlyLimitApplied = true;
         }
 
-        if (array_key_exists('groupBy', $plan)) {
+        if (array_key_exists('groupBy', $plan) && !$implicitAggregateApplied) {
             $groupBy = $plan['groupBy'];
             if (!is_array($groupBy)) {
                 throw new \InvalidArgumentException('SQLite SELECT query groupBy clause must be an aggregate plan');
@@ -129,6 +133,104 @@ final class SQLiteSelectQuery
         }
 
         return SQLiteSelectResult::execute($rows, $distinct, $orderBy, $limit, $offset, $distinctCollations);
+    }
+
+    /**
+     * Return the cardinality of a static Cartesian product when COUNT(*) is
+     * the query's only observable aggregate.
+     *
+     * The ordinary join path must materialize every combined row before the
+     * aggregate sees it. For a pure COUNT(*) the values are unobservable, so
+     * multiplying the validated source cardinalities is equivalent and
+     * avoids quadratic allocation.
+     *
+     * @param list<array<string,mixed>> $rows
+     */
+    private static function cartesianCountAll(array $rows, mixed $joins, array $plan): ?int
+    {
+        if (
+            $joins === []
+            || !is_array($joins)
+            || !array_is_list($joins)
+            || array_key_exists('where', $plan)
+            || array_key_exists('distinct', $plan)
+            || array_key_exists('orderBy', $plan)
+            || array_key_exists('limit', $plan)
+            || array_key_exists('offset', $plan)
+        ) {
+            return null;
+        }
+
+        $select = $plan['select'] ?? null;
+        if (!is_array($select) || count($select) !== 1 || !is_array($select[0])) {
+            return null;
+        }
+        $expression = $select[0];
+        $sourceExpression = $expression['sourceExpression'] ?? null;
+        if (
+            ($expression['type'] ?? null) !== 'column'
+            || ($expression['name'] ?? null) !== 'countAll'
+            || !is_array($sourceExpression)
+            || strtolower((string) ($sourceExpression['name'] ?? '')) !== 'count'
+            || !self::isCountAllArguments($sourceExpression['arguments'] ?? null)
+        ) {
+            return null;
+        }
+
+        $groupBy = $plan['groupBy'] ?? null;
+        if (
+            !is_array($groupBy)
+            || ($groupBy['columns'] ?? null) !== []
+            || ($groupBy['implicitAggregate'] ?? false) !== true
+            || ($groupBy['valueColumn'] ?? null) !== null
+            || ($groupBy['jsonAggregates'] ?? null) !== []
+            || ($groupBy['filteredAggregates'] ?? null) !== []
+            || isset($groupBy['having'])
+            || isset($groupBy['expressions'])
+            || isset($groupBy['sampleAggregates'])
+        ) {
+            return null;
+        }
+
+        $count = count($rows);
+        foreach ($joins as $join) {
+            if (
+                !is_array($join)
+                || strtoupper((string) ($join['type'] ?? '')) !== 'CROSS'
+                || isset($join['dynamicRows'])
+                || isset($join['indexedDynamicRows'])
+                || isset($join['coalesceColumns'])
+            ) {
+                return null;
+            }
+            $rightCount = count(self::rightRows($join));
+            if ($count !== 0 && $rightCount > intdiv(PHP_INT_MAX, $count)) {
+                return null;
+            }
+            $count *= $rightCount;
+        }
+
+        return $count;
+    }
+
+    private static function isCountAllArguments(mixed $arguments): bool
+    {
+        if (!is_array($arguments) || !array_is_list($arguments)) {
+            return false;
+        }
+        if ($arguments === []) {
+            return true;
+        }
+        if (count($arguments) !== 1 || !is_array($arguments[0])) {
+            return false;
+        }
+        if (($arguments[0]['type'] ?? null) === 'wildcard') {
+            return true;
+        }
+
+        return ($arguments[0]['type'] ?? null) === 'literal'
+            && array_key_exists('value', $arguments[0])
+            && $arguments[0]['value'] !== null;
     }
 
     /**

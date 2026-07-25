@@ -53,6 +53,7 @@ final class SQLitePDOStatement extends \PDOStatement
         private readonly SQLitePDO $connection,
         private readonly string $sql,
         array $initialErrorInfo = ['', null, null],
+        private readonly ?array $preparedExecutionPlan = null,
     ) {
         $this->errorInfo = [
             is_string($initialErrorInfo[0] ?? null) ? $initialErrorInfo[0] : '',
@@ -78,7 +79,12 @@ final class SQLitePDOStatement extends \PDOStatement
                     $parameters[is_int($key) ? $key + 1 : $key] = $value;
                 }
             }
-            $result = $this->connection->executeSql($this->sql, $parameters, $validateParameterTokens);
+            $result = $this->connection->executeSql(
+                $this->sql,
+                $parameters,
+                $validateParameterTokens,
+                $this->preparedExecutionPlan,
+            );
         } catch (\PDOException $exception) {
             $this->errorInfo = $this->normalizeExceptionErrorInfo($exception);
             $this->errorCode = $this->errorInfo[0];

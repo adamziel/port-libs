@@ -82,6 +82,7 @@ final class SQLiteSelectResult
         }
 
         $customCollations = self::normalizeCustomCollations($customCollations);
+        $normalizedTerms = [];
         foreach ($terms as $term) {
             if (($term['column'] ?? '') === '') {
                 throw new \InvalidArgumentException('SQLite ORDER BY term needs a column');
@@ -98,38 +99,54 @@ final class SQLiteSelectResult
             if ($nulls !== '' && $nulls !== 'FIRST' && $nulls !== 'LAST') {
                 throw new \InvalidArgumentException('SQLite ORDER BY NULLS placement must be FIRST or LAST');
             }
+
+            $customComparison = $customCollations[$collation] ?? null;
+            $normalizedTerms[] = [
+                'column' => $term['column'],
+                'descending' => $direction === 'DESC',
+                'nulls' => $nulls,
+                'customComparison' => $customComparison,
+                'reverseText' => $customComparison === null && $collation === 'REVERSE',
+                'collation' => $collation,
+            ];
         }
 
         $ordered = [];
         foreach ($rows as $index => $row) {
-            foreach ($terms as $term) {
+            $sortValues = [];
+            foreach ($normalizedTerms as $term) {
                 if (!array_key_exists($term['column'], $row)) {
                     throw new \InvalidArgumentException("SQLite ORDER BY row is missing column {$term['column']}");
                 }
-                self::sortRank($row[$term['column']]);
+                $sortValues[] = self::decorateSortValue(
+                    $row[$term['column']],
+                    $term['collation'],
+                    $term['customComparison'] !== null,
+                );
             }
-            $ordered[] = [$row, $index];
+            $ordered[] = [$row, $index, $sortValues];
         }
 
-        usort($ordered, static function (array $left, array $right) use ($terms, $customCollations): int {
-            foreach ($terms as $term) {
-                $direction = strtoupper($term['direction'] ?? 'ASC');
-                $nullComparison = self::compareNullPlacement(
-                    $left[0][$term['column']],
-                    $right[0][$term['column']],
-                    strtoupper($term['nulls'] ?? '')
-                );
-                if ($nullComparison !== null) {
-                    return $nullComparison;
+        usort($ordered, static function (array $left, array $right) use ($normalizedTerms): int {
+            foreach ($normalizedTerms as $termIndex => $term) {
+                $leftValue = $left[2][$termIndex];
+                $rightValue = $right[2][$termIndex];
+
+                if ($term['nulls'] !== '' && ($leftValue[0] === 0 || $rightValue[0] === 0)) {
+                    if ($leftValue[0] === $rightValue[0]) {
+                        continue;
+                    }
+
+                    if ($term['nulls'] === 'FIRST') {
+                        return $leftValue[0] === 0 ? -1 : 1;
+                    }
+
+                    return $leftValue[0] === 0 ? 1 : -1;
                 }
-                $comparison = self::compareSqlValues(
-                    $left[0][$term['column']],
-                    $right[0][$term['column']],
-                    strtoupper($term['collation'] ?? 'BINARY'),
-                    $customCollations,
-                );
+
+                $comparison = self::compareDecoratedSortValues($leftValue, $rightValue, $term);
                 if ($comparison !== 0) {
-                    return $direction === 'DESC' ? -$comparison : $comparison;
+                    return $term['descending'] ? -$comparison : $comparison;
                 }
             }
 
@@ -375,34 +392,68 @@ final class SQLiteSelectResult
     }
 
     /**
-     * @param array<string, callable(string, string): int> $customCollations
+     * Materialize the storage rank and built-in text collation key once per row
+     * instead of rebuilding both for every comparison performed by usort().
+     *
+     * @return array{0:int,1:mixed}
      */
-    private static function compareSqlValues(mixed $left, mixed $right, string $collation = 'BINARY', array $customCollations = []): int
+    private static function decorateSortValue(mixed $value, string $collation, bool $customComparison): array
     {
-        $left = self::sqlResultValue($left);
-        $right = self::sqlResultValue($right);
-        $leftRank = self::sortRank($left);
-        $rightRank = self::sortRank($right);
+        $value = self::sqlResultValue($value);
+        $rank = self::sortRank($value);
+
+        if ($rank === 2 && !$customComparison) {
+            $value = match ($collation) {
+                'BINARY', 'REVERSE' => $value,
+                'NOCASE' => strtolower($value),
+                'RTRIM' => rtrim($value, ' '),
+            };
+        } elseif ($rank === 3) {
+            $value = $value->bytes;
+        }
+
+        return [$rank, $value];
+    }
+
+    /**
+     * @param array{0:int,1:mixed} $left
+     * @param array{0:int,1:mixed} $right
+     * @param array{
+     *   column:string,
+     *   descending:bool,
+     *   nulls:string,
+     *   customComparison:(callable(string,string):int)|null,
+     *   reverseText:bool,
+     *   collation:string
+     * } $term
+     */
+    private static function compareDecoratedSortValues(array $left, array $right, array $term): int
+    {
+        $leftRank = $left[0];
+        $rightRank = $right[0];
         if ($leftRank !== $rightRank) {
             return $leftRank <=> $rightRank;
         }
-        if ($left === null && $right === null) {
+        if ($leftRank === 0) {
             return 0;
         }
-        if ($left === null || $right === null) {
-            return $left === null ? -1 : 1;
-        }
 
-        if (is_string($left) && is_string($right) && isset($customCollations[$collation])) {
-            $comparison = $customCollations[$collation]($left, $right);
+        if ($leftRank === 2 && $term['customComparison'] !== null) {
+            $comparison = ($term['customComparison'])($left[1], $right[1]);
             if (!is_int($comparison)) {
-                throw new \InvalidArgumentException("SQLite custom ORDER BY collation {$collation} must return an integer");
+                throw new \InvalidArgumentException("SQLite custom ORDER BY collation {$term['collation']} must return an integer");
             }
 
             return $comparison <=> 0;
         }
 
-        $comparison = SQLiteAffinityComparison::compare($left, $right, 'NONE', 'NONE', $collation);
+        if ($leftRank === 2 || $leftRank === 3) {
+            $comparison = strcmp($left[1], $right[1]);
+
+            return $leftRank === 2 && $term['reverseText'] ? -$comparison : $comparison;
+        }
+
+        $comparison = SQLiteAffinityComparison::compare($left[1], $right[1]);
         if ($comparison === null) {
             throw new \InvalidArgumentException('SQLite ORDER BY comparison unexpectedly returned NULL for non-NULL values');
         }
@@ -410,25 +461,8 @@ final class SQLiteSelectResult
         return $comparison;
     }
 
-    private static function compareNullPlacement(mixed $left, mixed $right, string $nulls): ?int
-    {
-        if ($nulls === '' || ($left !== null && $right !== null)) {
-            return null;
-        }
-        if ($left === null && $right === null) {
-            return 0;
-        }
-        if ($nulls === 'FIRST') {
-            return $left === null ? -1 : 1;
-        }
-
-        return $left === null ? 1 : -1;
-    }
-
     private static function sortRank(mixed $value): int
     {
-        $value = self::sqlResultValue($value);
-
         return match (true) {
             $value === null => 0,
             is_int($value) || is_float($value) || is_bool($value) => 1,

@@ -1568,14 +1568,18 @@ final class SQLiteSelectSql
         }
         $rows = [];
         $seen = [];
-        foreach ($queue as $row) {
-            $seen[self::recursiveRowKey($row)] = true;
+        if ($operator === 'UNION') {
+            foreach ($queue as $row) {
+                $seen[self::recursiveRowKey($row)] = true;
+            }
         }
         $trace = [];
         $skipped = [];
+        $reusableRecursivePlans = [];
+        $reusableRecursivePlanAttempted = [];
 
         for ($iteration = 0; $iteration < 1000 && $queue !== []; $iteration++) {
-            $queueBefore = $queue;
+            $queueBefore = $collectTrace ? $queue : [];
             $current = array_shift($queue);
             if (!is_array($current)) {
                 throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} queue row is malformed");
@@ -1611,16 +1615,28 @@ final class SQLiteSelectSql
             $stepTables = $tables;
             $stepTables[$name] = [$current];
             $stepRows = [];
-            foreach ($recursiveArms as $recursiveSql) {
-                foreach (self::normalizeRecursiveRows(self::executeCteArm($recursiveSql, $stepTables), $columns, $name) as $row) {
+            foreach ($recursiveArms as $armIndex => $recursiveSql) {
+                if (!isset($reusableRecursivePlanAttempted[$armIndex])) {
+                    $reusableRecursivePlans[$armIndex] = self::compileReusableRecursiveArm(
+                        $recursiveSql,
+                        $name,
+                        $stepTables,
+                        $current,
+                    );
+                    $reusableRecursivePlanAttempted[$armIndex] = true;
+                }
+                $recursiveRows = isset($reusableRecursivePlans[$armIndex])
+                    ? self::executeReusableRecursiveArm($reusableRecursivePlans[$armIndex], $current)
+                    : self::executeCteArm($recursiveSql, $stepTables);
+                foreach (self::normalizeRecursiveRows($recursiveRows, $columns, $name) as $row) {
                     $stepRows[] = $row;
                 }
             }
             $acceptedNext = [];
             $skippedDuplicates = [];
             foreach ($stepRows as $row) {
-                $key = self::recursiveRowKey($row);
-                if ($operator === 'UNION' && isset($seen[$key])) {
+                $key = $operator === 'UNION' ? self::recursiveRowKey($row) : null;
+                if ($key !== null && isset($seen[$key])) {
                     if ($collectTrace) {
                         $skippedRow = [
                             'iteration' => $iteration,
@@ -1634,8 +1650,12 @@ final class SQLiteSelectSql
                     continue;
                 }
                 $queue[] = $row;
-                $acceptedNext[] = $row;
-                $seen[$key] = true;
+                if ($collectTrace) {
+                    $acceptedNext[] = $row;
+                }
+                if ($key !== null) {
+                    $seen[$key] = true;
+                }
             }
             if ($queueOrder !== []) {
                 $queue = self::sortRecursiveQueue($queue, $queueOrder);
@@ -1668,6 +1688,133 @@ final class SQLiteSelectSql
             'skipped' => $skipped,
             'dependencies' => ['sqlite-recursive-cte-current-row', 'sqlite-recursive-union-cycle-dedup'],
         ];
+    }
+
+    /**
+     * Compile a recursive arm whose only source is the current CTE row.
+     *
+     * SELECT planning is substantially more expensive than executing a
+     * one-row plan. A recursive arm normally has the same expressions and
+     * source shape at every iteration, so a conservative single-source plan
+     * can be rebound instead of reparsed for every generated row.
+     *
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param array<string,mixed> $current
+     * @return array{plan:array<string,mixed>,bindings:array<string,string>}|null
+     */
+    private static function compileReusableRecursiveArm(
+        string $sql,
+        string $name,
+        array $tables,
+        array $current
+    ): ?array {
+        if (!self::recursiveArmHasSingleCteSource($sql, $name)) {
+            return null;
+        }
+
+        try {
+            $plan = self::plan($sql, $tables);
+        } catch (\Throwable) {
+            return null;
+        }
+        if (
+            isset($plan['compound'])
+            || isset($plan['joins'])
+            || self::recursivePlanContainsDynamicNode($plan)
+            || !isset($plan['from'])
+            || !is_array($plan['from'])
+            || count($plan['from']) !== 1
+            || !is_array($plan['from'][0])
+        ) {
+            return null;
+        }
+
+        $bindings = [];
+        foreach (array_keys($plan['from'][0]) as $targetColumn) {
+            if (!is_string($targetColumn) || $targetColumn === '') {
+                return null;
+            }
+            if (array_key_exists($targetColumn, $current)) {
+                $bindings[$targetColumn] = $targetColumn;
+                continue;
+            }
+
+            $separator = strrpos($targetColumn, '.');
+            $sourceColumn = $separator === false ? $targetColumn : substr($targetColumn, $separator + 1);
+            if ($sourceColumn === '' || !array_key_exists($sourceColumn, $current)) {
+                return null;
+            }
+            $bindings[$targetColumn] = $sourceColumn;
+        }
+
+        return ['plan' => $plan, 'bindings' => $bindings];
+    }
+
+    private static function recursiveArmHasSingleCteSource(string $sql, string $name): bool
+    {
+        $sql = trim(rtrim(self::stripSqlComments(trim($sql)), ';'));
+        if (!self::isSelectStatement($sql) || self::splitCompoundSql($sql) !== null) {
+            return false;
+        }
+
+        $fromOffset = self::keywordOffset($sql, 'FROM');
+        if ($fromOffset === null) {
+            return false;
+        }
+        $tail = trim(substr($sql, $fromOffset + strlen('FROM')));
+        $clauseOffsets = self::tailClauseOffsets($tail);
+        $sourceEnd = self::firstOffset($clauseOffsets) ?? strlen($tail);
+        $sourceSql = trim(substr($tail, 0, $sourceEnd));
+        $identifier = preg_quote($name, '/');
+
+        return preg_match(
+            '/^' . $identifier . '(?:\s+(?:AS\s+)?[A-Za-z_][A-Za-z0-9_]*)?$/i',
+            $sourceSql,
+        ) === 1;
+    }
+
+    private static function recursivePlanContainsDynamicNode(mixed $node): bool
+    {
+        if (is_callable($node)) {
+            return true;
+        }
+        if (!is_array($node)) {
+            return false;
+        }
+        if (($node['type'] ?? null) === 'subquery') {
+            return true;
+        }
+        foreach ($node as $value) {
+            if (self::recursivePlanContainsDynamicNode($value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{plan:array<string,mixed>,bindings:array<string,string>} $compiled
+     * @param array<string,mixed> $current
+     * @return list<array<string,mixed>>
+     */
+    private static function executeReusableRecursiveArm(array $compiled, array $current): array
+    {
+        $sourceRow = [];
+        foreach ($compiled['bindings'] as $targetColumn => $sourceColumn) {
+            if (!array_key_exists($sourceColumn, $current)) {
+                throw new \InvalidArgumentException(
+                    "SQLite SELECT SQL reusable recursive source row is missing column {$sourceColumn}",
+                );
+            }
+            $sourceRow[$targetColumn] = $current[$sourceColumn];
+        }
+
+        $plan = $compiled['plan'];
+        $plan['from'] = [$sourceRow];
+        $rows = SQLiteSelectQuery::execute($plan);
+
+        return self::stripInternalMetadata(self::stripHiddenOrderColumns($rows, $plan));
     }
 
     /**
