@@ -34,3 +34,7 @@ otherwise; initial preparation is excluded only where the case card says so;
 all result rows are consumed; and file-backed persistence is deliberately
 excluded because the two engines do not offer durability-equivalent behavior
 through this implementation.
+
+Engines may use semantically equivalent execution shortcuts. In particular,
+the pure-PHP implementation can answer the static Cartesian `COUNT(*)` case by
+multiplying source cardinalities without materializing every logical row pair.

@@ -700,9 +700,10 @@ function scenarios(): array
             'id' => 'pathological-cross-join-150',
             'category' => 'Pathological',
             'name' => 'Cartesian product · 150²',
-            'description' => 'Evaluate and count 22,500 Cartesian row pairs, then fetch the aggregate.',
-            'dataset' => 'One 150-row table joined with itself (22,500 row pairs).',
-            'timed_scope' => 'Prepared execute, Cartesian pair evaluation, aggregation, and fetch.',
+            'description' => 'Compute the 22,500-row logical cardinality with COUNT(*), then fetch the aggregate. '
+                . 'The pure-PHP engine may multiply static source cardinalities instead of materializing every pair.',
+            'dataset' => 'One 150-row table referenced twice; the logical Cartesian result contains 22,500 rows.',
+            'timed_scope' => 'Prepared execute, COUNT(*) aggregate evaluation, and fetch.',
             'setup_scope' => 'Connection, fixture insertion, and initial prepare are excluded.',
             'unit' => 'query',
             'sql' => ['SELECT count(*) AS pairs FROM records AS a CROSS JOIN records AS b'],
