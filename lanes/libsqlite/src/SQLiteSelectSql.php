@@ -223,7 +223,9 @@ final class SQLiteSelectSql
             self::requiredWildcardPrefixes($selectSql),
         );
         $select = self::selectList($selectSql, $tables);
-        $select = self::annotateWildcardColumns($select, self::wildcardAnnotationRows($source));
+        if (self::selectHasWildcard($select)) {
+            $select = self::annotateWildcardColumns($select, self::wildcardAnnotationRows($source));
+        }
         $select = self::liftOuterAggregateScalarSubqueries($select, $source['from']);
         $plan = [
             'from' => $source['from'],
@@ -518,24 +520,48 @@ final class SQLiteSelectSql
     {
         $result = '';
         $length = strlen($sql);
-        $quote = false;
+        $quoteEnd = null;
         $positionalIndex = 1;
         $anonymousIndex = 0;
         $namedParameterIndexes = [];
         for ($i = 0; $i < $length; $i++) {
             $char = $sql[$i];
-            if ($char === "'") {
+            $next = $sql[$i + 1] ?? null;
+            if ($quoteEnd !== null) {
                 $result .= $char;
-                if ($quote && ($sql[$i + 1] ?? null) === "'") {
-                    $result .= "'";
+                if ($char === $quoteEnd && $quoteEnd !== ']' && $next === $quoteEnd) {
+                    $result .= $next;
                     $i++;
                     continue;
                 }
-                $quote = !$quote;
+                if ($char === $quoteEnd) {
+                    $quoteEnd = null;
+                }
                 continue;
             }
-            if ($quote) {
+            if ($char === "'" || $char === '"' || $char === '`' || $char === '[') {
+                $quoteEnd = $char === '[' ? ']' : $char;
                 $result .= $char;
+                continue;
+            }
+            if ($char === '-' && $next === '-') {
+                $commentEnd = $i + 2;
+                while ($commentEnd < $length && $sql[$commentEnd] !== "\n" && $sql[$commentEnd] !== "\r") {
+                    $commentEnd++;
+                }
+                $result .= substr($sql, $i, $commentEnd - $i);
+                $i = $commentEnd - 1;
+                continue;
+            }
+            if ($char === '/' && $next === '*') {
+                $commentEnd = strpos($sql, '*/', $i + 2);
+                if ($commentEnd === false) {
+                    $result .= substr($sql, $i);
+                    break;
+                }
+                $commentEnd += 2;
+                $result .= substr($sql, $i, $commentEnd - $i);
+                $i = $commentEnd - 1;
                 continue;
             }
 
@@ -586,7 +612,7 @@ final class SQLiteSelectSql
 
             $result .= $char;
         }
-        if ($quote) {
+        if ($quoteEnd === "'") {
             throw new \InvalidArgumentException('SQLite SELECT SQL has unterminated string literal');
         }
 
@@ -649,7 +675,6 @@ final class SQLiteSelectSql
                 continue;
             }
             if ($char === ':' && ($sql[$end + 1] ?? null) === ':') {
-                $hasName = true;
                 $end += 2;
                 continue;
             }
@@ -685,35 +710,9 @@ final class SQLiteSelectSql
 
     private static function parameterSuffixEnd(string $sql, int $offset): ?int
     {
-        $length = strlen($sql);
-        $depth = 0;
-        $quote = false;
-        for ($i = $offset; $i < $length; $i++) {
-            $char = $sql[$i];
-            if ($char === "'") {
-                if ($quote && ($sql[$i + 1] ?? null) === "'") {
-                    $i++;
-                    continue;
-                }
-                $quote = !$quote;
-                continue;
-            }
-            if ($quote) {
-                continue;
-            }
-            if ($char === '(') {
-                $depth++;
-                continue;
-            }
-            if ($char === ')') {
-                $depth--;
-                if ($depth === 0) {
-                    return $i + 1;
-                }
-            }
-        }
+        $end = strpos($sql, ')', $offset + 1);
 
-        return null;
+        return $end === false ? null : $end + 1;
     }
 
     /**
@@ -4326,6 +4325,10 @@ final class SQLiteSelectSql
      */
     private static function liftOuterAggregateScalarSubqueries(array $select, array $sourceRows): array
     {
+        if (!self::selectMayHaveLiftableOuterAggregateScalarSubquery($select)) {
+            return $select;
+        }
+
         $sourceColumns = self::sourceRowColumnSet($sourceRows);
         if ($sourceColumns === []) {
             return $select;
@@ -4343,6 +4346,28 @@ final class SQLiteSelectSql
         }
 
         return $select;
+    }
+
+    /**
+     * The lifting rule below applies only to a scalar subquery that is itself a
+     * top-level result expression. Avoid discovering every source column when
+     * the SELECT list cannot contain such an expression.
+     *
+     * @param list<array<string,mixed>> $select
+     */
+    private static function selectMayHaveLiftableOuterAggregateScalarSubquery(array $select): bool
+    {
+        foreach ($select as $expression) {
+            if (
+                ($expression['type'] ?? null) === 'subquery'
+                && isset($expression['subquerySql'])
+                && is_string($expression['subquerySql'])
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -7999,6 +8024,20 @@ final class SQLiteSelectSql
         }
 
         return $select;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     */
+    private static function selectHasWildcard(array $select): bool
+    {
+        foreach ($select as $term) {
+            if (($term['type'] ?? null) === 'wildcard') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

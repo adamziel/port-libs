@@ -49,11 +49,15 @@ final class SQLitePDOStatement extends \PDOStatement
     /** @var array{0:string,1:int|null,2:string|null} */
     private array $errorInfo = ['', null, null];
 
+    /**
+     * @param array{parameterCount:int,namedKeys:array<string,true>} $parameterLayout
+     */
     public function __construct(
         private readonly SQLitePDO $connection,
         private readonly string $sql,
         array $initialErrorInfo = ['', null, null],
         private readonly ?array $preparedExecutionPlan = null,
+        private readonly array $parameterLayout = ['parameterCount' => 0, 'namedKeys' => []],
     ) {
         $this->errorInfo = [
             is_string($initialErrorInfo[0] ?? null) ? $initialErrorInfo[0] : '',
@@ -65,7 +69,6 @@ final class SQLitePDOStatement extends \PDOStatement
 
     public function execute(?array $params = null): bool
     {
-        $validateParameterTokens = $params !== null;
         $parameters = $this->boundValues;
         $connectionErrorState = $this->connection->pdoErrorState();
         foreach ($this->boundReferences as $key => &$value) {
@@ -74,7 +77,7 @@ final class SQLitePDOStatement extends \PDOStatement
         unset($value);
         try {
             if ($params !== null) {
-                $this->connection->assertExecuteParameterArrayMatches($this->sql, $params);
+                $this->connection->assertExecuteParameterLayoutMatches($this->parameterLayout, $params);
                 foreach ($params as $key => $value) {
                     $parameters[is_int($key) ? $key + 1 : $key] = $value;
                 }
@@ -82,7 +85,7 @@ final class SQLitePDOStatement extends \PDOStatement
             $result = $this->connection->executeSql(
                 $this->sql,
                 $parameters,
-                $validateParameterTokens,
+                false,
                 $this->preparedExecutionPlan,
             );
         } catch (\PDOException $exception) {
