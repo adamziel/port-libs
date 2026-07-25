@@ -8,6 +8,7 @@ final class SQLitePDO extends \PDO
 {
     private const MAX_VARIABLE_NUMBER = 32766;
     private const INSERT_CACHE_LIMIT = 256;
+    private const DML_VALIDATION_CACHE_LIMIT = 256;
 
     /** @var array<string,list<array<string,mixed>>> */
     private array $tables = [];
@@ -41,6 +42,9 @@ final class SQLitePDO extends \PDO
 
     /** @var array<string,string> */
     private array $validatedInsertSql = [];
+
+    /** @var array<string,array{table:string,tableSql:string}> */
+    private array $validatedUpdateDeleteSql = [];
 
     /**
      * @var array<string,array{
@@ -163,6 +167,7 @@ final class SQLitePDO extends \PDO
 
         try {
             $this->validatePrepareSql($query);
+            $parameterLayout = $this->compileParameterLayout($query);
         } catch (\PDOException $exception) {
             return $this->handleConnectionFailure($exception, __METHOD__);
         }
@@ -172,6 +177,7 @@ final class SQLitePDO extends \PDO
             $query,
             $initialStatementErrorInfo,
             $this->compilePreparedExecutionPlan($query),
+            $parameterLayout,
         );
     }
 
@@ -645,7 +651,7 @@ final class SQLitePDO extends \PDO
     {
         $statement = $this->parsedInsertValuesSql($sql);
         $table = $statement['target'];
-        $schemaSignature = $this->insertSchemaSignature($table);
+        $schemaSignature = $this->tableSchemaSignature($table);
         if ($schemaSignature !== null && ($this->validatedInsertSql[$sql] ?? null) === $schemaSignature) {
             return;
         }
@@ -661,7 +667,7 @@ final class SQLitePDO extends \PDO
                 $this->assertPrepareScalarReferences($expression, []);
             }
         }
-        $this->validatedInsertSql[$sql] = $this->insertSchemaSignature($table)
+        $this->validatedInsertSql[$sql] = $this->tableSchemaSignature($table)
             ?? throw new \LogicException('SQLitePDO validated INSERT target lost its schema');
     }
 
@@ -681,7 +687,7 @@ final class SQLitePDO extends \PDO
         return $this->insertStatementCache[$sql] = SQLiteInsertValuesSql::parse($sql);
     }
 
-    private function insertSchemaSignature(string $table): ?string
+    private function tableSchemaSignature(string $table): ?string
     {
         return array_key_exists($table, $this->tables)
             ? ($this->tableSql[$table] ?? '')
@@ -779,6 +785,9 @@ final class SQLitePDO extends \PDO
         }
 
         $table = $match[1];
+        if ($this->hasValidatedUpdateDeleteSql($sql, $table)) {
+            return;
+        }
         $this->assertTable($table);
         $assignments = [];
         foreach ($this->splitTopLevel($match[2], ',') as $assignment) {
@@ -795,6 +804,7 @@ final class SQLitePDO extends \PDO
         if (isset($match[3]) && trim($match[3]) !== '') {
             $this->validateWherePrepareSql($table, $match[3]);
         }
+        $this->rememberValidatedUpdateDeleteSql($sql, $table);
     }
 
     private function validateDeletePrepareSql(string $sql): void
@@ -804,10 +814,43 @@ final class SQLitePDO extends \PDO
         }
 
         $table = $match[1];
+        if ($this->hasValidatedUpdateDeleteSql($sql, $table)) {
+            return;
+        }
         $this->assertTable($table);
         if (isset($match[2]) && trim($match[2]) !== '') {
             $this->validateWherePrepareSql($table, $match[2]);
         }
+        $this->rememberValidatedUpdateDeleteSql($sql, $table);
+    }
+
+    private function hasValidatedUpdateDeleteSql(string $sql, string $table): bool
+    {
+        $schemaSignature = $this->tableSchemaSignature($table);
+        $cached = $this->validatedUpdateDeleteSql[$sql] ?? null;
+
+        return $schemaSignature !== null
+            && $cached !== null
+            && $cached['table'] === $table
+            && $cached['tableSql'] === $schemaSignature;
+    }
+
+    private function rememberValidatedUpdateDeleteSql(string $sql, string $table): void
+    {
+        if (!array_key_exists($sql, $this->validatedUpdateDeleteSql)
+            && count($this->validatedUpdateDeleteSql) >= self::DML_VALIDATION_CACHE_LIMIT
+        ) {
+            $oldestSql = array_key_first($this->validatedUpdateDeleteSql);
+            if (is_string($oldestSql)) {
+                unset($this->validatedUpdateDeleteSql[$oldestSql]);
+            }
+        }
+
+        $this->validatedUpdateDeleteSql[$sql] = [
+            'table' => $table,
+            'tableSql' => $this->tableSchemaSignature($table)
+                ?? throw new \LogicException('SQLitePDO validated DML target lost its schema'),
+        ];
     }
 
     private function validateWherePrepareSql(string $table, string $where): void
@@ -1061,24 +1104,80 @@ final class SQLitePDO extends \PDO
      */
     public function assertExecuteParameterArrayMatches(string $sql, array $parameters): void
     {
-        $usedKeys = [];
+        $this->assertExecuteParameterLayoutMatches($this->compileParameterLayout($sql), $parameters);
+    }
+
+    /**
+     * @param array{parameterCount:int,namedKeys:array<string,true>} $layout
+     * @param array<int|string,mixed> $parameters
+     */
+    public function assertExecuteParameterLayoutMatches(array $layout, array $parameters): void
+    {
+        foreach (array_keys($parameters) as $key) {
+            if (is_int($key)) {
+                if ($key >= 0 && $key < $layout['parameterCount']) {
+                    continue;
+                }
+
+                throw $this->failure('column index out of range', null, 25);
+            }
+            if (array_key_exists((string) $key, $layout['namedKeys'])) {
+                continue;
+            }
+
+            throw $this->failure('column index out of range', null, 25);
+        }
+    }
+
+    private function assertParameterTokensAreValid(string $sql): void
+    {
+        $this->compileParameterLayout($sql);
+    }
+
+    /**
+     * Compile immutable placeholder metadata once when a statement is prepared.
+     *
+     * @return array{parameterCount:int,namedKeys:array<string,true>}
+     */
+    private function compileParameterLayout(string $sql): array
+    {
         $positionalIndex = 1;
         $parameterCount = 0;
         $namedParameterIndexes = [];
-        $quote = false;
+        $namedKeys = [];
+        $quoteEnd = null;
+        $restrictNamedParameters = preg_match('/^(?:insert|replace|update|delete)\b/i', ltrim($sql)) === 1;
         $length = strlen($sql);
         for ($i = 0; $i < $length; $i++) {
             $char = $sql[$i];
-            if ($quote) {
-                if ($char === "'" && ($sql[$i + 1] ?? null) === "'") {
+            $next = $sql[$i + 1] ?? null;
+            if ($quoteEnd !== null) {
+                if ($char === $quoteEnd && $quoteEnd !== ']' && $next === $quoteEnd) {
                     $i++;
-                } elseif ($char === "'") {
-                    $quote = false;
+                    continue;
+                }
+                if ($char === $quoteEnd) {
+                    $quoteEnd = null;
                 }
                 continue;
             }
-            if ($char === "'") {
-                $quote = true;
+            if ($char === "'" || $char === '"' || $char === '`' || $char === '[') {
+                $quoteEnd = $char === '[' ? ']' : $char;
+                continue;
+            }
+            if ($char === '-' && $next === '-') {
+                $i += 2;
+                while ($i < $length && $sql[$i] !== "\n" && $sql[$i] !== "\r") {
+                    $i++;
+                }
+                continue;
+            }
+            if ($char === '/' && $next === '*') {
+                $commentEnd = strpos($sql, '*/', $i + 2);
+                if ($commentEnd === false) {
+                    break;
+                }
+                $i = $commentEnd + 1;
                 continue;
             }
             if ($char === '?') {
@@ -1092,82 +1191,115 @@ final class SQLitePDO extends \PDO
                     $positionalIndex = max($positionalIndex, $index + 1);
                 }
                 $parameterCount = max($parameterCount, $index);
-                $zeroBased = $index - 1;
                 $i = $end - 1;
                 continue;
             }
-            if ($char === ':') {
-                $token = $this->namedParameterToken($sql, $i);
+            if ($char === ':' || $char === '@' || $char === '$') {
+                $token = $this->parameterLayoutNamedToken($sql, $i);
                 if ($token === null) {
                     continue;
+                }
+                if ($restrictNamedParameters
+                    && ($char !== ':' || preg_match('/^:[A-Za-z_][A-Za-z0-9_]*$/D', $token) !== 1)
+                ) {
+                    throw $this->failure(
+                        'SQLitePDO data-change statements support only ASCII :name named parameters',
+                    );
                 }
                 if (!array_key_exists($token, $namedParameterIndexes)) {
                     $namedParameterIndexes[$token] = $positionalIndex++;
                 }
                 $parameterCount = max($parameterCount, $namedParameterIndexes[$token]);
-                $bare = substr($token, 1);
-                if (array_key_exists($token, $parameters)) {
-                    $usedKeys[$token] = true;
-                }
-                if (array_key_exists($bare, $parameters)) {
-                    $usedKeys[$bare] = true;
+                if ($char === ':') {
+                    $namedKeys[$token] = true;
+                    $namedKeys[substr($token, 1)] = true;
                 }
                 $i += strlen($token) - 1;
             }
         }
 
-        foreach (array_keys($parameters) as $key) {
-            if (is_int($key) && $key >= 0 && $key < $parameterCount) {
-                continue;
-            }
-            if (!array_key_exists((string) $key, $usedKeys)) {
-                throw $this->failure('column index out of range', null, 25);
-            }
-        }
+        return [
+            'parameterCount' => $parameterCount,
+            'namedKeys' => $namedKeys,
+        ];
     }
 
-    private function assertParameterTokensAreValid(string $sql): void
+    private function parameterLayoutNamedToken(string $sql, int $offset): ?string
     {
-        $quote = false;
-        $positionalIndex = 1;
-        $length = strlen($sql);
-        for ($i = 0; $i < $length; $i++) {
-            $char = $sql[$i];
-            if ($quote) {
-                if ($char === "'" && ($sql[$i + 1] ?? null) === "'") {
-                    $i++;
-                } elseif ($char === "'") {
-                    $quote = false;
-                }
-                continue;
-            }
-            if ($char === "'") {
-                $quote = true;
-                continue;
-            }
-            if ($char === '?') {
-                $end = $i + 1;
-                while ($end < $length && ctype_digit($sql[$end])) {
-                    $end++;
-                }
-                $token = substr($sql, $i, $end - $i);
-                if ($token === '?') {
-                    $positionalIndex++;
-                } else {
-                    $index = $this->explicitParameterIndex($token);
-                    $positionalIndex = max($positionalIndex, $index + 1);
-                }
-                $i = $end - 1;
-                continue;
-            }
-            if ($char === ':') {
-                $token = $this->namedParameterToken($sql, $i);
-                if ($token === null) {
-                    continue;
-                }
-                $i += strlen($token) - 1;
-            }
+        $prefix = $sql[$offset] ?? '';
+        if ($prefix === '$') {
+            return $this->parameterLayoutDollarToken($sql, $offset);
         }
+        if ($prefix !== ':' && $prefix !== '@') {
+            return null;
+        }
+
+        $length = strlen($sql);
+        $end = $offset + 1;
+        if ($end >= $length || !$this->isParameterLayoutNameByte($sql[$end])) {
+            return null;
+        }
+        while ($end < $length && $this->isParameterLayoutNameByte($sql[$end])) {
+            $end++;
+        }
+
+        return substr($sql, $offset, $end - $offset);
+    }
+
+    private function parameterLayoutDollarToken(string $sql, int $offset): ?string
+    {
+        $length = strlen($sql);
+        $end = $offset + 1;
+        if ($end >= $length) {
+            return null;
+        }
+
+        $hasName = false;
+        while ($end < $length) {
+            $char = $sql[$end];
+            if ($this->isParameterLayoutNameByte($char)) {
+                $hasName = true;
+                $end++;
+                continue;
+            }
+            if ($char === ':' && ($sql[$end + 1] ?? null) === ':') {
+                $end += 2;
+                continue;
+            }
+
+            break;
+        }
+        if (!$hasName) {
+            return null;
+        }
+        if (($sql[$end] ?? null) === '(') {
+            $suffixEnd = $this->parameterLayoutSuffixEnd($sql, $end);
+            if ($suffixEnd === null) {
+                return null;
+            }
+            $end = $suffixEnd;
+        }
+
+        return substr($sql, $offset, $end - $offset);
+    }
+
+    private function isParameterLayoutNameByte(string $char): bool
+    {
+        $byte = ord($char);
+
+        return ($byte >= 48 && $byte <= 57)
+            || ($byte >= 65 && $byte <= 90)
+            || ($byte >= 97 && $byte <= 122)
+            || $char === '_'
+            || $char === '$'
+            || $byte >= 0x80;
+    }
+
+    private function parameterLayoutSuffixEnd(string $sql, int $offset): ?int
+    {
+        $end = strpos($sql, ')', $offset + 1);
+
+        return $end === false ? null : $end + 1;
     }
 
     private function namedParameterToken(string $sql, int $offset): ?string
